@@ -24,7 +24,6 @@ public class Role {
     @EqualsAndHashCode.Include
     private Integer id;
 
-    @Enumerated(EnumType.STRING)
     @Column(name = "RoleName", nullable = false, unique = true, length = 20)
     private RoleName roleName;
 

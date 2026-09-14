@@ -34,7 +34,7 @@ public class User {
     private Role role;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "EmployeeId", referencedColumnName = "EmployeeId", unique = true)
+    @JoinColumn(name = "EmployeeId", referencedColumnName = "EmployeeId", unique = true, nullable = true)
     private Employee employee;
 
     @Column(name = "IsActive", nullable = false)

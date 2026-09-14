@@ -42,7 +42,6 @@ public class Attendance {
     @Column(name = "TotalHours", insertable = false, updatable = false, precision = 5, scale = 2)
     private BigDecimal totalHours;
 
-    @Enumerated(EnumType.STRING)
     @Column(name = "Status", nullable = false, length = 20)
     @Builder.Default
     private AttendanceStatus status = AttendanceStatus.ABSENT;

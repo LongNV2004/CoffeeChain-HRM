@@ -39,7 +39,6 @@ public class ShiftAssignment {
     @Column(name = "WorkDate", nullable = false)
     private LocalDate workDate;
 
-    @Enumerated(EnumType.STRING)
     @Column(name = "Status", nullable = false, length = 20)
     @Builder.Default
     private AssignmentStatus status = AssignmentStatus.ASSIGNED;

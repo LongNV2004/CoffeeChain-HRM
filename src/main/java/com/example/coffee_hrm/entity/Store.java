@@ -16,7 +16,7 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-@ToString(exclude = {"manager", "employees", "operatingHours", "shifts"})
+@ToString(exclude = {"manager", "employees", "operatingHours", "shifts", "trainingCourses"})
 public class Store {
 
     @Id
@@ -31,8 +31,8 @@ public class Store {
     @Column(name = "Address", nullable = false, length = 255)
     private String address;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "ManagerId", referencedColumnName = "EmployeeId", unique = true)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "ManagerId", referencedColumnName = "EmployeeId")
     private Employee manager;
 
     @Column(name = "TotalLeaveDays", nullable = false)
@@ -56,6 +56,10 @@ public class Store {
     private List<StoreOperatingHour> operatingHours = new ArrayList<>();
 
     @Builder.Default
-    @OneToMany(mappedBy = "store", fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "store", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Shift> shifts = new ArrayList<>();
+
+    @Builder.Default
+    @OneToMany(mappedBy = "store", fetch = FetchType.LAZY)
+    private List<TrainingCourse> trainingCourses = new ArrayList<>();
 }

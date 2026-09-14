@@ -27,8 +27,9 @@ public class StoreOperatingHour {
     @JoinColumn(name = "StoreId", nullable = false)
     private Store store;
 
-    @Column(name = "DayOfWeek", nullable = false)
-    private Integer dayOfWeek;
+    /** 0 = Sunday, 1 = Monday, ..., 6 = Saturday (matches SQL Server TINYINT). */
+    @Column(name = "DayOfWeek", nullable = false, columnDefinition = "TINYINT")
+    private Short dayOfWeek;
 
     @Column(name = "OpenTime")
     private LocalTime openTime;

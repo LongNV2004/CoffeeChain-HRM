@@ -38,7 +38,6 @@ public class LeaveRequest {
     @Column(name = "Reason", length = 255)
     private String reason;
 
-    @Enumerated(EnumType.STRING)
     @Column(name = "Status", nullable = false, length = 20)
     @Builder.Default
     private ApprovalStatus status = ApprovalStatus.PENDING;

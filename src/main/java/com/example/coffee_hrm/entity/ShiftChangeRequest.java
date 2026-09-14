@@ -3,6 +3,7 @@ package com.example.coffee_hrm.entity;
 import com.example.coffee_hrm.common.enums.ApprovalStatus;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 
@@ -34,14 +35,13 @@ public class ShiftChangeRequest {
     @Column(name = "Reason", length = 255)
     private String reason;
 
-    @Enumerated(EnumType.STRING)
     @Column(name = "Status", nullable = false, length = 20)
     @Builder.Default
     private ApprovalStatus status = ApprovalStatus.PENDING;
 
-    @Column(name = "RequestDate", nullable = false)
-    @Builder.Default
-    private LocalDateTime requestDate = LocalDateTime.now();
+    @CreationTimestamp
+    @Column(name = "RequestDate", nullable = false, updatable = false)
+    private LocalDateTime requestDate;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ResolvedBy")

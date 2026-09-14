@@ -19,7 +19,7 @@ import java.util.List;
 @Builder
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @ToString(exclude = {"store", "user", "shiftAssignments", "shiftChangeRequests",
-        "attendances", "leaveRequests", "leaveBalances"})
+        "attendances", "leaveRequests", "leaveBalances", "trainingParticipants"})
 public class Employee {
 
     @Id
@@ -47,7 +47,6 @@ public class Employee {
     @JoinColumn(name = "StoreId", nullable = false)
     private Store store;
 
-    @Enumerated(EnumType.STRING)
     @Column(name = "Status", nullable = false, length = 20)
     @Builder.Default
     private EmployeeStatus status = EmployeeStatus.ACTIVE;
@@ -84,4 +83,8 @@ public class Employee {
     @Builder.Default
     @OneToMany(mappedBy = "employee", fetch = FetchType.LAZY)
     private List<LeaveBalance> leaveBalances = new ArrayList<>();
+
+    @Builder.Default
+    @OneToMany(mappedBy = "employee", fetch = FetchType.LAZY)
+    private List<TrainingParticipant> trainingParticipants = new ArrayList<>();
 }
