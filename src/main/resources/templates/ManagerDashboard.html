@@ -17,6 +17,7 @@
             <a href="#attendance">Chấm công</a>
             <a href="#schedule">Lịch làm việc</a>
             <a href="#leave">Quản lý nghỉ phép</a>
+            <a th:href="@{/training}">Đào tạo</a>
             <a href="#reports">Báo cáo Store</a>
         </nav>
         <form th:action="@{/logout}" method="post">
@@ -75,6 +76,10 @@
         <article class="action-card">
             <h2>Quản lý nghỉ phép</h2>
             <p>Duyệt hoặc từ chối đơn nghỉ phép của nhân viên cửa hàng.</p>
+        </article>
+        <article class="action-card">
+            <h2><a th:href="@{/training}">Đào tạo</a></h2>
+            <p>Quản lý kỹ năng đào tạo và gửi lớp mới cho Admin phê duyệt.</p>
         </article>
         <article class="action-card" id="reports">
             <h2>Báo cáo Store</h2>

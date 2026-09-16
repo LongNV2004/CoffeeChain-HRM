@@ -52,7 +52,7 @@
                 <path d="M155 132 c22 -4 26 26 4 34 c-6 2 -10 1 -10 1 l3 -14 c8 -2 8 -12 -1 -14 z" fill="none" stroke="#2B1B12" stroke-width="6"/>
             </svg>
         </div>
-
+        <! Form Login -->
         <form class="login-card" id="login-form" th:action="@{/login}" th:object="${loginRequest}" method="post" novalidate>
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
             <h2>Đăng nhập</h2>
