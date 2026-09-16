@@ -1,0 +1,61 @@
+:root{
+  --paper:#FAF5EE;
+  --paper-dim:#F1E8DB;
+  --espresso:#2B1B12;
+  --espresso-soft:#4A3324;
+  --caramel:#C1793A;
+  --caramel-dark:#9C5E28;
+  --line:#E4D7C4;
+  --ink-soft:#7A6C5D;
+  --cream:#FBF3E8;
+  --tea:#6E8F72;
+  --clay:#B15A3E;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--paper);
+  color:var(--espresso);
+  font-family:'Inter',sans-serif;
+  line-height:1.5;
+}
+h1,h2,.brand-word{font-family:'Fraunces',serif;font-weight:600;margin:0;}
+a{color:inherit;text-decoration:none;}
+.wrap{max-width:1180px;margin:0 auto;padding:0 40px;}
+.dash-nav{border-bottom:1px solid var(--line);background:#fff;}
+.dash-nav .wrap{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:18px 40px;gap:24px;
+}
+.brand{display:flex;align-items:baseline;gap:6px;}
+.brand .mark{
+  width:9px;height:9px;border-radius:50%;background:var(--caramel);
+  display:inline-block;transform:translateY(-2px);
+}
+.dash-nav nav{display:flex;gap:22px;font-size:14px;color:var(--ink-soft);flex-wrap:wrap;}
+.dash-nav nav a:hover,.dash-nav nav a.active{color:var(--espresso);}
+.logout-btn{
+  border:1px solid var(--line);background:#fff;color:var(--espresso);
+  padding:8px 16px;border-radius:6px;cursor:pointer;font:inherit;
+}
+.logout-btn:hover{background:var(--paper-dim);}
+.dash-main{padding:40px 40px 72px;}
+.welcome .eyebrow{font-size:13px;color:var(--caramel-dark);margin-bottom:10px;}
+.welcome h1{font-size:36px;margin-bottom:8px;}
+.welcome p{color:var(--espresso-soft);margin:0;}
+.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin:32px 0;}
+.stat-card,.action-card,.panel,.store-banner{
+  background:#fff;border:1px solid var(--line);padding:22px;
+}
+.stat-card .label{font-size:13px;color:var(--ink-soft);}
+.stat-card .value{font-family:'Fraunces',serif;font-size:32px;margin-top:8px;}
+.action-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;}
+.action-card h2,.panel h2,.store-banner h2{font-size:20px;margin-bottom:8px;}
+.action-card p,.store-banner p,.panel p{margin:0;color:var(--espresso-soft);font-size:14px;}
+.store-banner{margin:24px 0 0;}
+.store-banner.warning{border-color:#E4C4B8;}
+@media (max-width:900px){
+  .wrap,.dash-nav .wrap,.dash-main{padding-left:22px;padding-right:22px;}
+  .dash-nav nav{display:none;}
+  .stat-grid,.action-grid{grid-template-columns:1fr;}
+}

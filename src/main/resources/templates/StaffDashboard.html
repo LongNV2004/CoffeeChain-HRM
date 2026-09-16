@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Staff Dashboard — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/StaffDashboard.css}">
+</head>
+<body>
+<header class="dash-nav">
+    <div class="wrap">
+        <div class="brand"><span class="mark"></span><span class="brand-word">CoffeeHRM</span></div>
+        <nav>
+            <a class="active" th:href="@{/dashboard/staff}">Tổng quan</a>
+            <a href="#profile">Thông tin cá nhân</a>
+            <a href="#schedule">Lịch làm việc</a>
+            <a href="#attendance">Chấm công</a>
+            <a href="#leave">Đơn nghỉ phép</a>
+            <a href="#shift-change">Yêu cầu đổi ca</a>
+        </nav>
+        <form th:action="@{/logout}" method="post">
+            <button class="logout-btn" type="submit">Đăng xuất</button>
+        </form>
+    </div>
+</header>
+
+<main class="wrap dash-main">
+    <section class="welcome">
+        <div class="eyebrow">Cá nhân — Staff</div>
+        <h1>Xin chào Staff</h1>
+        <p>
+            <span th:text="${dashboard.displayName}">Staff</span>
+            · tài khoản <strong th:text="${dashboard.username}">username</strong>
+        </p>
+    </section>
+
+    <section class="split" id="profile">
+        <article class="panel">
+            <h2>Thông tin cá nhân</h2>
+            <dl class="info-list">
+                <div><dt>Họ tên</dt><dd th:text="${dashboard.displayName}">—</dd></div>
+                <div><dt>Email</dt><dd th:text="${dashboard.email != null} ? ${dashboard.email} : 'Chưa cập nhật'">—</dd></div>
+                <div><dt>Số điện thoại</dt><dd th:text="${dashboard.phone != null} ? ${dashboard.phone} : 'Chưa cập nhật'">—</dd></div>
+                <div><dt>Cửa hàng</dt><dd th:text="${dashboard.storeName != null} ? ${dashboard.storeName} : 'Chưa gán cửa hàng'">—</dd></div>
+                <div><dt>Trạng thái</dt><dd th:text="${dashboard.employeeStatus != null} ? ${dashboard.employeeStatus} : '—'">—</dd></div>
+                <div><dt>Ngày vào làm</dt><dd th:text="${dashboard.hireDate != null} ? ${#temporals.format(dashboard.hireDate, 'dd/MM/yyyy')} : '—'">—</dd></div>
+            </dl>
+        </article>
+
+        <article class="panel" id="attendance">
+            <h2>Chấm công hôm nay</h2>
+            <p class="status-line">Trạng thái: <strong th:text="${dashboard.todayAttendanceStatus}">Chưa chấm công</strong></p>
+            <p>Giờ vào:
+                <span th:text="${dashboard.todayCheckIn != null} ? ${#temporals.format(dashboard.todayCheckIn, 'HH:mm')} : 'Chưa có'">—</span>
+            </p>
+            <p>Giờ ra:
+                <span th:text="${dashboard.todayCheckOut != null} ? ${#temporals.format(dashboard.todayCheckOut, 'HH:mm')} : 'Chưa có'">—</span>
+            </p>
+        </article>
+    </section>
+
+    <section class="panel" id="schedule">
+        <h2>Lịch làm việc</h2>
+        <p class="empty" th:if="${#lists.isEmpty(dashboard.upcomingShifts)}">Chưa có ca làm việc sắp tới.</p>
+        <table th:if="${!#lists.isEmpty(dashboard.upcomingShifts)}">
+            <thead>
+            <tr><th>Ngày</th><th>Ca</th><th>Giờ</th><th>Trạng thái</th></tr>
+            </thead>
+            <tbody>
+            <tr th:each="item : ${dashboard.upcomingShifts}">
+                <td th:text="${#temporals.format(item.workDate, 'dd/MM/yyyy')}">01/01/2026</td>
+                <td th:text="${item.shiftName}">Ca sáng</td>
+                <td>
+                    <span th:text="${#temporals.format(item.startTime, 'HH:mm')}">08:00</span>
+                    –
+                    <span th:text="${#temporals.format(item.endTime, 'HH:mm')}">12:00</span>
+                </td>
+                <td th:text="${item.status}">Assigned</td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section class="split">
+        <article class="panel" id="leave">
+            <h2>Đơn nghỉ phép</h2>
+            <p class="empty" th:if="${#lists.isEmpty(dashboard.leaveRequests)}">Chưa có đơn nghỉ phép.</p>
+            <ul class="request-list" th:if="${!#lists.isEmpty(dashboard.leaveRequests)}">
+                <li th:each="item : ${dashboard.leaveRequests}">
+                    <strong th:text="${#temporals.format(item.startDate, 'dd/MM/yyyy') + ' → ' + #temporals.format(item.endDate, 'dd/MM/yyyy')}">date</strong>
+                    <span th:text="${item.status}">Pending</span>
+                    <p th:text="${item.reason != null} ? ${item.reason} : 'Không có lý do'">reason</p>
+                </li>
+            </ul>
+        </article>
+        <article class="panel" id="shift-change">
+            <h2>Yêu cầu đổi ca</h2>
+            <p class="empty" th:if="${#lists.isEmpty(dashboard.shiftChangeRequests)}">Chưa có yêu cầu đổi ca.</p>
+            <ul class="request-list" th:if="${!#lists.isEmpty(dashboard.shiftChangeRequests)}">
+                <li th:each="item : ${dashboard.shiftChangeRequests}">
+                    <strong th:text="${item.requestDate != null} ? ${#temporals.format(item.requestDate, 'dd/MM/yyyy HH:mm')} : '—'">date</strong>
+                    <span th:text="${item.status}">Pending</span>
+                    <p th:text="${item.reason != null} ? ${item.reason} : 'Không có lý do'">reason</p>
+                </li>
+            </ul>
+        </article>
+    </section>
+</main>
+<script th:src="@{/js/StaffDashboard.js}"></script>
+</body>
+</html>

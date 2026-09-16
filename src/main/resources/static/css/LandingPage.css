@@ -113,6 +113,8 @@ button,input{font-family:inherit;}
 .form-msg.show{display:block;}
 .form-msg.error{color:var(--clay);}
 .form-msg.success{color:var(--tea);}
+.field-error{font-size:12px;color:var(--clay);margin:6px 0 0;display:none;}
+.field-error.show{display:block;}
 .login-foot{
   font-size:12px;color:var(--ink-soft);margin-top:18px;
   border-top:1px solid var(--paper-dim);padding-top:16px;

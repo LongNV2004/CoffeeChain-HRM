@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CoffeeHRM — Hệ thống quản lý nhân sự chuỗi cửa hàng Coffee</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/LandingPage.css">
+    <link rel="stylesheet" th:href="@{/css/LandingPage.css}">
 </head>
 <body>
 
@@ -28,7 +28,7 @@
     <div class="wrap">
         <div class="hero-copy">
             <div class="eyebrow">Hệ thống quản lý nhân sự chuỗi Coffee</div>
-            <h1>Vận hành nhân sự toàn chuỗi, gọn trong một hệ thống</h1>
+            <h1>Vận hành nhân sự toàn chuỗi cửa hàng trong một hệ thống</h1>
             <p>
                 Từ trụ sở đến từng cửa hàng: quản lý tài khoản, chấm công, xếp ca
                 và nghỉ phép trong một nơi duy nhất — dành riêng cho ba vai trò
@@ -53,27 +53,37 @@
             </svg>
         </div>
 
-        <form class="login-card" id="login-form" novalidate>
+        <form class="login-card" id="login-form" th:action="@{/login}" th:object="${loginRequest}" method="post" novalidate>
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
             <h2>Đăng nhập</h2>
             <div class="sub">Dùng tài khoản được cấp theo vai trò của bạn.</div>
 
             <div class="field">
                 <label for="username">Tên đăng nhập</label>
-                <input id="username" type="text" placeholder="vd: long.nguyen" autocomplete="username">
+                <input id="username" th:field="*{username}" type="text" autocomplete="username"
+                       required minlength="3" maxlength="50" pattern="[A-Za-z0-9._]+">
+                <p class="field-error" id="username-error"
+                   th:classappend="${usernameError != null} ? ' show' : ''"
+                   th:text="${usernameError}"></p>
             </div>
             <div class="field">
                 <label for="password">Mật khẩu</label>
-                <input id="password" type="password" placeholder="••••••••" autocomplete="current-password">
+                <input id="password" th:field="*{password}" type="password" autocomplete="current-password"
+                       required minlength="6" maxlength="100">
+                <p class="field-error" id="password-error"
+                   th:classappend="${passwordError != null} ? ' show' : ''"
+                   th:text="${passwordError}"></p>
             </div>
 
             <div class="field-row">
-                <label><input type="checkbox"> Ghi nhớ đăng nhập</label>
-                <a href="#">Quên mật khẩu?</a>
+                <label><input type="checkbox" th:field="*{rememberMe}"> Ghi nhớ đăng nhập</label>
             </div>
 
             <button class="btn-primary" type="submit">Đăng nhập</button>
 
-            <p class="form-msg" id="form-message"></p>
+            <p class="form-msg" id="form-message"
+               th:classappend="${loginValidationMessage != null or loginError} ? ' show error' : (${logoutSuccess} ? ' show success' : '')"
+               th:text="${loginValidationMessage != null} ? ${loginValidationMessage} : (${loginError} ? (${errorCode == 'unauthorized'} ? 'Tài khoản không có quyền truy cập hệ thống.' : (${errorCode == 'inactive'} ? 'Tài khoản đã bị vô hiệu hóa.' : 'Tên đăng nhập hoặc mật khẩu không chính xác.')) : (${logoutSuccess} ? 'Bạn đã đăng xuất thành công.' : ''))"></p>
 
             <div class="login-foot">
                 Chưa có tài khoản? Liên hệ Admin hoặc quản lý cửa hàng của bạn để được cấp tài khoản.
@@ -164,6 +174,6 @@
     </div>
 </footer>
 
-<script src="/js/LandingPage.js"></script>
+<script th:src="@{/js/LandingPage.js}"></script>
 </body>
 </html>

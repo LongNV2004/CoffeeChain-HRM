@@ -2,31 +2,49 @@ document.addEventListener('DOMContentLoaded', function () {
   const form = document.getElementById('login-form');
   const usernameInput = document.getElementById('username');
   const passwordInput = document.getElementById('password');
+  const usernameError = document.getElementById('username-error');
+  const passwordError = document.getElementById('password-error');
   const message = document.getElementById('form-message');
 
   if (!form) return;
 
   form.addEventListener('submit', function (event) {
-    event.preventDefault();
+    clearClientErrors();
 
     const username = usernameInput.value.trim();
-    const password = passwordInput.value.trim();
+    const password = passwordInput.value;
 
-    if (!username || !password) {
-      showMessage('Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.', 'error');
-      return;
+    let valid = true;
+    if (!username) {
+      showFieldError(usernameError, 'Vui lòng nhập tên đăng nhập');
+      valid = false;
+    }
+    if (!password) {
+      showFieldError(passwordError, 'Vui lòng nhập mật khẩu');
+      valid = false;
     }
 
-    // Demo: mô phỏng gọi API đăng nhập.
-    showMessage('Đang kiểm tra thông tin đăng nhập…', 'success');
-
-    setTimeout(function () {
-      showMessage(
-        'Đây là giao diện demo — hãy nối form này với API đăng nhập thực tế của hệ thống.',
-        'success'
-      );
-    }, 700);
+    if (!valid) {
+      event.preventDefault();
+      showMessage('Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.', 'error');
+    }
   });
+
+  function showFieldError(element, text) {
+    if (!element) return;
+    element.textContent = text;
+    element.classList.add('show');
+  }
+
+  function clearClientErrors() {
+    [usernameError, passwordError].forEach(function (element) {
+      if (!element) return;
+      if (!element.dataset.server) {
+        element.textContent = '';
+        element.classList.remove('show');
+      }
+    });
+  }
 
   function showMessage(text, type) {
     message.textContent = text;

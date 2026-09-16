@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manager Dashboard — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/ManagerDashboard.css}">
+</head>
+<body>
+<header class="dash-nav">
+    <div class="wrap">
+        <div class="brand"><span class="mark"></span><span class="brand-word">CoffeeHRM</span></div>
+        <nav>
+            <a class="active" th:href="@{/dashboard/manager}">Tổng quan</a>
+            <a href="#attendance">Chấm công</a>
+            <a href="#schedule">Lịch làm việc</a>
+            <a href="#leave">Quản lý nghỉ phép</a>
+            <a href="#reports">Báo cáo Store</a>
+        </nav>
+        <form th:action="@{/logout}" method="post">
+            <button class="logout-btn" type="submit">Đăng xuất</button>
+        </form>
+    </div>
+</header>
+
+<main class="wrap dash-main">
+    <section class="welcome">
+        <div class="eyebrow">Cửa hàng — Manager</div>
+        <h1>Xin chào Manager</h1>
+        <p>
+            <span th:text="${dashboard.displayName}">Manager</span>
+            · tài khoản <strong th:text="${dashboard.username}">username</strong>
+        </p>
+    </section>
+
+    <section class="store-banner" th:if="${dashboard.storeId != null}">
+        <h2 th:text="${dashboard.storeName}">Store</h2>
+        <p th:text="${dashboard.storeAddress}">Địa chỉ</p>
+    </section>
+    <section class="store-banner warning" th:if="${dashboard.storeId == null}">
+        <h2>Chưa được gán cửa hàng</h2>
+        <p>Tài khoản quản lý này chưa liên kết với cửa hàng nào. Liên hệ Admin để được phân công.</p>
+    </section>
+
+    <section class="stat-grid">
+        <article class="stat-card">
+            <div class="label">Tổng nhân viên của Store</div>
+            <div class="value" th:text="${dashboard.storeEmployeeCount}">0</div>
+        </article>
+        <article class="stat-card" id="schedule">
+            <div class="label">Ca làm hôm nay</div>
+            <div class="value" th:text="${dashboard.todayShiftCount}">0</div>
+        </article>
+        <article class="stat-card" id="leave">
+            <div class="label">Đơn nghỉ phép chờ duyệt</div>
+            <div class="value" th:text="${dashboard.pendingLeaveCount}">0</div>
+        </article>
+        <article class="stat-card">
+            <div class="label">Yêu cầu đổi ca chờ duyệt</div>
+            <div class="value" th:text="${dashboard.pendingShiftChangeCount}">0</div>
+        </article>
+    </section>
+
+    <section class="action-grid">
+        <article class="action-card" id="attendance">
+            <h2>Chấm công</h2>
+            <p>Theo dõi giờ vào/ra ca của nhân viên thuộc cửa hàng bạn quản lý.</p>
+        </article>
+        <article class="action-card">
+            <h2>Lịch làm việc</h2>
+            <p>Xếp ca và theo dõi phân công trong ngày cho cửa hàng.</p>
+        </article>
+        <article class="action-card">
+            <h2>Quản lý nghỉ phép</h2>
+            <p>Duyệt hoặc từ chối đơn nghỉ phép của nhân viên cửa hàng.</p>
+        </article>
+        <article class="action-card" id="reports">
+            <h2>Báo cáo Store</h2>
+            <p>Xem số liệu vận hành nhân sự theo cửa hàng đang phụ trách.</p>
+        </article>
+    </section>
+</main>
+<script th:src="@{/js/ManagerDashboard.js}"></script>
+</body>
+</html>
