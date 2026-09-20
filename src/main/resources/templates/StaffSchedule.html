@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lịch Làm Việc & Đổi Ca — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/StaffSchedule.css}">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+<header class="dash-nav">
+    <div class="wrap">
+        <div class="brand">
+            <span class="mark"></span>
+            <span class="brand-word">CoffeeHRM</span>
+        </div>
+        <nav>
+            <a th:href="@{/dashboard/staff}">Tổng quan</a>
+            <a class="active" th:href="@{/schedule/staff}">Lịch làm việc & Đổi ca</a>
+        </nav>
+        <form th:action="@{/logout}" method="post">
+            <button class="logout-btn" type="submit">Đăng xuất</button>
+        </form>
+    </div>
+</header>
+
+<main class="wrap dash-main">
+
+    <!-- Flash Alerts -->
+    <div class="alert alert-success" th:if="${successMessage != null}">
+        <span th:text="${successMessage}">Thành công</span>
+    </div>
+    <div class="alert alert-error" th:if="${errorMessage != null}">
+        <span th:text="${errorMessage}">Lỗi xử lý</span>
+    </div>
+
+    <!-- Header bar -->
+    <section class="schedule-header">
+        <div class="store-info">
+            <div class="eyebrow">Cửa hàng của tôi</div>
+            <h1 th:text="${schedule.storeName}">The Coffee House</h1>
+            <p th:text="${schedule.storeAddress}">Địa chỉ</p>
+        </div>
+
+        <!-- Week navigation -->
+        <div class="nav-controls">
+            <a class="nav-btn" th:href="@{/schedule/staff(date=${schedule.prevWeekDate})}">← Tuần trước</a>
+            <span class="week-label" th:text="${#temporals.format(schedule.weekStartDate, 'dd/MM') + ' – ' + #temporals.format(schedule.weekEndDate, 'dd/MM/yyyy')}">
+                21/09 – 27/09/2026
+            </span>
+            <a class="nav-btn" th:href="@{/schedule/staff(date=${schedule.nextWeekDate})}">Tuần sau →</a>
+            <a class="nav-btn" th:href="@{/schedule/staff}">Tuần này</a>
+        </div>
+    </section>
+
+    <!-- My Schedule Section -->
+    <section class="panel">
+        <div class="panel-header">
+            <h2>Ca làm việc của tôi trong tuần này</h2>
+        </div>
+
+        <div class="my-shifts-grid">
+            <th:block th:each="row : ${schedule.shiftRows}">
+                <th:block th:each="cell : ${row.dayCells}">
+                    <th:block th:each="assign : ${cell.assignments}">
+                        <div class="shift-card highlight"
+                             th:if="${assign.isCurrentStaff}">
+                            <div class="card-top">
+                                <div>
+                                    <div class="shift-name" th:text="${row.shiftName}">Ca Sáng</div>
+                                    <div class="date-badge" th:text="${#temporals.format(cell.date, 'dd/MM/yyyy')}">21/09/2026</div>
+                                    <div class="time-range" th:text="${row.formattedTime}">07:00 – 12:00</div>
+                                </div>
+                                <span class="status-tag"
+                                      th:classappend="${assign.isPublished} ? 'tag-pub' : 'tag-draft'"
+                                      th:text="${assign.isPublished} ? 'Chính thức' : 'Dự kiến'">
+                                    Chính thức
+                                </span>
+                            </div>
+                            <div class="card-bottom">
+                                <span style="font-size:12px;color:var(--ink-soft);" th:if="${!assign.isPublished}">
+                                    Chờ quản lý công bố
+                                </span>
+                                <button type="button" class="btn btn-swap"
+                                        th:if="${assign.canRequestChange}"
+                                        th:data-assignment-id="${assign.assignmentId}"
+                                        th:data-shift-title="${row.shiftName + ' (' + #temporals.format(cell.date, 'dd/MM/yyyy') + ')'}"
+                                        onclick="openChangeModal(this.getAttribute('data-assignment-id'), this.getAttribute('data-shift-title'))">
+                                    ⇄ Đổi ca này
+                                </button>
+                                <span style="font-size:12px;color:var(--ink-soft);" th:if="${assign.isPublished && !assign.canRequestChange}">
+                                    Ca làm việc đã qua
+                                </span>
+                            </div>
+                        </div>
+                    </th:block>
+                </th:block>
+            </th:block>
+        </div>
+    </section>
+
+    <!-- Overall Store Schedule -->
+    <section class="panel">
+        <div class="panel-header">
+            <h2>Lịch làm việc chung tại cửa hàng</h2>
+            <small style="color:var(--ink-soft);">Xem lịch đồng nghiệp để thuận tiện đề xuất đổi ca</small>
+        </div>
+
+        <div class="grid-container">
+            <table class="schedule-grid">
+                <thead>
+                <tr>
+                    <th style="width:130px;">Ca làm</th>
+                    <th th:each="day : ${schedule.days}" th:classappend="${day.isToday} ? 'today' : ''">
+                        <div style="font-weight:600;" th:text="${day.dayOfWeekName}">Thứ 2</div>
+                        <div style="font-size:12px;color:var(--ink-soft);" th:text="${day.formattedDate}">21/09</div>
+                    </th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="row : ${schedule.shiftRows}">
+                    <td class="shift-cell">
+                        <div class="title" th:text="${row.shiftName}">Ca Sáng</div>
+                        <div class="time" th:text="${row.formattedTime}">07:00 – 12:00</div>
+                    </td>
+                    <td th:each="cell : ${row.dayCells}">
+                        <div th:each="assign : ${cell.assignments}"
+                             class="emp-pill"
+                             th:classappend="${assign.isCurrentStaff} ? 'me' : ''">
+                            <span th:text="${assign.employeeName}">Nguyễn Văn A</span>
+                            <span th:if="${assign.isCurrentStaff}"
+                                  style="font-size:10px;color:var(--caramel);font-weight:700;">(Tôi)</span>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Incoming Shift Change Requests (from peers) -->
+    <section class="panel incoming-requests-panel" th:if="${!#lists.isEmpty(schedule.incomingRequests)}">
+        <div class="panel-header">
+            <div style="display:flex;align-items:center;gap:12px;">
+                <div style="width:36px;height:36px;border-radius:50%;background:#FFF8E1;display:flex;align-items:center;justify-content:center;color:#B78103;flex-shrink:0;">
+                    <i data-lucide="mail" style="width:20px;height:20px;"></i>
+                </div>
+                <div>
+                    <h2 style="margin:0;">Lời mời đổi ca từ đồng nghiệp</h2>
+                    <p style="margin:2px 0 0 0;font-size:13px;color:var(--ink-soft);">
+                        Đồng nghiệp đang gửi yêu cầu đổi ca đến bạn. Hãy xác nhận để đơn được chuyển lên Quản lý duyệt.
+                    </p>
+                </div>
+            </div>
+            <span class="badge-count" th:text="${#lists.size(schedule.incomingRequests)} + ' yêu cầu'">1 yêu cầu</span>
+        </div>
+
+        <div class="incoming-list">
+            <div class="incoming-card" th:each="inReq : ${schedule.incomingRequests}">
+                <div class="incoming-card-header">
+                    <div class="incoming-sender">
+                        <strong th:text="${inReq.employeeName}">Nguyễn Văn A</strong>
+                        <span class="badge-type"
+                              th:classappend="${inReq.changeType == 'SWAP' ? 'badge-swap' : 'badge-transfer'}"
+                              th:text="${inReq.changeTypeLabel}">Đổi chéo ca</span>
+                    </div>
+                    <span class="incoming-date" th:text="${inReq.requestDate}">21/09/2026 09:30</span>
+                </div>
+
+                <div class="incoming-card-body">
+                    <div class="incoming-detail-row">
+                        <span class="detail-label">Ca của đồng nghiệp:</span>
+                        <span class="detail-value">
+                            <strong th:text="${inReq.shiftName}">Ca Sáng</strong> 
+                            (<span th:text="${inReq.timeRange}">07:00 – 12:00</span>), 
+                            ngày <strong th:text="${#temporals.format(inReq.workDate, 'dd/MM/yyyy')}">22/09/2026</strong>
+                        </span>
+                    </div>
+                    <div class="incoming-detail-row">
+                        <span class="detail-label">Chi tiết đổi:</span>
+                        <span class="detail-value" th:text="${inReq.proposalSummary}">Đổi với ca của bạn</span>
+                    </div>
+                    <div class="incoming-detail-row" th:if="${inReq.reason != null && !inReq.reason.isEmpty()}">
+                        <span class="detail-label">Lý do:</span>
+                        <span class="detail-value" style="font-style:italic;color:var(--espresso);" th:text="'“' + ${inReq.reason} + '”'">Bận việc</span>
+                    </div>
+                </div>
+
+                <div class="incoming-card-actions">
+                    <form th:action="@{/schedule/staff/requests/{id}/respond(id=${inReq.requestId})}" method="post" style="display:inline;">
+                        <input type="hidden" name="agreed" value="true">
+                        <button type="submit" class="btn-agree" onclick="return confirm('Bạn có chắc chắn ĐỒNG Ý yêu cầu đổi ca này? Sau khi đồng ý, đơn sẽ được gửi lên Quản lý cửa hàng phê duyệt.')">
+                            <i data-lucide="check" style="width:14px;height:14px;vertical-align:middle;margin-right:2px;"></i> Đồng ý hỗ trợ
+                        </button>
+                    </form>
+                    <form th:action="@{/schedule/staff/requests/{id}/respond(id=${inReq.requestId})}" method="post" style="display:inline;">
+                        <input type="hidden" name="agreed" value="false">
+                        <button type="submit" class="btn-decline" onclick="return confirm('Bạn có chắc chắn muốn TỪ CHỐI yêu cầu đổi ca này?')">
+                            <i data-lucide="x" style="width:14px;height:14px;vertical-align:middle;margin-right:2px;"></i> Từ chối
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Shift Change Request History -->
+    <section class="panel" id="requests-history">
+        <div class="panel-header">
+            <h2>Lịch sử yêu cầu đổi ca của tôi</h2>
+        </div>
+
+        <p th:if="${#lists.isEmpty(schedule.pendingShiftChanges)}" style="color:var(--ink-soft);font-size:14px;margin:0;">
+            Bạn chưa gửi yêu cầu đổi ca nào.
+        </p>
+
+        <table class="data-table" th:if="${!#lists.isEmpty(schedule.pendingShiftChanges)}">
+            <thead>
+            <tr>
+                <th>Ca làm việc</th>
+                <th>Ngày làm việc</th>
+                <th>Hình thức & Đề xuất</th>
+                <th>Lý do đổi ca</th>
+                <th>Thời điểm gửi</th>
+                <th>Trạng thái</th>
+                <th>Phản hồi</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="req : ${schedule.pendingShiftChanges}">
+                <td>
+                    <strong th:text="${req.shiftName}">Ca Sáng</strong> (<span th:text="${req.timeRange}">07:00 – 12:00</span>)
+                </td>
+                <td th:text="${#temporals.format(req.workDate, 'dd/MM/yyyy')}">22/09/2026</td>
+                <td>
+                    <span class="badge-type"
+                          th:classappend="${req.changeType == 'SWAP' ? 'badge-swap' : (req.changeType == 'TRANSFER' ? 'badge-transfer' : 'badge-manager')}"
+                          th:text="${req.changeTypeLabel}">
+                        Đổi chéo ca
+                    </span>
+                    <div style="font-size:12px;color:var(--ink-soft);margin-top:4px;" th:text="${req.proposalSummary}">
+                        Đổi với: Lê Thị Thu (Ca Chiều 22/09)
+                    </div>
+                </td>
+                <td th:text="${req.reason}">Bận việc đột xuất</td>
+                <td th:text="${req.requestDate}">21/09/2026 09:30</td>
+                <td>
+                    <span class="status-tag"
+                          th:classappend="${req.status == 'Pending' ? (req.isTargetAgreed == null ? 'tag-waiting' : 'tag-pending') : (req.status == 'Approved' ? 'tag-approved' : 'tag-rejected')}"
+                          th:text="${req.stageLabel}">
+                        Chờ đồng nghiệp đồng ý
+                    </span>
+                </td>
+                <td>
+                    <span th:if="${req.resolvedByName != null}">
+                        Bởi <strong th:text="${req.resolvedByName}">Quản lý</strong>
+                        <span th:if="${req.resolvedDate != null}" th:text="' lúc ' + ${req.resolvedDate}"></span>
+                    </span>
+                    <span th:if="${req.resolvedByName == null}" style="color:var(--ink-soft);">—</span>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+
+</main>
+
+<!-- Request Shift Change Modal -->
+<div class="modal" id="changeModal">
+    <div class="modal-dialog" style="max-width:540px;">
+        <div class="modal-header">
+            <h2>Yêu cầu đổi ca làm việc</h2>
+            <button class="close-btn" type="button" onclick="closeChangeModal()">×</button>
+        </div>
+        <form th:action="@{/schedule/staff/request-change}" th:object="${changeForm}" method="post">
+            <input type="hidden" id="assignmentIdInput" name="assignmentId">
+            <input type="hidden" name="currentWeek" th:value="${schedule.weekStartDate}">
+
+            <div class="form-group">
+                <label>Ca làm việc của bạn cần đổi:</label>
+                <div id="shiftInfoLabel" style="font-weight:700;color:var(--caramel);font-size:15px;padding:6px 0;">—</div>
+            </div>
+
+            <div class="form-group">
+                <label>Chọn hình thức đổi ca *</label>
+                <div class="change-type-options">
+                    <label class="type-option-card selected" id="optCardSwap">
+                        <input type="radio" name="changeType" value="SWAP" checked onchange="toggleChangeType('SWAP')">
+                        <div class="type-option-info">
+                            <span class="title" style="display:inline-flex;align-items:center;gap:6px;"><i data-lucide="arrow-left-right" style="width:16px;height:16px;color:#0277BD;"></i> Đổi chéo ca với đồng nghiệp (Khuyên dùng)</span>
+                            <span class="desc">Chọn một ca làm việc của đồng nghiệp khác trong tuần để hoán đổi 2 ca cho nhau</span>
+                        </div>
+                    </label>
+
+                    <label class="type-option-card" id="optCardTransfer">
+                        <input type="radio" name="changeType" value="TRANSFER" onchange="toggleChangeType('TRANSFER')">
+                        <div class="type-option-info">
+                            <span class="title" style="display:inline-flex;align-items:center;gap:6px;"><i data-lucide="users" style="width:16px;height:16px;color:#512DA8;"></i> Nhờ đồng nghiệp nhận thay (Chuyển ca)</span>
+                            <span class="desc">Chỉ định một đồng nghiệp nhận làm thay ca này cho bạn</span>
+                        </div>
+                    </label>
+
+                    <label class="type-option-card" id="optCardManager">
+                        <input type="radio" name="changeType" value="MANAGER_ASSIGN" onchange="toggleChangeType('MANAGER_ASSIGN')">
+                        <div class="type-option-info">
+                            <span class="title" style="display:inline-flex;align-items:center;gap:6px;"><i data-lucide="clipboard-list" style="width:16px;height:16px;color:#E65100;"></i> Nhờ Quản lý tự sắp xếp</span>
+                            <span class="desc">Quản lý cửa hàng sẽ tìm và chỉ định nhân viên thay thế khi duyệt</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Target Assignment Selector for SWAP -->
+            <div class="form-group" id="swapTargetGroup">
+                <label for="swapSelect">Ca của đồng nghiệp muốn đổi cùng *</label>
+                <select id="swapSelect" name="targetAssignmentId" class="form-control" required>
+                    <option value="">-- Chọn ca của đồng nghiệp trong tuần --</option>
+                    <option th:each="cs : ${schedule.colleagueShifts}"
+                            th:value="${cs.assignmentId}"
+                            th:text="${cs.displayText}">
+                        Lê Thị Thu — Ca Chiều (12:00 – 17:00) ngày 22/09
+                    </option>
+                </select>
+                <small th:if="${#lists.isEmpty(schedule.colleagueShifts)}" style="color:var(--clay);display:inline-flex;align-items:center;gap:4px;margin-top:6px;">
+                    <i data-lucide="alert-triangle" style="width:14px;height:14px;flex-shrink:0;"></i>
+                    <span>Chưa có ca làm việc nào khác của đồng nghiệp được công bố trong tuần này. Bạn có thể chọn "Chuyển ca" hoặc "Nhờ Quản lý tự sắp xếp".</span>
+                </small>
+            </div>
+
+            <!-- Target Employee Selector for TRANSFER -->
+            <div class="form-group" id="transferTargetGroup" style="display:none;">
+                <label for="transferSelect">Đồng nghiệp nhận làm thay *</label>
+                <select id="transferSelect" name="targetEmployeeId" class="form-control">
+                    <option value="">-- Chọn đồng nghiệp nhận ca --</option>
+                    <option th:each="emp : ${schedule.storeEmployees}"
+                            th:if="${emp.employeeId != currentEmployeeId}"
+                            th:value="${emp.employeeId}"
+                            th:text="${emp.fullName + ' (' + emp.email + ')'}">
+                        Lê Thị Thu (thult@fpt.edu.vn)
+                    </option>
+                </select>
+            </div>
+
+            <!-- Helper Text for MANAGER_ASSIGN -->
+            <div class="form-group" id="managerHelpText" style="display:none;background:var(--paper-dim);padding:10px 14px;border-radius:6px;font-size:13px;color:var(--espresso);">
+                ℹ️ Quản lý cửa hàng sẽ trực tiếp chỉ định nhân viên thay thế bạn vào ca làm việc này khi duyệt yêu cầu.
+            </div>
+
+            <div class="form-group">
+                <label for="reasonInput">Lý do đổi ca *</label>
+                <textarea id="reasonInput" name="reason" rows="3" class="form-control"
+                          placeholder="Ví dụ: Em bận thi kết thúc học phần / Đã trao đổi với đồng nghiệp..." required></textarea>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeChangeModal()">Hủy</button>
+                <button type="submit" class="btn btn-swap">Gửi yêu cầu đổi ca</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openChangeModal(assignmentId, shiftTitle) {
+        document.getElementById('assignmentIdInput').value = assignmentId;
+        document.getElementById('shiftInfoLabel').innerText = shiftTitle;
+        toggleChangeType('SWAP');
+        document.getElementById('changeModal').classList.add('open');
+    }
+    function closeChangeModal() {
+        document.getElementById('changeModal').classList.remove('open');
+    }
+    function toggleChangeType(type) {
+        document.querySelectorAll('.type-option-card').forEach(el => el.classList.remove('selected'));
+        const swapGroup = document.getElementById('swapTargetGroup');
+        const transferGroup = document.getElementById('transferTargetGroup');
+        const managerHelp = document.getElementById('managerHelpText');
+        const swapSelect = document.getElementById('swapSelect');
+        const transferSelect = document.getElementById('transferSelect');
+
+        if (type === 'SWAP') {
+            document.getElementById('optCardSwap').classList.add('selected');
+            swapGroup.style.display = 'block';
+            swapSelect.required = true;
+            transferGroup.style.display = 'none';
+            transferSelect.required = false;
+            transferSelect.value = '';
+            managerHelp.style.display = 'none';
+        } else if (type === 'TRANSFER') {
+            document.getElementById('optCardTransfer').classList.add('selected');
+            swapGroup.style.display = 'none';
+            swapSelect.required = false;
+            swapSelect.value = '';
+            transferGroup.style.display = 'block';
+            transferSelect.required = true;
+            managerHelp.style.display = 'none';
+        } else {
+            document.getElementById('optCardManager').classList.add('selected');
+            swapGroup.style.display = 'none';
+            swapSelect.required = false;
+            swapSelect.value = '';
+            transferGroup.style.display = 'none';
+            transferSelect.required = false;
+            transferSelect.value = '';
+            managerHelp.style.display = 'block';
+        }
+    }
+    window.onclick = function(event) {
+        const modal = document.getElementById('changeModal');
+        if (event.target === modal) {
+            closeChangeModal();
+        }
+    };
+    if (window.lucide) {
+        lucide.createIcons();
+    }
+</script>
+</body>
+</html>

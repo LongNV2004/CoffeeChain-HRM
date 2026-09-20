@@ -69,8 +69,7 @@ public class DashboardServiceImpl implements DashboardService {
             todayShiftCount = shiftAssignmentRepository.countByEmployee_Store_IdAndWorkDateAndStatus(
                     storeId, LocalDate.now(), AssignmentStatus.ASSIGNED);
             pendingLeaveCount = leaveRequestRepository.countByEmployee_Store_IdAndStatus(storeId, ApprovalStatus.PENDING);
-            pendingShiftChangeCount = shiftChangeRequestRepository.countByEmployee_Store_IdAndStatus(
-                    storeId, ApprovalStatus.PENDING);
+            pendingShiftChangeCount = shiftChangeRequestRepository.countPendingForManager(storeId);
         }
 
         return ManagerDashboardView.builder()
@@ -132,6 +131,36 @@ public class DashboardServiceImpl implements DashboardService {
                         .build())
                 .toList();
 
+        List<StaffDashboardView.IncomingShiftChangeItem> incoming = employeeId == null
+                ? List.of()
+                : shiftChangeRequestRepository.findIncomingRequestsForEmployee(employeeId)
+                .stream()
+                .map(item -> {
+                    String timeRange = (item.getAssignment() != null && item.getAssignment().getShift() != null)
+                            ? item.getAssignment().getShift().getStartTime() + " – " + item.getAssignment().getShift().getEndTime()
+                            : "—";
+                    String shiftName = (item.getAssignment() != null && item.getAssignment().getShift() != null)
+                            ? item.getAssignment().getShift().getShiftName()
+                            : "Ca làm việc";
+                    LocalDate workDate = item.getAssignment() != null ? item.getAssignment().getWorkDate() : null;
+                    String proposal = "Đề xuất đổi ca";
+                    if (item.getTargetAssignment() != null && item.getTargetAssignment().getShift() != null) {
+                        proposal = "Đổi với: " + item.getTargetAssignment().getShift().getShiftName()
+                                + " (" + item.getTargetAssignment().getWorkDate() + ")";
+                    }
+                    return StaffDashboardView.IncomingShiftChangeItem.builder()
+                            .requestId(item.getId())
+                            .requesterName(item.getEmployee() != null ? item.getEmployee().getFullName() : "Đồng nghiệp")
+                            .shiftName(shiftName)
+                            .timeRange(timeRange)
+                            .workDate(workDate)
+                            .reason(item.getReason())
+                            .requestDate(item.getRequestDate())
+                            .proposalSummary(proposal)
+                            .build();
+                })
+                .toList();
+
         return StaffDashboardView.builder()
                 .username(user.getUsername())
                 .displayName(user.getDisplayName())
@@ -147,6 +176,7 @@ public class DashboardServiceImpl implements DashboardService {
                 .upcomingShifts(upcoming)
                 .leaveRequests(leaves)
                 .shiftChangeRequests(changes)
+                .incomingShiftChanges(incoming)
                 .build();
     }
 }
