@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phân Công & Công Bố Lịch Làm Việc — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/ManagerSchedule.css}">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+<header class="dash-nav">
+    <div class="wrap">
+        <div class="brand">
+            <span class="mark"></span>
+            <span class="brand-word">CoffeeHRM</span>
+        </div>
+        <nav>
+            <a th:href="@{/dashboard/manager}">Tổng quan</a>
+            <a class="active" th:href="@{/schedule/manager}">Lịch làm việc</a>
+            <a th:href="@{/training}">Đào tạo</a>
+        </nav>
+        <form th:action="@{/logout}" method="post">
+            <button class="logout-btn" type="submit">Đăng xuất</button>
+        </form>
+    </div>
+</header>
+
+<main class="wrap dash-main">
+
+    <!-- Flash Alerts -->
+    <div class="alert alert-success" th:if="${successMessage != null}">
+        <span th:text="${successMessage}">Thành công</span>
+    </div>
+    <div class="alert alert-error" th:if="${errorMessage != null}">
+        <span th:text="${errorMessage}">Lỗi xử lý</span>
+    </div>
+
+    <!-- Header bar -->
+    <section class="schedule-header">
+        <div class="store-info">
+            <div class="eyebrow">Quản lý ca làm việc</div>
+            <h1 th:text="${schedule.storeName}">The Coffee House</h1>
+            <p th:text="${schedule.storeAddress}">Địa chỉ</p>
+        </div>
+
+        <!-- Week navigation -->
+        <div class="nav-controls">
+            <a class="nav-btn" th:href="@{/schedule/manager(date=${schedule.prevWeekDate})}">← Tuần trước</a>
+            <span class="week-label" th:text="${#temporals.format(schedule.weekStartDate, 'dd/MM') + ' – ' + #temporals.format(schedule.weekEndDate, 'dd/MM/yyyy')}">
+                21/09 – 27/09/2026
+            </span>
+            <a class="nav-btn" th:href="@{/schedule/manager(date=${schedule.nextWeekDate})}">Tuần sau →</a>
+            <a class="nav-btn" th:href="@{/schedule/manager}">Tuần này</a>
+        </div>
+
+        <!-- Action buttons -->
+        <div class="header-actions">
+            <button class="btn btn-primary" type="button" onclick="openAssignModal()">+ Phân ca mới</button>
+            <form th:action="@{/schedule/manager/publish}" method="post" style="display:inline;">
+                <input type="hidden" name="weekStartDate" th:value="${schedule.weekStartDate}">
+                <button class="btn btn-publish" type="submit"
+                        th:disabled="${schedule.totalAssignments == 0 || schedule.draftAssignments == 0}"
+                        onclick="return confirm('Bạn có chắc chắn muốn công bố lịch làm việc tuần này cho toàn bộ nhân viên không?');">
+                    ✓ Công bố lịch tuần
+                </button>
+            </form>
+        </div>
+    </section>
+
+    <!-- Stats & publication status bar -->
+    <section class="stats-bar">
+        <div class="stat-pill">
+            Tổng ca đã xếp: <strong th:text="${schedule.totalAssignments}">0</strong>
+        </div>
+        <div class="stat-pill">
+            Đã công bố: <strong th:text="${schedule.publishedAssignments}">0</strong>
+            <span class="status-tag tag-pub" th:if="${schedule.fullyPublished}">Toàn bộ đã công bố</span>
+        </div>
+        <div class="stat-pill" th:if="${schedule.draftAssignments > 0}">
+            Bản nháp (chưa công bố): <strong th:text="${schedule.draftAssignments}">0</strong>
+            <span class="status-tag tag-draft">Cần công bố</span>
+        </div>
+    </section>
+
+    <!-- Weekly Matrix Grid -->
+    <section class="grid-container">
+        <table class="schedule-grid">
+            <thead>
+            <tr>
+                <th class="shift-col-header">Ca làm việc</th>
+                <th th:each="day : ${schedule.days}" th:classappend="${day.isToday} ? 'today' : ''">
+                    <div class="day-name" th:text="${day.dayOfWeekName}">Thứ 2</div>
+                    <div class="day-date" th:text="${day.formattedDate}">21/09</div>
+                </th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="row : ${schedule.shiftRows}">
+                <!-- Shift title and hours -->
+                <td class="shift-cell">
+                    <div class="shift-title" th:text="${row.shiftName}">Ca Sáng</div>
+                    <div class="shift-hours" th:text="${row.formattedTime}">07:00 – 12:00</div>
+                </td>
+
+                <!-- Day cells -->
+                <td th:each="cell : ${row.dayCells}" class="day-cell">
+                    <div class="assignments-list" th:if="${!#lists.isEmpty(cell.assignments)}">
+                        <div th:each="assign : ${cell.assignments}"
+                             class="assign-card"
+                             th:classappend="${assign.isPublished} ? 'published' : 'draft'">
+                            <div>
+                                <div class="emp-name" th:text="${assign.employeeName}">Nguyễn Văn A</div>
+                                <span class="badge status-tag"
+                                      th:classappend="${assign.isPublished} ? 'tag-pub' : 'tag-draft'"
+                                      th:text="${assign.isPublished} ? 'Đã công bố' : 'Nháp'">
+                                    Nháp
+                                </span>
+                            </div>
+                            <form th:action="@{/schedule/manager/cancel/{id}(id=${assign.assignmentId})}"
+                                  method="post" style="display:inline;">
+                                <input type="hidden" name="currentWeek" th:value="${schedule.weekStartDate}">
+                                <button type="submit" class="del-btn" title="Hủy phân ca"
+                                        onclick="return confirm('Bạn có chắc chắn muốn hủy phân công ca này không?');">×</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Quick assign button for this cell -->
+                    <button class="quick-add-btn" type="button"
+                            th:data-shift-id="${row.shiftId}"
+                            th:data-date="${cell.date}"
+                            onclick="quickAssign(this.getAttribute('data-shift-id'), this.getAttribute('data-date'))">
+                        + Thêm NV
+                    </button>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- Pending Shift Change Requests -->
+    <section class="panel" id="shift-change-requests">
+        <div class="panel-header">
+            <h2>Yêu cầu đổi ca chờ duyệt (<span th:text="${#lists.size(schedule.pendingShiftChanges)}">0</span>)</h2>
+        </div>
+
+        <p th:if="${#lists.isEmpty(schedule.pendingShiftChanges)}" style="color:var(--ink-soft);font-size:14px;margin:0;">
+            Hiện không có yêu cầu đổi ca nào đang chờ duyệt.
+        </p>
+
+        <table class="requests-table" th:if="${!#lists.isEmpty(schedule.pendingShiftChanges)}">
+            <thead>
+            <tr>
+                <th>Nhân viên yêu cầu</th>
+                <th>Ca & Ngày làm việc</th>
+                <th>Hình thức & Đề xuất</th>
+                <th>Lý do đổi ca</th>
+                <th>Thời điểm gửi</th>
+                <th>Hành động</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="req : ${schedule.pendingShiftChanges}">
+                <td>
+                    <strong th:text="${req.employeeName}">Trần Văn Tuấn</strong>
+                </td>
+                <td>
+                    <span th:text="${req.shiftName}">Ca Sáng</span> (<span th:text="${req.timeRange}">07:00 – 12:00</span>)<br>
+                    <small style="color:var(--ink-soft);" th:text="${#temporals.format(req.workDate, 'dd/MM/yyyy')}">22/09/2026</small>
+                </td>
+                <td>
+                    <span class="badge-type"
+                          th:classappend="${req.changeType == 'SWAP' ? 'badge-swap' : (req.changeType == 'TRANSFER' ? 'badge-transfer' : 'badge-manager')}"
+                          th:text="${req.changeTypeLabel}">
+                        Đổi chéo ca
+                    </span>
+                    <div style="font-size:12px;color:var(--ink-soft);margin-top:4px;" th:text="${req.proposalSummary}">
+                        Đổi chéo với: Lê Thị Thu
+                    </div>
+                </td>
+                <td th:text="${req.reason}">Bận việc gia đình</td>
+                <td th:text="${req.requestDate}">21/09/2026 10:00</td>
+                <td class="req-actions">
+                    <button type="button" class="btn btn-publish" style="padding:6px 12px;font-size:12px;"
+                            th:attr="data-id=${req.requestId},
+                                     data-emp=${req.employeeName},
+                                     data-shift=${req.shiftName + ' (' + req.timeRange + ') ' + #temporals.format(req.workDate, 'dd/MM/yyyy')},
+                                     data-type=${req.changeType},
+                                     data-summary=${req.proposalSummary},
+                                     data-target-emp-id=${req.targetEmployeeId},
+                                     data-reason=${req.reason}"
+                            onclick="openReviewModalFromBtn(this)">
+                        <span th:if="${req.changeType == 'MANAGER_ASSIGN'}">Duyệt & Gán ca</span>
+                        <span th:if="${req.changeType != 'MANAGER_ASSIGN'}">Duyệt</span>
+                    </button>
+                    <form th:action="@{/schedule/manager/requests/{id}/reject(id=${req.requestId})}" method="post" style="display:inline;">
+                        <input type="hidden" name="currentWeek" th:value="${schedule.weekStartDate}">
+                        <button type="submit" class="btn btn-danger" style="padding:6px 12px;font-size:12px;"
+                                onclick="return confirm('Bạn có chắc chắn muốn từ chối yêu cầu đổi ca này?');">Từ chối</button>
+                    </form>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+
+</main>
+
+<!-- Review Shift Change Modal (Duyệt đổi ca & Phân công người thay thế) -->
+<div class="modal" id="reviewModal">
+    <div class="modal-dialog" style="max-width:520px;">
+        <div class="modal-header">
+            <h2 id="reviewModalTitle">Duyệt yêu cầu đổi ca</h2>
+            <button class="close-btn" type="button" onclick="closeReviewModal()">×</button>
+        </div>
+        <form id="reviewForm" th:action="@{/schedule/manager}" method="post">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <input type="hidden" name="currentWeek" th:value="${schedule.weekStartDate}">
+
+            <div style="background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:14px;margin-bottom:16px;font-size:13px;">
+                <div style="margin-bottom:6px;"><strong>Nhân viên xin đổi:</strong> <span id="revEmpName" style="color:var(--espresso);font-weight:600;">—</span></div>
+                <div style="margin-bottom:6px;"><strong>Ca làm việc:</strong> <span id="revShiftTitle" style="color:var(--caramel-dark);font-weight:600;">—</span></div>
+                <div style="margin-bottom:6px;"><strong>Hình thức / Đề xuất:</strong> <span id="revProposal" style="font-weight:600;">—</span></div>
+                <div><strong>Lý do:</strong> <span id="revReason" style="color:var(--ink-soft);">—</span></div>
+            </div>
+
+            <!-- Group for selecting replacement employee when MANAGER_ASSIGN or optional for TRANSFER -->
+            <div class="form-group" id="replacementSelectGroup">
+                <label for="replacementEmpSelect" id="replacementLabel">Chọn nhân viên thay thế vào ca này *</label>
+                <select id="replacementEmpSelect" name="replacementEmployeeId" class="form-control">
+                    <option value="">-- Chọn nhân viên thay thế --</option>
+                    <option th:each="emp : ${schedule.storeEmployees}"
+                            th:value="${emp.employeeId}"
+                            th:text="${emp.fullName + ' (' + emp.email + ')'}">
+                        Lê Thị Thu (thult@fpt.edu.vn)
+                    </option>
+                </select>
+                <small id="replacementHelp" style="color:var(--ink-soft);display:block;margin-top:4px;">
+                    Sau khi duyệt, nhân viên được chọn sẽ thay thế và xuất hiện tại ca làm việc này trên lịch.
+                </small>
+            </div>
+
+            <!-- Info box when SWAP -->
+            <div id="swapInfoBox" style="display:none;background:var(--cream);border:1px solid var(--caramel);border-radius:6px;padding:12px;margin-bottom:16px;font-size:13px;color:var(--espresso);">
+                <span style="display:inline-flex;align-items:center;gap:6px;"><i data-lucide="refresh-cw" style="width:14px;height:14px;color:var(--caramel-dark);"></i> <strong>Hoán đổi 2 chiều:</strong></span> Khi xác nhận duyệt, hệ thống sẽ tự động hoán đổi 2 ca giữa 2 nhân viên (nhân viên A sang ca của nhân viên B, và nhân viên B sang ca của nhân viên A).
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeReviewModal()">Đóng</button>
+                <button type="submit" class="btn btn-publish" id="submitApproveBtn">Xác nhận duyệt</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Assign Shift Modal -->
+<div class="modal" id="assignModal">
+    <div class="modal-dialog">
+        <div class="modal-header">
+            <h2>Phân công ca làm việc</h2>
+            <button class="close-btn" type="button" onclick="closeAssignModal()">×</button>
+        </div>
+        <form th:action="@{/schedule/manager/assign}" th:object="${assignForm}" method="post">
+            <input type="hidden" name="currentWeek" th:value="${schedule.weekStartDate}">
+
+            <div class="form-group">
+                <label for="shiftSelect">Ca làm việc *</label>
+                <select id="shiftSelect" name="shiftId" class="form-control" required>
+                    <option value="">-- Chọn ca làm việc --</option>
+                    <option th:each="row : ${schedule.shiftRows}"
+                            th:value="${row.shiftId}"
+                            th:text="${row.shiftName + ' (' + row.formattedTime + ')'}">
+                        Ca Sáng (07:00 - 12:00)
+                    </option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="dateInput">Ngày làm việc *</label>
+                <input type="date" id="dateInput" name="workDate" class="form-control"
+                       th:min="${schedule.weekStartDate}" th:max="${schedule.weekEndDate}" required>
+            </div>
+
+            <div class="form-group">
+                <label for="empSelect">Nhân viên phân công *</label>
+                <select id="empSelect" name="employeeId" class="form-control" required>
+                    <option value="">-- Chọn nhân viên --</option>
+                    <option th:each="emp : ${schedule.storeEmployees}"
+                            th:value="${emp.employeeId}"
+                            th:text="${emp.fullName + ' (' + emp.email + ')'}">
+                        Nguyễn Văn A (a@fpt.edu.vn)
+                    </option>
+                </select>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeAssignModal()">Hủy</button>
+                <button type="submit" class="btn btn-primary">Lưu phân công</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openAssignModal() {
+        document.getElementById('assignModal').classList.add('open');
+    }
+    function closeAssignModal() {
+        document.getElementById('assignModal').classList.remove('open');
+    }
+    function quickAssign(shiftId, workDate) {
+        document.getElementById('shiftSelect').value = shiftId;
+        document.getElementById('dateInput').value = workDate;
+        openAssignModal();
+    }
+
+    function openReviewModalFromBtn(btn) {
+        const id = btn.getAttribute('data-id');
+        const emp = btn.getAttribute('data-emp');
+        const shift = btn.getAttribute('data-shift');
+        const type = btn.getAttribute('data-type');
+        const summary = btn.getAttribute('data-summary');
+        const targetEmpId = btn.getAttribute('data-target-emp-id');
+        const reason = btn.getAttribute('data-reason');
+
+        document.getElementById('reviewForm').action = '/schedule/manager/requests/' + id + '/approve';
+        document.getElementById('revEmpName').innerText = emp;
+        document.getElementById('revShiftTitle').innerText = shift;
+        document.getElementById('revProposal').innerText = summary;
+        document.getElementById('revReason').innerText = reason;
+
+        const replaceGroup = document.getElementById('replacementSelectGroup');
+        const replaceSelect = document.getElementById('replacementEmpSelect');
+        const swapBox = document.getElementById('swapInfoBox');
+        const submitBtn = document.getElementById('submitApproveBtn');
+
+        if (type === 'SWAP') {
+            replaceGroup.style.display = 'none';
+            replaceSelect.required = false;
+            replaceSelect.value = '';
+            swapBox.style.display = 'block';
+            submitBtn.innerText = 'Xác nhận duyệt hoán đổi';
+        } else if (type === 'TRANSFER') {
+            replaceGroup.style.display = 'block';
+            replaceSelect.required = false;
+            replaceSelect.value = targetEmpId || '';
+            swapBox.style.display = 'none';
+            submitBtn.innerText = 'Xác nhận duyệt chuyển ca';
+        } else {
+            // MANAGER_ASSIGN: Quản lý tự sắp xếp -> BẮT BUỘC chọn nhân viên thay thế
+            replaceGroup.style.display = 'block';
+            replaceSelect.required = true;
+            replaceSelect.value = '';
+            swapBox.style.display = 'none';
+            submitBtn.innerText = 'Xác nhận duyệt & Gán ca';
+        }
+
+        document.getElementById('reviewModal').classList.add('open');
+    }
+
+    function closeReviewModal() {
+        document.getElementById('reviewModal').classList.remove('open');
+    }
+
+    window.onclick = function(event) {
+        const assignModal = document.getElementById('assignModal');
+        const reviewModal = document.getElementById('reviewModal');
+        if (event.target === assignModal) {
+            closeAssignModal();
+        }
+        if (event.target === reviewModal) {
+            closeReviewModal();
+        }
+    };
+    if (window.lucide) {
+        lucide.createIcons();
+    }
+</script>
+</body>
+</html>

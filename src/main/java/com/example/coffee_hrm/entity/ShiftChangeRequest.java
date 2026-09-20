@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-@ToString(exclude = {"assignment", "employee", "resolvedBy"})
+@ToString(exclude = {"assignment", "employee", "resolvedBy", "targetAssignment", "targetEmployee"})
 public class ShiftChangeRequest {
 
     @Id
@@ -49,5 +49,19 @@ public class ShiftChangeRequest {
 
     @Column(name = "ResolvedDate")
     private LocalDateTime resolvedDate;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "TargetAssignmentId")
+    private ShiftAssignment targetAssignment;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "TargetEmployeeId")
+    private Employee targetEmployee;
+
+    @Column(name = "IsTargetAgreed")
+    private Boolean isTargetAgreed;
+
+    @Column(name = "TargetAgreedAt")
+    private LocalDateTime targetAgreedAt;
 }
 

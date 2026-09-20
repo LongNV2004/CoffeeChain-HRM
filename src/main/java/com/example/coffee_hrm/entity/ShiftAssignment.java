@@ -47,6 +47,13 @@ public class ShiftAssignment {
     @Column(name = "CreatedAt", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "IsPublished", nullable = false)
+    @Builder.Default
+    private Boolean isPublished = false;
+
+    @Column(name = "PublishedAt")
+    private LocalDateTime publishedAt;
+
     @Builder.Default
     @OneToMany(mappedBy = "assignment", fetch = FetchType.LAZY)
     private List<ShiftChangeRequest> changeRequests = new ArrayList<>();

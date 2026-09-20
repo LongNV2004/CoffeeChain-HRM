@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/StaffDashboard.css}">
+    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
 <header class="dash-nav">
@@ -15,10 +16,10 @@
         <nav>
             <a class="active" th:href="@{/dashboard/staff}">Tổng quan</a>
             <a href="#profile">Thông tin cá nhân</a>
-            <a href="#schedule">Lịch làm việc</a>
+            <a th:href="@{/schedule/staff}">Lịch làm việc & Đổi ca</a>
             <a href="#attendance">Chấm công</a>
             <a href="#leave">Đơn nghỉ phép</a>
-            <a href="#shift-change">Yêu cầu đổi ca</a>
+            <a th:href="@{/schedule/staff#requests-history}">Yêu cầu đổi ca</a>
         </nav>
         <form th:action="@{/logout}" method="post">
             <button class="logout-btn" type="submit">Đăng xuất</button>
@@ -34,6 +35,27 @@
             <span th:text="${dashboard.displayName}">Staff</span>
             · tài khoản <strong th:text="${dashboard.username}">username</strong>
         </p>
+    </section>
+
+    <!-- Alert Banner when having incoming shift swap requests -->
+    <section class="alert-incoming-banner" th:if="${!#lists.isEmpty(dashboard.incomingShiftChanges)}"
+             style="background: linear-gradient(135deg, #FFF8E1 0%, #FFF3E0 100%); border: 2px solid #FFE082; border-radius: 10px; padding: 18px 24px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; box-shadow: 0 4px 12px rgba(193,121,58,0.1);">
+        <div style="display:flex;align-items:center;gap:14px;">
+            <div style="width:44px;height:44px;border-radius:50%;background:#FFE082;display:flex;align-items:center;justify-content:center;color:#B78103;flex-shrink:0;">
+                <i data-lucide="mail" style="width:24px;height:24px;"></i>
+            </div>
+            <div>
+                <h3 style="margin:0;font-size:16px;color:#B78103;font-weight:700;">
+                    Bạn có <span th:text="${#lists.size(dashboard.incomingShiftChanges)}">1</span> lời mời đổi ca từ đồng nghiệp đang chờ bạn xác nhận!
+                </h3>
+                <p style="margin:4px 0 0 0;font-size:13px;color:#5D4037;" th:with="firstReq=${dashboard.incomingShiftChanges[0]}">
+                    Đồng nghiệp <strong th:text="${firstReq.requesterName}">Nguyễn Văn A</strong> muốn đổi: <strong th:text="${firstReq.proposalSummary}">Đổi ca</strong>.
+                </p>
+            </div>
+        </div>
+        <a th:href="@{/schedule/staff}" style="background:var(--caramel);color:#fff;padding:10px 20px;border-radius:6px;font-weight:600;font-size:13px;text-decoration:none;white-space:nowrap;box-shadow:0 2px 6px rgba(193,121,58,0.3);display:inline-flex;align-items:center;gap:6px;">
+            Xem chi tiết lịch <i data-lucide="arrow-right" style="width:14px;height:14px;"></i>
+        </a>
     </section>
 
     <section class="split" id="profile">
@@ -62,7 +84,10 @@
     </section>
 
     <section class="panel" id="schedule">
-        <h2>Lịch làm việc</h2>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h2 style="margin:0;">Lịch làm việc</h2>
+            <a th:href="@{/schedule/staff}" style="background:var(--caramel);color:#fff;padding:6px 12px;border-radius:4px;font-size:12px;font-weight:600;">Xem chi tiết & Đổi ca →</a>
+        </div>
         <p class="empty" th:if="${#lists.isEmpty(dashboard.upcomingShifts)}">Chưa có ca làm việc sắp tới.</p>
         <table th:if="${!#lists.isEmpty(dashboard.upcomingShifts)}">
             <thead>
@@ -96,18 +121,66 @@
             </ul>
         </article>
         <article class="panel" id="shift-change">
-            <h2>Yêu cầu đổi ca</h2>
-            <p class="empty" th:if="${#lists.isEmpty(dashboard.shiftChangeRequests)}">Chưa có yêu cầu đổi ca.</p>
-            <ul class="request-list" th:if="${!#lists.isEmpty(dashboard.shiftChangeRequests)}">
-                <li th:each="item : ${dashboard.shiftChangeRequests}">
-                    <strong th:text="${item.requestDate != null} ? ${#temporals.format(item.requestDate, 'dd/MM/yyyy HH:mm')} : '—'">date</strong>
-                    <span th:text="${item.status}">Pending</span>
-                    <p th:text="${item.reason != null} ? ${item.reason} : 'Không có lý do'">reason</p>
-                </li>
-            </ul>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <h2 style="margin:0;">Yêu cầu đổi ca</h2>
+                <a th:href="@{/schedule/staff}" style="font-size:13px;color:var(--caramel);font-weight:600;display:inline-flex;align-items:center;gap:4px;">
+                    Xem lịch làm việc <i data-lucide="arrow-right" style="width:13px;height:13px;"></i>
+                </a>
+            </div>
+
+            <!-- Incoming invitations -->
+            <div th:if="${!#lists.isEmpty(dashboard.incomingShiftChanges)}" style="margin-bottom:16px;background:#FFFDFB;border:1px solid #FFE082;border-radius:8px;padding:14px;">
+                <div style="font-weight:700;color:#B78103;font-size:13px;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+                    <i data-lucide="inbox" style="width:16px;height:16px;color:#B78103;"></i>
+                    Lời mời nhận được (<span th:text="${#lists.size(dashboard.incomingShiftChanges)}">1</span>)
+                </div>
+                <div th:each="inItem : ${dashboard.incomingShiftChanges}" style="padding:10px 0;border-bottom:1px dashed var(--line);font-size:13px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <strong th:text="${inItem.requesterName}">Nguyễn Văn A</strong>
+                        <small style="color:var(--ink-soft);" th:text="${inItem.requestDate != null} ? ${#temporals.format(inItem.requestDate, 'dd/MM/yyyy HH:mm')} : '—'">20/09/2026</small>
+                    </div>
+                    <div style="margin:4px 0;color:var(--espresso-soft);" th:text="${inItem.proposalSummary}">Đổi chéo ca</div>
+                    <div style="font-style:italic;font-size:12px;color:var(--ink-soft);margin-bottom:8px;" th:if="${inItem.reason != null && !inItem.reason.isEmpty()}" th:text="'“' + ${inItem.reason} + '”'">Lý do</div>
+                    <div style="display:flex;gap:8px;margin-top:6px;">
+                        <form th:action="@{/schedule/staff/requests/{id}/respond(id=${inItem.requestId})}" method="post" style="display:inline;">
+                            <input type="hidden" name="agreed" value="true">
+                            <button type="submit" style="background:#2E7D32;color:#fff;border:none;border-radius:4px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px;" onclick="return confirm('Bạn có chắc chắn muốn ĐỒNG Ý yêu cầu đổi ca này?')">
+                                <i data-lucide="check" style="width:13px;height:13px;"></i> Đồng ý hỗ trợ
+                            </button>
+                        </form>
+                        <form th:action="@{/schedule/staff/requests/{id}/respond(id=${inItem.requestId})}" method="post" style="display:inline;">
+                            <input type="hidden" name="agreed" value="false">
+                            <button type="submit" style="background:transparent;color:#C62828;border:1px solid #FFCDD2;border-radius:4px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px;" onclick="return confirm('Bạn có chắc chắn muốn TỪ CHỐI yêu cầu đổi ca này?')">
+                                <i data-lucide="x" style="width:13px;height:13px;"></i> Từ chối
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sent requests history -->
+            <div th:if="${!#lists.isEmpty(dashboard.shiftChangeRequests)}">
+                <div style="font-weight:600;color:var(--espresso);font-size:13px;margin-bottom:6px;">Yêu cầu bạn đã gửi:</div>
+                <ul class="request-list" style="margin-top:0;">
+                    <li th:each="item : ${dashboard.shiftChangeRequests}">
+                        <strong th:text="${item.requestDate != null} ? ${#temporals.format(item.requestDate, 'dd/MM/yyyy HH:mm')} : '—'">date</strong>
+                        <span th:text="${item.status}">Pending</span>
+                        <p th:text="${item.reason != null} ? ${item.reason} : 'Không có lý do'">reason</p>
+                    </li>
+                </ul>
+            </div>
+
+            <p class="empty" th:if="${#lists.isEmpty(dashboard.incomingShiftChanges) && #lists.isEmpty(dashboard.shiftChangeRequests)}">
+                Chưa có yêu cầu đổi ca nào.
+            </p>
         </article>
     </section>
 </main>
 <script th:src="@{/js/StaffDashboard.js}"></script>
+<script>
+    if (window.lucide) {
+        lucide.createIcons();
+    }
+</script>
 </body>
 </html>
