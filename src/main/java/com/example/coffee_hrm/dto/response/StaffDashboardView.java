@@ -25,6 +25,20 @@ public class StaffDashboardView {
     private final List<ScheduleItem> upcomingShifts;
     private final List<LeaveItem> leaveRequests;
     private final List<ShiftChangeItem> shiftChangeRequests;
+    private final List<IncomingShiftChangeItem> incomingShiftChanges;
+
+    @Getter
+    @Builder
+    public static class IncomingShiftChangeItem {
+        private final Integer requestId;
+        private final String requesterName;
+        private final String shiftName;
+        private final String timeRange;
+        private final LocalDate workDate;
+        private final String reason;
+        private final LocalDateTime requestDate;
+        private final String proposalSummary;
+    }
 
     @Getter
     @Builder

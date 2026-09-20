@@ -31,3 +31,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Consolidated DB setup script (share manually with team)
+coffee_hrm_full_setup.sql

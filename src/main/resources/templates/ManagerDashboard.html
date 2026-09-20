@@ -15,7 +15,7 @@
         <nav>
             <a class="active" th:href="@{/dashboard/manager}">Tổng quan</a>
             <a href="#attendance">Chấm công</a>
-            <a href="#schedule">Lịch làm việc</a>
+            <a th:href="@{/schedule/manager}">Lịch làm việc</a>
             <a href="#leave">Quản lý nghỉ phép</a>
             <a th:href="@{/training}">Đào tạo</a>
             <a href="#reports">Báo cáo Store</a>
@@ -51,7 +51,7 @@
             <div class="value" th:text="${dashboard.storeEmployeeCount}">0</div>
         </article>
         <article class="stat-card" id="schedule">
-            <div class="label">Ca làm hôm nay</div>
+            <div class="label"><a th:href="@{/schedule/manager}" style="text-decoration:underline;">Ca làm hôm nay →</a></div>
             <div class="value" th:text="${dashboard.todayShiftCount}">0</div>
         </article>
         <article class="stat-card" id="leave">
@@ -59,7 +59,7 @@
             <div class="value" th:text="${dashboard.pendingLeaveCount}">0</div>
         </article>
         <article class="stat-card">
-            <div class="label">Yêu cầu đổi ca chờ duyệt</div>
+            <div class="label"><a th:href="@{/schedule/manager#shift-change-requests}" style="text-decoration:underline;">Yêu cầu đổi ca chờ duyệt →</a></div>
             <div class="value" th:text="${dashboard.pendingShiftChangeCount}">0</div>
         </article>
     </section>
@@ -70,8 +70,8 @@
             <p>Theo dõi giờ vào/ra ca của nhân viên thuộc cửa hàng bạn quản lý.</p>
         </article>
         <article class="action-card">
-            <h2>Lịch làm việc</h2>
-            <p>Xếp ca và theo dõi phân công trong ngày cho cửa hàng.</p>
+            <h2><a th:href="@{/schedule/manager}" style="color:var(--caramel-dark);">Lịch làm việc →</a></h2>
+            <p>Phân công ca, công bố lịch làm việc và phê duyệt đổi ca cho nhân viên.</p>
         </article>
         <article class="action-card">
             <h2>Quản lý nghỉ phép</h2>
