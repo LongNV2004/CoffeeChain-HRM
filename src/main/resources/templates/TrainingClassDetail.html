@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chi tiết lớp đào tạo — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/ManagerDashboard.css}">
+    <link rel="stylesheet" th:href="@{/css/Training.css}">
+</head>
+<body>
+<header class="dash-nav">
+    <div class="wrap">
+        <div class="brand"><span class="mark"></span><span class="brand-word">CoffeeHRM</span></div>
+        <nav>
+            <a th:href="@{/dashboard/manager}">Tổng quan</a>
+            <a href="#">Chấm công</a>
+            <a href="#">Lịch làm việc</a>
+            <a href="#">Quản lý nghỉ phép</a>
+            <a class="active" th:href="@{/training}">Đào tạo</a>
+            <a href="#">Báo cáo Store</a>
+            <a th:href="@{/notifications}">Thông báo
+                <span class="nav-count" th:if="${unreadNotificationCount > 0}" th:text="${unreadNotificationCount}">0</span>
+            </a>
+        </nav>
+        <form th:action="@{/logout}" method="post">
+            <button class="logout-btn" type="submit">Đăng xuất</button>
+        </form>
+    </div>
+</header>
+
+<main class="wrap dash-main">
+    <section class="welcome">
+        <div class="eyebrow">Cửa hàng — Manager</div>
+        <h1 th:text="${classDetail.className}">Tên lớp</h1>
+        <p>
+            <span th:text="${displayName}">Manager</span>
+            <span th:if="${storeName}"> · <span th:text="${storeName}">Store</span></span>
+        </p>
+        <div style="margin-top:12px;" class="actions">
+            <a class="back-link" th:href="@{/training}">← Quay lại danh sách lớp</a>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>Thông tin lớp</h2>
+        <dl class="detail-list">
+            <div>
+                <dt>Tên lớp</dt>
+                <dd th:text="${classDetail.className}">Class</dd>
+            </div>
+            <div>
+                <dt>Kỹ năng</dt>
+                <dd th:text="${classDetail.skillName} ?: '—'">Skill</dd>
+            </div>
+            <div>
+                <dt>Ngày bắt đầu</dt>
+                <dd th:text="${classDetail.startDate != null} ? ${#temporals.format(classDetail.startDate, 'dd/MM/yyyy')} : '—'">01/01/2026</dd>
+            </div>
+            <div>
+                <dt>Ngày kết thúc</dt>
+                <dd th:text="${classDetail.endDate != null} ? ${#temporals.format(classDetail.endDate, 'dd/MM/yyyy')} : '—'">02/01/2026</dd>
+            </div>
+            <div>
+                <dt>Giờ bắt đầu</dt>
+                <dd th:text="${classDetail.startTime != null} ? ${#temporals.format(classDetail.startTime, 'HH:mm')} : '—'">08:00</dd>
+            </div>
+            <div>
+                <dt>Giờ kết thúc</dt>
+                <dd th:text="${classDetail.endTime != null} ? ${#temporals.format(classDetail.endTime, 'HH:mm')} : '—'">10:00</dd>
+            </div>
+            <div th:if="${classDetail.createdByName != null}">
+                <dt>Người tạo / phụ trách</dt>
+                <dd th:text="${classDetail.createdByName}">Manager</dd>
+            </div>
+            <div th:if="${classDetail.trainer != null}">
+                <dt>Giảng viên</dt>
+                <dd th:text="${classDetail.trainer}">Trainer</dd>
+            </div>
+            <div th:if="${classDetail.location != null}">
+                <dt>Địa điểm</dt>
+                <dd th:text="${classDetail.location}">Location</dd>
+            </div>
+            <div th:if="${classDetail.notes != null}">
+                <dt>Ghi chú</dt>
+                <dd th:text="${classDetail.notes}">Notes</dd>
+            </div>
+        </dl>
+    </section>
+
+    <section class="panel" style="margin-top:16px;">
+        <h2>Danh sách học viên</h2>
+        <p class="empty" th:if="${classDetail.students == null or #lists.isEmpty(classDetail.students)}">
+            Chưa có học viên được ghi danh vào lớp này.
+        </p>
+        <table th:if="${classDetail.students != null and !#lists.isEmpty(classDetail.students)}">
+            <thead>
+            <tr>
+                <th>Họ tên</th>
+                <th>Email</th>
+                <th>Số điện thoại</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="student : ${classDetail.students}">
+                <td th:text="${student.fullName}">Name</td>
+                <td th:text="${student.email} ?: '—'">email</td>
+                <td th:text="${student.phone} ?: '—'">phone</td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+</main>
+<script th:src="@{/js/ManagerDashboard.js}"></script>
+</body>
+</html>
