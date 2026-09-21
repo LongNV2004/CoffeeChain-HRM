@@ -19,6 +19,10 @@
             <a th:href="@{/schedule/staff}">Lịch làm việc & Đổi ca</a>
             <a href="#attendance">Chấm công</a>
             <a href="#leave">Đơn nghỉ phép</a>
+            <a href="#shift-change">Yêu cầu đổi ca</a>
+            <a th:href="@{/notifications}">Thông báo
+                <span class="nav-count" th:if="${unreadNotificationCount > 0}" th:text="${unreadNotificationCount}">0</span>
+            </a>
             <a th:href="@{/schedule/staff#requests-history}">Yêu cầu đổi ca</a>
         </nav>
         <form th:action="@{/logout}" method="post">
@@ -35,6 +39,11 @@
             <span th:text="${dashboard.displayName}">Staff</span>
             · tài khoản <strong th:text="${dashboard.username}">username</strong>
         </p>
+    </section>
+
+    <section class="panel">
+        <h2><a th:href="@{/notifications}">Thông báo</a></h2>
+        <p>Mở hộp thư để xem các thông báo gửi đến tài khoản của bạn.</p>
     </section>
 
     <!-- Alert Banner when having incoming shift swap requests -->
