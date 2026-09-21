@@ -34,9 +34,13 @@ public class AuthController {
                             @RequestParam(name = "logoutSuccess", required = false) String logoutSuccess,
                             Authentication authentication,
                             Model model) {
-        String dashboard = authenticatedDashboard(authentication);
-        if (dashboard != null) {
-            return "redirect:" + dashboard;
+        try {
+            String dashboard = authenticatedDashboard(authentication);
+            if (dashboard != null) {
+                return "redirect:" + dashboard;
+            }
+        } catch (Exception ex) {
+            // Bỏ qua lỗi session/remember-me cũ để người dùng vẫn vào được trang login
         }
         if (!model.containsAttribute("loginRequest")) {
             model.addAttribute("loginRequest", new LoginRequest());
@@ -77,6 +81,11 @@ public class AuthController {
         } catch (BadCredentialsException ex) {
             loginRequest.setPassword(null);
             model.addAttribute("loginError", true);
+            return "LandingPage";
+        } catch (Exception ex) {
+            loginRequest.setPassword(null);
+            model.addAttribute("loginError", true);
+            model.addAttribute("loginValidationMessage", "Lỗi CSDL / Hệ thống: " + ex.getMessage());
             return "LandingPage";
         }
     }
