@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Danh sách lớp đào tạo — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/ManagerDashboard.css}">
+    <link rel="stylesheet" th:href="@{/css/Training.css}">
+</head>
+<body>
+<header class="dash-nav">
+    <div class="wrap">
+        <div class="brand"><span class="mark"></span><span class="brand-word">CoffeeHRM</span></div>
+        <nav>
+            <a th:href="@{/dashboard/manager}">Tổng quan</a>
+            <a href="#">Chấm công</a>
+            <a href="#">Lịch làm việc</a>
+            <a href="#">Quản lý nghỉ phép</a>
+            <a class="active" th:href="@{/training}">Đào tạo</a>
+            <a href="#">Báo cáo Store</a>
+            <a th:href="@{/notifications}">Thông báo
+                <span class="nav-count" th:if="${unreadNotificationCount > 0}" th:text="${unreadNotificationCount}">0</span>
+            </a>
+        </nav>
+        <form th:action="@{/logout}" method="post">
+            <button class="logout-btn" type="submit">Đăng xuất</button>
+        </form>
+    </div>
+</header>
+
+<main class="wrap dash-main">
+    <section class="welcome">
+        <div class="eyebrow">Cửa hàng — Manager</div>
+        <h1>Danh sách lớp đào tạo</h1>
+        <p>
+            <span th:text="${displayName}">Manager</span>
+            <span th:if="${storeName}"> · <span th:text="${storeName}">Store</span></span>
+        </p>
+    </section>
+
+    <p class="flash success" th:if="${successMessage}" th:text="${successMessage}">OK</p>
+    <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}">Error</p>
+
+    <section class="panel">
+        <div class="panel-head">
+            <div>
+                <h2>Lớp đã duyệt đang hoạt động</h2>
+                <p>Chỉ hiển thị lớp Admin đã duyệt và chưa hết ngày kết thúc.</p>
+            </div>
+            <a class="primary-btn" th:href="@{/training/create}">Tạo lớp đào tạo</a>
+        </div>
+
+        <div class="store-banner warning" th:unless="${hasStore}">
+            <h2>Chưa được gán cửa hàng</h2>
+            <p>Liên hệ Admin trước khi tạo lớp đào tạo.</p>
+        </div>
+
+        <form class="filter-bar" th:action="@{/training}" method="get">
+            <label>Kỹ năng
+                <select name="skillId">
+                    <option value="">Tất cả kỹ năng</option>
+                    <option th:each="skill : ${filterSkills}"
+                            th:value="${skill.id}"
+                            th:selected="${skillId != null and skillId == skill.id}"
+                            th:text="${skill.skillName}">Skill</option>
+                </select>
+            </label>
+            <label>Ngày
+                <input type="date" name="date" th:value="${date}">
+            </label>
+            <label>Tìm kiếm
+                <input type="search" name="keyword" placeholder="Tên lớp, kỹ năng, giảng viên"
+                       th:value="${keyword}">
+            </label>
+            <label>Sắp xếp giờ bắt đầu
+                <select name="sortDir">
+                    <option value="asc" th:selected="${sortDir == 'asc'}">Tăng dần</option>
+                    <option value="desc" th:selected="${sortDir == 'desc'}">Giảm dần</option>
+                </select>
+            </label>
+            <div class="filter-actions">
+                <button class="primary-btn" type="submit">Lọc</button>
+                <a class="back-link" th:href="@{/training}">Xóa lọc</a>
+            </div>
+        </form>
+
+        <table>
+            <thead>
+            <tr>
+                <th>Tên lớp</th>
+                <th>Kỹ năng</th>
+                <th>Ngày</th>
+                <th>Giờ bắt đầu</th>
+                <th>Giờ kết thúc</th>
+                <th>Sĩ số</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:if="${#lists.isEmpty(classes)}">
+                <td colspan="7" class="empty">Không có lớp đào tạo phù hợp.</td>
+            </tr>
+            <tr th:each="item : ${classes}">
+                <td>
+                    <a class="row-link" th:href="@{/training/classes/{id}(id=${item.id})}" th:text="${item.className}">Class</a>
+                </td>
+                <td th:text="${item.skillName}">Skill</td>
+                <td>
+                    <span th:text="${item.startDate}">2026-01-01</span>
+                    <span> → </span>
+                    <span th:text="${item.endDate}">2026-01-02</span>
+                </td>
+                <td th:text="${item.startTime != null} ? ${#temporals.format(item.startTime, 'HH:mm')} : '—'">08:00</td>
+                <td th:text="${item.endTime != null} ? ${#temporals.format(item.endTime, 'HH:mm')} : '—'">10:00</td>
+                <td th:text="${item.maxParticipants != null} ? ${item.maxParticipants} : '—'">—</td>
+                <td class="actions">
+                    <a class="link-btn" th:href="@{/training/classes/{id}(id=${item.id})}">Xem chi tiết</a>
+                    <form th:action="@{/training/classes/{id}/delete(id=${item.id})}" method="post"
+                          onsubmit="return confirm('Xóa lớp đào tạo này?');">
+                        <button class="link-btn danger" type="submit">Xóa</button>
+                    </form>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+
+        <nav class="pagination" th:if="${totalPages > 0}" aria-label="Phân trang danh sách lớp">
+            <a class="page-btn"
+               th:classappend="${classPage.first} ? ' disabled'"
+               th:href="${classPage.first} ? '#' : @{/training(page=${currentPage - 1}, skillId=${skillId}, date=${date}, keyword=${keyword}, sortDir=${sortDir})}">Trang trước</a>
+            <span class="page-numbers">
+                <a th:each="p : ${#numbers.sequence(1, totalPages)}"
+                   class="page-btn"
+                   th:classappend="${p == currentPage} ? ' active'"
+                   th:href="@{/training(page=${p}, skillId=${skillId}, date=${date}, keyword=${keyword}, sortDir=${sortDir})}"
+                   th:text="${p}">1</a>
+            </span>
+            <a class="page-btn"
+               th:classappend="${classPage.last} ? ' disabled'"
+               th:href="${classPage.last} ? '#' : @{/training(page=${currentPage + 1}, skillId=${skillId}, date=${date}, keyword=${keyword}, sortDir=${sortDir})}">Trang tiếp theo</a>
+        </nav>
+    </section>
+</main>
+<script th:src="@{/js/ManagerDashboard.js}"></script>
+</body>
+</html>
