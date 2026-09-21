@@ -20,6 +20,9 @@
             <a href="#">Quản lý nghỉ phép</a>
             <a class="active" th:href="@{/training}">Đào tạo</a>
             <a href="#">Báo cáo Store</a>
+            <a th:href="@{/notifications}">Thông báo
+                <span class="nav-count" th:if="${unreadNotificationCount > 0}" th:text="${unreadNotificationCount}">0</span>
+            </a>
         </nav>
         <form th:action="@{/logout}" method="post">
             <button class="logout-btn" type="submit">Đăng xuất</button>
@@ -30,11 +33,12 @@
 <main class="wrap dash-main">
     <section class="welcome">
         <div class="eyebrow">Cửa hàng — Manager</div>
-        <h1>Quản lý đào tạo</h1>
+        <h1>Tạo lớp đào tạo</h1>
         <p>
             <span th:text="${displayName}">Manager</span>
             <span th:if="${storeName}"> · <span th:text="${storeName}">Store</span></span>
         </p>
+        <p class="muted"><a class="back-link" th:href="@{/training}">← Danh sách lớp đào tạo</a></p>
     </section>
 
     <p class="flash success" th:if="${successMessage}" th:text="${successMessage}">OK</p>
@@ -43,7 +47,7 @@
     <section class="split-train">
         <article class="panel">
             <h2>Danh mục kỹ năng</h2>
-            <p>Xem, thêm, sửa hoặc ngừng sử dụng kỹ năng đào tạo. Skill ngừng dùng không bị xóa khỏi hệ thống.</p>
+            <p>Xem, thêm, sửa, ngừng hoặc kích hoạt lại kỹ năng đào tạo. Skill ngừng dùng không bị xóa khỏi hệ thống.</p>
 
             <form class="stack-form" th:action="@{/training/skills}" th:object="${skillForm}" method="post">
                 <h3>Thêm kỹ năng mới</h3>
@@ -90,7 +94,13 @@
                               th:action="@{/training/skills/{id}/deactivate(id=${skill.id})}"
                               method="post"
                               onsubmit="return confirm('Ngừng sử dụng kỹ năng này?');">
-                            <button class="link-btn danger" type="submit">Ngừng dùng</button>
+                            <button class="link-btn danger" type="submit">Ngừng</button>
+                        </form>
+                        <form th:if="${skill.status.name() == 'INACTIVE'}"
+                              th:action="@{/training/skills/{id}/activate(id=${skill.id})}"
+                              method="post"
+                              onsubmit="return confirm('Kích hoạt lại kỹ năng này?');">
+                            <button class="link-btn" type="submit">Kích hoạt</button>
                         </form>
                     </td>
                 </tr>
@@ -122,7 +132,7 @@
 
         <article class="panel">
             <h2>Tạo lớp đào tạo</h2>
-            <p>Điền thông tin lớp rồi gửi Admin phê duyệt. Chỉ chọn kỹ năng đang hoạt động.</p>
+            <p>Điền thông tin lớp rồi gửi Admin phê duyệt. Cửa hàng được lấy từ tài khoản đang đăng nhập. Chỉ chọn kỹ năng đang hoạt động.</p>
 
             <div class="store-banner warning" th:unless="${hasStore}">
                 <h2>Chưa được gán cửa hàng</h2>
@@ -153,15 +163,12 @@
                 </div>
                 <div class="two-col">
                     <label>Giờ bắt đầu
-                        <input type="time" th:field="*{startTime}">
+                        <input type="time" th:field="*{startTime}" required>
                     </label>
                     <label>Giờ kết thúc
-                        <input type="time" th:field="*{endTime}">
+                        <input type="time" th:field="*{endTime}" required>
                     </label>
                 </div>
-                <label>Địa điểm
-                    <input type="text" th:field="*{location}" maxlength="255">
-                </label>
                 <label>Sĩ số tối đa
                     <input type="number" th:field="*{maxParticipants}" min="1">
                 </label>
@@ -170,37 +177,6 @@
                 </label>
                 <button class="primary-btn" type="submit">Gửi Admin duyệt</button>
             </form>
-
-            <h3 class="table-title">Lớp của cửa hàng</h3>
-            <table>
-                <thead>
-                <tr>
-                    <th>Lớp</th>
-                    <th>Kỹ năng</th>
-                    <th>Thời gian</th>
-                    <th>Trạng thái</th>
-                </tr>
-                </thead>
-                <tbody>
-                <tr th:if="${#lists.isEmpty(classes)}">
-                    <td colspan="4" class="empty">Chưa có lớp đào tạo.</td>
-                </tr>
-                <tr th:each="item : ${classes}">
-                    <td th:text="${item.className}">Class</td>
-                    <td th:text="${item.skillName}">Skill</td>
-                    <td>
-                        <span th:text="${item.startDate}">2026-01-01</span>
-                        <span> → </span>
-                        <span th:text="${item.endDate}">2026-01-02</span>
-                    </td>
-                    <td>
-                        <span class="badge"
-                              th:classappend="${item.status.name() == 'APPROVED'} ? ' badge-ok' : (${item.status.name() == 'REJECTED'} ? ' badge-off' : ' badge-wait')"
-                              th:text="${item.status.dbValue}">PENDING_APPROVAL</span>
-                    </td>
-                </tr>
-                </tbody>
-            </table>
         </article>
     </section>
 </main>

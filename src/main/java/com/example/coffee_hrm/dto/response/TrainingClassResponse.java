@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
 
 @Getter
 @NoArgsConstructor
@@ -32,6 +33,7 @@ public class TrainingClassResponse {
     private String notes;
     private TrainingClassStatus status;
     private String createdByName;
+    private List<TrainingClassStudentResponse> students;
     private String approvedByName;
     private LocalDateTime approvedAt;
     private LocalDateTime createdAt;

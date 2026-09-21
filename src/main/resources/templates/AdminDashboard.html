@@ -18,6 +18,9 @@
             <a href="#stores">Quản lý cửa hàng</a>
             <a th:href="@{/admin/training}">Đào tạo</a>
             <a href="#reports">Báo cáo toàn chuỗi</a>
+            <a th:href="@{/notifications}">Thông báo
+                <span class="nav-count" th:if="${unreadNotificationCount > 0}" th:text="${unreadNotificationCount}">0</span>
+            </a>
         </nav>
         <form th:action="@{/logout}" method="post">
             <button class="logout-btn" type="submit">Đăng xuất</button>
@@ -66,6 +69,10 @@
         <article class="action-card">
             <h2><a th:href="@{/admin/training}">Đào tạo</a></h2>
             <p>Xem lớp PENDING_APPROVAL, phê duyệt hoặc từ chối đề xuất của Manager.</p>
+        </article>
+        <article class="action-card">
+            <h2><a th:href="@{/notifications}">Thông báo</a></h2>
+            <p>Xem các thông báo gửi đến tài khoản Admin của bạn.</p>
         </article>
         <article class="action-card" id="reports">
             <h2>Báo cáo toàn chuỗi</h2>
