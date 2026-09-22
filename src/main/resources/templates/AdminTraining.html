@@ -19,6 +19,9 @@
             <a href="#">Quản lý cửa hàng</a>
             <a class="active" th:href="@{/admin/training}">Đào tạo</a>
             <a href="#">Báo cáo toàn chuỗi</a>
+            <a th:href="@{/notifications}">Thông báo
+                <span class="nav-count" th:if="${unreadNotificationCount > 0}" th:text="${unreadNotificationCount}">0</span>
+            </a>
         </nav>
         <form th:action="@{/logout}" method="post">
             <button class="logout-btn" type="submit">Đăng xuất</button>

@@ -6,7 +6,9 @@ import com.example.coffee_hrm.dto.request.UpdateTrainingSkillRequest;
 import com.example.coffee_hrm.dto.response.TrainingClassResponse;
 import com.example.coffee_hrm.dto.response.TrainingSkillResponse;
 import com.example.coffee_hrm.security.AuthenticatedUser;
+import org.springframework.data.domain.Page;
 
+import java.time.LocalDate;
 import java.util.List;
 
 public interface TrainingService {
@@ -21,9 +23,20 @@ public interface TrainingService {
 
     TrainingSkillResponse deactivateSkill(Integer skillId, AuthenticatedUser actor);
 
+    TrainingSkillResponse activateSkill(Integer skillId, AuthenticatedUser actor);
+
     boolean managerHasAssignedStore(AuthenticatedUser manager);
 
-    List<TrainingClassResponse> listClassesForManager(AuthenticatedUser manager);
+    Page<TrainingClassResponse> listClassesForManager(AuthenticatedUser manager,
+                                                      Integer skillId,
+                                                      LocalDate date,
+                                                      String keyword,
+                                                      String sortDir,
+                                                      int page);
+
+    TrainingClassResponse getApprovedClassDetailForManager(Integer classId, AuthenticatedUser manager);
+
+    void deleteClassForManager(Integer classId, AuthenticatedUser manager);
 
     TrainingClassResponse createClass(CreateTrainingClassRequest request, AuthenticatedUser manager);
 

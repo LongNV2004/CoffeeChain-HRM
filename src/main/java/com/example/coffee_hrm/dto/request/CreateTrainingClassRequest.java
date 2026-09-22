@@ -41,14 +41,13 @@ public class CreateTrainingClassRequest {
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate endDate;
 
+    @NotNull(message = "Vui lòng chọn giờ bắt đầu")
     @DateTimeFormat(iso = DateTimeFormat.ISO.TIME)
     private LocalTime startTime;
 
+    @NotNull(message = "Vui lòng chọn giờ kết thúc")
     @DateTimeFormat(iso = DateTimeFormat.ISO.TIME)
     private LocalTime endTime;
-
-    @Size(max = 255, message = "Địa điểm tối đa 255 ký tự")
-    private String location;
 
     @Min(value = 1, message = "Sĩ số tối đa phải lớn hơn 0")
     private Integer maxParticipants;
@@ -62,9 +61,5 @@ public class CreateTrainingClassRequest {
 
     public void setTrainer(String trainer) {
         this.trainer = trainer == null ? null : trainer.trim();
-    }
-
-    public void setLocation(String location) {
-        this.location = location == null ? null : location.trim();
     }
 }
