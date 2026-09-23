@@ -2,6 +2,7 @@ package com.example.coffee_hrm.controller;
 
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.DashboardService;
+import com.example.coffee_hrm.service.RecruitmentRequestService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -16,11 +17,17 @@ import org.springframework.web.bind.annotation.RequestMapping;
 public class DashboardController {
 
     private final DashboardService dashboardService;
-
+    private final RecruitmentRequestService recruitmentRequestService;
     @GetMapping("/admin")
     @PreAuthorize("hasRole('ADMIN')")
     public String adminDashboard(@AuthenticationPrincipal AuthenticatedUser user, Model model) {
         model.addAttribute("dashboard", dashboardService.buildAdminDashboard(user));
+
+//        vân anh role admin
+        model.addAttribute(
+                "pendingRecruitments",
+                recruitmentRequestService.countPendingRequests()
+        );
         return "AdminDashboard";
     }
 

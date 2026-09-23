@@ -21,6 +21,12 @@
             <a th:href="@{/admin/employees}">
                 Quản lý nhân sự
             </a>
+            <a th:href="@{/admin/recruitment}">
+                Duyệt đề xuất tuyển nhân sự
+                <span th:if="${pendingRecruitments > 0}"
+                      th:text="'(' + ${pendingRecruitments} + ')'">
+    </span>
+            </a>
             <a th:href="@{/admin/training}">Đào tạo</a>
             <a href="#reports">Báo cáo toàn chuỗi</a>
             <a th:href="@{/notifications}">Thông báo
@@ -82,7 +88,6 @@
             </p>
         </article>
         <article class="action-card">
-
             <h2 >
                   <a  th:href="@{/admin/employees}">
                 Quản lý nhân sự
@@ -90,6 +95,20 @@
             </h2>
             <p>
                 Xem danh sách nhân viên toàn chuỗi.
+            </p>
+        </article>
+        <article class="action-card">
+            <h2>
+                <a th:href="@{/admin/recruitment}">
+                    Duyệt đề xuất tuyển nhân sự
+
+                    <span th:if="${pendingRecruitments > 0}"
+                          th:text="'(' + ${pendingRecruitments} + ')'">
+    </span>
+                </a>
+            </h2>
+            <p>
+                Xem và phê duyệt yêu cầu bổ sung nhân sự từ các cửa hàng.
             </p>
         </article>
         <!--       Vân Anh role Admin-->

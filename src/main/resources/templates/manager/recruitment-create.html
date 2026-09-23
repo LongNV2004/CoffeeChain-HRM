@@ -1,26 +1,110 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
 <head>
-    <title>TẠO YÊU CẦU TUYỂN DỤNG</title>
+    <meta charset="UTF-8">
+    <title>Đề xuất tuyển nhân sự</title>
+    <link rel="stylesheet" th:href="@{/css/ManagerDashboard.css}">
+    <style>
+        .request-form{
+            max-width:600px;
+            margin:0 auto;
+        }
+        .request-form label{
+            display:block;
+            margin-bottom:10px;
+            font-size:18px;
+            font-weight:600;
+            color:#2b1b12;
+            text-align:left;
+        }
+        .request-form input,
+        .request-form textarea{
+            display:block;
+            margin-left:auto;
+            margin-right:auto;
+            width:100%;
+            max-width:420px;
+            padding:14px 16px;
+            font-size:17px;
+            border:1px solid #d8c9b5;
+            border-radius:12px;
+            background:#fffdf9;
+            color:#2b1b12;
+            margin-bottom:24px;
+            outline:none;
+        }
+        .request-form input:focus,
+        .request-form textarea:focus{
+            border-color:#c1793a;
+            box-shadow:0 0 0 3px rgba(193,121,58,0.15);
+        }
+        .request-form textarea{
+            min-height:120px;
+            resize:vertical;
+        }
+        .submit-btn{
+            border:none;
+            border-radius:14px;
+            padding:14px 24px;
+            font-size:18px;
+            font-weight:600;
+            background:#c1793a;
+            color:white;
+            cursor:pointer;
+        }
+        .submit-btn:hover{
+            background:#a9652f;
+        }
+    </style>
 </head>
-
 <body>
-<h1>Request Employee</h1>
-<form action="/manager/recruitment/create"
-      method="post">
-    ID cửa hàng:
-    <input name="storeId">
-    <br>
-    Số lượng:
-    <input name="requestedNumber">
-    <br>
-    Lý do:
-    <textarea name="reason"></textarea>
-    <br>
-    <button type="submit">
-        Yêu Cầu
-    </button>
-</form>
+<header class="dash-nav">
+    <div class="wrap">
+        <div class="brand">
+            <span class="mark"></span>
+            <span class="brand-word">CoffeeHRM</span>
+        </div>
+        <nav>
+            <a th:href="@{/dashboard/manager}">
+                Tổng quan
+            </a>
+            <a class="active">
+                Đề xuất tuyển nhân sự
+            </a>
+        </nav>
+    </div>
+</header>
+<main class="wrap dash-main">
+    <section class="welcome">
+        <div class="eyebrow">
+            Cửa hàng — Manager
+        </div>
+        <h1>
+            Đề xuất tuyển nhân sự
+        </h1>
+        <p>
+            Gửi yêu cầu bổ sung nhân viên cho cửa hàng.
+        </p>
+    </section>
+    <section class="action-card">
+        <form class="request-form"
+              th:action="@{/manager/recruitment/create}"
+              method="post">
+
+            <label for="storeId">ID cửa hàng</label>
+            <input id="storeId" name="storeId" type="number">
+
+            <label for="requestedNumber">Số lượng cần tuyển</label>
+            <input id="requestedNumber" name="requestedNumber" type="number">
+
+            <label for="reason">Lý do</label>
+            <textarea id="reason" name="reason"></textarea>
+
+            <button type="submit" class="submit-btn">
+                Gửi yêu cầu
+            </button>
+        </form>
+    </section>
+</main>
 </body>
 </html>

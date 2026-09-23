@@ -19,4 +19,5 @@ public interface RecruitmentRequestService {
     void rejectRequest(Integer id);
     // Manager xem request của cửa hàng mình
     List<RecruitmentRequest> getRequestsByStore(Integer storeId);
+    Integer countPendingRequests();
 }

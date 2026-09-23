@@ -18,7 +18,13 @@
             <a th:href="@{/schedule/manager}">Lịch làm việc</a>
             <a th:href="@{/availability/manager}">Lịch rảnh STAFF</a>
             <a href="#leave">Quản lý nghỉ phép</a>
-            <a th:href="@{/training}">Đào tạo</a>
+
+<!--            Vân Anh role admin-->
+            <a th:href="@{/manager/recruitment/create}">
+                Đề xuất tuyển nhân sự
+            </a>
+<!--            Vân Anh role admin-->
+
             <a href="#">Báo cáo Store</a>
             <a th:href="@{/notifications}">Thông báo
                 <span class="nav-count" th:if="${unreadNotificationCount > 0}" th:text="${unreadNotificationCount}">0</span>
@@ -89,23 +95,23 @@
             <h2><a th:href="@{/training}">Đào tạo</a></h2>
             <p>Xem danh sách lớp đào tạo của cửa hàng và tạo lớp mới.</p>
         </article>
+        <!--    Vân Anh role admin-->
+        <article class="action-card">
+            <h2>
+                <a th:href="@{/manager/recruitment/create}" style="color:var(--caramel-dark);">
+                    Đề xuất tuyển nhân sự
+                </a>
+            </h2>
+
+            <p>
+                Gửi yêu cầu bổ sung nhân viên cho cửa hàng.
+            </p>
+        </article>
         <article class="action-card" id="reports">
             <h2>Báo cáo Store</h2>
             <p>Xem số liệu vận hành nhân sự theo cửa hàng đang phụ trách.</p>
         </article>
     </section>
-
-<!--    Vân Anh role admin-->
-    <div class="dashboard-card">
-        <h3>
-            <a href="/manager/recruitment/create">
-                Đề xuất tuyển nhân sự
-            </a>
-        </h3>
-        <p>
-            Gửi yêu cầu bổ sung nhân viên cho cửa hàng.
-        </p>
-    </div>
 </main>
 <script th:src="@{/js/ManagerDashboard.js}"></script>
 </body>

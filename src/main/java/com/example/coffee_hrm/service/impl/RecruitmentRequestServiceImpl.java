@@ -76,4 +76,12 @@ public class RecruitmentRequestServiceImpl
         return recruitmentRequestRepository
                 .findByStoreId(storeId);
     }
+//    đếm số đơn chưa duyệt
+@Override
+public Integer countPendingRequests() {
+
+    return recruitmentRequestRepository
+            .countByStatus(RecruitmentStatus.PENDING);
+
+}
 }
