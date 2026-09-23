@@ -1,38 +1,111 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
 <head>
-    <title>YÊU CẦU TUYỂN DỤNG</title>
+    <meta charset="UTF-8">
+    <title>Duyệt đề xuất tuyển nhân sự — CoffeeHRM</title>
+
+    <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
+    <style>
+        .action-btn{
+            border:none;
+            border-radius:12px;
+            padding:10px 18px;
+            font-size:16px;
+            font-weight:600;
+            cursor:pointer;
+            color:#fff;
+            margin-right:8px;
+        }
+        .approve-btn{
+            background:#5da271;
+        }
+        .approve-btn:hover{
+            background:#4a8a5d;
+        }
+        .reject-btn{
+            background:#d46a6a;
+        }
+        .reject-btn:hover{
+            background:#b95454;
+        }
+    </style>
 </head>
 <body>
-<h1>Yêu cầu tuyển dụng</h1>
-<table border="1">
-    <tr>
-        <th>Cửa hàng</th>
-        <th>Số lượng</th>
-        <th>Lý do</th>
-        <th>Trạng thái</th>
-        <th>Duyệt</th>
-    </tr>
-    <tr th:each="request : ${requests}">
-        <td th:text="${request.store.storeName}"></td>
-        <td th:text="${request.requestedNumber}"></td>
-        <td th:text="${request.reason}"></td>
-        <td th:text="${request.status.dbValue}"></td>
-        <td>
-            <form th:action="@{/admin/recruitment/{id}/approve(id=${request.id})}"
-                  method="post">
-                <button>
-                    Approve
-                </button>
-            </form>
-            <form th:action="@{/admin/recruitment/{id}/reject(id=${request.id})}"
-                  method="post">
-                <button>
-                    Reject
-                </button>
-            </form>
-        </td>
-    </tr>
-</table>
+<header class="dash-nav">
+    <div class="wrap">
+        <div class="brand">
+            <span class="mark"></span>
+            <span class="brand-word">CoffeeHRM</span>
+        </div>
+        <nav>
+            <a th:href="@{/dashboard/admin}">
+                Tổng quan
+            </a>
+            <a class="active"
+               th:href="@{/admin/recruitment}">
+                Duyệt tuyển dụng
+            </a>
+        </nav>
+    </div>
+</header>
+<main class="wrap dash-main">
+    <section class="welcome">
+        <div class="eyebrow">
+            Trụ sở — Admin
+        </div>
+        <h1>
+            Yêu cầu tuyển dụng
+        </h1>
+        <p>
+            Xem và phê duyệt đề xuất bổ sung nhân sự từ các cửa hàng.
+        </p>
+    </section>
+    <section class="action-card">
+        <table>
+            <thead>
+            <tr>
+                <th>Cửa hàng</th>
+                <th>Số lượng</th>
+                <th>Lý do</th>
+                <th>Trạng thái</th>
+                <th>Duyệt</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="request : ${requests}">
+                <td th:text="${request.store.storeName}">
+                    Store
+                </td>
+                <td th:text="${request.requestedNumber}">
+                    0
+                </td>
+                <td th:text="${request.reason}">
+                    Reason
+                </td>
+                <td th:text="${request.status.dbValue}">
+                    Pending
+                </td>
+                <td>
+                    <form th:action="@{/admin/recruitment/{id}/approve(id=${request.id})}"
+                          method="post"
+                          style="display:inline">
+                        <button type="submit" class="action-btn approve-btn">
+                            Duyệt
+                        </button>
+                    </form>
+
+                    <form th:action="@{/admin/recruitment/{id}/reject(id=${request.id})}"
+                          method="post"
+                          style="display:inline">
+                        <button type="submit" class="action-btn reject-btn">
+                            Từ chối
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+</main>
 </body>
 </html>
