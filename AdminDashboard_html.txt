@@ -12,22 +12,16 @@
 <header class="dash-nav">
     <div class="wrap">
         <div class="brand"><span class="mark"></span><span class="brand-word">CoffeeHRM</span></div>
-<!--Vân Anh role admin-->
         <nav>
             <a class="active" th:href="@{/dashboard/admin}">Tổng quan</a>
-            <a th:href="@{/admin/stores}">
-                Quản lý cửa hàng
-            </a>
-            <a th:href="@{/admin/employees}">
-                Quản lý nhân sự
-            </a>
+            <a href="#accounts">Quản lý tài khoản</a>
+            <a href="#stores">Quản lý cửa hàng</a>
             <a th:href="@{/admin/training}">Đào tạo</a>
             <a href="#reports">Báo cáo toàn chuỗi</a>
             <a th:href="@{/notifications}">Thông báo
                 <span class="nav-count" th:if="${unreadNotificationCount > 0}" th:text="${unreadNotificationCount}">0</span>
             </a>
         </nav>
-        <!--Vân Anh role admin-->
         <form th:action="@{/logout}" method="post">
             <button class="logout-btn" type="submit">Đăng xuất</button>
         </form>
@@ -68,32 +62,10 @@
             <h2>Quản lý tài khoản</h2>
             <p>Tạo và khóa tài khoản Admin, Manager, Staff theo nghiệp vụ hệ thống.</p>
         </article>
-
-<!--       Vân Anh role Admin-->
         <article class="action-card" id="stores">
-            <h2>
-                <a th:href="@{/admin/stores}">
-                    Quản lý cửa hàng
-                </a>
-            </h2>
-
-            <p>
-                Xem danh sách cửa hàng, nhân viên và trạng thái hoạt động.
-            </p>
+            <h2>Quản lý cửa hàng</h2>
+            <p>Theo dõi danh sách cửa hàng, trạng thái hoạt động và quản lý phụ trách.</p>
         </article>
-        <article class="action-card">
-
-            <h2 >
-                  <a  th:href="@{/admin/employees}">
-                Quản lý nhân sự
-                  </a>
-            </h2>
-            <p>
-                Xem danh sách nhân viên toàn chuỗi.
-            </p>
-        </article>
-        <!--       Vân Anh role Admin-->
-
         <article class="action-card">
             <h2><a th:href="@{/admin/training}">Đào tạo</a></h2>
             <p>Xem lớp PENDING_APPROVAL, phê duyệt hoặc từ chối đề xuất của Manager.</p>

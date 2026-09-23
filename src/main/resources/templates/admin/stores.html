@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Quản lý cửa hàng</title>
+
+    <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
+</head>
+
+<body>
+<header class="dash-nav">
+    <div class="wrap">
+        <div class="brand">
+            <span class="mark"></span>
+            <span class="brand-word">CoffeeHRM</span>
+        </div>
+    </div>
+</header>
+<main class="wrap dash-main">
+    <section class="welcome">
+        <div class="eyebrow">Trụ sở — Admin</div>
+        <h1>Quản lý cửa hàng</h1>
+        <p>Danh sách các cửa hàng trong chuỗi.</p>
+    </section>
+    <section class="panel">
+        <table class="store-table">
+            <thead>
+            <tr>
+                <th>#</th>
+                <th>Tên cửa hàng</th>
+                <th>Địa chỉ</th>
+                <th>Trạng thái</th>
+                <th>Số nhân viên</th>
+                <th>Thao tác</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="store, stat : ${stores}">
+                <td th:text="${stat.count}"></td>
+                <td class="store-name"
+                    th:text="${store.storeName}">
+                </td>
+                <td th:text="${store.address}">
+                </td>
+                <td>
+
+<span th:if="${store.isActive}"
+      class="status active">
+    ● Hoạt động
+</span>
+                    <span th:unless="${store.isActive}"
+                          class="status inactive">
+    ● Ngừng hoạt động
+</span>
+                </td>
+                <td>
+                    <span th:text="${store.employees.size()}"></span>
+                </td>
+                <td>
+                    <a class="btn-view"
+                       th:href="@{/admin/stores/{id}/employees(id=${store.id})}">
+                        👥 Xem nhân viên
+                    </a>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+</main>
+</body>
+</html>

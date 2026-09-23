@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>YÊU CẦU TUYỂN DỤNG</title>
+</head>
+<body>
+<h1>Yêu cầu tuyển dụng</h1>
+<table border="1">
+    <tr>
+        <th>Cửa hàng</th>
+        <th>Số lượng</th>
+        <th>Lý do</th>
+        <th>Trạng thái</th>
+        <th>Duyệt</th>
+    </tr>
+    <tr th:each="request : ${requests}">
+        <td th:text="${request.store.storeName}"></td>
+        <td th:text="${request.requestedNumber}"></td>
+        <td th:text="${request.reason}"></td>
+        <td th:text="${request.status.dbValue}"></td>
+        <td>
+            <form th:action="@{/admin/recruitment/{id}/approve(id=${request.id})}"
+                  method="post">
+                <button>
+                    Approve
+                </button>
+            </form>
+            <form th:action="@{/admin/recruitment/{id}/reject(id=${request.id})}"
+                  method="post">
+                <button>
+                    Reject
+                </button>
+            </form>
+        </td>
+    </tr>
+</table>
+</body>
+</html>

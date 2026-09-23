@@ -47,24 +47,12 @@ a{color:inherit;text-decoration:none;}
 .welcome .eyebrow{font-size:13px;color:var(--caramel-dark);margin-bottom:10px;}
 .welcome h1{font-size:36px;margin-bottom:8px;}
 .welcome p{color:var(--espresso-soft);margin:0;}
-
-/*Vân Anh role admin*/
-.stat-grid{
-  display:grid;
-  grid-template-columns:repeat(4,1fr);
-  gap:16px;
-  margin:32px 0;}
-
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:32px 0;}
 .stat-card,.action-card,.panel,.store-banner{
-  background:#fff;border:1px solid var(--line);padding:16px;
-
+  background:#fff;border:1px solid var(--line);padding:22px;
 }
-
 .stat-card .label{font-size:13px;color:var(--ink-soft);}
-
-.stat-card .value{font-family:'Fraunces',serif;font-size:28px;margin-top:8px;}
-/*Vân Anh role admin*/
-
+.stat-card .value{font-family:'Fraunces',serif;font-size:32px;margin-top:8px;}
 .action-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
 .action-card h2,.panel h2,.store-banner h2{font-size:20px;margin-bottom:8px;}
 .action-card p,.store-banner p,.panel p{margin:0;color:var(--espresso-soft);font-size:14px;}
@@ -87,94 +75,4 @@ th{color:var(--ink-soft);font-weight:500;}
   .wrap,.dash-nav .wrap,.dash-main{padding-left:22px;padding-right:22px;}
   .dash-nav nav{display:none;}
   .stat-grid,.action-grid,.split{grid-template-columns:1fr;}
-}
-/*Vân Anh role admin*/
-.btn-action {
-  display: inline-block;
-  padding: 8px 16px;
-  border: 1px solid #b87935;
-  border-radius: 8px;
-  color: #8b5428;
-  text-decoration: none;
-  font-size: 14px;
-}
-
-.btn-action:hover {
-  background: #b87935;
-  color: white;
-}
-.store-table {
-  width:100%;
-  border-collapse:collapse;
-}
-
-
-.store-table th {
-  font-weight:500;
-  color:#8b6b4a;
-  padding:16px;
-  text-align:left;
-}
-
-
-.store-table td {
-  padding:18px 16px;
-  border-bottom:1px solid #eadfd2;
-}
-
-
-.store-name {
-  font-weight:600;
-}
-
-
-.status {
-  display:inline-flex;
-  align-items:center;
-  padding:6px 14px;
-  border-radius:20px;
-  font-size:14px;
-}
-
-
-.status.active {
-  background:#e4f4e8;
-  color:#24813b;
-}
-
-
-.status.inactive {
-  background:#fde5e5;
-  color:#c0392b;
-}
-
-
-.btn-view {
-
-  display:inline-flex;
-  align-items:center;
-  gap:8px;
-
-  padding:10px 18px;
-
-  border:1px solid #c47a2c;
-
-  border-radius:10px;
-
-  color:#a45f1b;
-
-  text-decoration:none;
-
-  font-size:14px;
-
-  transition:0.2s;
-}
-
-
-.btn-view:hover {
-
-  background:#c47a2c;
-
-  color:white;
-
 }
