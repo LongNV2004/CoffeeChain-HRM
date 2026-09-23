@@ -1,0 +1,602 @@
+-- =============================================================================
+-- COFFEE CHAIN HRM - TOÀN BỘ CƠ SỞ DỮ LIỆU & DỮ LIỆU MẪU (FULL SETUP & MIGRATION)
+-- Hướng dẫn: Mở SQL Server Management Studio (SSMS) hoặc Azure Data Studio,
+-- kết nối với SQL Server và chạy toàn bộ script này (Execute / F5).
+-- =============================================================================
+
+USE master;
+GO
+
+IF DB_ID('CoffeeHRM') IS NOT NULL
+BEGIN
+    ALTER DATABASE CoffeeHRM
+    SET SINGLE_USER
+    WITH ROLLBACK IMMEDIATE;
+
+    DROP DATABASE CoffeeHRM;
+END
+GO
+
+IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = N'CoffeeHRM')
+BEGIN
+    CREATE DATABASE CoffeeHRM;
+    PRINT N'Đã tạo mới Database CoffeeHRM.';
+END
+GO
+
+USE CoffeeHRM;
+GO
+
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+GO
+
+-- =============================================================================
+-- 1. TẠO CÁC BẢNG CƠ BẢN (NẾU CHƯA CÓ)
+-- =============================================================================
+
+-- Bảng Roles (Vai trò)
+IF OBJECT_ID(N'dbo.Roles', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Roles (
+        RoleId INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Roles PRIMARY KEY,
+        RoleName NVARCHAR(50) NOT NULL CONSTRAINT UQ_Roles_RoleName UNIQUE
+    );
+    PRINT N'Đã tạo bảng Roles.';
+END
+GO
+
+-- Bảng Stores (Cửa hàng)
+IF OBJECT_ID(N'dbo.Stores', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Stores (
+        StoreId INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Stores PRIMARY KEY,
+        StoreName NVARCHAR(100) NOT NULL,
+        Address NVARCHAR(255) NOT NULL,
+        ManagerId INT NULL,
+        TotalLeaveDays INT NOT NULL CONSTRAINT DF_Stores_TotalLeaveDays DEFAULT (12),
+        IsActive BIT NOT NULL CONSTRAINT DF_Stores_IsActive DEFAULT (1),
+        CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_Stores_CreatedAt DEFAULT (SYSUTCDATETIME())
+    );
+    PRINT N'Đã tạo bảng Stores.';
+END
+GO
+
+-- Bảng StoreOperatingHours (Giờ mở cửa)
+IF OBJECT_ID(N'dbo.StoreOperatingHours', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.StoreOperatingHours (
+        OperatingHourId INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_StoreOperatingHours PRIMARY KEY,
+        StoreId INT NOT NULL,
+        DayOfWeek TINYINT NOT NULL,
+        OpenTime TIME NULL,
+        CloseTime TIME NULL,
+        IsOpen BIT NOT NULL CONSTRAINT DF_StoreOperatingHours_IsOpen DEFAULT (1),
+        CONSTRAINT FK_StoreOperatingHours_Store FOREIGN KEY (StoreId) REFERENCES dbo.Stores(StoreId) ON DELETE CASCADE,
+        CONSTRAINT UQ_StoreOperatingHours_Store_Day UNIQUE (StoreId, DayOfWeek),
+        CONSTRAINT CK_StoreOperatingHours_DayOfWeek CHECK (DayOfWeek BETWEEN 0 AND 6)
+    );
+    PRINT N'Đã tạo bảng StoreOperatingHours.';
+END
+GO
+
+-- Bảng Employees (Nhân viên)
+IF OBJECT_ID(N'dbo.Employees', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Employees (
+        EmployeeId INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Employees PRIMARY KEY,
+        FullName NVARCHAR(100) NOT NULL,
+Phone VARCHAR(20) NOT NULL,
+        Email VARCHAR(100) NOT NULL CONSTRAINT UQ_Employees_Email UNIQUE,
+        Address NVARCHAR(255) NULL,
+        StoreId INT NOT NULL,
+        Status NVARCHAR(20) NOT NULL CONSTRAINT DF_Employees_Status DEFAULT (N'Active'),
+        HireDate DATE NOT NULL,
+        TerminationDate DATE NULL,
+        AvatarUrl NVARCHAR(255) NULL,
+        CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_Employees_CreatedAt DEFAULT (SYSUTCDATETIME()),
+        CONSTRAINT FK_Employees_Store FOREIGN KEY (StoreId) REFERENCES dbo.Stores(StoreId)
+    );
+    PRINT N'Đã tạo bảng Employees.';
+END
+GO
+
+-- Thêm khóa ngoại Stores.ManagerId -> Employees.EmployeeId nếu chưa có
+IF NOT EXISTS (
+    SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_Stores_Manager'
+)
+BEGIN
+    ALTER TABLE dbo.Stores
+    ADD CONSTRAINT FK_Stores_Manager FOREIGN KEY (ManagerId) REFERENCES dbo.Employees(EmployeeId);
+END
+GO
+
+-- Bảng Users (Tài khoản người dùng)
+IF OBJECT_ID(N'dbo.Users', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Users (
+        UserId INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Users PRIMARY KEY,
+        Username NVARCHAR(50) NOT NULL CONSTRAINT UQ_Users_Username UNIQUE,
+        PasswordHash NVARCHAR(255) NOT NULL,
+        RoleId INT NOT NULL,
+        EmployeeId INT NULL,
+        IsActive BIT NOT NULL CONSTRAINT DF_Users_IsActive DEFAULT (1),
+        CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_Users_CreatedAt DEFAULT (SYSUTCDATETIME()),
+        LastLogin DATETIME2 NULL,
+        CONSTRAINT FK_Users_Role FOREIGN KEY (RoleId) REFERENCES dbo.Roles(RoleId),
+        CONSTRAINT FK_Users_Employee FOREIGN KEY (EmployeeId) REFERENCES dbo.Employees(EmployeeId)
+    );
+    PRINT N'Đã tạo bảng Users.';
+END
+GO
+
+-- Bảng Shifts (Ca làm việc)
+IF OBJECT_ID(N'dbo.Shifts', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Shifts (
+        ShiftId INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Shifts PRIMARY KEY,
+        StoreId INT NOT NULL,
+        ShiftName NVARCHAR(50) NOT NULL,
+        StartTime TIME NOT NULL,
+        EndTime TIME NOT NULL,
+        CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_Shifts_CreatedAt DEFAULT (SYSUTCDATETIME()),
+        CONSTRAINT FK_Shifts_Store FOREIGN KEY (StoreId) REFERENCES dbo.Stores(StoreId),
+        CONSTRAINT CK_Shifts_TimeRange CHECK (EndTime > StartTime)
+    );
+    PRINT N'Đã tạo bảng Shifts.';
+END
+GO
+
+-- Bảng ShiftAssignments (Phân công ca làm việc)
+IF OBJECT_ID(N'dbo.ShiftAssignments', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.ShiftAssignments (
+        AssignmentId INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_ShiftAssignments PRIMARY KEY,
+        ShiftId INT NOT NULL,
+        EmployeeId INT NOT NULL,
+        WorkDate DATE NOT NULL,
+        Status NVARCHAR(20) NOT NULL CONSTRAINT DF_ShiftAssignments_Status DEFAULT (N'Assigned'),
+        IsPublished BIT NOT NULL CONSTRAINT DF_ShiftAssignments_IsPublished DEFAULT (0),
+        PublishedAt DATETIME2 NULL,
+CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_ShiftAssignments_CreatedAt DEFAULT (SYSUTCDATETIME()),
+        CONSTRAINT FK_ShiftAssignments_Shift FOREIGN KEY (ShiftId) REFERENCES dbo.Shifts(ShiftId),
+        CONSTRAINT FK_ShiftAssignments_Employee FOREIGN KEY (EmployeeId) REFERENCES dbo.Employees(EmployeeId),
+        CONSTRAINT UQ_Assignment_EmpShiftDate UNIQUE (EmployeeId, ShiftId, WorkDate)
+    );
+    CREATE INDEX IX_ShiftAssignments_Store ON dbo.ShiftAssignments(ShiftId, WorkDate);
+    CREATE INDEX IX_ShiftAssignments_Date ON dbo.ShiftAssignments(WorkDate);
+    PRINT N'Đã tạo bảng ShiftAssignments.';
+END
+GO
+
+-- Bảng ShiftChangeRequests (Yêu cầu đổi / nhường ca)
+IF OBJECT_ID(N'dbo.ShiftChangeRequests', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.ShiftChangeRequests (
+        RequestId INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_ShiftChangeRequests PRIMARY KEY,
+        AssignmentId INT NOT NULL,
+        EmployeeId INT NOT NULL,
+        TargetAssignmentId INT NULL,
+        TargetEmployeeId INT NULL,
+        IsTargetAgreed BIT NULL,
+        TargetAgreedAt DATETIME2 NULL,
+        Reason NVARCHAR(255) NOT NULL,
+        Status NVARCHAR(20) NOT NULL CONSTRAINT DF_ShiftChangeRequests_Status DEFAULT (N'Pending'),
+        RequestDate DATETIME2 NOT NULL CONSTRAINT DF_ShiftChangeRequests_RequestDate DEFAULT (SYSUTCDATETIME()),
+        ResolvedBy INT NULL,
+        ResolvedDate DATETIME2 NULL,
+        CONSTRAINT FK_ShiftChangeRequests_Assignment FOREIGN KEY (AssignmentId) REFERENCES dbo.ShiftAssignments(AssignmentId),
+        CONSTRAINT FK_ShiftChangeRequests_Employee FOREIGN KEY (EmployeeId) REFERENCES dbo.Employees(EmployeeId),
+        CONSTRAINT FK_ShiftChangeRequests_ResolvedBy FOREIGN KEY (ResolvedBy) REFERENCES dbo.Users(UserId),
+        CONSTRAINT FK_ChangeReq_TargetAssignment FOREIGN KEY (TargetAssignmentId) REFERENCES dbo.ShiftAssignments(AssignmentId),
+        CONSTRAINT FK_ChangeReq_TargetEmployee FOREIGN KEY (TargetEmployeeId) REFERENCES dbo.Employees(EmployeeId)
+    );
+    PRINT N'Đã tạo bảng ShiftChangeRequests.';
+END
+GO
+
+-- Bảng Attendances (Điểm danh / Chấm công)
+IF OBJECT_ID(N'dbo.Attendances', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Attendances (
+        AttendanceId INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Attendances PRIMARY KEY,
+        EmployeeId INT NOT NULL,
+        WorkDate DATE NOT NULL,
+        CheckInTime TIME NULL,
+        CheckOutTime TIME NULL,
+        TotalHours DECIMAL(4,2) NULL,
+        Status NVARCHAR(20) NOT NULL CONSTRAINT DF_Attendances_Status DEFAULT (N'Present'),
+        CONSTRAINT FK_Attendances_Employee FOREIGN KEY (EmployeeId) REFERENCES dbo.Employees(EmployeeId),
+        CONSTRAINT UQ_Attendances_EmpDate UNIQUE (EmployeeId, WorkDate)
+    );
+    PRINT N'Đã tạo bảng Attendances.';
+END
+GO
+
+-- Bảng LeaveRequests (Yêu cầu nghỉ phép)
+IF OBJECT_ID(N'dbo.LeaveRequests', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.LeaveRequests (
+LeaveRequestId INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_LeaveRequests PRIMARY KEY,
+        EmployeeId INT NOT NULL,
+        StartDate DATE NOT NULL,
+        EndDate DATE NOT NULL,
+        Reason NVARCHAR(255) NOT NULL,
+        Status NVARCHAR(20) NOT NULL CONSTRAINT DF_LeaveRequests_Status DEFAULT (N'Pending'),
+        ApprovedBy INT NULL,
+        ResolvedDate DATETIME2 NULL,
+        CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_LeaveRequests_CreatedAt DEFAULT (SYSUTCDATETIME()),
+        CONSTRAINT FK_LeaveRequests_Employee FOREIGN KEY (EmployeeId) REFERENCES dbo.Employees(EmployeeId),
+        CONSTRAINT FK_LeaveRequests_ApprovedBy FOREIGN KEY (ApprovedBy) REFERENCES dbo.Users(UserId),
+        CONSTRAINT CK_LeaveRequests_DateRange CHECK (EndDate >= StartDate)
+    );
+    PRINT N'Đã tạo bảng LeaveRequests.';
+END
+GO
+
+-- Bảng LeaveBalances (Số ngày phép còn lại)
+IF OBJECT_ID(N'dbo.LeaveBalances', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.LeaveBalances (
+        BalanceId INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_LeaveBalances PRIMARY KEY,
+        EmployeeId INT NOT NULL,
+        Year INT NOT NULL,
+        TotalDays INT NOT NULL CONSTRAINT DF_LeaveBalances_TotalDays DEFAULT (12),
+        UsedDays INT NOT NULL CONSTRAINT DF_LeaveBalances_UsedDays DEFAULT (0),
+        RemainingDays INT NOT NULL CONSTRAINT DF_LeaveBalances_RemainingDays DEFAULT (12),
+        CONSTRAINT FK_LeaveBalances_Employee FOREIGN KEY (EmployeeId) REFERENCES dbo.Employees(EmployeeId),
+        CONSTRAINT UQ_LeaveBalances_EmpYear UNIQUE (EmployeeId, Year)
+    );
+    PRINT N'Đã tạo bảng LeaveBalances.';
+END
+GO
+
+-- Bảng Đào tạo (Training Management)
+IF OBJECT_ID(N'dbo.TrainingSkills', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.TrainingSkills (
+        SkillId INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_TrainingSkills PRIMARY KEY,
+        SkillName NVARCHAR(100) NOT NULL CONSTRAINT UQ_TrainingSkills_SkillName UNIQUE,
+        Description NVARCHAR(500) NULL,
+        Requirements NVARCHAR(500) NULL,
+        Status VARCHAR(20) NOT NULL CONSTRAINT DF_TrainingSkills_Status DEFAULT ('Active'),
+        CreatedBy INT NULL,
+        CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_TrainingSkills_CreatedAt DEFAULT (SYSUTCDATETIME()),
+        CONSTRAINT FK_TrainingSkills_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.Users (UserId),
+        CONSTRAINT CK_TrainingSkills_Status CHECK (Status IN ('Active', 'Inactive'))
+    );
+END
+GO
+
+IF OBJECT_ID(N'dbo.TrainingClasses', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.TrainingClasses (
+        ClassId INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_TrainingClasses PRIMARY KEY,
+        SkillId INT NOT NULL,
+        StoreId INT NOT NULL,
+        ClassName NVARCHAR(150) NOT NULL,
+        Trainer NVARCHAR(100) NULL,
+        StartDate DATE NOT NULL,
+        EndDate DATE NOT NULL,
+        StartTime TIME NULL,
+        EndTime TIME NULL,
+        Location NVARCHAR(255) NULL,
+        MaxParticipants INT NULL,
+Notes NVARCHAR(500) NULL,
+        Status VARCHAR(30) NOT NULL CONSTRAINT DF_TrainingClasses_Status DEFAULT ('PENDING_APPROVAL'),
+        CreatedBy INT NOT NULL,
+        ApprovedBy INT NULL,
+        ApprovedAt DATETIME2 NULL,
+        CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_TrainingClasses_CreatedAt DEFAULT (SYSUTCDATETIME()),
+        CONSTRAINT FK_TrainingClasses_Skill FOREIGN KEY (SkillId) REFERENCES dbo.TrainingSkills (SkillId),
+        CONSTRAINT FK_TrainingClasses_Store FOREIGN KEY (StoreId) REFERENCES dbo.Stores (StoreId),
+        CONSTRAINT FK_TrainingClasses_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.Users (UserId),
+        CONSTRAINT FK_TrainingClasses_ApprovedBy FOREIGN KEY (ApprovedBy) REFERENCES dbo.Users (UserId),
+        CONSTRAINT CK_TrainingClasses_Status CHECK (Status IN ('PENDING_APPROVAL', 'APPROVED', 'REJECTED')),
+        CONSTRAINT CK_TrainingClasses_Dates CHECK (EndDate >= StartDate)
+    );
+END
+GO
+
+-- =============================================================================
+-- 2. MIGRATION CÁC CỘT MỚI (AN TOÀN CHO DB ĐÃ CÓ TỪ TRƯỚC)
+-- =============================================================================
+
+-- Cột công bố lịch cho ShiftAssignments
+IF NOT EXISTS (
+    SELECT 1 FROM sys.columns 
+    WHERE object_id = OBJECT_ID(N'dbo.ShiftAssignments') AND name = 'IsPublished'
+)
+BEGIN
+    ALTER TABLE dbo.ShiftAssignments 
+    ADD IsPublished BIT NOT NULL CONSTRAINT DF_ShiftAssignments_IsPublished DEFAULT (0);
+    PRINT N'Đã thêm cột IsPublished vào ShiftAssignments.';
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.columns 
+    WHERE object_id = OBJECT_ID(N'dbo.ShiftAssignments') AND name = 'PublishedAt'
+)
+BEGIN
+    ALTER TABLE dbo.ShiftAssignments 
+    ADD PublishedAt DATETIME2 NULL;
+    PRINT N'Đã thêm cột PublishedAt vào ShiftAssignments.';
+END
+GO
+
+-- Cột TargetAssignmentId cho ShiftChangeRequests (Đổi chéo ca 2 chiều)
+IF NOT EXISTS (
+    SELECT 1 FROM sys.columns 
+    WHERE object_id = OBJECT_ID(N'dbo.ShiftChangeRequests') AND name = 'TargetAssignmentId'
+)
+BEGIN
+    ALTER TABLE dbo.ShiftChangeRequests 
+    ADD TargetAssignmentId INT NULL;
+
+    ALTER TABLE dbo.ShiftChangeRequests 
+    ADD CONSTRAINT FK_ChangeReq_TargetAssignment 
+        FOREIGN KEY (TargetAssignmentId) REFERENCES dbo.ShiftAssignments(AssignmentId) 
+        ON DELETE NO ACTION ON UPDATE NO ACTION;
+    PRINT N'Đã thêm cột TargetAssignmentId vào ShiftChangeRequests.';
+END
+GO
+
+-- Cột TargetEmployeeId cho ShiftChangeRequests (Chuyển ca 1 chiều)
+IF NOT EXISTS (
+    SELECT 1 FROM sys.columns 
+    WHERE object_id = OBJECT_ID(N'dbo.ShiftChangeRequests') AND name = 'TargetEmployeeId'
+)
+BEGIN
+    ALTER TABLE dbo.ShiftChangeRequests 
+    ADD TargetEmployeeId INT NULL;
+
+    ALTER TABLE dbo.ShiftChangeRequests 
+    ADD CONSTRAINT FK_ChangeReq_TargetEmployee 
+        FOREIGN KEY (TargetEmployeeId) REFERENCES dbo.Employees(EmployeeId) 
+        ON DELETE NO ACTION ON UPDATE NO ACTION;
+PRINT N'Đã thêm cột TargetEmployeeId vào ShiftChangeRequests.';
+END
+GO
+
+-- Cột IsTargetAgreed cho ShiftChangeRequests (Đồng nghiệp xác nhận)
+IF NOT EXISTS (
+    SELECT 1 FROM sys.columns 
+    WHERE object_id = OBJECT_ID(N'dbo.ShiftChangeRequests') AND name = 'IsTargetAgreed'
+)
+BEGIN
+    ALTER TABLE dbo.ShiftChangeRequests 
+    ADD IsTargetAgreed BIT NULL;
+    PRINT N'Đã thêm cột IsTargetAgreed vào ShiftChangeRequests.';
+END
+GO
+
+-- Cột TargetAgreedAt cho ShiftChangeRequests (Thời điểm đồng nghiệp đồng ý)
+IF NOT EXISTS (
+    SELECT 1 FROM sys.columns 
+    WHERE object_id = OBJECT_ID(N'dbo.ShiftChangeRequests') AND name = 'TargetAgreedAt'
+)
+BEGIN
+    ALTER TABLE dbo.ShiftChangeRequests 
+    ADD TargetAgreedAt DATETIME2 NULL;
+    PRINT N'Đã thêm cột TargetAgreedAt vào ShiftChangeRequests.';
+END
+GO
+
+-- =============================================================================
+-- 3. DỮ LIỆU MẪU BAN ĐẦU (SEED DATA ĐẦY ĐỦ ĐỂ CHẠY NGAY)
+-- =============================================================================
+
+-- Seed Roles
+SET IDENTITY_INSERT dbo.Roles ON;
+IF NOT EXISTS (SELECT 1 FROM dbo.Roles WHERE RoleId = 1) INSERT INTO dbo.Roles (RoleId, RoleName) VALUES (1, N'Admin');
+IF NOT EXISTS (SELECT 1 FROM dbo.Roles WHERE RoleId = 2) INSERT INTO dbo.Roles (RoleId, RoleName) VALUES (2, N'Manager');
+IF NOT EXISTS (SELECT 1 FROM dbo.Roles WHERE RoleId = 3) INSERT INTO dbo.Roles (RoleId, RoleName) VALUES (3, N'Staff');
+SET IDENTITY_INSERT dbo.Roles OFF;
+GO
+
+-- Seed Stores
+SET IDENTITY_INSERT dbo.Stores ON;
+IF NOT EXISTS (SELECT 1 FROM dbo.Stores WHERE StoreId = 1)
+BEGIN
+    INSERT INTO dbo.Stores (StoreId, StoreName, Address, ManagerId, TotalLeaveDays, IsActive)
+    VALUES (1, N'The Coffee House - Cầu Giấy', N'122 Cầu Giấy, Hà Nội', NULL, 12, 1);
+END;
+SET IDENTITY_INSERT dbo.Stores OFF;
+GO
+
+-- Seed StoreOperatingHours
+IF NOT EXISTS (SELECT 1 FROM dbo.StoreOperatingHours WHERE StoreId = 1)
+BEGIN
+    INSERT INTO dbo.StoreOperatingHours (StoreId, DayOfWeek, OpenTime, CloseTime, IsOpen) VALUES
+    (1, 0, '07:00:00', '23:00:00', 1),
+    (1, 1, '07:00:00', '23:00:00', 1),
+    (1, 2, '07:00:00', '23:00:00', 1),
+    (1, 3, '07:00:00', '23:00:00', 1),
+    (1, 4, '07:00:00', '23:00:00', 1),
+    (1, 5, '07:00:00', '23:00:00', 1),
+    (1, 6, '07:00:00', '23:00:00', 1);
+END;
+GO
+
+-- Seed Employees
+SET IDENTITY_INSERT dbo.Employees ON;
+IF NOT EXISTS (SELECT 1 FROM dbo.Employees WHERE EmployeeId = 1)
+    INSERT INTO dbo.Employees (EmployeeId, FullName, Phone, Email, Address, StoreId, Status, HireDate)
+    VALUES (1, N'Nguyễn Văn Quản Lý', '0981112233', 'manager1@fpt.edu.vn', N'Cầu Giấy, Hà Nội', 1, N'Active', '2025-01-01');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Employees WHERE EmployeeId = 2)
+    INSERT INTO dbo.Employees (EmployeeId, FullName, Phone, Email, Address, StoreId, Status, HireDate)
+VALUES (2, N'Trần Văn Tuấn', '0984445566', 'tuanthhe171692@fpt.edu.vn', N'Nam Từ Liêm, Hà Nội', 1, N'Active', '2025-03-01');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Employees WHERE EmployeeId = 3)
+    INSERT INTO dbo.Employees (EmployeeId, FullName, Phone, Email, Address, StoreId, Status, HireDate)
+    VALUES (3, N'Lê Thị Thu', '0987778899', 'thult@fpt.edu.vn', N'Đống Đa, Hà Nội', 1, N'Active', '2025-04-01');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Employees WHERE EmployeeId = 4)
+    INSERT INTO dbo.Employees (EmployeeId, FullName, Phone, Email, Address, StoreId, Status, HireDate)
+    VALUES (4, N'Phạm Minh Đức', '0989990011', 'ducpm@fpt.edu.vn', N'Thanh Xuân, Hà Nội', 1, N'Active', '2025-05-01');
+SET IDENTITY_INSERT dbo.Employees OFF;
+GO
+
+-- Cập nhật Quản lý cửa hàng 1
+UPDATE dbo.Stores SET ManagerId = 1 WHERE StoreId = 1 AND ManagerId IS NULL;
+GO
+
+-- Seed Users (Tất cả tài khoản có mật khẩu mặc định: 123456)
+-- AuthServiceImpl tự động đối chiếu '123456' và mã hoá BCrypt ngay lần đăng nhập đầu tiên
+SET IDENTITY_INSERT dbo.Users ON;
+IF NOT EXISTS (SELECT 1 FROM dbo.Users WHERE Username = 'admin')
+    INSERT INTO dbo.Users (UserId, Username, PasswordHash, RoleId, EmployeeId, IsActive)
+    VALUES (1, 'admin', '123456', 1, NULL, 1);
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Users WHERE Username = 'manager1')
+    INSERT INTO dbo.Users (UserId, Username, PasswordHash, RoleId, EmployeeId, IsActive)
+    VALUES (2, 'manager1', '123456', 2, 1, 1);
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Users WHERE Username = 'tuanth')
+    INSERT INTO dbo.Users (UserId, Username, PasswordHash, RoleId, EmployeeId, IsActive)
+    VALUES (3, 'tuanth', '123456', 3, 2, 1);
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Users WHERE Username = 'staff2')
+    INSERT INTO dbo.Users (UserId, Username, PasswordHash, RoleId, EmployeeId, IsActive)
+    VALUES (4, 'staff2', '123456', 3, 3, 1);
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Users WHERE Username = 'staff3')
+    INSERT INTO dbo.Users (UserId, Username, PasswordHash, RoleId, EmployeeId, IsActive)
+    VALUES (5, 'staff3', '123456', 3, 4, 1);
+SET IDENTITY_INSERT dbo.Users OFF;
+-- Đảm bảo tất cả user mẫu có mật khẩu 123456
+UPDATE dbo.Users SET PasswordHash = '123456' WHERE Username IN ('admin', 'manager1', 'tuanth', 'staff2', 'staff3');
+GO
+
+-- Seed Shifts (3 Ca làm việc tiêu chuẩn)
+SET IDENTITY_INSERT dbo.Shifts ON;
+IF NOT EXISTS (SELECT 1 FROM dbo.Shifts WHERE ShiftId = 1)
+    INSERT INTO dbo.Shifts (ShiftId, StoreId, ShiftName, StartTime, EndTime)
+    VALUES (1, 1, N'Ca Sáng', '07:00:00', '12:00:00');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Shifts WHERE ShiftId = 2)
+    INSERT INTO dbo.Shifts (ShiftId, StoreId, ShiftName, StartTime, EndTime)
+    VALUES (2, 1, N'Ca Chiều', '12:00:00', '17:00:00');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Shifts WHERE ShiftId = 3)
+    INSERT INTO dbo.Shifts (ShiftId, StoreId, ShiftName, StartTime, EndTime)
+    VALUES (3, 1, N'Ca Tối', '17:00:00', '22:00:00');
+SET IDENTITY_INSERT dbo.Shifts OFF;
+GO
+
+-- Seed ShiftAssignments mẫu tuần làm việc
+IF NOT EXISTS (SELECT 1 FROM dbo.ShiftAssignments WHERE WorkDate >= '2026-09-20')
+BEGIN
+    INSERT INTO dbo.ShiftAssignments (ShiftId, EmployeeId, WorkDate, Status, IsPublished, PublishedAt) VALUES
+    (1, 2, '2026-09-21', N'Assigned', 1, SYSUTCDATETIME()), -- Tuấn Ca Sáng T2 (Đã công bố)
+    (2, 3, '2026-09-21', N'Assigned', 1, SYSUTCDATETIME()), -- Thu Ca Chiều T2 (Đã công bố)
+    (3, 4, '2026-09-21', N'Assigned', 1, SYSUTCDATETIME()), -- Đức Ca Tối T2 (Đã công bố)
+    (1, 3, '2026-09-22', N'Assigned', 1, SYSUTCDATETIME()), -- Thu Ca Sáng T3
+    (2, 2, '2026-09-22', N'Assigned', 1, SYSUTCDATETIME()), -- Tuấn Ca Chiều T3
+    (1, 2, '2026-09-23', N'Assigned', 1, SYSUTCDATETIME()), -- Tuấn Ca Sáng T4
+    (1, 4, '2026-09-23', N'Assigned', 1, SYSUTCDATETIME()), -- Đức Ca Sáng T4
+    (2, 3, '2026-09-24', N'Assigned', 1, SYSUTCDATETIME()), -- Thu Ca Chiều T5
+    (3, 2, '2026-09-25', N'Assigned', 1, SYSUTCDATETIME()); -- Tuấn Ca Tối T6
+    PRINT N'Đã thêm dữ liệu phân ca tuần mẫu.';
+END;
+GO
+
+PRINT N'=============================================================================';
+PRINT N'CÀI ĐẶT CƠ SỞ DỮ LIỆU HOÀN TẤT! BẠN CÓ THỂ KHỞI CHẠY DỰ ÁN NGAY BÂY GIỜ.';
+PRINT N'Tài khoản đăng nhập kiểm thử (Mật khẩu chung: 123456):';
+PRINT N' - Admin:    admin / 123456';
+PRINT N' - Quản lý:  manager1 / 123456';
+PRINT N' - Nhân viên 1 (Tuấn): tuanth / 123456';
+PRINT N' - Nhân viên 2 (Thu):  staff2 / 123456';
+PRINT N' - Nhân viên 3 (Đức):  staff3 / 123456';
+PRINT N'=============================================================================';
+GO
+
+IF OBJECT_ID(N'dbo.Notifications', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Notifications (
+        NotificationId INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Notifications PRIMARY KEY,
+        UserId INT NOT NULL,
+        Title NVARCHAR(200) NOT NULL,
+        Message NVARCHAR(1000) NOT NULL,
+        NotificationType VARCHAR(50) NOT NULL,
+        IsRead BIT NOT NULL CONSTRAINT DF_Notifications_IsRead DEFAULT (0),
+        ReferenceType VARCHAR(50) NULL,
+        ReferenceId INT NULL,
+        CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_Notifications_CreatedAt DEFAULT (SYSUTCDATETIME()),
+        CONSTRAINT FK_Notifications_User FOREIGN KEY (UserId) REFERENCES dbo.Users (UserId)
+    );
+
+    CREATE INDEX IX_Notifications_User_Read_CreatedAt
+        ON dbo.Notifications (UserId, IsRead, CreatedAt DESC);
+END;
+GO
+
+IF OBJECT_ID(N'dbo.Notifications', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Notifications (
+        NotificationId INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Notifications PRIMARY KEY,
+        UserId INT NOT NULL,
+        Title NVARCHAR(200) NOT NULL,
+        Message NVARCHAR(1000) NOT NULL,
+        NotificationType VARCHAR(50) NOT NULL,
+        IsRead BIT NOT NULL CONSTRAINT DF_Notifications_IsRead DEFAULT (0),
+        ReferenceType VARCHAR(50) NULL,
+        ReferenceId INT NULL,
+CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_Notifications_CreatedAt DEFAULT (SYSUTCDATETIME()),
+        CONSTRAINT FK_Notifications_User FOREIGN KEY (UserId) REFERENCES dbo.Users (UserId)
+    );
+
+    CREATE INDEX IX_Notifications_User_Read_CreatedAt
+        ON dbo.Notifications (UserId, IsRead, CreatedAt DESC);
+END;
+GO
+
+IF OBJECT_ID(N'dbo.TrainingSkills', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.TrainingSkills (
+        SkillId INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_TrainingSkills PRIMARY KEY,
+        SkillName NVARCHAR(100) NOT NULL,
+        Description NVARCHAR(500) NULL,
+        Requirements NVARCHAR(500) NULL,
+        Status VARCHAR(20) NOT NULL CONSTRAINT DF_TrainingSkills_Status DEFAULT ('Active'),
+        CreatedBy INT NULL,
+        CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_TrainingSkills_CreatedAt DEFAULT (SYSUTCDATETIME()),
+        CONSTRAINT UQ_TrainingSkills_SkillName UNIQUE (SkillName),
+        CONSTRAINT FK_TrainingSkills_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.Users (UserId),
+        CONSTRAINT CK_TrainingSkills_Status CHECK (Status IN ('Active', 'Inactive'))
+    );
+END;
+GO
+
+IF OBJECT_ID(N'dbo.TrainingClasses', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.TrainingClasses (
+        ClassId INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_TrainingClasses PRIMARY KEY,
+        SkillId INT NOT NULL,
+        StoreId INT NOT NULL,
+        ClassName NVARCHAR(150) NOT NULL,
+        Trainer NVARCHAR(100) NULL,
+        StartDate DATE NOT NULL,
+        EndDate DATE NOT NULL,
+        StartTime TIME NULL,
+        EndTime TIME NULL,
+        Location NVARCHAR(255) NULL,
+        MaxParticipants INT NULL,
+        Notes NVARCHAR(500) NULL,
+        Status VARCHAR(30) NOT NULL CONSTRAINT DF_TrainingClasses_Status DEFAULT ('PENDING_APPROVAL'),
+        CreatedBy INT NOT NULL,
+        ApprovedBy INT NULL,
+        ApprovedAt DATETIME2 NULL,
+        CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_TrainingClasses_CreatedAt DEFAULT (SYSUTCDATETIME()),
+        CONSTRAINT FK_TrainingClasses_Skill FOREIGN KEY (SkillId) REFERENCES dbo.TrainingSkills (SkillId),
+        CONSTRAINT FK_TrainingClasses_Store FOREIGN KEY (StoreId) REFERENCES dbo.Stores (StoreId),
+        CONSTRAINT FK_TrainingClasses_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.Users (UserId),
+        CONSTRAINT FK_TrainingClasses_ApprovedBy FOREIGN KEY (ApprovedBy) REFERENCES dbo.Users (UserId),
+        CONSTRAINT CK_TrainingClasses_Status CHECK (Status IN ('PENDING_APPROVAL', 'APPROVED', 'REJECTED')),
+        CONSTRAINT CK_TrainingClasses_Dates CHECK (EndDate >= StartDate)
+    );
+END;
+GO

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <title>Nhân sự toàn chuỗi</title>
+
+    <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
+</head>
+<body>
+<header class="dash-nav">
+    <div class="wrap">
+        <div class="brand">
+            <span class="mark"></span>
+            <span class="brand-word">CoffeeHRM</span>
+        </div>
+
+    </div>
+
+</header>
+
+<main class="wrap dash-main">
+    <section class="welcome">
+        <div class="eyebrow">
+            Trụ sở — Admin
+        </div>
+        <h1>
+            Nhân sự toàn chuỗi
+        </h1>
+    </section>
+    <section class="panel">
+        <table>
+            <tr>
+                <th>Nhân viên</th>
+                <th>Cửa hàng</th>
+                <th>Email</th>
+                <th>Trạng thái</th>
+            </tr>
+            <tr th:each="employee:${employees}">
+                <td th:text="${employee.fullName}"></td>
+                <td th:text="${employee.store.storeName}"></td>
+                <td th:text="${employee.email}"></td>
+                <td>
+    <span th:if="${employee.status.name() == 'ACTIVE'}"
+          class="status active">
+        ● Hoạt động
+    </span>
+            </tr>
+        </table>
+    </section>
+</main>
+</body>
+</html>
