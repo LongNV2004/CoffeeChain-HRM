@@ -17,4 +17,12 @@ public interface EmployeeRepository extends JpaRepository<Employee, Integer> {
 
     @Query("SELECT e FROM Employee e LEFT JOIN FETCH e.store WHERE e.id = :id")
     Optional<Employee> findByIdWithStore(@Param("id") Integer id);
+
+    @Query("""
+            SELECT e FROM Employee e
+            LEFT JOIN FETCH e.store s
+            LEFT JOIN FETCH s.manager
+            WHERE e.id = :id
+            """)
+    Optional<Employee> findByIdWithStoreAndManager(@Param("id") Integer id);
 }
