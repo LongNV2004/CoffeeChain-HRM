@@ -78,9 +78,11 @@ public class SecurityConfig {
                         .requestMatchers("/dashboard/admin", "/admin/training", "/admin/training/**").hasRole("ADMIN")
                         .requestMatchers("/dashboard/manager", "/training", "/training/**",
                                 "/schedule/manager", "/schedule/manager/**",
-                                "/availability/manager", "/availability/manager/**").hasRole("MANAGER")
+                                "/availability/manager", "/availability/manager/**",
+                                "/attendance/manager", "/attendance/manager/**").hasRole("MANAGER")
                         .requestMatchers("/dashboard/staff", "/schedule/staff", "/schedule/staff/**",
-                                "/availability", "/availability/**").hasRole("STAFF")
+                                "/availability", "/availability/**",
+                                "/attendance/staff", "/attendance/staff/**").hasRole("STAFF")
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((request, response, authException) ->
