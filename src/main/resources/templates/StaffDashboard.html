@@ -18,7 +18,7 @@
             <a href="#profile">Thông tin cá nhân</a>
             <a th:href="@{/schedule/staff}">Lịch làm việc & Đổi ca</a>
             <a th:href="@{/availability}">Đăng ký lịch rảnh</a>
-            <a href="#attendance">Chấm công</a>
+            <a th:href="@{/attendance/staff}">Chấm công</a>
             <a href="#leave">Đơn nghỉ phép</a>
             <a href="#shift-change">Yêu cầu đổi ca</a>
             <a th:href="@{/notifications}">Thông báo
@@ -89,6 +89,9 @@
             </p>
             <p>Giờ ra:
                 <span th:text="${dashboard.todayCheckOut != null} ? ${#temporals.format(dashboard.todayCheckOut, 'HH:mm')} : 'Chưa có'">—</span>
+            </p>
+            <p style="margin-top:12px;">
+                <a th:href="@{/attendance/staff}" style="color:var(--caramel);font-weight:600;font-size:13px;">Xem lịch sử chấm công →</a>
             </p>
         </article>
     </section>

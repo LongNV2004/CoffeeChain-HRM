@@ -14,7 +14,7 @@
         <div class="brand"><span class="mark"></span><span class="brand-word">CoffeeHRM</span></div>
         <nav>
             <a class="active" th:href="@{/dashboard/manager}">Tổng quan</a>
-            <a href="#attendance">Chấm công</a>
+            <a th:href="@{/attendance/manager}">Chấm công</a>
             <a th:href="@{/schedule/manager}">Lịch làm việc</a>
             <a th:href="@{/availability/manager}">Lịch rảnh STAFF</a>
             <a href="#leave">Quản lý nghỉ phép</a>
@@ -70,8 +70,8 @@
 
     <section class="action-grid">
         <article class="action-card" id="attendance">
-            <h2>Chấm công</h2>
-            <p>Theo dõi giờ vào/ra ca của nhân viên thuộc cửa hàng bạn quản lý.</p>
+            <h2><a th:href="@{/attendance/manager}" style="color:var(--caramel-dark);">Chấm công →</a></h2>
+            <p>Xem lịch sử giờ vào/ra của nhân viên thuộc cửa hàng bạn quản lý.</p>
         </article>
         <article class="action-card">
             <h2><a th:href="@{/schedule/manager}" style="color:var(--caramel-dark);">Lịch làm việc →</a></h2>
