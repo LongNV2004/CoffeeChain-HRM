@@ -20,6 +20,8 @@ public interface UserRepository extends JpaRepository<User, Integer> {
             """)
     Optional<User> findByUsername(@Param("username") String username);
 
+    Optional<User> findByEmployee_Id(Integer employeeId);
+
     @Query("""
             SELECT u FROM User u
             JOIN FETCH u.role r
