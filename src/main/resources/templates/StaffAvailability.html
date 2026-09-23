@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng ký lịch rảnh — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/StaffDashboard.css}">
+    <link rel="stylesheet" th:href="@{/css/StaffWork.css}">
+</head>
+<body>
+<header class="dash-nav">
+    <div class="wrap">
+        <div class="brand"><span class="mark"></span><span class="brand-word">CoffeeHRM</span></div>
+        <nav>
+            <a th:href="@{/dashboard/staff}">Tổng quan</a>
+            <a th:href="@{/schedule/staff}">Lịch làm việc & Đổi ca</a>
+            <a class="active" th:href="@{/availability}">Đăng ký lịch rảnh</a>
+            <a href="#">Chấm công</a>
+            <a href="#">Đơn nghỉ phép</a>
+            <a th:href="@{/notifications}">Thông báo
+                <span class="nav-count" th:if="${unreadNotificationCount > 0}" th:text="${unreadNotificationCount}">0</span>
+            </a>
+        </nav>
+        <form th:action="@{/logout}" method="post">
+            <button class="logout-btn" type="submit">Đăng xuất</button>
+        </form>
+    </div>
+</header>
+
+<main class="wrap dash-main">
+    <section class="welcome">
+        <div class="eyebrow">Cá nhân — Staff</div>
+        <h1>Đăng ký lịch rảnh</h1>
+        <p>
+            <span th:text="${displayName}">Staff</span>
+            <span th:if="${storeName}"> · <span th:text="${storeName}">Store</span></span>
+        </p>
+    </section>
+
+    <p class="flash success" th:if="${successMessage}" th:text="${successMessage}">OK</p>
+    <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}">Error</p>
+    <p class="flash error" th:if="${pageError}" th:text="${pageError}">Error</p>
+
+    <section class="panel" th:if="${availabilityGrid != null}">
+        <h2>Tuần làm việc kế tiếp</h2>
+        <p>
+            Tick các ô ngày/ca bạn có thể làm tại cửa hàng hiện tại.
+            Chỉ áp dụng cho <strong th:text="${availabilityGrid.formattedWeekRange}">tuần kế tiếp</strong>.
+            Không đăng ký tuần hiện tại hoặc tuần đã qua.
+        </p>
+        <p class="muted" th:if="${#lists.isEmpty(availabilityGrid.shiftRows)}">
+            Cửa hàng chưa có ca làm việc. Liên hệ Manager để tạo ca trước.
+        </p>
+
+        <form class="availability-form" th:action="@{/availability}" th:object="${availabilityForm}" method="post"
+              th:if="${!#lists.isEmpty(availabilityGrid.shiftRows)}">
+            <p class="flash error" th:if="${availabilityError}" th:text="${availabilityError}">Error</p>
+
+            <div class="availability-grid-wrap">
+                <table class="availability-grid">
+                    <thead>
+                    <tr>
+                        <th class="shift-col">Ca làm việc</th>
+                        <th th:each="day : ${availabilityGrid.days}">
+                            <div class="day-name" th:text="${day.dayOfWeekName}">Thứ 2</div>
+                            <div class="day-date" th:text="${day.formattedDate}">01/01</div>
+                        </th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="row : ${availabilityGrid.shiftRows}">
+                        <td class="shift-cell">
+                            <div class="shift-title" th:text="${row.shiftName}">Ca sáng</div>
+                            <div class="shift-hours" th:text="${row.formattedTime}">08:00 – 12:00</div>
+                        </td>
+                        <td th:each="cell : ${row.dayCells}" class="slot-cell">
+                            <label class="slot-check">
+                                <input type="checkbox"
+                                       th:field="*{selectedSlots}"
+                                       th:value="${cell.slotKey}">
+                                <span class="slot-box" aria-hidden="true"></span>
+                                <span class="sr-only"
+                                      th:text="'Chọn ' + ${row.shiftName} + ' ngày ' + ${#temporals.format(cell.date, 'dd/MM/yyyy')}">
+                                    Chọn ca
+                                </span>
+                            </label>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="form-actions">
+                <button class="primary-btn" type="submit">Submit Availability</button>
+                <p class="muted">Sau khi gửi, Manager cửa hàng sẽ nhận thông báo để xem xét và xếp lịch.</p>
+            </div>
+        </form>
+    </section>
+
+    <section class="panel">
+        <h2>Đề xuất đã gửi (tuần kế tiếp)</h2>
+        <p class="empty" th:if="${#lists.isEmpty(availabilities)}">Chưa có đề xuất nào cho tuần kế tiếp.</p>
+        <table th:if="${!#lists.isEmpty(availabilities)}">
+            <thead>
+            <tr>
+                <th>Ngày</th>
+                <th>Ca</th>
+                <th>Giờ</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="item : ${availabilities}">
+                <td th:text="${#temporals.format(item.workDate, 'dd/MM/yyyy')}">01/01/2026</td>
+                <td th:text="${item.shiftName}">Ca sáng</td>
+                <td>
+                    <span th:text="${#temporals.format(item.shiftStartTime, 'HH:mm')}">08:00</span>
+                    –
+                    <span th:text="${#temporals.format(item.shiftEndTime, 'HH:mm')}">12:00</span>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+</main>
+</body>
+</html>
