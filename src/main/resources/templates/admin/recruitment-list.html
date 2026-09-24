@@ -31,23 +31,7 @@
     </style>
 </head>
 <body>
-<header class="dash-nav">
-    <div class="wrap">
-        <div class="brand">
-            <span class="mark"></span>
-            <span class="brand-word">CoffeeHRM</span>
-        </div>
-        <nav>
-            <a th:href="@{/dashboard/admin}">
-                Tổng quan
-            </a>
-            <a class="active"
-               th:href="@{/admin/recruitment}">
-                Duyệt tuyển dụng
-            </a>
-        </nav>
-    </div>
-</header>
+<header th:replace="~{fragments/navbar :: admin('recruitment')}"></header>
 <main class="wrap dash-main">
     <section class="welcome">
         <div class="eyebrow">

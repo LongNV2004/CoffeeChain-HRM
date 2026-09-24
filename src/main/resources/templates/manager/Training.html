@@ -10,25 +10,7 @@
     <link rel="stylesheet" th:href="@{/css/Training.css}">
 </head>
 <body th:attr="data-context=@{/}">
-<header class="dash-nav">
-    <div class="wrap">
-        <div class="brand"><span class="mark"></span><span class="brand-word">CoffeeHRM</span></div>
-        <nav>
-            <a th:href="@{/dashboard/manager}">Tổng quan</a>
-            <a href="#">Chấm công</a>
-            <a href="#">Lịch làm việc</a>
-            <a href="#">Quản lý nghỉ phép</a>
-            <a class="active" th:href="@{/training}">Đào tạo</a>
-            <a href="#">Báo cáo Store</a>
-            <a th:href="@{/notifications}">Thông báo
-                <span class="nav-count" th:if="${unreadNotificationCount > 0}" th:text="${unreadNotificationCount}">0</span>
-            </a>
-        </nav>
-        <form th:action="@{/logout}" method="post">
-            <button class="logout-btn" type="submit">Đăng xuất</button>
-        </form>
-    </div>
-</header>
+<header th:replace="~{fragments/navbar :: manager('training')}"></header>
 
 <main class="wrap dash-main">
     <section class="welcome">

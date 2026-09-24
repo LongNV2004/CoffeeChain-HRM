@@ -31,6 +31,6 @@ public class ManagerAvailabilityController {
             model.addAttribute("availabilities", java.util.List.of());
             model.addAttribute("pageError", ex.getMessage());
         }
-        return "ManagerAvailability";
+        return "manager/ManagerAvailability";
     }
 }

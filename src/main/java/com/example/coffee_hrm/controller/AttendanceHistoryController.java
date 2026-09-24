@@ -40,7 +40,7 @@ public class AttendanceHistoryController {
             model.addAttribute("history", emptyHistory(user, from, to, null));
             model.addAttribute("pageError", ex.getMessage());
         }
-        return "StaffAttendance";
+        return "staff/StaffAttendance";
     }
 
     @GetMapping("/manager")
@@ -59,7 +59,7 @@ public class AttendanceHistoryController {
             model.addAttribute("history", emptyHistory(user, from, to, employeeId));
             model.addAttribute("pageError", ex.getMessage());
         }
-        return "ManagerAttendance";
+        return "manager/ManagerAttendance";
     }
 
     private AttendanceHistoryView emptyHistory(AuthenticatedUser user,

@@ -33,7 +33,7 @@ public class StaffAvailabilityController {
         if (!model.containsAttribute("availabilityForm")) {
             model.addAttribute("availabilityForm", buildFormFromGrid(model.getAttribute("availabilityGrid")));
         }
-        return "StaffAvailability";
+        return "staff/StaffAvailability";
     }
 
     @PostMapping
@@ -50,7 +50,7 @@ public class StaffAvailabilityController {
             populatePage(user, model);
             model.addAttribute("availabilityForm", availabilityForm);
             model.addAttribute("availabilityError", ex.getMessage());
-            return "StaffAvailability";
+            return "staff/StaffAvailability";
         }
     }
 
