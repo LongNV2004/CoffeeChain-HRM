@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<header th:fragment="admin(active)" class="dash-nav">
+    <div class="wrap">
+        <div class="brand"><span class="mark"></span><span class="brand-word">CoffeeHRM</span></div>
+        <nav>
+            <a th:href="@{/dashboard/admin}"
+               th:class="${active == 'dashboard'} ? 'active'">Tổng quan</a>
+            <a th:href="@{/admin/stores}"
+               th:class="${active == 'stores'} ? 'active'">Quản lý cửa hàng</a>
+            <a th:href="@{/admin/employees}"
+               th:class="${active == 'employees'} ? 'active'">Quản lý nhân sự</a>
+            <a th:href="@{/admin/recruitment}"
+               th:class="${active == 'recruitment'} ? 'active'">Duyệt đề xuất tuyển nhân sự
+                <span th:if="${pendingRecruitments != null and pendingRecruitments > 0}"
+                      th:text="'(' + ${pendingRecruitments} + ')'"></span>
+            </a>
+            <a th:href="@{/admin/training}"
+               th:class="${active == 'training'} ? 'active'">Đào tạo</a>
+            <a th:href="@{/dashboard/admin#reports}"
+               th:class="${active == 'reports'} ? 'active'">Báo cáo toàn chuỗi</a>
+            <a th:href="@{/notifications}"
+               th:class="${active == 'notifications'} ? 'active'">Thông báo
+                <span class="nav-count" th:if="${unreadNotificationCount > 0}" th:text="${unreadNotificationCount}">0</span>
+            </a>
+        </nav>
+        <form th:action="@{/logout}" method="post">
+            <button class="logout-btn" type="submit">Đăng xuất</button>
+        </form>
+    </div>
+    <div class="wrap back-bar">
+        <button class="logout-btn" type="button" onclick="history.back()">Quay lại</button>
+    </div>
+</header>
+
+<header th:fragment="manager(active)" class="dash-nav">
+    <div class="wrap">
+        <div class="brand"><span class="mark"></span><span class="brand-word">CoffeeHRM</span></div>
+        <nav>
+            <a th:href="@{/dashboard/manager}"
+               th:class="${active == 'dashboard'} ? 'active'">Tổng quan</a>
+            <a th:href="@{/attendance/manager}"
+               th:class="${active == 'attendance'} ? 'active'">Chấm công</a>
+            <a th:href="@{/schedule/manager}"
+               th:class="${active == 'schedule'} ? 'active'">Lịch làm việc</a>
+            <a th:href="@{/availability/manager}"
+               th:class="${active == 'availability'} ? 'active'">Lịch rảnh nhân viên</a>
+            <a th:href="@{/dashboard/manager#leave}"
+               th:class="${active == 'leave'} ? 'active'">Quản lý nghỉ phép</a>
+            <a th:href="@{/manager/recruitment/create}"
+               th:class="${active == 'recruitment'} ? 'active'">Đề xuất tuyển nhân sự</a>
+            <a th:href="@{/training}"
+               th:class="${active == 'training'} ? 'active'">Đào tạo</a>
+            <a th:href="@{/dashboard/manager#reports}"
+               th:class="${active == 'reports'} ? 'active'">Báo cáo Store</a>
+            <a th:href="@{/notifications}"
+               th:class="${active == 'notifications'} ? 'active'">Thông báo
+                <span class="nav-count" th:if="${unreadNotificationCount > 0}" th:text="${unreadNotificationCount}">0</span>
+            </a>
+        </nav>
+        <form th:action="@{/logout}" method="post">
+            <button class="logout-btn" type="submit">Đăng xuất</button>
+        </form>
+    </div>
+    <div class="wrap back-bar">
+        <button class="logout-btn" type="button" onclick="history.back()">Quay lại</button>
+    </div>
+</header>
+
+<header th:fragment="staff(active)" class="dash-nav">
+    <div class="wrap">
+        <div class="brand"><span class="mark"></span><span class="brand-word">CoffeeHRM</span></div>
+        <nav>
+            <a th:href="@{/dashboard/staff}"
+               th:class="${active == 'dashboard'} ? 'active'">Tổng quan</a>
+            <a th:href="@{/dashboard/staff#profile}"
+               th:class="${active == 'profile'} ? 'active'">Thông tin cá nhân</a>
+            <a th:href="@{/schedule/staff}"
+               th:class="${active == 'schedule'} ? 'active'">Lịch làm việc &amp; Đổi ca</a>
+            <a th:href="@{/availability}"
+               th:class="${active == 'availability'} ? 'active'">Đăng ký lịch rảnh</a>
+            <a th:href="@{/attendance/staff}"
+               th:class="${active == 'attendance'} ? 'active'">Chấm công</a>
+            <a th:href="@{/dashboard/staff#leave}"
+               th:class="${active == 'leave'} ? 'active'">Đơn nghỉ phép</a>
+            <a th:href="@{/dashboard/staff#shift-change}"
+               th:class="${active == 'shift-change'} ? 'active'">Yêu cầu đổi ca</a>
+            <a th:href="@{/notifications}"
+               th:class="${active == 'notifications'} ? 'active'">Thông báo
+                <span class="nav-count" th:if="${unreadNotificationCount > 0}" th:text="${unreadNotificationCount}">0</span>
+            </a>
+            <a th:href="@{/schedule/staff#requests-history}"
+               th:class="${active == 'requests-history'} ? 'active'">Yêu cầu đổi ca</a>
+        </nav>
+        <form th:action="@{/logout}" method="post">
+            <button class="logout-btn" type="submit">Đăng xuất</button>
+        </form>
+    </div>
+    <div class="wrap back-bar">
+        <button class="logout-btn" type="button" onclick="history.back()">Quay lại</button>
+    </div>
+</header>
+
+</body>
+</html>
