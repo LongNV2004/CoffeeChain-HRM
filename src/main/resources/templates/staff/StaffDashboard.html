@@ -10,27 +10,7 @@
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
-<header class="dash-nav">
-    <div class="wrap">
-        <div class="brand"><span class="mark"></span><span class="brand-word">CoffeeHRM</span></div>
-        <nav>
-            <a class="active" th:href="@{/dashboard/staff}">Tổng quan</a>
-            <a href="#profile">Thông tin cá nhân</a>
-            <a th:href="@{/schedule/staff}">Lịch làm việc & Đổi ca</a>
-            <a th:href="@{/availability}">Đăng ký lịch rảnh</a>
-            <a th:href="@{/attendance/staff}">Chấm công</a>
-            <a href="#leave">Đơn nghỉ phép</a>
-            <a href="#shift-change">Yêu cầu đổi ca</a>
-            <a th:href="@{/notifications}">Thông báo
-                <span class="nav-count" th:if="${unreadNotificationCount > 0}" th:text="${unreadNotificationCount}">0</span>
-            </a>
-            <a th:href="@{/schedule/staff#requests-history}">Yêu cầu đổi ca</a>
-        </nav>
-        <form th:action="@{/logout}" method="post">
-            <button class="logout-btn" type="submit">Đăng xuất</button>
-        </form>
-    </div>
-</header>
+<header th:replace="~{fragments/navbar :: staff('dashboard')}"></header>
 
 <main class="wrap dash-main">
     <section class="welcome">

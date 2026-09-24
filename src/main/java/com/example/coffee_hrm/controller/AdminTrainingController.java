@@ -27,7 +27,7 @@ public class AdminTrainingController {
         model.addAttribute("displayName", user.getDisplayName());
         model.addAttribute("pendingClasses", trainingService.listPendingClasses());
         model.addAttribute("allClasses", trainingService.listAllClassesForAdmin());
-        return "AdminTraining";
+        return "admin/AdminTraining";
     }
 
     @PostMapping("/classes/{id}/approve")

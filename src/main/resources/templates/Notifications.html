@@ -12,46 +12,15 @@
     <link rel="stylesheet" th:href="@{/css/Training.css}">
 </head>
 <body>
-<header class="dash-nav">
-    <div class="wrap">
-        <div class="brand"><span class="mark"></span><span class="brand-word">CoffeeHRM</span></div>
-        <nav th:if="${currentRole == 'ADMIN'}">
-            <a th:href="@{/dashboard/admin}">Tổng quan</a>
-            <a href="#">Quản lý tài khoản</a>
-            <a href="#">Quản lý cửa hàng</a>
-            <a th:href="@{/admin/training}">Đào tạo</a>
-            <a href="#">Báo cáo toàn chuỗi</a>
-            <a class="active" th:href="@{/notifications}">Thông báo
-                <span class="nav-count" th:if="${unreadNotificationCount > 0}" th:text="${unreadNotificationCount}">0</span>
-            </a>
-        </nav>
-        <nav th:if="${currentRole == 'MANAGER'}">
-            <a th:href="@{/dashboard/manager}">Tổng quan</a>
-            <a href="#">Chấm công</a>
-            <a href="#">Lịch làm việc</a>
-            <a href="#">Quản lý nghỉ phép</a>
-            <a th:href="@{/training}">Đào tạo</a>
-            <a href="#">Báo cáo Store</a>
-            <a class="active" th:href="@{/notifications}">Thông báo
-                <span class="nav-count" th:if="${unreadNotificationCount > 0}" th:text="${unreadNotificationCount}">0</span>
-            </a>
-        </nav>
-        <nav th:if="${currentRole == 'STAFF'}">
-            <a th:href="@{/dashboard/staff}">Tổng quan</a>
-            <a href="#">Thông tin cá nhân</a>
-            <a href="#">Lịch làm việc</a>
-            <a href="#">Chấm công</a>
-            <a href="#">Đơn nghỉ phép</a>
-            <a href="#">Yêu cầu đổi ca</a>
-            <a class="active" th:href="@{/notifications}">Thông báo
-                <span class="nav-count" th:if="${unreadNotificationCount > 0}" th:text="${unreadNotificationCount}">0</span>
-            </a>
-        </nav>
-        <form th:action="@{/logout}" method="post">
-            <button class="logout-btn" type="submit">Đăng xuất</button>
-        </form>
-    </div>
-</header>
+<th:block th:if="${currentRole == 'ADMIN'}">
+    <header th:replace="~{fragments/navbar :: admin('notifications')}"></header>
+</th:block>
+<th:block th:if="${currentRole == 'MANAGER'}">
+    <header th:replace="~{fragments/navbar :: manager('notifications')}"></header>
+</th:block>
+<th:block th:if="${currentRole == 'STAFF'}">
+    <header th:replace="~{fragments/navbar :: staff('notifications')}"></header>
+</th:block>
 
 <main class="wrap dash-main">
     <section class="welcome">

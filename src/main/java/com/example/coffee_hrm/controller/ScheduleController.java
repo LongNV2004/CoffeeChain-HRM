@@ -42,7 +42,7 @@ public class ScheduleController {
         if (!model.containsAttribute("assignForm")) {
             model.addAttribute("assignForm", new AssignShiftRequest());
         }
-        return "ManagerSchedule";
+        return "manager/ManagerSchedule";
     }
 
     @PostMapping("/manager/assign")
@@ -167,7 +167,7 @@ public class ScheduleController {
         if (!model.containsAttribute("changeForm")) {
             model.addAttribute("changeForm", new CreateShiftChangeRequestDto());
         }
-        return "StaffSchedule";
+        return "staff/StaffSchedule";
     }
 
     @PostMapping("/staff/request-change")

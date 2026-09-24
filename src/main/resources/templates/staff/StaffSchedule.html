@@ -10,21 +10,7 @@
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
-<header class="dash-nav">
-    <div class="wrap">
-        <div class="brand">
-            <span class="mark"></span>
-            <span class="brand-word">CoffeeHRM</span>
-        </div>
-        <nav>
-            <a th:href="@{/dashboard/staff}">Tổng quan</a>
-            <a class="active" th:href="@{/schedule/staff}">Lịch làm việc & Đổi ca</a>
-        </nav>
-        <form th:action="@{/logout}" method="post">
-            <button class="logout-btn" type="submit">Đăng xuất</button>
-        </form>
-    </div>
-</header>
+<header th:replace="~{fragments/navbar :: staff('schedule')}"></header>
 
 <main class="wrap dash-main">
 

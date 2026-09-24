@@ -41,7 +41,7 @@ public class TrainingController {
                                 @RequestParam(required = false, defaultValue = "1") int page,
                                 Model model) {
         populateListPage(user, model, skillId, date, keyword, sortDir, page);
-        return "TrainingClasses";
+        return "manager/TrainingClasses";
     }
 
     @GetMapping("/classes/{id}")
@@ -53,7 +53,7 @@ public class TrainingController {
             model.addAttribute("displayName", user.getDisplayName());
             model.addAttribute("storeName", user.getStoreName());
             model.addAttribute("classDetail", trainingService.getApprovedClassDetailForManager(id, user));
-            return "TrainingClassDetail";
+            return "manager/TrainingClassDetail";
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
             return "redirect:/training";
@@ -72,7 +72,7 @@ public class TrainingController {
         if (!model.containsAttribute("classForm")) {
             model.addAttribute("classForm", new CreateTrainingClassRequest());
         }
-        return "Training";
+        return "manager/Training";
     }
 
     @PostMapping("/skills")
@@ -86,7 +86,7 @@ public class TrainingController {
             model.addAttribute("updateSkillForm", new UpdateTrainingSkillRequest());
             model.addAttribute("classForm", new CreateTrainingClassRequest());
             model.addAttribute("skillError", firstError(bindingResult, "Không thể tạo kỹ năng."));
-            return "Training";
+            return "manager/Training";
         }
         try {
             trainingService.createSkill(skillForm, user);
@@ -97,7 +97,7 @@ public class TrainingController {
             model.addAttribute("updateSkillForm", new UpdateTrainingSkillRequest());
             model.addAttribute("classForm", new CreateTrainingClassRequest());
             model.addAttribute("skillError", ex.getMessage());
-            return "Training";
+            return "manager/Training";
         }
     }
 
@@ -114,7 +114,7 @@ public class TrainingController {
             model.addAttribute("classForm", new CreateTrainingClassRequest());
             model.addAttribute("skillUpdateError", firstError(bindingResult, "Không thể cập nhật kỹ năng."));
             model.addAttribute("editingSkillId", id);
-            return "Training";
+            return "manager/Training";
         }
         try {
             trainingService.updateSkill(id, updateSkillForm, user);
@@ -126,7 +126,7 @@ public class TrainingController {
             model.addAttribute("classForm", new CreateTrainingClassRequest());
             model.addAttribute("skillUpdateError", ex.getMessage());
             model.addAttribute("editingSkillId", id);
-            return "Training";
+            return "manager/Training";
         }
     }
 
@@ -180,7 +180,7 @@ public class TrainingController {
             model.addAttribute("skillForm", new CreateTrainingSkillRequest());
             model.addAttribute("updateSkillForm", new UpdateTrainingSkillRequest());
             model.addAttribute("classError", firstError(bindingResult, "Không thể tạo lớp đào tạo."));
-            return "Training";
+            return "manager/Training";
         }
         try {
             trainingService.createClass(classForm, user);
@@ -191,7 +191,7 @@ public class TrainingController {
             model.addAttribute("skillForm", new CreateTrainingSkillRequest());
             model.addAttribute("updateSkillForm", new UpdateTrainingSkillRequest());
             model.addAttribute("classError", ex.getMessage());
-            return "Training";
+            return "manager/Training";
         }
     }
 

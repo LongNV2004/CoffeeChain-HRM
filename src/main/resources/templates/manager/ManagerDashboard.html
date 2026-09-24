@@ -9,32 +9,7 @@
     <link rel="stylesheet" th:href="@{/css/ManagerDashboard.css}">
 </head>
 <body>
-<header class="dash-nav">
-    <div class="wrap">
-        <div class="brand"><span class="mark"></span><span class="brand-word">CoffeeHRM</span></div>
-        <nav>
-            <a class="active" th:href="@{/dashboard/manager}">Tổng quan</a>
-            <a th:href="@{/attendance/manager}">Chấm công</a>
-            <a th:href="@{/schedule/manager}">Lịch làm việc</a>
-            <a th:href="@{/availability/manager}">Lịch rảnh STAFF</a>
-            <a href="#leave">Quản lý nghỉ phép</a>
-
-<!--            Vân Anh role admin-->
-            <a th:href="@{/manager/recruitment/create}">
-                Đề xuất tuyển nhân sự
-            </a>
-<!--            Vân Anh role admin-->
-
-            <a href="#">Báo cáo Store</a>
-            <a th:href="@{/notifications}">Thông báo
-                <span class="nav-count" th:if="${unreadNotificationCount > 0}" th:text="${unreadNotificationCount}">0</span>
-            </a>
-        </nav>
-        <form th:action="@{/logout}" method="post">
-            <button class="logout-btn" type="submit">Đăng xuất</button>
-        </form>
-    </div>
-</header>
+<header th:replace="~{fragments/navbar :: manager('dashboard')}"></header>
 
 <main class="wrap dash-main">
     <section class="welcome">

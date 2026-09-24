@@ -9,36 +9,7 @@
     <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
 </head>
 <body>
-<header class="dash-nav">
-    <div class="wrap">
-        <div class="brand"><span class="mark"></span><span class="brand-word">CoffeeHRM</span></div>
-<!--Vân Anh role admin-->
-        <nav>
-            <a class="active" th:href="@{/dashboard/admin}">Tổng quan</a>
-            <a th:href="@{/admin/stores}">
-                Quản lý cửa hàng
-            </a>
-            <a th:href="@{/admin/employees}">
-                Quản lý nhân sự
-            </a>
-            <a th:href="@{/admin/recruitment}">
-                Duyệt đề xuất tuyển nhân sự
-                <span th:if="${pendingRecruitments > 0}"
-                      th:text="'(' + ${pendingRecruitments} + ')'">
-    </span>
-            </a>
-            <a th:href="@{/admin/training}">Đào tạo</a>
-            <a href="#reports">Báo cáo toàn chuỗi</a>
-            <a th:href="@{/notifications}">Thông báo
-                <span class="nav-count" th:if="${unreadNotificationCount > 0}" th:text="${unreadNotificationCount}">0</span>
-            </a>
-        </nav>
-        <!--Vân Anh role admin-->
-        <form th:action="@{/logout}" method="post">
-            <button class="logout-btn" type="submit">Đăng xuất</button>
-        </form>
-    </div>
-</header>
+<header th:replace="~{fragments/navbar :: admin('dashboard')}"></header>
 
 <main class="wrap dash-main">
     <section class="welcome">
