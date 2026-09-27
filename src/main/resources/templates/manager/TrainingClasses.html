@@ -124,6 +124,44 @@
                th:href="${classPage.last} ? '#' : @{/training(page=${currentPage + 1}, skillId=${skillId}, date=${date}, keyword=${keyword}, sortDir=${sortDir})}">Trang tiếp theo</a>
         </nav>
     </section>
+
+    <section class="panel">
+        <div class="panel-head">
+            <div>
+                <h2>Yêu cầu đã gửi Admin</h2>
+                <p>Trạng thái cập nhật khi Admin duyệt hoặc từ chối. Lớp đã hết ngày kết thúc không còn hiện ở đây, nhưng vẫn được lưu trong hệ thống.</p>
+            </div>
+        </div>
+        <table>
+            <thead>
+            <tr>
+                <th>Tên lớp</th>
+                <th>Kỹ năng</th>
+                <th>Ngày</th>
+                <th>Trạng thái yêu cầu</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:if="${#lists.isEmpty(submittedClasses)}">
+                <td colspan="4" class="empty">Chưa có yêu cầu lớp đào tạo.</td>
+            </tr>
+            <tr th:each="item : ${submittedClasses}">
+                <td th:text="${item.className}">Class</td>
+                <td th:text="${item.skillName}">Skill</td>
+                <td>
+                    <span th:text="${item.startDate}">2026-01-01</span>
+                    <span> → </span>
+                    <span th:text="${item.endDate}">2026-01-02</span>
+                </td>
+                <td>
+                    <span class="badge"
+                          th:classappend="${item.status.name() == 'APPROVED'} ? ' badge-ok' : (${item.status.name() == 'REJECTED'} ? ' badge-off' : ' badge-wait')"
+                          th:text="${item.status.label}">Chờ duyệt</span>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
 </main>
 <script th:src="@{/js/ManagerDashboard.js}"></script>
 </body>

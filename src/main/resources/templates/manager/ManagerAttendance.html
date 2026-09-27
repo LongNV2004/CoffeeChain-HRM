@@ -50,10 +50,10 @@
                 </select>
             </label>
             <label>Từ ngày
-                <input type="date" name="from" th:value="${#temporals.format(history.fromDate, 'yyyy-MM-dd')}">
+                <input type="date" name="from" th:max="${vietnamToday}" th:value="${#temporals.format(history.fromDate, 'yyyy-MM-dd')}">
             </label>
             <label>Đến ngày
-                <input type="date" name="to" th:value="${#temporals.format(history.toDate, 'yyyy-MM-dd')}">
+                <input type="date" name="to" th:max="${vietnamToday}" th:value="${#temporals.format(history.toDate, 'yyyy-MM-dd')}">
             </label>
             <button class="primary-btn" type="submit">Xem lịch sử</button>
         </form>

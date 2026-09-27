@@ -34,6 +34,8 @@ public interface TrainingService {
                                                       String sortDir,
                                                       int page);
 
+    List<TrainingClassResponse> listSubmittedClassesForManager(AuthenticatedUser manager);
+
     TrainingClassResponse getApprovedClassDetailForManager(Integer classId, AuthenticatedUser manager);
 
     void deleteClassForManager(Integer classId, AuthenticatedUser manager);

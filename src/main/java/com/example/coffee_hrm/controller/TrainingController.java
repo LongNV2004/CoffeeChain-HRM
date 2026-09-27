@@ -44,6 +44,11 @@ public class TrainingController {
         return "manager/TrainingClasses";
     }
 
+    @GetMapping("/classes")
+    public String classListShortcut() {
+        return "redirect:/training";
+    }
+
     @GetMapping("/classes/{id}")
     public String classDetailPage(@PathVariable Integer id,
                                   @AuthenticationPrincipal AuthenticatedUser user,
@@ -78,26 +83,21 @@ public class TrainingController {
     @PostMapping("/skills")
     public String createSkill(@Valid @ModelAttribute("skillForm") CreateTrainingSkillRequest skillForm,
                               BindingResult bindingResult,
-                              @AuthenticationPrincipal AuthenticatedUser user,
-                              Model model,
-                              RedirectAttributes redirectAttributes) {
+                              RedirectAttributes redirectAttributes,
+                              @AuthenticationPrincipal AuthenticatedUser user) {
         if (bindingResult.hasErrors()) {
-            populateCreatePage(user, model);
-            model.addAttribute("updateSkillForm", new UpdateTrainingSkillRequest());
-            model.addAttribute("classForm", new CreateTrainingClassRequest());
-            model.addAttribute("skillError", firstError(bindingResult, "Không thể tạo kỹ năng."));
-            return "manager/Training";
+            redirectAttributes.addFlashAttribute("skillForm", skillForm);
+            redirectAttributes.addFlashAttribute("skillError", firstError(bindingResult, "Không thể tạo kỹ năng."));
+            return "redirect:/training/create";
         }
         try {
             trainingService.createSkill(skillForm, user);
             redirectAttributes.addFlashAttribute("successMessage", "Đã thêm kỹ năng đào tạo.");
             return "redirect:/training/create";
         } catch (BusinessException ex) {
-            populateCreatePage(user, model);
-            model.addAttribute("updateSkillForm", new UpdateTrainingSkillRequest());
-            model.addAttribute("classForm", new CreateTrainingClassRequest());
-            model.addAttribute("skillError", ex.getMessage());
-            return "manager/Training";
+            redirectAttributes.addFlashAttribute("skillForm", skillForm);
+            redirectAttributes.addFlashAttribute("skillError", ex.getMessage());
+            return "redirect:/training/create";
         }
     }
 
@@ -105,28 +105,23 @@ public class TrainingController {
     public String updateSkill(@PathVariable Integer id,
                               @Valid @ModelAttribute("updateSkillForm") UpdateTrainingSkillRequest updateSkillForm,
                               BindingResult bindingResult,
-                              @AuthenticationPrincipal AuthenticatedUser user,
-                              Model model,
-                              RedirectAttributes redirectAttributes) {
+                              RedirectAttributes redirectAttributes,
+                              @AuthenticationPrincipal AuthenticatedUser user) {
         if (bindingResult.hasErrors()) {
-            populateCreatePage(user, model);
-            model.addAttribute("skillForm", new CreateTrainingSkillRequest());
-            model.addAttribute("classForm", new CreateTrainingClassRequest());
-            model.addAttribute("skillUpdateError", firstError(bindingResult, "Không thể cập nhật kỹ năng."));
-            model.addAttribute("editingSkillId", id);
-            return "manager/Training";
+            redirectAttributes.addFlashAttribute("updateSkillForm", updateSkillForm);
+            redirectAttributes.addFlashAttribute("skillUpdateError", firstError(bindingResult, "Không thể cập nhật kỹ năng."));
+            redirectAttributes.addFlashAttribute("editingSkillId", id);
+            return "redirect:/training/create";
         }
         try {
             trainingService.updateSkill(id, updateSkillForm, user);
             redirectAttributes.addFlashAttribute("successMessage", "Đã cập nhật kỹ năng đào tạo.");
             return "redirect:/training/create";
         } catch (BusinessException ex) {
-            populateCreatePage(user, model);
-            model.addAttribute("skillForm", new CreateTrainingSkillRequest());
-            model.addAttribute("classForm", new CreateTrainingClassRequest());
-            model.addAttribute("skillUpdateError", ex.getMessage());
-            model.addAttribute("editingSkillId", id);
-            return "manager/Training";
+            redirectAttributes.addFlashAttribute("updateSkillForm", updateSkillForm);
+            redirectAttributes.addFlashAttribute("skillUpdateError", ex.getMessage());
+            redirectAttributes.addFlashAttribute("editingSkillId", id);
+            return "redirect:/training/create";
         }
     }
 
@@ -172,26 +167,21 @@ public class TrainingController {
     @PostMapping("/classes")
     public String createClass(@Valid @ModelAttribute("classForm") CreateTrainingClassRequest classForm,
                               BindingResult bindingResult,
-                              @AuthenticationPrincipal AuthenticatedUser user,
-                              Model model,
-                              RedirectAttributes redirectAttributes) {
+                              RedirectAttributes redirectAttributes,
+                              @AuthenticationPrincipal AuthenticatedUser user) {
         if (bindingResult.hasErrors()) {
-            populateCreatePage(user, model);
-            model.addAttribute("skillForm", new CreateTrainingSkillRequest());
-            model.addAttribute("updateSkillForm", new UpdateTrainingSkillRequest());
-            model.addAttribute("classError", firstError(bindingResult, "Không thể tạo lớp đào tạo."));
-            return "manager/Training";
+            redirectAttributes.addFlashAttribute("classForm", classForm);
+            redirectAttributes.addFlashAttribute("classError", firstError(bindingResult, "Không thể tạo lớp đào tạo."));
+            return "redirect:/training/create";
         }
         try {
             trainingService.createClass(classForm, user);
             redirectAttributes.addFlashAttribute("successMessage", "Đã gửi lớp đào tạo cho Admin duyệt.");
             return "redirect:/training";
         } catch (BusinessException ex) {
-            populateCreatePage(user, model);
-            model.addAttribute("skillForm", new CreateTrainingSkillRequest());
-            model.addAttribute("updateSkillForm", new UpdateTrainingSkillRequest());
-            model.addAttribute("classError", ex.getMessage());
-            return "manager/Training";
+            redirectAttributes.addFlashAttribute("classForm", classForm);
+            redirectAttributes.addFlashAttribute("classError", ex.getMessage());
+            return "redirect:/training/create";
         }
     }
 
@@ -207,6 +197,7 @@ public class TrainingController {
         model.addAttribute("displayName", user.getDisplayName());
         model.addAttribute("storeName", user.getStoreName());
         model.addAttribute("classes", classPage.getContent());
+        model.addAttribute("submittedClasses", trainingService.listSubmittedClassesForManager(user));
         model.addAttribute("classPage", classPage);
         model.addAttribute("hasStore", trainingService.managerHasAssignedStore(user));
         model.addAttribute("filterSkills", trainingService.listActiveSkills());

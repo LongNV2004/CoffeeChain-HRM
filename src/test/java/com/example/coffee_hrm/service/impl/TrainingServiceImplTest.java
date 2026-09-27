@@ -5,6 +5,7 @@ import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.enums.TrainingClassStatus;
 import com.example.coffee_hrm.common.enums.TrainingSkillStatus;
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.CreateTrainingClassRequest;
 import com.example.coffee_hrm.dto.request.CreateTrainingSkillRequest;
 import com.example.coffee_hrm.entity.Store;
@@ -29,6 +30,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
@@ -83,8 +85,8 @@ class TrainingServiceImplTest {
         CreateTrainingClassRequest request = CreateTrainingClassRequest.builder()
                 .skillId(9)
                 .className("Lớp Barista T9")
-                .startDate(LocalDate.now().plusDays(1))
-                .endDate(LocalDate.now().plusDays(2))
+                .startDate(VietnamTime.today().plusDays(1))
+                .endDate(VietnamTime.today().plusDays(2))
                 .startTime(LocalTime.of(8, 0))
                 .endTime(LocalTime.of(10, 0))
                 .build();
@@ -202,6 +204,29 @@ class TrainingServiceImplTest {
     }
 
     @Test
+    void createClassRejectsStartThatAlreadyPassedInVietnam() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
+
+        LocalDateTime startAt = VietnamTime.now().minusMinutes(90).withSecond(0).withNano(0);
+        LocalTime endTime = startAt.toLocalTime().plusMinutes(30);
+        CreateTrainingClassRequest request = endTime.isAfter(startAt.toLocalTime())
+                ? classRequest(startAt.toLocalDate(), startAt.toLocalDate(), startAt.toLocalTime(), endTime)
+                : classRequest(
+                        VietnamTime.today().minusDays(1),
+                        VietnamTime.today().minusDays(1),
+                        LocalTime.of(10, 0),
+                        LocalTime.of(12, 0));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> trainingService.createClass(request, manager));
+        assertEquals(
+                "Thời gian bắt đầu đã qua. Vui lòng chọn thời điểm từ hiện tại trở đi theo giờ Việt Nam.",
+                ex.getMessage());
+        verify(trainingClassRepository, never()).save(any());
+    }
+
+    @Test
     void createClassRejectsInvalidTimeRange() {
         Store store = Store.builder().id(5).storeName("Store A").build();
         when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
@@ -224,16 +249,18 @@ class TrainingServiceImplTest {
                 .skillName("Barista")
                 .status(TrainingSkillStatus.ACTIVE)
                 .build()));
+        LocalDate overlapStart = VietnamTime.today().plusDays(10);
+        LocalDate overlapEnd = overlapStart.plusDays(1);
         when(trainingClassRepository.findActiveByStoreId(5, TrainingClassStatus.REJECTED))
                 .thenReturn(List.of(existingClass(
-                        LocalDate.of(2026, 9, 21),
-                        LocalDate.of(2026, 9, 22),
+                        overlapStart,
+                        overlapEnd,
                         LocalTime.of(7, 30),
                         LocalTime.of(11, 30))));
 
         CreateTrainingClassRequest request = classRequest(
-                LocalDate.of(2026, 9, 21),
-                LocalDate.of(2026, 9, 22),
+                overlapStart,
+                overlapEnd,
                 LocalTime.of(11, 0),
                 LocalTime.of(12, 0));
 
@@ -253,10 +280,12 @@ class TrainingServiceImplTest {
                 .build();
         when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
         when(trainingSkillRepository.findById(9)).thenReturn(Optional.of(skill));
+        LocalDate overlapStart = VietnamTime.today().plusDays(10);
+        LocalDate overlapEnd = overlapStart.plusDays(1);
         when(trainingClassRepository.findActiveByStoreId(5, TrainingClassStatus.REJECTED))
                 .thenReturn(List.of(existingClass(
-                        LocalDate.of(2026, 9, 21),
-                        LocalDate.of(2026, 9, 22),
+                        overlapStart,
+                        overlapEnd,
                         LocalTime.of(7, 30),
                         LocalTime.of(11, 30))));
         when(userRepository.findById(2)).thenReturn(Optional.of(user(2, RoleName.MANAGER, 20)));
@@ -276,8 +305,8 @@ class TrainingServiceImplTest {
         when(userRepository.findActiveByRoleName(RoleName.ADMIN)).thenReturn(List.of(user(1, RoleName.ADMIN, null)));
 
         CreateTrainingClassRequest request = classRequest(
-                LocalDate.of(2026, 9, 21),
-                LocalDate.of(2026, 9, 22),
+                overlapStart,
+                overlapEnd,
                 LocalTime.of(11, 31),
                 LocalTime.of(12, 0));
 
@@ -316,8 +345,8 @@ class TrainingServiceImplTest {
                     .skill(skill)
                     .store(store)
                     .className("Lớp Barista T9")
-                    .startDate(LocalDate.now().plusDays(1))
-                    .endDate(LocalDate.now().plusDays(1))
+                    .startDate(VietnamTime.today().plusDays(1))
+                    .endDate(VietnamTime.today().plusDays(1))
                     .startTime(LocalTime.of(8, 0))
                     .endTime(LocalTime.of(10, 0))
                     .status(TrainingClassStatus.PENDING_APPROVAL)
@@ -332,7 +361,104 @@ class TrainingServiceImplTest {
         ArgumentCaptor<TrainingClass> captor = ArgumentCaptor.forClass(TrainingClass.class);
         verify(trainingClassRepository).save(captor.capture());
         assertEquals(5, captor.getValue().getStore().getId());
+        assertEquals("MANAGER", captor.getValue().getTrainer());
         assertNull(captor.getValue().getLocation());
+    }
+
+    @Test
+    void createClassRejectsDuplicateClassNameWhileExistingClassIsStillOpen() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
+        when(trainingClassRepository.existsByClassNameIgnoreCaseAndStatusNotAndEndDateGreaterThanEqual(
+                "Lớp Barista T9", TrainingClassStatus.REJECTED, VietnamTime.today())).thenReturn(true);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> trainingService.createClass(validClassRequest(), manager));
+        assertEquals("Tên lớp đã tồn tại.", ex.getMessage());
+        verify(trainingClassRepository, never()).save(any());
+    }
+
+    @Test
+    void createClassAllowsReuseOfNameWhenNoOpenClassUsesIt() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        TrainingSkill skill = TrainingSkill.builder()
+                .id(9)
+                .skillName("Barista")
+                .status(TrainingSkillStatus.ACTIVE)
+                .build();
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
+        when(trainingClassRepository.existsByClassNameIgnoreCaseAndStatusNotAndEndDateGreaterThanEqual(
+                "Lớp Barista T9", TrainingClassStatus.REJECTED, VietnamTime.today())).thenReturn(false);
+        when(trainingSkillRepository.findById(9)).thenReturn(Optional.of(skill));
+        when(trainingClassRepository.findActiveByStoreId(5, TrainingClassStatus.REJECTED)).thenReturn(List.of());
+        when(userRepository.findById(2)).thenReturn(Optional.of(user(2, RoleName.MANAGER, 20)));
+        when(trainingClassRepository.save(any(TrainingClass.class))).thenAnswer(invocation -> {
+            TrainingClass saved = invocation.getArgument(0);
+            saved.setId(30);
+            return saved;
+        });
+        when(trainingClassRepository.findByIdWithDetails(30)).thenReturn(Optional.of(TrainingClass.builder()
+                .id(30)
+                .skill(skill)
+                .store(store)
+                .className("Lớp Barista T9")
+                .status(TrainingClassStatus.PENDING_APPROVAL)
+                .createdBy(user(2, RoleName.MANAGER, 20))
+                .build()));
+        when(userRepository.findActiveByRoleName(RoleName.ADMIN)).thenReturn(List.of());
+
+        trainingService.createClass(validClassRequest(), manager);
+
+        ArgumentCaptor<TrainingClass> captor = ArgumentCaptor.forClass(TrainingClass.class);
+        verify(trainingClassRepository).save(captor.capture());
+        assertEquals("Lớp Barista T9", captor.getValue().getClassName());
+        assertEquals(TrainingClassStatus.PENDING_APPROVAL, captor.getValue().getStatus());
+    }
+
+    @Test
+    void listSubmittedClassesForManagerShowsOpenRequestStatuses() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
+        TrainingClass pending = TrainingClass.builder()
+                .id(7)
+                .className("Phục vụ 1")
+                .skill(TrainingSkill.builder().id(9).skillName("Phục vụ").build())
+                .store(store)
+                .startDate(VietnamTime.today())
+                .endDate(VietnamTime.today().plusDays(2))
+                .status(TrainingClassStatus.PENDING_APPROVAL)
+                .createdBy(user(2, RoleName.MANAGER, 20))
+                .build();
+        TrainingClass rejected = TrainingClass.builder()
+                .id(8)
+                .className("Pha chế")
+                .skill(TrainingSkill.builder().id(9).skillName("Pha chế").build())
+                .store(store)
+                .startDate(VietnamTime.today())
+                .endDate(VietnamTime.today().plusDays(1))
+                .status(TrainingClassStatus.REJECTED)
+                .createdBy(user(2, RoleName.MANAGER, 20))
+                .build();
+        when(trainingClassRepository.findOpenRequestsForStore(5, VietnamTime.today()))
+                .thenReturn(List.of(pending, rejected));
+
+        var requests = trainingService.listSubmittedClassesForManager(manager);
+
+        assertEquals(2, requests.size());
+        assertEquals(TrainingClassStatus.PENDING_APPROVAL, requests.get(0).getStatus());
+        assertEquals("Chờ duyệt", requests.get(0).getStatus().getLabel());
+        assertEquals(TrainingClassStatus.REJECTED, requests.get(1).getStatus());
+        assertEquals("Từ chối", requests.get(1).getStatus().getLabel());
+    }
+
+    @Test
+    void createSkillRejectsNameContainingDigits() {
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> trainingService.createSkill(CreateTrainingSkillRequest.builder()
+                        .skillName("Barista 1")
+                        .build(), manager));
+        assertEquals("Tên kỹ năng không được chứa số.", ex.getMessage());
+        verify(trainingSkillRepository, never()).save(any());
     }
 
     @Test
@@ -344,20 +470,20 @@ class TrainingServiceImplTest {
                 .className("Lớp Barista sáng")
                 .skill(TrainingSkill.builder().id(9).skillName("Barista").build())
                 .store(store)
-                .startDate(LocalDate.now())
-                .endDate(LocalDate.now().plusDays(3))
+                .startDate(VietnamTime.today())
+                .endDate(VietnamTime.today().plusDays(3))
                 .startTime(LocalTime.of(8, 0))
                 .endTime(LocalTime.of(10, 0))
                 .status(TrainingClassStatus.APPROVED)
                 .createdBy(user(2, RoleName.MANAGER, 20))
                 .build();
         when(trainingClassRepository.searchApprovedActiveForStore(
-                eq(5), eq(TrainingClassStatus.APPROVED), eq(LocalDate.now()),
-                eq(9), eq(LocalDate.now()), eq("barista"), any(Pageable.class)))
+                eq(5), eq(TrainingClassStatus.APPROVED), eq(VietnamTime.today()),
+                eq(9), eq(VietnamTime.today()), eq("barista"), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(barista)));
 
         var page = trainingService.listClassesForManager(
-                manager, 9, LocalDate.now(), "barista", "desc", 1);
+                manager, 9, VietnamTime.today(), "barista", "desc", 1);
 
         assertEquals(1, page.getContent().size());
         assertEquals(10, page.getContent().getFirst().getId());
@@ -365,8 +491,8 @@ class TrainingServiceImplTest {
 
         ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
         verify(trainingClassRepository).searchApprovedActiveForStore(
-                eq(5), eq(TrainingClassStatus.APPROVED), eq(LocalDate.now()),
-                eq(9), eq(LocalDate.now()), eq("barista"), captor.capture());
+                eq(5), eq(TrainingClassStatus.APPROVED), eq(VietnamTime.today()),
+                eq(9), eq(VietnamTime.today()), eq("barista"), captor.capture());
         Pageable pageable = captor.getValue();
         assertEquals(6, pageable.getPageSize());
         assertEquals(0, pageable.getPageNumber());
@@ -400,7 +526,7 @@ class TrainingServiceImplTest {
                 .className("Lớp Barista")
                 .status(TrainingClassStatus.APPROVED)
                 .store(store)
-                .endDate(LocalDate.now().plusDays(2))
+                .endDate(VietnamTime.today().plusDays(2))
                 .skill(TrainingSkill.builder().id(1).skillName("Espresso").build())
                 .createdBy(user(2, RoleName.MANAGER, 20))
                 .build();
@@ -432,8 +558,8 @@ class TrainingServiceImplTest {
 
     private CreateTrainingClassRequest validClassRequest() {
         return classRequest(
-                LocalDate.now().plusDays(1),
-                LocalDate.now().plusDays(1),
+                VietnamTime.today().plusDays(1),
+                VietnamTime.today().plusDays(1),
                 LocalTime.of(8, 0),
                 LocalTime.of(10, 0));
     }

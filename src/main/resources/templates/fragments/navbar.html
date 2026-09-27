@@ -2,8 +2,36 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <body>
 
+<div th:fragment="bell" class="notif-wrap"
+     th:data-vietnam-now="${vietnamNow != null ? #temporals.format(vietnamNow, 'yyyy-MM-dd''T''HH:mm:ss') : ''}">
+    <link rel="stylesheet" th:href="@{/css/notifications-popup.css}">
+    <button type="button"
+            class="notif-bell-btn"
+            aria-label="Thông báo"
+            aria-expanded="false"
+            aria-controls="notifPopup"
+            th:attr="data-feed-url=@{/notifications/feed},data-read-base=@{/notifications/},data-read-all-url=@{/notifications/read-all},data-csrf=${_csrf.token},data-csrf-header=${_csrf.headerName}">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9"/>
+            <path d="M10 21a2 2 0 0 0 4 0"/>
+        </svg>
+        <span class="notif-badge"
+              th:if="${unreadNotificationCount != null and unreadNotificationCount > 0}"
+              th:text="${unreadNotificationCount > 99} ? '99+' : ${unreadNotificationCount}">1</span>
+    </button>
+    <div class="notif-popup" id="notifPopup" hidden>
+        <div class="notif-popup-head">
+            <strong>Thông báo</strong>
+            <button type="button" class="notif-mark-all">Đánh dấu tất cả đã đọc</button>
+        </div>
+        <div class="notif-popup-body"></div>
+    </div>
+    <script th:src="@{/js/vietnam-time.js}"></script>
+    <script th:src="@{/js/notifications-popup.js}"></script>
+</div>
+
 <header th:fragment="admin(active)" class="dash-nav">
-    <div class="wrap">
+    <div class="wrap nav-row">
         <div class="brand"><span class="mark"></span><span class="brand-word">CoffeeHRM</span></div>
         <nav>
             <a th:href="@{/dashboard/admin}"
@@ -21,14 +49,13 @@
                th:class="${active == 'training'} ? 'active'">Đào tạo</a>
             <a th:href="@{/dashboard/admin#reports}"
                th:class="${active == 'reports'} ? 'active'">Báo cáo toàn chuỗi</a>
-            <a th:href="@{/notifications}"
-               th:class="${active == 'notifications'} ? 'active'">Thông báo
-                <span class="nav-count" th:if="${unreadNotificationCount > 0}" th:text="${unreadNotificationCount}">0</span>
-            </a>
         </nav>
-        <form th:action="@{/logout}" method="post">
-            <button class="logout-btn" type="submit">Đăng xuất</button>
-        </form>
+        <div class="nav-end">
+            <div th:replace="~{fragments/navbar :: bell}"></div>
+            <form th:action="@{/logout}" method="post">
+                <button class="logout-btn" type="submit">Đăng xuất</button>
+            </form>
+        </div>
     </div>
     <div class="wrap back-bar">
         <button class="logout-btn" type="button" onclick="history.back()">Quay lại</button>
@@ -36,7 +63,7 @@
 </header>
 
 <header th:fragment="manager(active)" class="dash-nav">
-    <div class="wrap">
+    <div class="wrap nav-row">
         <div class="brand"><span class="mark"></span><span class="brand-word">CoffeeHRM</span></div>
         <nav>
             <a th:href="@{/dashboard/manager}"
@@ -55,14 +82,13 @@
                th:class="${active == 'training'} ? 'active'">Đào tạo</a>
             <a th:href="@{/dashboard/manager#reports}"
                th:class="${active == 'reports'} ? 'active'">Báo cáo Store</a>
-            <a th:href="@{/notifications}"
-               th:class="${active == 'notifications'} ? 'active'">Thông báo
-                <span class="nav-count" th:if="${unreadNotificationCount > 0}" th:text="${unreadNotificationCount}">0</span>
-            </a>
         </nav>
-        <form th:action="@{/logout}" method="post">
-            <button class="logout-btn" type="submit">Đăng xuất</button>
-        </form>
+        <div class="nav-end">
+            <div th:replace="~{fragments/navbar :: bell}"></div>
+            <form th:action="@{/logout}" method="post">
+                <button class="logout-btn" type="submit">Đăng xuất</button>
+            </form>
+        </div>
     </div>
     <div class="wrap back-bar">
         <button class="logout-btn" type="button" onclick="history.back()">Quay lại</button>
@@ -70,7 +96,7 @@
 </header>
 
 <header th:fragment="staff(active)" class="dash-nav">
-    <div class="wrap">
+    <div class="wrap nav-row">
         <div class="brand"><span class="mark"></span><span class="brand-word">CoffeeHRM</span></div>
         <nav>
             <a th:href="@{/dashboard/staff}"
@@ -87,16 +113,15 @@
                th:class="${active == 'leave'} ? 'active'">Đơn nghỉ phép</a>
             <a th:href="@{/dashboard/staff#shift-change}"
                th:class="${active == 'shift-change'} ? 'active'">Yêu cầu đổi ca</a>
-            <a th:href="@{/notifications}"
-               th:class="${active == 'notifications'} ? 'active'">Thông báo
-                <span class="nav-count" th:if="${unreadNotificationCount > 0}" th:text="${unreadNotificationCount}">0</span>
-            </a>
             <a th:href="@{/schedule/staff#requests-history}"
                th:class="${active == 'requests-history'} ? 'active'">Yêu cầu đổi ca</a>
         </nav>
-        <form th:action="@{/logout}" method="post">
-            <button class="logout-btn" type="submit">Đăng xuất</button>
-        </form>
+        <div class="nav-end">
+            <div th:replace="~{fragments/navbar :: bell}"></div>
+            <form th:action="@{/logout}" method="post">
+                <button class="logout-btn" type="submit">Đăng xuất</button>
+            </form>
+        </div>
     </div>
     <div class="wrap back-bar">
         <button class="logout-btn" type="button" onclick="history.back()">Quay lại</button>

@@ -47,4 +47,62 @@ document.addEventListener('DOMContentLoaded', function () {
       form.classList.remove('hidden');
     }
   }
+
+  var classForm = document.getElementById('training-class-form');
+  var startDate = document.getElementById('class-start-date');
+  var endDate = document.getElementById('class-end-date');
+  var startTime = document.getElementById('class-start-time');
+  var endTime = document.getElementById('class-end-time');
+  var clientError = document.getElementById('class-client-error');
+
+  function showClassError(message) {
+    if (!clientError) {
+      return;
+    }
+    clientError.hidden = false;
+    clientError.textContent = message;
+  }
+
+  function clearClassError() {
+    if (!clientError) {
+      return;
+    }
+    clientError.hidden = true;
+    clientError.textContent = '';
+  }
+
+  if (startDate && endDate) {
+    startDate.addEventListener('change', function () {
+      if (startDate.value) {
+        endDate.min = startDate.value;
+        if (endDate.value && endDate.value < startDate.value) {
+          endDate.value = startDate.value;
+        }
+      }
+    });
+  }
+
+  if (classForm) {
+    classForm.addEventListener('submit', function (event) {
+      clearClassError();
+      if (!startDate || !endDate || !startTime || !endTime) {
+        return;
+      }
+      if (endDate.value < startDate.value) {
+        event.preventDefault();
+        showClassError('Ngày kết thúc phải sau hoặc bằng ngày bắt đầu.');
+        return;
+      }
+      if (endTime.value <= startTime.value) {
+        event.preventDefault();
+        showClassError('Giờ bắt đầu phải nhỏ hơn giờ kết thúc.');
+        return;
+      }
+      var clock = window.CoffeeHrmTime;
+      if (clock && clock.isBeforeNow(startDate.value, startTime.value)) {
+        event.preventDefault();
+        showClassError('Thời gian bắt đầu đã qua. Vui lòng chọn thời điểm từ hiện tại trở đi theo giờ Việt Nam.');
+      }
+    });
+  }
 });

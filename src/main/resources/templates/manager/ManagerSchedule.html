@@ -114,9 +114,11 @@
 
                     <!-- Quick assign button for this cell -->
                     <button class="quick-add-btn" type="button"
+                            th:if="${row.startTime == null or cell.date == null or !T(java.time.LocalDateTime).of(cell.date, row.startTime).isBefore(vietnamNow)}"
                             th:data-shift-id="${row.shiftId}"
                             th:data-date="${cell.date}"
-                            onclick="quickAssign(this.getAttribute('data-shift-id'), this.getAttribute('data-date'))">
+                            th:data-start="${row.startTime != null ? #temporals.format(row.startTime, 'HH:mm') : ''}"
+                            onclick="quickAssign(this.getAttribute('data-shift-id'), this.getAttribute('data-date'), this.getAttribute('data-start'))">
                         + Thêm NV
                     </button>
                 </td>
@@ -247,7 +249,7 @@
             <h2>Phân công ca làm việc</h2>
             <button class="close-btn" type="button" onclick="closeAssignModal()">×</button>
         </div>
-        <form th:action="@{/schedule/manager/assign}" th:object="${assignForm}" method="post">
+        <form id="assign-shift-form" th:action="@{/schedule/manager/assign}" th:object="${assignForm}" method="post">
             <input type="hidden" name="currentWeek" th:value="${schedule.weekStartDate}">
 
             <div class="form-group">
@@ -256,6 +258,7 @@
                     <option value="">-- Chọn ca làm việc --</option>
                     <option th:each="row : ${schedule.shiftRows}"
                             th:value="${row.shiftId}"
+                            th:data-start="${row.startTime != null ? #temporals.format(row.startTime, 'HH:mm') : ''}"
                             th:text="${row.shiftName + ' (' + row.formattedTime + ')'}">
                         Ca Sáng (07:00 - 12:00)
                     </option>
@@ -265,7 +268,9 @@
             <div class="form-group">
                 <label for="dateInput">Ngày làm việc *</label>
                 <input type="date" id="dateInput" name="workDate" class="form-control"
-                       th:min="${schedule.weekStartDate}" th:max="${schedule.weekEndDate}" required>
+                       th:min="${schedule.weekStartDate != null and vietnamToday != null and schedule.weekStartDate.isAfter(vietnamToday) ? schedule.weekStartDate : vietnamToday}"
+                       th:max="${schedule.weekEndDate}" required>
+                <p id="assign-time-error" hidden style="color:#9b2c2c;margin:8px 0 0;"></p>
             </div>
 
             <div class="form-group">
@@ -289,16 +294,51 @@
 </div>
 
 <script>
+    function showAssignTimeError(message) {
+        var error = document.getElementById('assign-time-error');
+        if (!error) {
+            return;
+        }
+        error.hidden = !message;
+        error.textContent = message || '';
+    }
+
+    function shiftStartsInThePast(workDate, startTime) {
+        return window.CoffeeHrmTime
+            && workDate
+            && startTime
+            && CoffeeHrmTime.isBeforeNow(workDate, startTime);
+    }
+
     function openAssignModal() {
+        showAssignTimeError('');
         document.getElementById('assignModal').classList.add('open');
     }
     function closeAssignModal() {
         document.getElementById('assignModal').classList.remove('open');
     }
-    function quickAssign(shiftId, workDate) {
+    function quickAssign(shiftId, workDate, startTime) {
+        if (shiftStartsInThePast(workDate, startTime)) {
+            showAssignTimeError('Không thể phân ca cho thời gian đã qua.');
+            return;
+        }
         document.getElementById('shiftSelect').value = shiftId;
         document.getElementById('dateInput').value = workDate;
         openAssignModal();
+    }
+
+    var assignForm = document.getElementById('assign-shift-form');
+    if (assignForm) {
+        assignForm.addEventListener('submit', function (event) {
+            var dateInput = document.getElementById('dateInput');
+            var shiftSelect = document.getElementById('shiftSelect');
+            var selected = shiftSelect && shiftSelect.options[shiftSelect.selectedIndex];
+            var startTime = selected ? selected.getAttribute('data-start') : '';
+            if (shiftStartsInThePast(dateInput && dateInput.value, startTime)) {
+                event.preventDefault();
+                showAssignTimeError('Không thể phân ca cho thời gian đã qua.');
+            }
+        });
     }
 
     function openReviewModalFromBtn(btn) {

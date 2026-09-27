@@ -1,6 +1,7 @@
 package com.example.coffee_hrm.service.impl;
 
 import com.example.coffee_hrm.common.enums.NotificationType;
+import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.enums.TrainingClassStatus;
 import com.example.coffee_hrm.common.enums.TrainingSkillStatus;
@@ -30,7 +31,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -157,7 +157,7 @@ public class TrainingServiceImpl implements TrainingService {
         Page<TrainingClass> result = trainingClassRepository.searchApprovedActiveForStore(
                 store.getId(),
                 TrainingClassStatus.APPROVED,
-                LocalDate.now(),
+                VietnamTime.today(),
                 skillId,
                 date,
                 normalizedKeyword,
@@ -167,13 +167,25 @@ public class TrainingServiceImpl implements TrainingService {
             result = trainingClassRepository.searchApprovedActiveForStore(
                     store.getId(),
                     TrainingClassStatus.APPROVED,
-                    LocalDate.now(),
+                    VietnamTime.today(),
                     skillId,
                     date,
                     normalizedKeyword,
                     pageable);
         }
         return result.map(this::toClassResponse);
+    }
+
+    @Override
+    public List<TrainingClassResponse> listSubmittedClassesForManager(AuthenticatedUser manager) {
+        requireManager(manager);
+        Store store = resolveManagerStore(manager);
+        if (store == null) {
+            return List.of();
+        }
+        return trainingClassRepository.findOpenRequestsForStore(store.getId(), VietnamTime.today()).stream()
+                .map(this::toClassResponse)
+                .toList();
     }
 
     @Override
@@ -198,6 +210,12 @@ public class TrainingServiceImpl implements TrainingService {
         }
         validateClassSchedule(request);
 
+        String className = request.getClassName().trim();
+        if (trainingClassRepository.existsByClassNameIgnoreCaseAndStatusNotAndEndDateGreaterThanEqual(
+                className, TrainingClassStatus.REJECTED, VietnamTime.today())) {
+            throw new BusinessException("Tên lớp đã tồn tại.");
+        }
+
         TrainingSkill skill = trainingSkillRepository.findById(request.getSkillId())
                 .orElseThrow(() -> new BusinessException("Không tìm thấy kỹ năng đào tạo."));
         if (skill.getStatus() != TrainingSkillStatus.ACTIVE) {
@@ -206,11 +224,12 @@ public class TrainingServiceImpl implements TrainingService {
 
         ensureNoScheduleOverlap(store.getId(), request, null);
 
+        User creator = loadUser(manager.getUserId());
         TrainingClass trainingClass = TrainingClass.builder()
                 .skill(skill)
                 .store(store)
-                .className(request.getClassName().trim())
-                .trainer(blankToNull(request.getTrainer()))
+                .className(className)
+                .trainer(userDisplayName(creator))
                 .startDate(request.getStartDate())
                 .endDate(request.getEndDate())
                 .startTime(request.getStartTime())
@@ -218,7 +237,7 @@ public class TrainingServiceImpl implements TrainingService {
                 .maxParticipants(request.getMaxParticipants())
                 .notes(blankToNull(request.getNotes()))
                 .status(TrainingClassStatus.PENDING_APPROVAL)
-                .createdBy(loadUser(manager.getUserId()))
+                .createdBy(creator)
                 .build();
 
         TrainingClass saved = trainingClassRepository.save(trainingClass);
@@ -269,20 +288,25 @@ public class TrainingServiceImpl implements TrainingService {
         User reviewer = loadUser(admin.getUserId());
         trainingClass.setStatus(targetStatus);
         trainingClass.setApprovedBy(reviewer);
-        trainingClass.setApprovedAt(LocalDateTime.now());
+        trainingClass.setApprovedAt(VietnamTime.now());
         notifyManagerReviewResult(trainingClass, targetStatus);
         return toClassResponse(trainingClass);
     }
 
     private void validateClassSchedule(CreateTrainingClassRequest request) {
-        if (request.getStartTime() == null || request.getEndTime() == null) {
-            throw new BusinessException("Vui lòng chọn giờ bắt đầu và giờ kết thúc.");
+        if (request.getStartDate() == null || request.getEndDate() == null
+                || request.getStartTime() == null || request.getEndTime() == null) {
+            throw new BusinessException("Vui lòng chọn đầy đủ ngày và giờ của lớp.");
         }
         if (!request.getEndTime().isAfter(request.getStartTime())) {
             throw new BusinessException("Giờ bắt đầu phải nhỏ hơn giờ kết thúc.");
         }
         if (request.getEndDate().isBefore(request.getStartDate())) {
             throw new BusinessException("Ngày kết thúc phải sau hoặc bằng ngày bắt đầu.");
+        }
+        if (VietnamTime.isBeforeNow(request.getStartDate(), request.getStartTime())) {
+            throw new BusinessException(
+                    "Thời gian bắt đầu đã qua. Vui lòng chọn thời điểm từ hiện tại trở đi theo giờ Việt Nam.");
         }
     }
 
@@ -384,7 +408,7 @@ public class TrainingServiceImpl implements TrainingService {
         if (trainingClass.getStatus() != TrainingClassStatus.APPROVED) {
             throw new BusinessException("Không tìm thấy lớp đào tạo.");
         }
-        if (trainingClass.getEndDate() != null && trainingClass.getEndDate().isBefore(LocalDate.now())) {
+        if (trainingClass.getEndDate() != null && trainingClass.getEndDate().isBefore(VietnamTime.today())) {
             throw new BusinessException("Không tìm thấy lớp đào tạo.");
         }
         return trainingClass;
@@ -414,7 +438,11 @@ public class TrainingServiceImpl implements TrainingService {
         if (skillName == null || skillName.isBlank()) {
             throw new BusinessException("Vui lòng nhập tên kỹ năng.");
         }
-        return skillName.trim();
+        String trimmed = skillName.trim();
+        if (trimmed.matches(".*[0-9].*")) {
+            throw new BusinessException("Tên kỹ năng không được chứa số.");
+        }
+        return trimmed;
     }
 
     private void requireManager(AuthenticatedUser actor) {

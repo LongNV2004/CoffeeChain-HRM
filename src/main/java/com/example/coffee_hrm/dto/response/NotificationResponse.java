@@ -21,5 +21,6 @@ public class NotificationResponse {
     private boolean read;
     private String referenceType;
     private Integer referenceId;
+    private String actionUrl;
     private LocalDateTime createdAt;
 }

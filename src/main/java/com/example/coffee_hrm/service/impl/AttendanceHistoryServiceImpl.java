@@ -4,6 +4,7 @@ import com.example.coffee_hrm.common.enums.AssignmentStatus;
 import com.example.coffee_hrm.common.enums.AttendanceStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.response.AttendanceHistoryView;
 import com.example.coffee_hrm.entity.Attendance;
 import com.example.coffee_hrm.entity.Employee;
@@ -186,9 +187,12 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
     }
 
     private LocalDate[] resolveRange(LocalDate fromDate, LocalDate toDate) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = VietnamTime.today();
         LocalDate start = fromDate != null ? fromDate : today.withDayOfMonth(1);
         LocalDate end = toDate != null ? toDate : today;
+        if (start.isAfter(today) || end.isAfter(today)) {
+            throw new BusinessException("Không thể xem lịch sử chấm công sau ngày hiện tại theo giờ Việt Nam.");
+        }
         if (end.isBefore(start)) {
             throw new BusinessException("Ngày kết thúc phải sau hoặc bằng ngày bắt đầu.");
         }

@@ -1,5 +1,6 @@
 package com.example.coffee_hrm.service.impl;
 
+import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.LoginRequest;
 import com.example.coffee_hrm.dto.response.LoginResponse;
 import com.example.coffee_hrm.entity.User;
@@ -22,8 +23,6 @@ import org.springframework.security.web.authentication.logout.SecurityContextLog
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -50,7 +49,7 @@ public class AuthServiceImpl implements AuthService {
             throw new BadCredentialsException(LOGIN_FAILED_MESSAGE);
         }
 
-        user.setLastLogin(LocalDateTime.now());
+        user.setLastLogin(VietnamTime.now());
         userRepository.save(user);
 
         AuthenticatedUser principal = AuthenticatedUser.from(user);

@@ -4,6 +4,7 @@ import com.example.coffee_hrm.common.enums.ApprovalStatus;
 import com.example.coffee_hrm.common.enums.AssignmentStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.TrainingClassStatus;
+import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.response.AdminDashboardView;
 import com.example.coffee_hrm.dto.response.ManagerDashboardView;
 import com.example.coffee_hrm.dto.response.StaffDashboardView;
@@ -67,7 +68,7 @@ public class DashboardServiceImpl implements DashboardService {
             Integer storeId = store.getId();
             employeeCount = employeeRepository.countByStore_IdAndStatusNot(storeId, EmployeeStatus.TERMINATED);
             todayShiftCount = shiftAssignmentRepository.countByEmployee_Store_IdAndWorkDateAndStatus(
-                    storeId, LocalDate.now(), AssignmentStatus.ASSIGNED);
+                    storeId, VietnamTime.today(), AssignmentStatus.ASSIGNED);
             pendingLeaveCount = leaveRequestRepository.countByEmployee_Store_IdAndStatus(storeId, ApprovalStatus.PENDING);
             pendingShiftChangeCount = shiftChangeRequestRepository.countPendingForManager(storeId);
         }
@@ -92,13 +93,17 @@ public class DashboardServiceImpl implements DashboardService {
 
         Attendance todayAttendance = employeeId == null
                 ? null
-                : attendanceRepository.findByEmployee_IdAndWorkDate(employeeId, LocalDate.now()).orElse(null);
+                : attendanceRepository.findByEmployee_IdAndWorkDate(employeeId, VietnamTime.today()).orElse(null);
 
         List<StaffDashboardView.ScheduleItem> upcoming = employeeId == null
                 ? List.of()
                 : shiftAssignmentRepository.findUpcomingByEmployee(
-                        employeeId, LocalDate.now(), AssignmentStatus.ASSIGNED, PageRequest.of(0, 7))
+                        employeeId, VietnamTime.today(), AssignmentStatus.ASSIGNED, PageRequest.of(0, 30))
                 .stream()
+                .filter(item -> item.getShift() == null
+                        || item.getShift().getStartTime() == null
+                        || !VietnamTime.isBeforeNow(item.getWorkDate(), item.getShift().getStartTime()))
+                .limit(7)
                 .map(item -> StaffDashboardView.ScheduleItem.builder()
                         .workDate(item.getWorkDate())
                         .shiftName(item.getShift().getShiftName())
