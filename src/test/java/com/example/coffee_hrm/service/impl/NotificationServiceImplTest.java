@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -66,6 +67,27 @@ class NotificationServiceImplTest {
         assertEquals(1, items.size());
         assertEquals(9, items.getFirst().getId());
         assertEquals("Lớp đào tạo đã được duyệt", items.getFirst().getTitle());
+        assertNull(items.getFirst().getActionUrl());
+    }
+
+    @Test
+    void listMineMapsKnownReferenceToExistingPage() {
+        when(notificationRepository.findByRecipient_IdOrderByCreatedAtDesc(2)).thenReturn(List.of(
+                Notification.builder()
+                        .id(11)
+                        .recipient(ownerEntity)
+                        .title("STAFF đăng ký lịch rảnh")
+                        .message("Xem đề xuất tại Lịch rảnh nhân viên.")
+                        .type(NotificationType.WORK_AVAILABILITY_SUBMITTED)
+                        .isRead(false)
+                        .referenceType("WORK_AVAILABILITY")
+                        .referenceId(4)
+                        .createdAt(LocalDateTime.now())
+                        .build()));
+
+        var items = notificationService.listMine(owner);
+
+        assertEquals("/availability/manager", items.getFirst().getActionUrl());
     }
 
     @Test

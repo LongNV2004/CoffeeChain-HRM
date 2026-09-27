@@ -5,6 +5,7 @@ import com.example.coffee_hrm.common.enums.AssignmentStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.AssignShiftRequest;
 import com.example.coffee_hrm.dto.request.CreateShiftChangeRequestDto;
 import com.example.coffee_hrm.entity.*;
@@ -79,15 +80,16 @@ class ScheduleServiceImplTest {
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
         when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shiftMorning));
         when(employeeRepository.findById(20)).thenReturn(Optional.of(empTuan));
+        LocalDate workDate = VietnamTime.today().plusDays(1);
         when(shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus(
-                20, 1, LocalDate.of(2026, 9, 21), AssignmentStatus.ASSIGNED)).thenReturn(false);
+                20, 1, workDate, AssignmentStatus.ASSIGNED)).thenReturn(false);
         when(shiftAssignmentRepository.findByEmployee_IdAndWorkDateAndStatus(
-                20, LocalDate.of(2026, 9, 21), AssignmentStatus.ASSIGNED)).thenReturn(List.of());
+                20, workDate, AssignmentStatus.ASSIGNED)).thenReturn(List.of());
 
         AssignShiftRequest request = AssignShiftRequest.builder()
                 .shiftId(1)
                 .employeeId(20)
-                .workDate(LocalDate.of(2026, 9, 21))
+                .workDate(workDate)
                 .build();
 
         scheduleService.assignShift(request, managerUser);
@@ -103,17 +105,36 @@ class ScheduleServiceImplTest {
     }
 
     @Test
-    void assignShiftRejectsDuplicate() {
+    void assignShiftRejectsPastStart() {
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
         when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shiftMorning));
         when(employeeRepository.findById(20)).thenReturn(Optional.of(empTuan));
-        when(shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus(
-                20, 1, LocalDate.of(2026, 9, 21), AssignmentStatus.ASSIGNED)).thenReturn(true);
 
         AssignShiftRequest request = AssignShiftRequest.builder()
                 .shiftId(1)
                 .employeeId(20)
-                .workDate(LocalDate.of(2026, 9, 21))
+                .workDate(VietnamTime.today().minusDays(1))
+                .build();
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> scheduleService.assignShift(request, managerUser));
+        assertEquals("Không thể phân ca cho thời gian đã qua.", ex.getMessage());
+        verify(shiftAssignmentRepository, never()).save(any());
+    }
+
+    @Test
+    void assignShiftRejectsDuplicate() {
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shiftMorning));
+        when(employeeRepository.findById(20)).thenReturn(Optional.of(empTuan));
+        LocalDate workDate = VietnamTime.today().plusDays(1);
+        when(shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus(
+                20, 1, workDate, AssignmentStatus.ASSIGNED)).thenReturn(true);
+
+        AssignShiftRequest request = AssignShiftRequest.builder()
+                .shiftId(1)
+                .employeeId(20)
+                .workDate(workDate)
                 .build();
 
         BusinessException ex = assertThrows(BusinessException.class, () -> scheduleService.assignShift(request, managerUser));
@@ -140,6 +161,30 @@ class ScheduleServiceImplTest {
     }
 
     @Test
+    void requestShiftChangeRejectsShiftThatAlreadyStarted() {
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(empTuan));
+
+        ShiftAssignment pastAssignment = ShiftAssignment.builder()
+                .id(100)
+                .employee(empTuan)
+                .shift(shiftMorning)
+                .isPublished(true)
+                .workDate(VietnamTime.today().minusDays(1))
+                .build();
+        when(shiftAssignmentRepository.findByIdWithDetails(100)).thenReturn(Optional.of(pastAssignment));
+
+        CreateShiftChangeRequestDto dto = CreateShiftChangeRequestDto.builder()
+                .assignmentId(100)
+                .reason("Bận việc")
+                .build();
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> scheduleService.requestShiftChange(dto, staffUser));
+        assertEquals("Không thể gửi yêu cầu đổi cho ca làm việc đã qua.", ex.getMessage());
+        verify(shiftChangeRequestRepository, never()).save(any());
+    }
+
+    @Test
     void requestShiftChangeRejectsUnpublishedShift() {
         when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(empTuan));
 
@@ -147,7 +192,7 @@ class ScheduleServiceImplTest {
                 .id(100)
                 .employee(empTuan)
                 .isPublished(false)
-                .workDate(LocalDate.now().plusDays(1))
+                .workDate(VietnamTime.today().plusDays(1))
                 .build();
 
         when(shiftAssignmentRepository.findByIdWithDetails(100)).thenReturn(Optional.of(draftAssignment));
@@ -211,6 +256,8 @@ class ScheduleServiceImplTest {
         ShiftAssignment assignment = ShiftAssignment.builder()
                 .id(100)
                 .employee(empTuan)
+                .shift(shiftMorning)
+                .workDate(VietnamTime.today().plusDays(1))
                 .build();
 
         ShiftChangeRequest pending = ShiftChangeRequest.builder()

@@ -1,6 +1,5 @@
 package com.example.coffee_hrm.dto.request;
 
-import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -12,6 +11,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.springframework.format.annotation.DateTimeFormat;
 
+import java.io.Serial;
+import java.io.Serializable;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
@@ -20,7 +21,10 @@ import java.time.LocalTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class CreateTrainingClassRequest {
+public class CreateTrainingClassRequest implements Serializable {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     @NotNull(message = "Vui lòng chọn kỹ năng đào tạo")
     private Integer skillId;
@@ -29,12 +33,8 @@ public class CreateTrainingClassRequest {
     @Size(max = 150, message = "Tên lớp tối đa 150 ký tự")
     private String className;
 
-    @Size(max = 100, message = "Tên giảng viên tối đa 100 ký tự")
-    private String trainer;
-
     @NotNull(message = "Vui lòng chọn ngày bắt đầu")
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-    @FutureOrPresent(message = "Ngày bắt đầu không được ở quá khứ")
     private LocalDate startDate;
 
     @NotNull(message = "Vui lòng chọn ngày kết thúc")
@@ -57,9 +57,5 @@ public class CreateTrainingClassRequest {
 
     public void setClassName(String className) {
         this.className = className == null ? null : className.trim();
-    }
-
-    public void setTrainer(String trainer) {
-        this.trainer = trainer == null ? null : trainer.trim();
     }
 }

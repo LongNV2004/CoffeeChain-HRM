@@ -112,5 +112,24 @@ public interface TrainingClassRepository extends JpaRepository<TrainingClass, In
             """)
     Optional<TrainingClass> findByIdWithDetails(@Param("id") Integer id);
 
+    @Query("""
+            SELECT c FROM TrainingClass c
+            JOIN FETCH c.skill
+            JOIN FETCH c.store
+            JOIN FETCH c.createdBy cb
+            LEFT JOIN FETCH cb.employee
+            LEFT JOIN FETCH c.approvedBy
+            WHERE c.store.id = :storeId
+              AND c.endDate >= :today
+            ORDER BY c.createdAt DESC
+            """)
+    List<TrainingClass> findOpenRequestsForStore(@Param("storeId") Integer storeId,
+                                                 @Param("today") LocalDate today);
+
     long countByStatus(TrainingClassStatus status);
+
+    boolean existsByClassNameIgnoreCaseAndStatusNotAndEndDateGreaterThanEqual(
+            String className,
+            TrainingClassStatus status,
+            LocalDate endDate);
 }

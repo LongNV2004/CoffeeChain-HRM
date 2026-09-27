@@ -4,6 +4,7 @@ import com.example.coffee_hrm.common.enums.ApprovalStatus;
 import com.example.coffee_hrm.common.enums.AssignmentStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.AssignShiftRequest;
 import com.example.coffee_hrm.dto.request.CreateShiftChangeRequestDto;
 import com.example.coffee_hrm.dto.response.WeeklyScheduleView;
@@ -18,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
 import java.util.*;
@@ -100,6 +102,10 @@ public class ScheduleServiceImpl implements ScheduleService {
             throw new BusinessException("Chỉ có thể phân ca cho nhân viên đang hoạt động (Active).");
         }
 
+        if (!isShiftStillUpcoming(request.getWorkDate(), shift.getStartTime())) {
+            throw new BusinessException("Không thể phân ca cho thời gian đã qua.");
+        }
+
         if (shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus(
                 employee.getId(), shift.getId(), request.getWorkDate(), AssignmentStatus.ASSIGNED)) {
             throw new BusinessException("Nhân viên " + employee.getFullName() + " đã được phân công vào ca này trong ngày "
@@ -161,7 +167,7 @@ public class ScheduleServiceImpl implements ScheduleService {
                     + monday.format(DATE_FORMATTER) + " đến " + sunday.format(DATE_FORMATTER) + " để công bố.");
         }
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = VietnamTime.now();
         for (ShiftAssignment assignment : assignments) {
             assignment.setIsPublished(true);
             assignment.setPublishedAt(now);
@@ -186,7 +192,8 @@ public class ScheduleServiceImpl implements ScheduleService {
             throw new BusinessException("Ca làm việc này chưa được quản lý công bố, không thể yêu cầu đổi ca.");
         }
 
-        if (assignment.getWorkDate().isBefore(LocalDate.now())) {
+        LocalTime assignmentStart = assignment.getShift() != null ? assignment.getShift().getStartTime() : null;
+        if (!isShiftStillUpcoming(assignment.getWorkDate(), assignmentStart)) {
             throw new BusinessException("Không thể gửi yêu cầu đổi cho ca làm việc đã qua.");
         }
 
@@ -218,6 +225,11 @@ public class ScheduleServiceImpl implements ScheduleService {
             if (!Boolean.TRUE.equals(targetAssignment.getIsPublished())) {
                 throw new BusinessException("Ca làm việc của đồng nghiệp chưa được công bố.");
             }
+            LocalTime targetStart = targetAssignment.getShift() != null
+                    ? targetAssignment.getShift().getStartTime() : null;
+            if (!isShiftStillUpcoming(targetAssignment.getWorkDate(), targetStart)) {
+                throw new BusinessException("Không thể đổi với ca làm việc đã qua.");
+            }
             targetEmployee = targetAssignment.getEmployee();
             reasonPrefix = "[Đổi chéo ca với: " + targetEmployee.getFullName() + " - "
                     + targetAssignment.getShift().getShiftName() + " ("
@@ -242,7 +254,7 @@ public class ScheduleServiceImpl implements ScheduleService {
 
         String fullReason = reasonPrefix + request.getReason().trim();
         Boolean isTargetAgreed = "MANAGER_ASSIGN".equalsIgnoreCase(changeType) ? Boolean.TRUE : null;
-        LocalDateTime targetAgreedAt = "MANAGER_ASSIGN".equalsIgnoreCase(changeType) ? LocalDateTime.now() : null;
+        LocalDateTime targetAgreedAt = "MANAGER_ASSIGN".equalsIgnoreCase(changeType) ? VietnamTime.now() : null;
 
         ShiftChangeRequest changeRequest = ShiftChangeRequest.builder()
                 .assignment(assignment)
@@ -275,7 +287,7 @@ public class ScheduleServiceImpl implements ScheduleService {
             throw new BusinessException("Yêu cầu này đã được phản hồi trước đó hoặc không còn ở trạng thái chờ.");
         }
 
-        changeRequest.setTargetAgreedAt(LocalDateTime.now());
+        changeRequest.setTargetAgreedAt(VietnamTime.now());
 
         if (agreed) {
             changeRequest.setIsTargetAgreed(true);
@@ -310,7 +322,7 @@ public class ScheduleServiceImpl implements ScheduleService {
         if (!approved) {
             changeRequest.setStatus(ApprovalStatus.REJECTED);
             changeRequest.setResolvedBy(managerUser);
-            changeRequest.setResolvedDate(LocalDateTime.now());
+            changeRequest.setResolvedDate(VietnamTime.now());
             shiftChangeRequestRepository.save(changeRequest);
             return;
         }
@@ -378,7 +390,7 @@ public class ScheduleServiceImpl implements ScheduleService {
 
         changeRequest.setStatus(ApprovalStatus.APPROVED);
         changeRequest.setResolvedBy(managerUser);
-        changeRequest.setResolvedDate(LocalDateTime.now());
+        changeRequest.setResolvedDate(VietnamTime.now());
         shiftChangeRequestRepository.save(changeRequest);
     }
 
@@ -394,7 +406,7 @@ public class ScheduleServiceImpl implements ScheduleService {
             AuthenticatedUser user,
             boolean isManagerView) {
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = VietnamTime.today();
         List<WeeklyScheduleView.DayHeader> dayHeaders = new ArrayList<>();
         String[] vietnameseDays = {"Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"};
 
@@ -438,7 +450,8 @@ public class ScheduleServiceImpl implements ScheduleService {
                     .isPublished(isPub)
                     .isCurrentStaff(isCurrentStaff)
                     .canCancel(isManagerView)
-                    .canRequestChange(!isManagerView && isCurrentStaff && isPub && !sa.getWorkDate().isBefore(today))
+                    .canRequestChange(!isManagerView && isCurrentStaff && isPub
+                            && isShiftStillUpcoming(sa.getWorkDate(), sa.getShift().getStartTime()))
                     .build();
 
             String key = sa.getShift().getId() + "_" + sa.getWorkDate().toString();
@@ -446,7 +459,7 @@ public class ScheduleServiceImpl implements ScheduleService {
 
             // Thu thập các ca của đồng nghiệp trong tuần để nhân viên có thể chọn đổi chéo
             boolean isColleague = currentEmpId != null && !Objects.equals(sa.getEmployee().getId(), currentEmpId);
-            if (isPub && isColleague && !sa.getWorkDate().isBefore(today)) {
+            if (isPub && isColleague && isShiftStillUpcoming(sa.getWorkDate(), sa.getShift().getStartTime())) {
                 String timeRange = sa.getShift().getStartTime().format(TIME_FORMATTER) + " – " + sa.getShift().getEndTime().format(TIME_FORMATTER);
                 String formattedDate = sa.getWorkDate().format(DAY_MONTH_FORMATTER);
                 String display = sa.getEmployee().getFullName() + " — " + sa.getShift().getShiftName()
@@ -609,7 +622,17 @@ public class ScheduleServiceImpl implements ScheduleService {
     }
 
     private LocalDate resolveMonday(LocalDate input) {
-        LocalDate date = input != null ? input : LocalDate.now();
+        LocalDate date = input != null ? input : VietnamTime.today();
         return date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+    }
+
+    private boolean isShiftStillUpcoming(LocalDate workDate, LocalTime startTime) {
+        if (workDate == null) {
+            return false;
+        }
+        if (startTime == null) {
+            return !workDate.isBefore(VietnamTime.today());
+        }
+        return !VietnamTime.isBeforeNow(workDate, startTime);
     }
 }

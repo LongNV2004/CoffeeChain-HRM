@@ -1,6 +1,7 @@
 package com.example.coffee_hrm.service.impl;
 
 import com.example.coffee_hrm.common.enums.AssignmentStatus;
+import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.common.enums.AttendanceStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
@@ -27,7 +28,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
@@ -78,14 +78,14 @@ class AttendanceHistoryServiceImplTest {
 
     @Test
     void staffSeesOnlyOwnAttendance() {
-        LocalDate from = LocalDate.of(2026, 9, 1);
-        LocalDate to = LocalDate.of(2026, 9, 2);
+        LocalDate from = VietnamTime.today().minusDays(2);
+        LocalDate to = VietnamTime.today().minusDays(1);
         Attendance ownRecord = Attendance.builder()
                 .id(5)
                 .employee(staffEmployee)
                 .workDate(from)
-                .checkInTime(LocalDateTime.of(2026, 9, 1, 8, 5))
-                .checkOutTime(LocalDateTime.of(2026, 9, 1, 17, 0))
+                .checkInTime(from.atTime(8, 5))
+                .checkOutTime(from.atTime(17, 0))
                 .totalHours(new BigDecimal("8.50"))
                 .status(AttendanceStatus.LATE)
                 .build();
@@ -128,13 +128,13 @@ class AttendanceHistoryServiceImplTest {
 
     @Test
     void managerSeesOnlyStoreEmployeesAndCanFilter() {
-        LocalDate from = LocalDate.of(2026, 9, 1);
-        LocalDate to = LocalDate.of(2026, 9, 30);
+        LocalDate to = VietnamTime.today();
+        LocalDate from = to.minusDays(7);
         Attendance record = Attendance.builder()
                 .id(6)
                 .employee(staffEmployee)
                 .workDate(from)
-                .checkInTime(LocalDateTime.of(2026, 9, 1, 7, 0))
+                .checkInTime(from.atTime(7, 0))
                 .totalHours(new BigDecimal("4.00"))
                 .status(AttendanceStatus.ON_TIME)
                 .build();
@@ -166,7 +166,7 @@ class AttendanceHistoryServiceImplTest {
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> attendanceHistoryService.getManagerHistory(
-                        managerUser, 99, LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 2)));
+                        managerUser, 99, VietnamTime.today().minusDays(2), VietnamTime.today().minusDays(1)));
 
         assertTrue(ex.getMessage().contains("không thuộc cửa hàng"));
         verify(attendanceRepository, never()).findHistoryByStoreAndEmployee(any(), any(), any(), any());
@@ -188,7 +188,7 @@ class AttendanceHistoryServiceImplTest {
         when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
 
         assertThrows(BusinessException.class, () -> attendanceHistoryService.getStaffHistory(
-                staffUser, LocalDate.of(2026, 9, 10), LocalDate.of(2026, 9, 1)));
+                staffUser, VietnamTime.today().minusDays(1), VietnamTime.today().minusDays(5)));
 
         verify(attendanceRepository, never()).findHistoryByEmployee(any(), any(), any());
     }

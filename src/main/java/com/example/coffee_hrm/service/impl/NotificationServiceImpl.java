@@ -1,6 +1,7 @@
 package com.example.coffee_hrm.service.impl;
 
 import com.example.coffee_hrm.common.enums.NotificationType;
+import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.dto.response.NotificationResponse;
 import com.example.coffee_hrm.entity.Notification;
@@ -53,7 +54,7 @@ public class NotificationServiceImpl implements NotificationService {
     public List<NotificationResponse> listMine(AuthenticatedUser user) {
         requireUser(user);
         return notificationRepository.findByRecipient_IdOrderByCreatedAtDesc(user.getUserId()).stream()
-                .map(this::toResponse)
+                .map(notification -> toResponse(notification, user))
                 .toList();
     }
 
@@ -87,7 +88,7 @@ public class NotificationServiceImpl implements NotificationService {
         }
     }
 
-    private NotificationResponse toResponse(Notification notification) {
+    private NotificationResponse toResponse(Notification notification, AuthenticatedUser user) {
         return NotificationResponse.builder()
                 .id(notification.getId())
                 .title(notification.getTitle())
@@ -96,7 +97,25 @@ public class NotificationServiceImpl implements NotificationService {
                 .read(Boolean.TRUE.equals(notification.getIsRead()))
                 .referenceType(notification.getReferenceType())
                 .referenceId(notification.getReferenceId())
+                .actionUrl(resolveActionUrl(notification, user))
                 .createdAt(notification.getCreatedAt())
                 .build();
+    }
+
+    private String resolveActionUrl(Notification notification, AuthenticatedUser user) {
+        if (notification.getReferenceType() == null || user.getRoleName() == null) {
+            return null;
+        }
+        return switch (notification.getReferenceType()) {
+            case "TRAINING_CLASS" -> switch (user.getRoleName()) {
+                case ADMIN -> "/admin/training";
+                case MANAGER -> "/training";
+                case STAFF -> null;
+            };
+            case "WORK_AVAILABILITY" -> user.getRoleName() == RoleName.MANAGER
+                    ? "/availability/manager"
+                    : null;
+            default -> null;
+        };
     }
 }

@@ -1,6 +1,7 @@
 package com.example.coffee_hrm.controller;
 
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.response.AttendanceHistoryView;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.AttendanceHistoryService;
@@ -66,7 +67,7 @@ public class AttendanceHistoryController {
                                                LocalDate from,
                                                LocalDate to,
                                                Integer employeeId) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = VietnamTime.today();
         return AttendanceHistoryView.builder()
                 .employeeId(user.getEmployeeId())
                 .employeeName(user.getDisplayName())

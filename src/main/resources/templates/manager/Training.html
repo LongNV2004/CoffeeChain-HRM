@@ -35,7 +35,7 @@
                 <h3>Thêm kỹ năng mới</h3>
                 <p class="flash error" th:if="${skillError}" th:text="${skillError}">Error</p>
                 <label>Tên kỹ năng
-                    <input type="text" th:field="*{skillName}" maxlength="100" required>
+                    <input type="text" th:field="*{skillName}" maxlength="100" pattern="[^0-9]*" title="Tên kỹ năng không được chứa số" required>
                 </label>
                 <label>Mô tả
                     <textarea th:field="*{description}" maxlength="500" rows="2"></textarea>
@@ -97,7 +97,7 @@
                 <p class="flash error" th:if="${skillUpdateError}" th:text="${skillUpdateError}">Error</p>
                 <input type="hidden" id="editingSkillId" th:value="${editingSkillId}">
                 <label>Tên kỹ năng
-                    <input type="text" th:field="*{skillName}" maxlength="100" required>
+                    <input type="text" th:field="*{skillName}" maxlength="100" pattern="[^0-9]*" title="Tên kỹ năng không được chứa số" required>
                 </label>
                 <label>Mô tả
                     <textarea th:field="*{description}" maxlength="500" rows="2"></textarea>
@@ -114,15 +114,16 @@
 
         <article class="panel">
             <h2>Tạo lớp đào tạo</h2>
-            <p>Điền thông tin lớp rồi gửi Admin phê duyệt. Cửa hàng được lấy từ tài khoản đang đăng nhập. Chỉ chọn kỹ năng đang hoạt động.</p>
+            <p>Điền thông tin lớp rồi gửi Admin phê duyệt. Cửa hàng được lấy từ tài khoản đang đăng nhập. Chỉ chọn kỹ năng đang hoạt động. Thời gian tính theo giờ Việt Nam (UTC+7).</p>
 
             <div class="store-banner warning" th:unless="${hasStore}">
                 <h2>Chưa được gán cửa hàng</h2>
                 <p>Liên hệ Admin trước khi tạo lớp đào tạo.</p>
             </div>
 
-            <form class="stack-form" th:if="${hasStore}" th:action="@{/training/classes}" th:object="${classForm}" method="post">
+            <form id="training-class-form" class="stack-form" th:if="${hasStore}" th:action="@{/training/classes}" th:object="${classForm}" method="post">
                 <p class="flash error" th:if="${classError}" th:text="${classError}">Error</p>
+                <p id="class-client-error" class="flash error" hidden></p>
                 <label>Kỹ năng
                     <select th:field="*{skillId}" required>
                         <option value="">-- Chọn kỹ năng --</option>
@@ -132,23 +133,21 @@
                 <label>Tên lớp
                     <input type="text" th:field="*{className}" maxlength="150" required>
                 </label>
-                <label>Giảng viên
-                    <input type="text" th:field="*{trainer}" maxlength="100">
-                </label>
+                <p class="muted">Giảng viên: <strong th:text="${displayName}">Manager</strong></p>
                 <div class="two-col">
                     <label>Ngày bắt đầu
-                        <input type="date" th:field="*{startDate}" required>
+                        <input type="date" id="class-start-date" th:field="*{startDate}" th:min="${vietnamToday}" required>
                     </label>
                     <label>Ngày kết thúc
-                        <input type="date" th:field="*{endDate}" required>
+                        <input type="date" id="class-end-date" th:field="*{endDate}" th:min="${vietnamToday}" required>
                     </label>
                 </div>
                 <div class="two-col">
                     <label>Giờ bắt đầu
-                        <input type="time" th:field="*{startTime}" required>
+                        <input type="time" id="class-start-time" th:field="*{startTime}" required>
                     </label>
                     <label>Giờ kết thúc
-                        <input type="time" th:field="*{endTime}" required>
+                        <input type="time" id="class-end-time" th:field="*{endTime}" required>
                     </label>
                 </div>
                 <label>Sĩ số tối đa
