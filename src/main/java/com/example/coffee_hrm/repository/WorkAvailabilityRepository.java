@@ -8,10 +8,20 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 public interface WorkAvailabilityRepository extends JpaRepository<WorkAvailability, Integer> {
 
     boolean existsByEmployee_IdAndShift_IdAndWorkDate(Integer employeeId, Integer shiftId, LocalDate workDate);
+
+    @Query("""
+            SELECT wa FROM WorkAvailability wa
+            JOIN FETCH wa.shift s
+            JOIN FETCH wa.employee e
+            JOIN FETCH e.store
+            WHERE wa.id = :id
+            """)
+    Optional<WorkAvailability> findByIdWithDetails(@Param("id") Integer id);
 
     @Query("""
             SELECT wa FROM WorkAvailability wa

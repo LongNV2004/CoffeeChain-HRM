@@ -99,7 +99,8 @@ class ScheduleServiceImplTest {
 
         ShiftAssignment saved = captor.getValue();
         assertEquals(AssignmentStatus.ASSIGNED, saved.getStatus());
-        assertFalse(saved.getIsPublished());
+        assertTrue(saved.getIsPublished());
+        assertNotNull(saved.getPublishedAt());
         assertEquals(empTuan, saved.getEmployee());
         assertEquals(shiftMorning, saved.getShift());
     }
@@ -143,21 +144,61 @@ class ScheduleServiceImplTest {
     }
 
     @Test
-    void publishWeeklyScheduleSuccess() {
+    void assignShiftFromApprovedAvailabilitySkipsDuplicate() {
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shiftMorning));
+        when(employeeRepository.findById(20)).thenReturn(Optional.of(empTuan));
+        LocalDate workDate = VietnamTime.today().plusDays(1);
+        when(shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus(
+                20, 1, workDate, AssignmentStatus.ASSIGNED)).thenReturn(true);
 
-        ShiftAssignment sa1 = ShiftAssignment.builder().id(1).isPublished(false).build();
-        ShiftAssignment sa2 = ShiftAssignment.builder().id(2).isPublished(false).build();
-        when(shiftAssignmentRepository.findAssignmentsToPublish(eq(1), any(LocalDate.class), any(LocalDate.class)))
-                .thenReturn(List.of(sa1, sa2));
+        AssignShiftRequest request = AssignShiftRequest.builder()
+                .shiftId(1)
+                .employeeId(20)
+                .workDate(workDate)
+                .build();
 
-        scheduleService.publishWeeklySchedule(LocalDate.of(2026, 9, 21), managerUser);
+        scheduleService.assignShiftFromApprovedAvailability(request, managerUser);
 
-        assertTrue(sa1.getIsPublished());
-        assertNotNull(sa1.getPublishedAt());
-        assertTrue(sa2.getIsPublished());
-        assertNotNull(sa2.getPublishedAt());
-        verify(shiftAssignmentRepository).saveAll(List.of(sa1, sa2));
+        verify(shiftAssignmentRepository, never()).save(any());
+    }
+
+    @Test
+    void assignShiftFromApprovedAvailabilityRejectsOverlap() {
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shiftMorning));
+        when(employeeRepository.findById(20)).thenReturn(Optional.of(empTuan));
+        LocalDate workDate = VietnamTime.today().plusDays(1);
+        when(shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus(
+                20, 1, workDate, AssignmentStatus.ASSIGNED)).thenReturn(false);
+
+        Shift overlapping = Shift.builder()
+                .id(2)
+                .shiftName("Ca trưa")
+                .store(store)
+                .startTime(LocalTime.of(10, 0))
+                .endTime(LocalTime.of(14, 0))
+                .build();
+        ShiftAssignment existing = ShiftAssignment.builder()
+                .id(8)
+                .shift(overlapping)
+                .employee(empTuan)
+                .workDate(workDate)
+                .status(AssignmentStatus.ASSIGNED)
+                .build();
+        when(shiftAssignmentRepository.findByEmployee_IdAndWorkDateAndStatus(
+                20, workDate, AssignmentStatus.ASSIGNED)).thenReturn(List.of(existing));
+
+        AssignShiftRequest request = AssignShiftRequest.builder()
+                .shiftId(1)
+                .employeeId(20)
+                .workDate(workDate)
+                .build();
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> scheduleService.assignShiftFromApprovedAvailability(request, managerUser));
+        assertTrue(ex.getMessage().contains("trùng giờ"));
+        verify(shiftAssignmentRepository, never()).save(any());
     }
 
     @Test
@@ -181,29 +222,6 @@ class ScheduleServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> scheduleService.requestShiftChange(dto, staffUser));
         assertEquals("Không thể gửi yêu cầu đổi cho ca làm việc đã qua.", ex.getMessage());
-        verify(shiftChangeRequestRepository, never()).save(any());
-    }
-
-    @Test
-    void requestShiftChangeRejectsUnpublishedShift() {
-        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(empTuan));
-
-        ShiftAssignment draftAssignment = ShiftAssignment.builder()
-                .id(100)
-                .employee(empTuan)
-                .isPublished(false)
-                .workDate(VietnamTime.today().plusDays(1))
-                .build();
-
-        when(shiftAssignmentRepository.findByIdWithDetails(100)).thenReturn(Optional.of(draftAssignment));
-
-        CreateShiftChangeRequestDto dto = CreateShiftChangeRequestDto.builder()
-                .assignmentId(100)
-                .reason("Bận việc")
-                .build();
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> scheduleService.requestShiftChange(dto, staffUser));
-        assertEquals("Ca làm việc này chưa được quản lý công bố, không thể yêu cầu đổi ca.", ex.getMessage());
         verify(shiftChangeRequestRepository, never()).save(any());
     }
 

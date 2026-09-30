@@ -81,5 +81,8 @@ public class WeeklyAvailabilityView {
         private Integer availabilityId;
         private Integer employeeId;
         private String employeeName;
+        private String statusKey;
+        private String statusLabel;
+        private boolean pending;
     }
 }

@@ -44,3 +44,18 @@ BEGIN
     );
 END;
 GO
+
+IF OBJECT_ID(N'dbo.RecruitmentRequests', N'U') IS NULL
+    BEGIN
+        CREATE TABLE dbo.RecruitmentRequests (
+                                                 RequestId INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_RecruitmentRequests PRIMARY KEY,
+                                                 StoreId INT NOT NULL,
+                                                 RequestedNumber INT NOT NULL,
+                                                 Reason NVARCHAR(255) NOT NULL,
+                                                 Status NVARCHAR(20) NOT NULL CONSTRAINT DF_RecruitmentRequests_Status DEFAULT (N'Pending'),
+                                                 CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_RecruitmentRequests_CreatedAt DEFAULT (SYSUTCDATETIME()),
+                                                 CONSTRAINT FK_RecruitmentRequests_Store FOREIGN KEY (StoreId) REFERENCES dbo.Stores (StoreId)
+        );
+        PRINT N'Đã tạo bảng RecruitmentRequests.';
+    END;
+GO

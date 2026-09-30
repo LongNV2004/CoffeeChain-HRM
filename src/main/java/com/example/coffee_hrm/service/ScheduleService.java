@@ -15,9 +15,13 @@ public interface ScheduleService {
 
     void assignShift(AssignShiftRequest request, AuthenticatedUser user);
 
-    void cancelAssignment(Integer assignmentId, AuthenticatedUser user);
+    /**
+     * Cùng quy tắc với phân ca thủ công. Nếu nhân viên đã có đúng ca/ngày này thì bỏ qua, không tạo bản ghi trùng.
+     * Ca chồng giờ vẫn bị từ chối.
+     */
+    void assignShiftFromApprovedAvailability(AssignShiftRequest request, AuthenticatedUser user);
 
-    void publishWeeklySchedule(LocalDate weekStartDate, AuthenticatedUser user);
+    void cancelAssignment(Integer assignmentId, AuthenticatedUser user);
 
     void requestShiftChange(CreateShiftChangeRequestDto request, AuthenticatedUser user);
 

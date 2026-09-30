@@ -19,6 +19,8 @@
         <p th:if="${displayName}" th:text="${displayName}">Manager</p>
     </section>
 
+    <p class="flash success" th:if="${successMessage}" th:text="${successMessage}">OK</p>
+    <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}">Error</p>
     <p class="flash error" th:if="${pageError}" th:text="${pageError}">Error</p>
 
     <section class="panel" th:if="${availabilityGrid != null}">
@@ -27,14 +29,32 @@
                 <h2 th:text="${availabilityGrid.storeName}">Store</h2>
                 <p th:text="${availabilityGrid.formattedWeekRange}">Tuần kế tiếp</p>
             </div>
-            <a class="primary-btn"
-               th:href="@{/schedule/manager(date=${availabilityGrid.weekStartDate})}">
-                Mở lịch làm việc tuần này để phân ca →
-            </a>
+            <div class="bulk-actions">
+                <form th:action="@{/availability/manager/approve-all}" method="post">
+                    <button class="bulk-btn approve" type="submit"
+                            th:disabled="${pendingCount == 0}"
+                            onclick="return confirm('Duyệt toàn bộ đề xuất đang chờ và xếp thẳng vào lịch làm việc?');">
+                        Duyệt tất cả
+                        <span th:if="${pendingCount > 0}" th:text="'(' + ${pendingCount} + ')'">(0)</span>
+                    </button>
+                </form>
+                <form th:action="@{/availability/manager/reject-all}" method="post">
+                    <button class="bulk-btn reject" type="submit"
+                            th:disabled="${pendingCount == 0}"
+                            onclick="return confirm('Không duyệt toàn bộ đề xuất đang chờ? Các slot này sẽ không được xếp vào lịch.');">
+                        Không duyệt tất cả
+                    </button>
+                </form>
+                <a class="primary-btn"
+                   th:href="@{/schedule/manager(date=${availabilityGrid.weekStartDate})}">
+                    Mở lịch làm việc →
+                </a>
+            </div>
         </div>
         <p>
-            Xem các ngày/ca STAFF đã đề xuất. Chức năng phân ca / công bố lịch hiện có vẫn dùng bình thường
-            tại trang Lịch làm việc — không thay thế bước gán ca.
+            Một nút duyệt xếp toàn bộ đề xuất đang chờ vào đúng ngày và ca trên lịch làm việc.
+            Không duyệt thì các đề xuất đang chờ bị từ chối và không được xếp ca.
+            Nhân viên chưa đăng ký hoặc bị từ chối vẫn có thể được xếp bằng Phân ca trên Lịch làm việc.
         </p>
         <p class="muted" th:if="${#lists.isEmpty(availabilityGrid.shiftRows)}">
             Cửa hàng chưa có ca làm việc.
@@ -63,7 +83,14 @@
                     <td th:each="cell : ${row.dayCells}" class="slot-cell proposal-cell">
                         <p class="empty-slot" th:if="${#lists.isEmpty(cell.proposals)}">—</p>
                         <ul class="proposal-list" th:if="${!#lists.isEmpty(cell.proposals)}">
-                            <li th:each="p : ${cell.proposals}" th:text="${p.employeeName}">Nhân viên</li>
+                            <li th:each="p : ${cell.proposals}">
+                                <div class="proposal-item">
+                                    <span th:text="${p.employeeName}">Nhân viên</span>
+                                    <span class="status-badge"
+                                          th:classappend="${p.statusKey}"
+                                          th:text="${p.statusLabel}">Chờ duyệt</span>
+                                </div>
+                            </li>
                         </ul>
                     </td>
                 </tr>
@@ -82,6 +109,7 @@
                 <th>Ngày</th>
                 <th>Ca</th>
                 <th>Giờ</th>
+                <th>Trạng thái</th>
             </tr>
             </thead>
             <tbody>
@@ -93,6 +121,9 @@
                     <span th:text="${#temporals.format(item.shiftStartTime, 'HH:mm')}">08:00</span>
                     –
                     <span th:text="${#temporals.format(item.shiftEndTime, 'HH:mm')}">12:00</span>
+                </td>
+                <td>
+                    <span class="status-badge" th:classappend="${item.statusKey}" th:text="${item.statusLabel}">Chờ duyệt</span>
                 </td>
             </tr>
             </tbody>

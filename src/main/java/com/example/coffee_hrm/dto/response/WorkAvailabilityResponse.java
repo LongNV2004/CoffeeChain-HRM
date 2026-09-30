@@ -25,4 +25,7 @@ public class WorkAvailabilityResponse {
     private LocalDate workDate;
     private String note;
     private LocalDateTime createdAt;
+    private String statusKey;
+    private String statusLabel;
+    private boolean pending;
 }
