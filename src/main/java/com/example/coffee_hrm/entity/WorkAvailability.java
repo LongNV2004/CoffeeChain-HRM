@@ -1,5 +1,6 @@
 package com.example.coffee_hrm.entity;
 
+import com.example.coffee_hrm.common.enums.ApprovalStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -38,6 +39,10 @@ public class WorkAvailability {
 
     @Column(name = "Note", length = 255)
     private String note;
+
+    @Column(name = "Status", nullable = false, length = 20)
+    @Builder.Default
+    private ApprovalStatus status = ApprovalStatus.PENDING;
 
     @CreationTimestamp
     @Column(name = "CreatedAt", nullable = false, updatable = false)

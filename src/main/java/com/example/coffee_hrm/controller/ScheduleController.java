@@ -92,23 +92,6 @@ public class ScheduleController {
         return "redirect:/schedule/manager" + returnDateParam;
     }
 
-    @PostMapping("/manager/publish")
-    @PreAuthorize("hasRole('MANAGER')")
-    public String publishWeeklySchedule(
-            @RequestParam("weekStartDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStartDate,
-            @AuthenticationPrincipal AuthenticatedUser user,
-            RedirectAttributes redirectAttributes) {
-
-        try {
-            scheduleService.publishWeeklySchedule(weekStartDate, user);
-            redirectAttributes.addFlashAttribute("successMessage", "Đã công bố lịch làm việc tuần này cho toàn bộ nhân viên.");
-        } catch (BusinessException ex) {
-            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
-        }
-
-        return "redirect:/schedule/manager?date=" + weekStartDate;
-    }
-
     @PostMapping("/manager/requests/{id}/approve")
     @PreAuthorize("hasRole('MANAGER')")
     public String approveShiftChange(

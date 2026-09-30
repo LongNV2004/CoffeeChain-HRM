@@ -86,6 +86,19 @@ public class ScheduleServiceImpl implements ScheduleService {
     @Override
     @Transactional
     public void assignShift(AssignShiftRequest request, AuthenticatedUser user) {
+        createAssignment(request, user, false);
+    }
+
+    /**
+     * Không rollback khi slot không xếp được, để duyệt hàng loạt vẫn giữ các slot đã xếp thành công.
+     */
+    @Override
+    @Transactional(noRollbackFor = BusinessException.class)
+    public void assignShiftFromApprovedAvailability(AssignShiftRequest request, AuthenticatedUser user) {
+        createAssignment(request, user, true);
+    }
+
+    private void createAssignment(AssignShiftRequest request, AuthenticatedUser user, boolean skipIfAlreadyAssigned) {
         Store store = resolveManagerStore(user);
 
         Shift shift = shiftRepository.findByIdAndStore_Id(request.getShiftId(), store.getId())
@@ -108,6 +121,9 @@ public class ScheduleServiceImpl implements ScheduleService {
 
         if (shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus(
                 employee.getId(), shift.getId(), request.getWorkDate(), AssignmentStatus.ASSIGNED)) {
+            if (skipIfAlreadyAssigned) {
+                return;
+            }
             throw new BusinessException("Nhân viên " + employee.getFullName() + " đã được phân công vào ca này trong ngày "
                     + request.getWorkDate().format(DATE_FORMATTER) + ".");
         }
@@ -133,7 +149,8 @@ public class ScheduleServiceImpl implements ScheduleService {
                 .employee(employee)
                 .workDate(request.getWorkDate())
                 .status(AssignmentStatus.ASSIGNED)
-                .isPublished(false)
+                .isPublished(true)
+                .publishedAt(VietnamTime.now())
                 .build();
 
         shiftAssignmentRepository.save(assignment);
@@ -156,28 +173,6 @@ public class ScheduleServiceImpl implements ScheduleService {
 
     @Override
     @Transactional
-    public void publishWeeklySchedule(LocalDate weekStartDate, AuthenticatedUser user) {
-        Store store = resolveManagerStore(user);
-        LocalDate monday = resolveMonday(weekStartDate);
-        LocalDate sunday = monday.plusDays(6);
-
-        List<ShiftAssignment> assignments = shiftAssignmentRepository.findAssignmentsToPublish(store.getId(), monday, sunday);
-        if (assignments.isEmpty()) {
-            throw new BusinessException("Không có ca làm việc nào trong tuần từ "
-                    + monday.format(DATE_FORMATTER) + " đến " + sunday.format(DATE_FORMATTER) + " để công bố.");
-        }
-
-        LocalDateTime now = VietnamTime.now();
-        for (ShiftAssignment assignment : assignments) {
-            assignment.setIsPublished(true);
-            assignment.setPublishedAt(now);
-        }
-
-        shiftAssignmentRepository.saveAll(assignments);
-    }
-
-    @Override
-    @Transactional
     public void requestShiftChange(CreateShiftChangeRequestDto request, AuthenticatedUser user) {
         Employee currentEmployee = resolveStaffEmployee(user);
 
@@ -186,10 +181,6 @@ public class ScheduleServiceImpl implements ScheduleService {
 
         if (!Objects.equals(assignment.getEmployee().getId(), currentEmployee.getId())) {
             throw new BusinessException("Bạn chỉ có thể gửi yêu cầu đổi cho ca làm việc của chính mình.");
-        }
-
-        if (!Boolean.TRUE.equals(assignment.getIsPublished())) {
-            throw new BusinessException("Ca làm việc này chưa được quản lý công bố, không thể yêu cầu đổi ca.");
         }
 
         LocalTime assignmentStart = assignment.getShift() != null ? assignment.getShift().getStartTime() : null;
@@ -221,9 +212,6 @@ public class ScheduleServiceImpl implements ScheduleService {
             }
             if (!Objects.equals(targetAssignment.getShift().getStore().getId(), assignment.getShift().getStore().getId())) {
                 throw new BusinessException("Ca làm việc của đồng nghiệp không thuộc cùng một cửa hàng.");
-            }
-            if (!Boolean.TRUE.equals(targetAssignment.getIsPublished())) {
-                throw new BusinessException("Ca làm việc của đồng nghiệp chưa được công bố.");
             }
             LocalTime targetStart = targetAssignment.getShift() != null
                     ? targetAssignment.getShift().getStartTime() : null;
@@ -450,7 +438,7 @@ public class ScheduleServiceImpl implements ScheduleService {
                     .isPublished(isPub)
                     .isCurrentStaff(isCurrentStaff)
                     .canCancel(isManagerView)
-                    .canRequestChange(!isManagerView && isCurrentStaff && isPub
+                    .canRequestChange(!isManagerView && isCurrentStaff
                             && isShiftStillUpcoming(sa.getWorkDate(), sa.getShift().getStartTime()))
                     .build();
 
@@ -459,7 +447,7 @@ public class ScheduleServiceImpl implements ScheduleService {
 
             // Thu thập các ca của đồng nghiệp trong tuần để nhân viên có thể chọn đổi chéo
             boolean isColleague = currentEmpId != null && !Objects.equals(sa.getEmployee().getId(), currentEmpId);
-            if (isPub && isColleague && isShiftStillUpcoming(sa.getWorkDate(), sa.getShift().getStartTime())) {
+            if (isColleague && isShiftStillUpcoming(sa.getWorkDate(), sa.getShift().getStartTime())) {
                 String timeRange = sa.getShift().getStartTime().format(TIME_FORMATTER) + " – " + sa.getShift().getEndTime().format(TIME_FORMATTER);
                 String formattedDate = sa.getWorkDate().format(DAY_MONTH_FORMATTER);
                 String display = sa.getEmployee().getFullName() + " — " + sa.getShift().getShiftName()

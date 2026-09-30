@@ -21,4 +21,18 @@ public interface StaffAvailabilityService {
     WeeklyAvailabilityView getStoreNextWeekAvailabilityGrid(AuthenticatedUser manager);
 
     List<WorkAvailabilityResponse> listStoreNextWeekAvailabilities(AuthenticatedUser manager);
+
+    /**
+     * Duyệt: chuyển APPROVED và tạo assignment tuần tương ứng nếu chưa có.
+     * Từ chối: chuyển REJECTED, không tạo assignment.
+     */
+    void reviewAvailability(Integer availabilityId, boolean approved, AuthenticatedUser manager);
+
+    /**
+     * Duyệt hoặc từ chối mọi đề xuất đang chờ của tuần kế tiếp.
+     * Duyệt thì mỗi slot được xếp thẳng vào lịch làm việc.
+     *
+     * @return thông báo kết quả cho Manager
+     */
+    String reviewAllNextWeekAvailabilities(boolean approved, AuthenticatedUser manager);
 }

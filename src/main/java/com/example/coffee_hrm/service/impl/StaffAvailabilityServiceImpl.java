@@ -1,10 +1,12 @@
 package com.example.coffee_hrm.service.impl;
 
+import com.example.coffee_hrm.common.enums.ApprovalStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.NotificationType;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.time.VietnamTime;
+import com.example.coffee_hrm.dto.request.AssignShiftRequest;
 import com.example.coffee_hrm.dto.request.SubmitWorkAvailabilityRequest;
 import com.example.coffee_hrm.dto.response.WeeklyAvailabilityView;
 import com.example.coffee_hrm.dto.response.WorkAvailabilityResponse;
@@ -19,6 +21,7 @@ import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.repository.WorkAvailabilityRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.NotificationService;
+import com.example.coffee_hrm.service.ScheduleService;
 import com.example.coffee_hrm.service.StaffAvailabilityService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -34,6 +37,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -53,6 +57,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
     private final StoreRepository storeRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final ScheduleService scheduleService;
 
     @Override
     public WeeklyAvailabilityView getNextWeekAvailabilityGrid(AuthenticatedUser staff) {
@@ -95,6 +100,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                     .employee(employee)
                     .shift(slot.shift())
                     .workDate(slot.workDate())
+                    .status(ApprovalStatus.PENDING)
                     .build());
         }
         workAvailabilityRepository.saveAll(toSave);
@@ -120,6 +126,9 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                             .availabilityId(wa.getId())
                             .employeeId(wa.getEmployee().getId())
                             .employeeName(wa.getEmployee().getFullName())
+                            .statusKey(statusKey(wa.getStatus()))
+                            .statusLabel(statusLabel(wa.getStatus()))
+                            .pending(resolveStatus(wa.getStatus()) == ApprovalStatus.PENDING)
                             .build());
         }
         return buildGrid(store, weekStart, weekEnd, shifts, Set.of(), proposalsBySlot);
@@ -133,6 +142,104 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                 .stream()
                 .map(this::toAvailabilityResponse)
                 .toList();
+    }
+
+    @Override
+    @Transactional
+    public void reviewAvailability(Integer availabilityId, boolean approved, AuthenticatedUser manager) {
+        Store store = resolveManagerStore(manager);
+        WorkAvailability availability = workAvailabilityRepository.findByIdWithDetails(availabilityId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy đề xuất lịch rảnh."));
+
+        Employee employee = availability.getEmployee();
+        if (employee.getStore() == null || !Objects.equals(employee.getStore().getId(), store.getId())) {
+            throw new BusinessException("Đề xuất này không thuộc nhân viên của cửa hàng bạn quản lý.");
+        }
+
+        ApprovalStatus current = resolveStatus(availability.getStatus());
+        if (!approved) {
+            if (current == ApprovalStatus.APPROVED) {
+                throw new BusinessException(
+                        "Đề xuất đã được duyệt và đã có trên lịch làm việc. Hãy hủy ca tại Lịch làm việc nếu cần điều chỉnh.");
+            }
+            if (current == ApprovalStatus.REJECTED) {
+                return;
+            }
+            availability.setStatus(ApprovalStatus.REJECTED);
+            workAvailabilityRepository.save(availability);
+            return;
+        }
+
+        if (current == ApprovalStatus.REJECTED) {
+            throw new BusinessException(
+                    "Đề xuất đã bị từ chối nên không tự xếp lịch. Dùng Phân ca trên Lịch làm việc nếu vẫn cần xếp nhân viên này.");
+        }
+
+        scheduleService.assignShiftFromApprovedAvailability(
+                AssignShiftRequest.builder()
+                        .employeeId(employee.getId())
+                        .shiftId(availability.getShift().getId())
+                        .workDate(availability.getWorkDate())
+                        .build(),
+                manager);
+
+        if (current != ApprovalStatus.APPROVED) {
+            availability.setStatus(ApprovalStatus.APPROVED);
+            workAvailabilityRepository.save(availability);
+        }
+    }
+
+    @Override
+    @Transactional
+    public String reviewAllNextWeekAvailabilities(boolean approved, AuthenticatedUser manager) {
+        Store store = resolveManagerStore(manager);
+        LocalDate weekStart = nextWeekMonday();
+        List<WorkAvailability> pending = workAvailabilityRepository
+                .findByStoreAndDateRange(store.getId(), weekStart, weekStart.plusDays(6))
+                .stream()
+                .filter(wa -> resolveStatus(wa.getStatus()) == ApprovalStatus.PENDING)
+                .toList();
+        if (pending.isEmpty()) {
+            throw new BusinessException("Không có đề xuất nào đang chờ duyệt trong tuần kế tiếp.");
+        }
+
+        if (!approved) {
+            for (WorkAvailability availability : pending) {
+                availability.setStatus(ApprovalStatus.REJECTED);
+            }
+            workAvailabilityRepository.saveAll(pending);
+            return "Đã từ chối " + pending.size()
+                    + " đề xuất đang chờ. Các slot này không được xếp vào lịch làm việc.";
+        }
+
+        int approvedCount = 0;
+        List<String> failures = new ArrayList<>();
+        for (WorkAvailability availability : pending) {
+            try {
+                reviewAvailability(availability.getId(), true, manager);
+                approvedCount++;
+            } catch (BusinessException ex) {
+                failures.add(describeSlot(availability) + ": " + ex.getMessage());
+            }
+        }
+
+        if (approvedCount == 0) {
+            throw new BusinessException("Không duyệt được đề xuất nào. " + String.join(" ", failures));
+        }
+        if (failures.isEmpty()) {
+            return "Đã duyệt " + approvedCount + " đề xuất và xếp thẳng vào lịch làm việc.";
+        }
+        return "Đã duyệt " + approvedCount + " đề xuất và xếp vào lịch làm việc. "
+                + failures.size() + " đề xuất chưa xếp được: " + String.join("; ", failures);
+    }
+
+    private String describeSlot(WorkAvailability availability) {
+        Employee employee = availability.getEmployee();
+        Shift shift = availability.getShift();
+        String who = employee != null && employee.getFullName() != null ? employee.getFullName() : "Nhân viên";
+        String shiftName = shift != null && shift.getShiftName() != null ? shift.getShiftName() : "ca";
+        String date = availability.getWorkDate() != null ? availability.getWorkDate().format(DAY_MONTH) : "";
+        return who + " — " + shiftName + " " + date;
     }
 
     private void notifyStoreManager(Employee staffEmployee, LocalDate weekStart, LocalDate weekEnd, int slotCount) {
@@ -344,7 +451,30 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                 .workDate(availability.getWorkDate())
                 .note(availability.getNote())
                 .createdAt(availability.getCreatedAt())
+                .statusKey(statusKey(availability.getStatus()))
+                .statusLabel(statusLabel(availability.getStatus()))
+                .pending(resolveStatus(availability.getStatus()) == ApprovalStatus.PENDING)
                 .build();
+    }
+
+    private ApprovalStatus resolveStatus(ApprovalStatus status) {
+        return status != null ? status : ApprovalStatus.PENDING;
+    }
+
+    private String statusKey(ApprovalStatus status) {
+        return switch (resolveStatus(status)) {
+            case PENDING -> "pending";
+            case APPROVED -> "approved";
+            case REJECTED -> "rejected";
+        };
+    }
+
+    private String statusLabel(ApprovalStatus status) {
+        return switch (resolveStatus(status)) {
+            case PENDING -> "Chờ duyệt";
+            case APPROVED -> "Đã duyệt";
+            case REJECTED -> "Từ chối";
+        };
     }
 
     private record ParsedSlot(Shift shift, LocalDate workDate) {
