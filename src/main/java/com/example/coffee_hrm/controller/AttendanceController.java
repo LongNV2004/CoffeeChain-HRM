@@ -1,7 +1,7 @@
 package com.example.coffee_hrm.controller;
 
 import com.example.coffee_hrm.common.exception.BusinessException;
-import com.example.coffee_hrm.common.web.ClientIpResolver;
+import com.example.coffee_hrm.common.web.ConnectedNetworkIpResolver;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.AttendanceService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,6 +21,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 public class AttendanceController {
 
     private final AttendanceService attendanceService;
+    private final ConnectedNetworkIpResolver networkIpResolver;
 
     @GetMapping("/staff")
     @PreAuthorize("hasRole('STAFF')")
@@ -70,14 +71,6 @@ public class AttendanceController {
         return submitCheckOut(user, request, redirectAttributes, "redirect:/attendance/manager");
     }
 
-    @PostMapping("/staff/ip")
-    @PreAuthorize("hasRole('STAFF')")
-    public String staffUpdateStoreIp(@AuthenticationPrincipal AuthenticatedUser user,
-                                     HttpServletRequest request,
-                                     RedirectAttributes redirectAttributes) {
-        return updateStoreIp(user, request, redirectAttributes, "redirect:/attendance/staff");
-    }
-
     @PostMapping("/manager/ip")
     @PreAuthorize("hasRole('MANAGER')")
     public String managerUpdateStoreIp(@AuthenticationPrincipal AuthenticatedUser user,
@@ -91,7 +84,7 @@ public class AttendanceController {
                                  RedirectAttributes redirectAttributes,
                                  String redirect) {
         try {
-            attendanceService.updateStoreIp(user, ClientIpResolver.resolve(request));
+            attendanceService.updateStoreIp(user, networkIpResolver.resolve(request));
             redirectAttributes.addFlashAttribute("pageMessage", "Đã cập nhật IP mạng cửa hàng theo máy đang kết nối.");
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("pageError", ex.getMessage());
@@ -101,7 +94,7 @@ public class AttendanceController {
 
     private String clock(AuthenticatedUser user, HttpServletRequest request, Model model, String view) {
         try {
-            model.addAttribute("clock", attendanceService.getClock(user, ClientIpResolver.resolve(request)));
+            model.addAttribute("clock", attendanceService.getClock(user, networkIpResolver.resolve(request)));
             if (!model.containsAttribute("pageError")) {
                 model.addAttribute("pageError", null);
             }
@@ -117,7 +110,7 @@ public class AttendanceController {
                                  RedirectAttributes redirectAttributes,
                                  String redirect) {
         try {
-            attendanceService.checkIn(user, ClientIpResolver.resolve(request));
+            attendanceService.checkIn(user, networkIpResolver.resolve(request));
             redirectAttributes.addFlashAttribute("pageMessage", "Check-in thành công.");
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("pageError", ex.getMessage());
@@ -130,7 +123,7 @@ public class AttendanceController {
                                   RedirectAttributes redirectAttributes,
                                   String redirect) {
         try {
-            attendanceService.checkOut(user, ClientIpResolver.resolve(request));
+            attendanceService.checkOut(user, networkIpResolver.resolve(request));
             redirectAttributes.addFlashAttribute("pageMessage", "Check-out thành công.");
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("pageError", ex.getMessage());

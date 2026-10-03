@@ -39,6 +39,45 @@ public final class ClientIpResolver {
         return value;
     }
 
+    public static boolean isLocalOrPrivate(String ip) {
+        String value = normalize(ip);
+        if (value == null) {
+            return true;
+        }
+        if ("::1".equalsIgnoreCase(value)) {
+            return true;
+        }
+        String lower = value.toLowerCase();
+        if (lower.startsWith("fe80:") || lower.startsWith("fc") || lower.startsWith("fd")) {
+            return true;
+        }
+        if (lower.contains(":")) {
+            return false;
+        }
+        String[] parts = lower.split("\\.");
+        if (parts.length != 4) {
+            return true;
+        }
+        int first;
+        int second;
+        try {
+            first = Integer.parseInt(parts[0]);
+            second = Integer.parseInt(parts[1]);
+        } catch (NumberFormatException ex) {
+            return true;
+        }
+        if (first == 0 || first == 10 || first == 127) {
+            return true;
+        }
+        if (first == 169 && second == 254) {
+            return true;
+        }
+        if (first == 172 && second >= 16 && second <= 31) {
+            return true;
+        }
+        return first == 192 && second == 168;
+    }
+
     public static boolean matches(String requestIp, String storeIp) {
         String left = normalize(requestIp);
         String right = normalize(storeIp);
