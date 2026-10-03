@@ -17,6 +17,7 @@ import com.example.coffee_hrm.entity.User;
 import com.example.coffee_hrm.repository.AttendanceRepository;
 import com.example.coffee_hrm.repository.EmployeeRepository;
 import com.example.coffee_hrm.repository.ShiftAssignmentRepository;
+import com.example.coffee_hrm.repository.ShiftRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,6 +53,8 @@ class AttendanceHistoryServiceImplTest {
     private EmployeeRepository employeeRepository;
     @Mock
     private StoreRepository storeRepository;
+    @Mock
+    private ShiftRepository shiftRepository;
 
     @InjectMocks
     private AttendanceHistoryServiceImpl attendanceHistoryService;

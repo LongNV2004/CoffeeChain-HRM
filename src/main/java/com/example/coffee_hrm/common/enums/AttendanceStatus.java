@@ -7,9 +7,11 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum AttendanceStatus {
 
+    PRESENT("Present"),
     ON_TIME("OnTime"),
     LATE("Late"),
     EARLY_LEAVE("EarlyLeave"),
+    LATE_AND_EARLY("LateAndEarly"),
     ABSENT("Absent");
 
     private final String dbValue;
