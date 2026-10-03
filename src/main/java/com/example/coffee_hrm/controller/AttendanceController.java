@@ -70,18 +70,33 @@ public class AttendanceController {
         return submitCheckOut(user, request, redirectAttributes, "redirect:/attendance/manager");
     }
 
+    @PostMapping("/staff/ip")
+    @PreAuthorize("hasRole('STAFF')")
+    public String staffUpdateStoreIp(@AuthenticationPrincipal AuthenticatedUser user,
+                                     HttpServletRequest request,
+                                     RedirectAttributes redirectAttributes) {
+        return updateStoreIp(user, request, redirectAttributes, "redirect:/attendance/staff");
+    }
+
     @PostMapping("/manager/ip")
     @PreAuthorize("hasRole('MANAGER')")
-    public String updateStoreIp(@AuthenticationPrincipal AuthenticatedUser user,
-                                HttpServletRequest request,
-                                RedirectAttributes redirectAttributes) {
+    public String managerUpdateStoreIp(@AuthenticationPrincipal AuthenticatedUser user,
+                                       HttpServletRequest request,
+                                       RedirectAttributes redirectAttributes) {
+        return updateStoreIp(user, request, redirectAttributes, "redirect:/attendance/manager");
+    }
+
+    private String updateStoreIp(AuthenticatedUser user,
+                                 HttpServletRequest request,
+                                 RedirectAttributes redirectAttributes,
+                                 String redirect) {
         try {
             attendanceService.updateStoreIp(user, ClientIpResolver.resolve(request));
-            redirectAttributes.addFlashAttribute("pageMessage", "Đã cập nhật IP mạng cửa hàng.");
+            redirectAttributes.addFlashAttribute("pageMessage", "Đã cập nhật IP mạng cửa hàng theo máy đang kết nối.");
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("pageError", ex.getMessage());
         }
-        return "redirect:/attendance/manager";
+        return redirect;
     }
 
     private String clock(AuthenticatedUser user, HttpServletRequest request, Model model, String view) {
