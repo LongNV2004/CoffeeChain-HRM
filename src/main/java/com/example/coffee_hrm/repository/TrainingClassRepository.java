@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,7 +22,10 @@ public interface TrainingClassRepository extends JpaRepository<TrainingClass, In
             LEFT JOIN c.trainer trainerUser
             LEFT JOIN trainerUser.employee trainerEmployee
             WHERE c.status = :status
-              AND c.endDate >= :today
+              AND (
+                    c.endDate > :today
+                    OR (c.endDate = :today AND (c.endTime IS NULL OR cast(c.endTime as LocalTime) > cast(:currentTime as LocalTime)))
+                  )
               AND (
                     (c.trainingType = :storeType AND store.id = :storeId)
                     OR (c.trainingType = com.example.coffee_hrm.common.enums.TrainingType.CENTRALIZED_TRAINING
@@ -49,7 +53,10 @@ public interface TrainingClassRepository extends JpaRepository<TrainingClass, In
             LEFT JOIN c.trainer trainerUser
             LEFT JOIN trainerUser.employee trainerEmployee
             WHERE c.status = :status
-              AND c.endDate >= :today
+              AND (
+                    c.endDate > :today
+                    OR (c.endDate = :today AND (c.endTime IS NULL OR cast(c.endTime as LocalTime) > cast(:currentTime as LocalTime)))
+                  )
               AND (
                     (c.trainingType = :storeType AND store.id = :storeId)
                     OR (c.trainingType = com.example.coffee_hrm.common.enums.TrainingType.CENTRALIZED_TRAINING
@@ -76,6 +83,7 @@ public interface TrainingClassRepository extends JpaRepository<TrainingClass, In
                                                        @Param("storeType") TrainingType storeType,
                                                        @Param("status") TrainingClassStatus status,
                                                        @Param("today") LocalDate today,
+                                                       @Param("currentTime") LocalTime currentTime,
                                                        @Param("skillId") Integer skillId,
                                                        @Param("date") LocalDate date,
                                                        @Param("keyword") String keyword,
@@ -131,7 +139,10 @@ public interface TrainingClassRepository extends JpaRepository<TrainingClass, In
             SELECT c FROM TrainingClass c
             LEFT JOIN c.store store
             LEFT JOIN c.trainer trainerUser
-            WHERE c.endDate >= :today
+            WHERE (
+                    c.endDate > :today
+                    OR (c.endDate = :today AND (c.endTime IS NULL OR cast(c.endTime as LocalTime) > cast(:currentTime as LocalTime)))
+                  )
               AND (
                     (c.trainingType = :storeType AND store.id = :storeId)
                     OR (c.trainingType = com.example.coffee_hrm.common.enums.TrainingType.CENTRALIZED_TRAINING
@@ -142,26 +153,31 @@ public interface TrainingClassRepository extends JpaRepository<TrainingClass, In
     List<TrainingClass> findOpenRequestsForManager(@Param("storeId") Integer storeId,
                                                    @Param("trainerUserId") Integer trainerUserId,
                                                    @Param("storeType") TrainingType storeType,
-                                                   @Param("today") LocalDate today);
+                                                   @Param("today") LocalDate today,
+                                                   @Param("currentTime") LocalTime currentTime);
 
     @Query("""
             SELECT c FROM TrainingClass c
             LEFT JOIN c.store store
             LEFT JOIN c.trainer trainerUser
             WHERE c.status = :status
-              AND c.endDate < :today
+              AND (
+                    c.endDate < :today
+                    OR (c.endDate = :today AND c.endTime IS NOT NULL AND cast(c.endTime as LocalTime) <= cast(:currentTime as LocalTime))
+                  )
               AND (
                     (c.trainingType = :storeType AND store.id = :storeId)
                     OR (c.trainingType = com.example.coffee_hrm.common.enums.TrainingType.CENTRALIZED_TRAINING
                         AND trainerUser.id = :trainerUserId)
                   )
-            ORDER BY c.endDate DESC, c.className ASC
+            ORDER BY c.endDate DESC, c.endTime DESC, c.className ASC
             """)
     List<TrainingClass> findEndedApprovedForManager(@Param("storeId") Integer storeId,
                                                     @Param("trainerUserId") Integer trainerUserId,
                                                     @Param("storeType") TrainingType storeType,
                                                     @Param("status") TrainingClassStatus status,
-                                                    @Param("today") LocalDate today);
+                                                    @Param("today") LocalDate today,
+                                                    @Param("currentTime") LocalTime currentTime);
 
     long countByStatus(TrainingClassStatus status);
 

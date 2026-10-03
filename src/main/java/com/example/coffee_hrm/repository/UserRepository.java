@@ -40,4 +40,12 @@ public interface UserRepository extends JpaRepository<User, Integer> {
               AND u.isActive = true
             """)
     List<User> findActiveByRoleName(@Param("roleName") RoleName roleName);
+
+    @Query("""
+            SELECT e.id FROM User u
+            JOIN u.role r
+            JOIN u.employee e
+            WHERE r.roleName = :roleName
+            """)
+    List<Integer> findEmployeeIdsByRoleName(@Param("roleName") RoleName roleName);
 }

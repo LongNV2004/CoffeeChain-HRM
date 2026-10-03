@@ -9,7 +9,7 @@
     <link rel="stylesheet" th:href="@{/css/ManagerDashboard.css}">
     <link rel="stylesheet" th:href="@{/css/Training.css}">
 </head>
-<body>
+<body th:attr="data-now=${#temporals.format(vietnamNow, 'yyyy-MM-dd') + 'T' + #temporals.format(vietnamNow, 'HH:mm:ss')},data-end=${!classDetail.ended and classDetail.endDate != null and classDetail.endTime != null ? #temporals.format(classDetail.endDate, 'yyyy-MM-dd') + 'T' + #temporals.format(classDetail.endTime, 'HH:mm:ss') : ''}">
 <header th:replace="~{fragments/navbar :: manager('training')}"></header>
 
 <main class="wrap dash-main">
@@ -151,16 +151,24 @@
             <button class="close-btn" type="button" id="close-add-students" aria-label="Đóng">×</button>
         </div>
         <form id="add-students-form" th:action="@{/training/classes/{id}/students(id=${classDetail.id})}" method="post">
-            <p class="muted" style="margin-top:0;">Chọn nhân viên đang làm việc thuộc phạm vi của lớp. Thêm vào lớp không làm đổi trạng thái chứng nhận.</p>
+            <p class="muted" style="margin-top:0;">Chọn nhân viên đang làm việc thuộc phạm vi của lớp. Tài khoản Manager không được thêm vào lớp — Manager chỉ chọn được ở mục người đào tạo khi Admin tạo lớp. Thêm vào lớp không làm đổi trạng thái chứng nhận. Nhân viên đã có chứng chỉ cho mọi kỹ năng của lớp không thể thêm lại, trừ khi lớp có kỹ năng mà nhân viên chưa có. Nhân viên đang học một kỹ năng của lớp ở lớp khác còn hiệu lực, chưa bị từ chối và chưa đánh giá cũng không thể thêm.</p>
             <p class="flash error" id="add-students-error" hidden>Vui lòng chọn ít nhất một nhân viên.</p>
             <p class="empty" th:if="${availableEmployees == null or #lists.isEmpty(availableEmployees)}">
                 Không còn nhân viên nào của cửa hàng để thêm vào lớp.
             </p>
             <div class="picker-list" th:if="${availableEmployees != null and !#lists.isEmpty(availableEmployees)}">
-                <label th:each="employee : ${availableEmployees}">
-                    <input type="checkbox" name="employeeIds" th:value="${employee.employeeId}">
+                <label th:each="employee : ${availableEmployees}"
+                       th:classappend="${employee.hasCertificate} ? ' is-certified' : (${employee.studyingSameSkill} ? ' is-studying' : '')">
+                    <input type="checkbox" name="employeeIds" th:value="${employee.employeeId}"
+                           th:disabled="${employee.hasCertificate or employee.studyingSameSkill}">
                     <span>
-                        <strong th:text="${employee.fullName}">Nhân viên</strong>
+                        <span class="employee-name-row">
+                            <strong th:text="${employee.fullName}">Nhân viên</strong>
+                            <span class="badge"
+                                  th:if="${employee.hasCertificate != null or employee.studyingSameSkill != null}"
+                                  th:classappend="${employee.hasCertificate} ? ' badge-cert' : (${employee.studyingSameSkill} ? ' badge-studying' : ' badge-nocert')"
+                                  th:text="${employee.hasCertificate} ? 'Có chứng chỉ' : (${employee.studyingSameSkill} ? 'Đang học' : 'Không chứng chỉ')">Không chứng chỉ</span>
+                        </span>
                         <span class="muted" th:text="${employee.email != null} ? ${employee.email} : ''">email</span>
                     </span>
                 </label>
@@ -246,10 +254,17 @@
         });
         if (addForm) {
             addForm.addEventListener('submit', function (event) {
-                if (!addForm.querySelector('input[name="employeeIds"]:checked')) {
+                if (!addForm.querySelector('input[name="employeeIds"]:checked:not(:disabled)')) {
                     event.preventDefault();
                     if (addError) {
                         addError.hidden = false;
+                        var certifiedBlocked = addForm.querySelector('label.is-certified input[name="employeeIds"]');
+                        var studyingBlocked = addForm.querySelector('label.is-studying input[name="employeeIds"]');
+                        addError.textContent = certifiedBlocked
+                            ? 'Nhân viên đã có chứng chỉ cho kỹ năng của lớp không thể thêm lại.'
+                            : (studyingBlocked
+                                ? 'Nhân viên đang học kỹ năng này ở lớp còn hiệu lực không thể thêm vào lớp khác.'
+                                : 'Vui lòng chọn ít nhất một nhân viên.');
                     }
                 }
             });
@@ -285,5 +300,6 @@
         });
     })();
 </script>
+<script th:src="@{/js/training-end-refresh.js}"></script>
 </body>
 </html>

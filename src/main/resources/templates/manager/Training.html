@@ -145,7 +145,7 @@
                 <label>Tên lớp
                     <input type="text" th:field="*{className}" maxlength="150" required>
                 </label>
-                <p class="muted">Người đào tạo: <strong th:text="${displayName}">Manager</strong>. Không thể chọn người khác.</p>
+                <p class="muted">Người đào tạo: <strong th:text="${displayName}">Manager</strong>.</p>
                 <div class="ms-field">
                     <p>Học viên của cửa hàng</p>
                     <p class="empty" th:if="${storeEmployees == null or #lists.isEmpty(storeEmployees)}">Cửa hàng chưa có nhân viên đang làm việc.</p>
@@ -156,11 +156,15 @@
                             <span class="ms-caret" aria-hidden="true"></span>
                         </button>
                         <div class="ms-menu" hidden>
-                            <label class="ms-item" th:each="employee : ${storeEmployees}">
+                            <label class="ms-item" th:each="employee : ${storeEmployees}"
+                                   th:attr="data-certified-skills=${employee.certifiedSkillIdsCsv},data-studying-skills=${employee.studyingSkillIdsCsv}">
                                 <input type="checkbox" name="employeeIds" th:value="${employee.employeeId}"
                                        th:checked="${classForm.employeeIds != null and classForm.employeeIds.contains(employee.employeeId)}">
                                 <span class="ms-text">
-                                    <strong th:text="${employee.fullName}">Nhân viên</strong>
+                                    <span class="employee-name-row">
+                                        <strong th:text="${employee.fullName}">Nhân viên</strong>
+                                        <span class="badge cert-badge" hidden>Không chứng chỉ</span>
+                                    </span>
                                     <span class="muted" th:text="${employee.email != null} ? ${employee.email} : ''">email</span>
                                 </span>
                             </label>
