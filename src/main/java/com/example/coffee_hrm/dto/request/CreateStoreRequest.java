@@ -1,35 +1,34 @@
 package com.example.coffee_hrm.dto.request;
 
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
-import java.util.List;
+import lombok.Setter;
 
 @Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class CreateStoreRequest {
 
-    @NotBlank
-    @Size(max = 100)
+    @NotBlank(message = "Vui lòng nhập tên cửa hàng")
+    @Size(max = 100, message = "Tên cửa hàng tối đa 100 ký tự")
     private String storeName;
 
-    @NotBlank
-    @Size(max = 255)
+    @NotBlank(message = "Vui lòng nhập địa chỉ")
+    @Size(max = 255, message = "Địa chỉ tối đa 255 ký tự")
     private String address;
 
-    private Integer managerId;
-
-    @Min(0)
+    @NotNull(message = "Vui lòng nhập số ngày phép")
+    @Min(value = 0, message = "Số ngày phép không được âm")
     private Integer totalLeaveDays;
 
-    @Valid
-    private List<StoreOperatingHourRequest> operatingHours;
+    @NotNull(message = "Vui lòng chọn trạng thái")
+    private Boolean isActive;
 }

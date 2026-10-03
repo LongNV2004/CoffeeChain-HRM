@@ -9,30 +9,30 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.util.List;
 
 @Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class UpdateStoreRequest {
 
-    @NotBlank
-    @Size(max = 100)
+    @NotBlank(message = "Vui lòng nhập tên cửa hàng")
+    @Size(max = 100, message = "Tên cửa hàng tối đa 100 ký tự")
     private String storeName;
 
-    @NotBlank
-    @Size(max = 255)
+    @NotBlank(message = "Vui lòng nhập địa chỉ")
+    @Size(max = 255, message = "Địa chỉ tối đa 255 ký tự")
     private String address;
 
-    private Integer managerId;
-
-    @NotNull
-    @Min(0)
+    @NotNull(message = "Vui lòng nhập số ngày phép")
+    @Min(value = 0, message = "Số ngày phép không được âm")
     private Integer totalLeaveDays;
 
-    @NotNull
+    @NotNull(message = "Vui lòng chọn trạng thái")
     private Boolean isActive;
 
     @Valid

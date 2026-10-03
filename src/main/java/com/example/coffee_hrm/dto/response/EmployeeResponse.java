@@ -1,6 +1,7 @@
 package com.example.coffee_hrm.dto.response;
 
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
+import com.example.coffee_hrm.common.enums.RoleName;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -28,4 +29,9 @@ public class EmployeeResponse {
     private LocalDate terminationDate;
     private LocalDateTime createdAt;
     private Integer userId;
+    /** Null khi nhân viên chưa có tài khoản đăng nhập. */
+    private RoleName roleName;
+    private boolean hasCertificate;
+    /** Nhân viên đang được gắn làm Manager của chính cửa hàng mình (Stores.ManagerId). */
+    private boolean storeManager;
 }
