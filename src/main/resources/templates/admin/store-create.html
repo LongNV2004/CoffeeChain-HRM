@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thêm cửa hàng — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
+</head>
+<body>
+<header th:replace="~{fragments/navbar :: admin('stores')}"></header>
+
+<main class="wrap dash-main">
+    <section class="welcome">
+        <div class="eyebrow">Trụ sở — Admin</div>
+        <h1>Thêm cửa hàng mới</h1>
+        <p>Store ID do hệ thống tự sinh sau khi lưu.</p>
+        <p class="muted"><a class="back-link" th:href="@{/admin/stores}">← Danh sách cửa hàng</a></p>
+    </section>
+
+    <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}">Error</p>
+
+    <section class="split">
+        <article class="panel">
+            <h2>Thông tin cửa hàng</h2>
+            <p>Tên cửa hàng không được trùng với cửa hàng đã có trong chuỗi.</p>
+
+            <form class="stack-form" method="post" th:action="@{/admin/stores/create}" th:object="${storeForm}"
+                  onsubmit="this.querySelector('[type=submit]').disabled = true;">
+                <label>Tên cửa hàng
+                    <input type="text" th:field="*{storeName}" maxlength="100" required
+                           pattern=".*\S.*" title="Tên cửa hàng không được để trống">
+                    <span class="field-error" th:if="${#fields.hasErrors('storeName')}" th:errors="*{storeName}">Error</span>
+                </label>
+
+                <label>Địa chỉ
+                    <input type="text" th:field="*{address}" maxlength="255" required
+                           pattern=".*\S.*" title="Địa chỉ không được để trống">
+                    <span class="field-error" th:if="${#fields.hasErrors('address')}" th:errors="*{address}">Error</span>
+                </label>
+
+                <div class="two-col">
+                    <label>Số ngày phép / năm
+                        <input type="number" th:field="*{totalLeaveDays}" min="0" required>
+                        <span class="field-error" th:if="${#fields.hasErrors('totalLeaveDays')}" th:errors="*{totalLeaveDays}">Error</span>
+                    </label>
+
+                    <label>Trạng thái
+                        <select th:field="*{isActive}">
+                            <option th:value="true">Hoạt động</option>
+                            <option th:value="false">Ngừng hoạt động</option>
+                        </select>
+                        <span class="field-error" th:if="${#fields.hasErrors('isActive')}" th:errors="*{isActive}">Error</span>
+                    </label>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="primary-btn">Tạo cửa hàng</button>
+                    <a class="logout-btn" th:href="@{/admin/stores}">Hủy</a>
+                </div>
+            </form>
+        </article>
+
+        <article class="panel">
+            <h2>Trạng thái ban đầu</h2>
+            <p>Cửa hàng mới được tạo chưa có nhân viên và chưa có Manager phụ trách.</p>
+            <dl class="info-list">
+                <div><dt>Số nhân viên</dt><dd>0</dd></div>
+                <div><dt>Manager</dt><dd class="muted">Chưa chỉ định</dd></div>
+            </dl>
+            <p class="muted">
+                Sau khi tạo, xem nhân viên và chỉ định Manager tại
+                <a class="back-link" th:href="@{/admin/employees}">Quản lý nhân sự</a>.
+            </p>
+        </article>
+    </section>
+</main>
+<script th:src="@{/js/AdminDashboard.js}"></script>
+</body>
+</html>
