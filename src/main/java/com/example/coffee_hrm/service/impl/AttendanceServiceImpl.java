@@ -75,10 +75,12 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Override
     @Transactional
     public void updateStoreIp(AuthenticatedUser user, String requestIp) {
-        if (user == null || user.getRoleName() != RoleName.MANAGER) {
+        if (user == null || (user.getRoleName() != RoleName.STAFF && user.getRoleName() != RoleName.MANAGER)) {
             throw new BusinessException("Bạn không có quyền cập nhật IP cửa hàng.");
         }
-        Store store = resolveManagedStore(user);
+        Store store = user.getRoleName() == RoleName.MANAGER
+                ? resolveManagedStore(user)
+                : storeOfEmployee(resolveCheckEmployee(user));
         String ip = ClientIpResolver.normalize(requestIp);
         if (ip == null) {
             throw new BusinessException("Không xác định được địa chỉ IP.");
@@ -192,6 +194,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             throw new BusinessException(ALREADY_OUT);
         }
         Store store = storeOf(attendance, attendance.getEmployee());
+        // So với IP cửa hàng tại thời điểm check-out, không bắt checkOutIp trùng checkInIp.
         assertIp(store, requestIp);
         LocalDateTime scheduledEnd = scheduledEnd(attendance);
         if (!policy.isAllowEarlyCheckout() && scheduledEnd != null && now.isBefore(scheduledEnd)) {
@@ -279,8 +282,8 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .scheduledEndLabel(endLabel)
                 .statusLabel(statusLabel)
                 .manager(manager)
-                .storeCurrentIp(manager && displayStore != null ? displayStore.getCurrentIp() : null)
-                .requestIp(manager ? ClientIpResolver.normalize(requestIp) : null)
+                .storeCurrentIp(displayStore != null ? displayStore.getCurrentIp() : null)
+                .requestIp(ClientIpResolver.normalize(requestIp))
                 .recent(recent)
                 .build();
     }
@@ -386,6 +389,14 @@ public class AttendanceServiceImpl implements AttendanceService {
         }
         return storeRepository.findById(shift.getStore().getId())
                 .orElseThrow(() -> new BusinessException(NO_SHIFT));
+    }
+
+    private Store storeOfEmployee(Employee employee) {
+        if (employee.getStore() == null) {
+            throw new BusinessException("Tài khoản chưa được gắn cửa hàng.");
+        }
+        return storeRepository.findById(employee.getStore().getId())
+                .orElseThrow(() -> new BusinessException("Tài khoản chưa được gắn cửa hàng."));
     }
 
     private Store storeOf(Attendance attendance, Employee employee) {
