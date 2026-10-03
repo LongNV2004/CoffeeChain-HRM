@@ -333,14 +333,12 @@ class AttendanceServiceImplTest {
     }
 
     @Test
-    void staffUpdatesStoreIpFromTheConnectedMachine() {
-        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
-        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
+    void staffCannotUpdateStoreIp() {
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> attendanceService.updateStoreIp(staffUser, "118.68.6.70"));
 
-        attendanceService.updateStoreIp(staffUser, "::ffff:14.2.2.2");
-
-        assertEquals("14.2.2.2", store.getCurrentIp());
-        verify(storeRepository).save(store);
+        assertEquals("Bạn không có quyền cập nhật IP cửa hàng.", ex.getMessage());
+        verify(storeRepository, never()).save(any());
     }
 
     @Test
