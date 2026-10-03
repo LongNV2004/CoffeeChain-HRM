@@ -4,6 +4,7 @@ import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.NotificationService;
 import com.example.coffee_hrm.service.RecruitmentRequestService;
+import com.example.coffee_hrm.service.TrainingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -15,6 +16,7 @@ public class NotificationModelAdvice {
 
     private final NotificationService notificationService;
     private final RecruitmentRequestService recruitmentRequestService;
+    private final TrainingService trainingService;
 
     @ModelAttribute("unreadNotificationCount")
     public long unreadNotificationCount(Authentication authentication) {
@@ -34,5 +36,13 @@ public class NotificationModelAdvice {
         }
         Integer count = recruitmentRequestService.countPendingRequests();
         return count == null ? 0 : count;
+    }
+
+    @ModelAttribute("activeTrainingCount")
+    public long activeTrainingCount(Authentication authentication) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof AuthenticatedUser user)) {
+            return 0L;
+        }
+        return trainingService.countOngoingClassesForEmployee(user);
     }
 }

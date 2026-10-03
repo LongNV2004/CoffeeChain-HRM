@@ -18,7 +18,10 @@
         <h1>Duyệt lớp đào tạo</h1>
         <p>
             <span th:text="${displayName}">Admin</span>
-            · phê duyệt các lớp do Manager gửi lên
+            · duyệt lớp tại cửa hàng và tạo lớp đào tạo tập trung
+        </p>
+        <p style="margin-top:12px;">
+            <a class="primary-btn" th:href="@{/admin/training/create}">Tạo lớp đào tạo tập trung</a>
         </p>
     </section>
 
@@ -32,8 +35,10 @@
             <thead>
             <tr>
                 <th>Lớp</th>
+                <th>Loại</th>
                 <th>Cửa hàng</th>
                 <th>Kỹ năng</th>
+                <th>Người đào tạo</th>
                 <th>Lịch</th>
                 <th>Người tạo</th>
                 <th></th>
@@ -41,15 +46,17 @@
             </thead>
             <tbody>
             <tr th:if="${#lists.isEmpty(pendingClasses)}">
-                <td colspan="6" class="empty">Không có lớp PENDING_APPROVAL.</td>
+                <td colspan="8" class="empty">Không có lớp PENDING_APPROVAL.</td>
             </tr>
             <tr th:each="item : ${pendingClasses}">
                 <td>
                     <strong th:text="${item.className}">Class</strong>
                     <div class="muted" th:text="${item.location}">Location</div>
                 </td>
-                <td th:text="${item.storeName}">Store</td>
-                <td th:text="${item.skillName}">Skill</td>
+                <td th:text="${item.trainingTypeLabel} ?: '—'">Loại</td>
+                <td th:text="${item.storeName} ?: '—'">Store</td>
+                <td th:text="${item.skillName} ?: '—'">Skill</td>
+                <td th:text="${item.trainer} ?: '—'">Trainer</td>
                 <td>
                     <span th:text="${item.startDate}">start</span>
                     <span> → </span>
@@ -76,7 +83,9 @@
             <thead>
             <tr>
                 <th>Lớp</th>
+                <th>Loại</th>
                 <th>Cửa hàng</th>
+                <th>Người đào tạo</th>
                 <th>Trạng thái</th>
                 <th>Duyệt bởi</th>
                 <th>Duyệt lúc</th>
@@ -84,11 +93,13 @@
             </thead>
             <tbody>
             <tr th:if="${#lists.isEmpty(allClasses)}">
-                <td colspan="5" class="empty">Chưa có lớp đào tạo.</td>
+                <td colspan="7" class="empty">Chưa có lớp đào tạo.</td>
             </tr>
             <tr th:each="item : ${allClasses}">
                 <td th:text="${item.className}">Class</td>
-                <td th:text="${item.storeName}">Store</td>
+                <td th:text="${item.trainingTypeLabel} ?: '—'">Loại</td>
+                <td th:text="${item.storeName} ?: '—'">Store</td>
+                <td th:text="${item.trainer} ?: '—'">Trainer</td>
                 <td>
                     <span class="badge"
                           th:classappend="${item.status.name() == 'APPROVED'} ? ' badge-ok' : (${item.status.name() == 'REJECTED'} ? ' badge-off' : ' badge-wait')"

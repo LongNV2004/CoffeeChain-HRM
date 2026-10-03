@@ -109,6 +109,12 @@
                th:class="${active == 'availability'} ? 'active'">Đăng ký lịch rảnh</a>
             <a th:href="@{/attendance/staff}"
                th:class="${active == 'attendance'} ? 'active'">Chấm công</a>
+            <a th:href="@{/training/staff}"
+               th:class="${active == 'training'} ? 'active'">Đào tạo
+                <span class="nav-count"
+                      th:if="${activeTrainingCount != null and activeTrainingCount > 0}"
+                      th:text="${activeTrainingCount > 99} ? '99+' : ${activeTrainingCount}">1</span>
+            </a>
             <a th:href="@{/dashboard/staff#leave}"
                th:class="${active == 'leave'} ? 'active'">Đơn nghỉ phép</a>
             <a th:href="@{/dashboard/staff#shift-change}"

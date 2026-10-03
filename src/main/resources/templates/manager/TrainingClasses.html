@@ -29,7 +29,7 @@
         <div class="panel-head">
             <div>
                 <h2>Lớp đã duyệt đang hoạt động</h2>
-                <p>Chỉ hiển thị lớp Admin đã duyệt và chưa hết ngày kết thúc.</p>
+                <p>Lớp tại cửa hàng của bạn và lớp tập trung mà bạn là người đào tạo, sau khi Admin đã duyệt.</p>
             </div>
             <a class="primary-btn" th:href="@{/training/create}">Tạo lớp đào tạo</a>
         </div>
@@ -128,8 +128,42 @@
     <section class="panel">
         <div class="panel-head">
             <div>
+                <h2>Lớp đã kết thúc</h2>
+                <p>Mở lớp để đánh giá kết quả của từng học viên.</p>
+            </div>
+        </div>
+        <table>
+            <thead>
+            <tr>
+                <th>Tên lớp</th>
+                <th>Kỹ năng</th>
+                <th>Ngày kết thúc</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:if="${#lists.isEmpty(endedClasses)}">
+                <td colspan="4" class="empty">Chưa có lớp đã kết thúc.</td>
+            </tr>
+            <tr th:each="item : ${endedClasses}">
+                <td>
+                    <a class="row-link" th:href="@{/training/classes/{id}(id=${item.id})}" th:text="${item.className}">Class</a>
+                </td>
+                <td th:text="${item.skillName}">Skill</td>
+                <td th:text="${item.endDate != null} ? ${#temporals.format(item.endDate, 'dd/MM/yyyy')} : '—'">01/01/2026</td>
+                <td class="actions">
+                    <a class="link-btn" th:href="@{/training/classes/{id}(id=${item.id})}">Đánh giá</a>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section class="panel">
+        <div class="panel-head">
+            <div>
                 <h2>Yêu cầu đã gửi Admin</h2>
-                <p>Trạng thái cập nhật khi Admin duyệt hoặc từ chối. Lớp đã hết ngày kết thúc không còn hiện ở đây, nhưng vẫn được lưu trong hệ thống.</p>
+                <p>Gồm lớp bạn tạo và lớp tập trung được giao cho bạn đào tạo. Lớp đã hết ngày kết thúc không còn hiện ở đây.</p>
             </div>
         </div>
         <table>

@@ -25,6 +25,9 @@
         </div>
     </section>
 
+    <p class="flash success" th:if="${successMessage}" th:text="${successMessage}">OK</p>
+    <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}">Error</p>
+
     <section class="panel">
         <h2>Thông tin lớp</h2>
         <dl class="detail-list">
@@ -33,8 +36,16 @@
                 <dd th:text="${classDetail.className}">Class</dd>
             </div>
             <div>
+                <dt>Loại lớp</dt>
+                <dd th:text="${classDetail.trainingTypeLabel} ?: '—'">Đào tạo tại cửa hàng</dd>
+            </div>
+            <div>
                 <dt>Kỹ năng</dt>
                 <dd th:text="${classDetail.skillName} ?: '—'">Skill</dd>
+            </div>
+            <div>
+                <dt>Cửa hàng</dt>
+                <dd th:text="${classDetail.storeName} ?: '—'">Store</dd>
             </div>
             <div>
                 <dt>Ngày bắt đầu</dt>
@@ -52,13 +63,13 @@
                 <dt>Giờ kết thúc</dt>
                 <dd th:text="${classDetail.endTime != null} ? ${#temporals.format(classDetail.endTime, 'HH:mm')} : '—'">10:00</dd>
             </div>
-            <div th:if="${classDetail.createdByName != null}">
-                <dt>Người tạo / phụ trách</dt>
-                <dd th:text="${classDetail.createdByName}">Manager</dd>
+            <div>
+                <dt>Người tạo</dt>
+                <dd th:text="${classDetail.createdByName} ?: '—'">Admin</dd>
             </div>
-            <div th:if="${classDetail.trainer != null}">
-                <dt>Giảng viên</dt>
-                <dd th:text="${classDetail.trainer}">Trainer</dd>
+            <div>
+                <dt>Người đào tạo</dt>
+                <dd th:text="${classDetail.trainer} ?: '—'">Trainer</dd>
             </div>
             <div th:if="${classDetail.location != null}">
                 <dt>Địa điểm</dt>
@@ -72,7 +83,18 @@
     </section>
 
     <section class="panel" style="margin-top:16px;">
-        <h2>Danh sách học viên</h2>
+        <div class="panel-head">
+            <div>
+                <h2>Danh sách học viên</h2>
+                <p th:if="${classDetail.ended and classDetail.evaluable}">Lớp đã kết thúc. Hãy đánh giá từng học viên.</p>
+                <p th:if="${!classDetail.ended}">Chỉ được đánh giá sau khi thời điểm kết thúc của lớp đã qua và lớp đã được Admin duyệt.</p>
+            </div>
+            <button class="primary-btn" type="button" id="open-add-students" th:if="${classDetail.evaluable}">Thêm nhân viên</button>
+        </div>
+        <p class="muted" th:if="${classDetail.maxParticipants != null}">
+            Sĩ số tối đa: <span th:text="${classDetail.maxParticipants}">20</span>.
+            Đã ghi danh: <span th:text="${classDetail.students != null} ? ${#lists.size(classDetail.students)} : 0">0</span>.
+        </p>
         <p class="empty" th:if="${classDetail.students == null or #lists.isEmpty(classDetail.students)}">
             Chưa có học viên được ghi danh vào lớp này.
         </p>
@@ -82,6 +104,9 @@
                 <th>Họ tên</th>
                 <th>Email</th>
                 <th>Số điện thoại</th>
+                <th>Kết quả</th>
+                <th>Chứng nhận</th>
+                <th></th>
             </tr>
             </thead>
             <tbody>
@@ -89,11 +114,176 @@
                 <td th:text="${student.fullName}">Name</td>
                 <td th:text="${student.email} ?: '—'">email</td>
                 <td th:text="${student.phone} ?: '—'">phone</td>
+                <td>
+                    <span class="badge"
+                          th:classappend="${student.resultLabel == 'Đạt'} ? ' badge-ok' : (${student.resultLabel == 'Không đạt'} ? ' badge-off' : ' badge-wait')"
+                          th:text="${student.resultLabel}">Chưa đánh giá</span>
+                    <div class="muted" th:if="${student.evaluationNote != null}" th:text="${student.evaluationNote}">Ghi chú</div>
+                </td>
+                <td th:text="${student.certificationLabel} ?: 'Chưa chứng nhận'">Chưa chứng nhận</td>
+                <td class="actions">
+                    <button type="button"
+                            class="link-btn evaluate-student"
+                            th:if="${classDetail.evaluable and classDetail.ended and student.result == null}"
+                            th:data-employee-id="${student.employeeId}"
+                            th:data-name="${student.fullName}"
+                            data-updating="false">Đánh giá</button>
+                    <button type="button"
+                            class="link-btn evaluate-student"
+                            th:if="${classDetail.evaluable and classDetail.ended and student.result != null}"
+                            th:data-employee-id="${student.employeeId}"
+                            th:data-name="${student.fullName}"
+                            th:data-result="${student.result.name()}"
+                            th:data-note="${student.evaluationNote}"
+                            data-updating="true">Cập nhật kết quả</button>
+                    <span class="muted" th:unless="${classDetail.evaluable and classDetail.ended}">Sau khi lớp kết thúc</span>
+                </td>
             </tr>
             </tbody>
         </table>
     </section>
 </main>
+
+<div class="modal" id="addStudentsModal">
+    <div class="modal-dialog">
+        <div class="modal-header">
+            <h2>Thêm nhân viên</h2>
+            <button class="close-btn" type="button" id="close-add-students" aria-label="Đóng">×</button>
+        </div>
+        <form id="add-students-form" th:action="@{/training/classes/{id}/students(id=${classDetail.id})}" method="post">
+            <p class="muted" style="margin-top:0;">Chọn nhân viên đang làm việc thuộc phạm vi của lớp. Thêm vào lớp không làm đổi trạng thái chứng nhận.</p>
+            <p class="flash error" id="add-students-error" hidden>Vui lòng chọn ít nhất một nhân viên.</p>
+            <p class="empty" th:if="${availableEmployees == null or #lists.isEmpty(availableEmployees)}">
+                Không còn nhân viên nào của cửa hàng để thêm vào lớp.
+            </p>
+            <div class="picker-list" th:if="${availableEmployees != null and !#lists.isEmpty(availableEmployees)}">
+                <label th:each="employee : ${availableEmployees}">
+                    <input type="checkbox" name="employeeIds" th:value="${employee.employeeId}">
+                    <span>
+                        <strong th:text="${employee.fullName}">Nhân viên</strong>
+                        <span class="muted" th:text="${employee.email != null} ? ${employee.email} : ''">email</span>
+                    </span>
+                </label>
+            </div>
+            <div class="modal-footer">
+                <button class="secondary-btn" type="button" id="cancel-add-students">Hủy</button>
+                <button class="primary-btn" type="submit"
+                        th:disabled="${availableEmployees == null or #lists.isEmpty(availableEmployees)}">Thêm vào lớp</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal" id="evaluateModal">
+    <div class="modal-dialog">
+        <div class="modal-header">
+            <h2 id="evaluateTitle">Đánh giá học viên</h2>
+            <button class="close-btn" type="button" id="close-evaluate" aria-label="Đóng">×</button>
+        </div>
+        <form id="evaluateForm"
+              method="post"
+              th:action="@{/training/classes/{id}/students/0/evaluation(id=${classDetail.id})}"
+              th:attr="data-base=@{/training/classes/{id}/students(id=${classDetail.id})}">
+            <input type="hidden" name="updating" id="evaluateUpdating" value="false">
+            <p style="margin-top:0;">Học viên: <strong id="evaluateName">—</strong></p>
+            <div class="result-choices">
+                <label>
+                    <input type="radio" name="result" value="PASS" required>
+                    Đạt
+                </label>
+                <label>
+                    <input type="radio" name="result" value="NOT_PASS">
+                    Không đạt
+                </label>
+            </div>
+            <label class="note-field">Ghi chú
+                <textarea name="note" id="evaluateNote" maxlength="500" rows="3" placeholder="Không bắt buộc"></textarea>
+            </label>
+            <div class="modal-footer">
+                <button class="secondary-btn" type="button" id="cancel-evaluate">Hủy</button>
+                <button class="primary-btn" type="submit" id="evaluateSubmit">Lưu kết quả</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script th:src="@{/js/ManagerDashboard.js}"></script>
+<script>
+    (function () {
+        var addModal = document.getElementById('addStudentsModal');
+        var addForm = document.getElementById('add-students-form');
+        var addError = document.getElementById('add-students-error');
+        var evaluateModal = document.getElementById('evaluateModal');
+        var evaluateForm = document.getElementById('evaluateForm');
+
+        function openModal(modal) {
+            modal.classList.add('open');
+        }
+
+        function closeModal(modal) {
+            modal.classList.remove('open');
+        }
+
+        var openAdd = document.getElementById('open-add-students');
+        if (openAdd) {
+        openAdd.addEventListener('click', function () {
+            if (addError) {
+                addError.hidden = true;
+            }
+            openModal(addModal);
+        });
+        }
+        document.getElementById('close-add-students').addEventListener('click', function () {
+            closeModal(addModal);
+        });
+        document.getElementById('cancel-add-students').addEventListener('click', function () {
+            closeModal(addModal);
+        });
+        addModal.addEventListener('click', function (event) {
+            if (event.target === addModal) {
+                closeModal(addModal);
+            }
+        });
+        if (addForm) {
+            addForm.addEventListener('submit', function (event) {
+                if (!addForm.querySelector('input[name="employeeIds"]:checked')) {
+                    event.preventDefault();
+                    if (addError) {
+                        addError.hidden = false;
+                    }
+                }
+            });
+        }
+
+        document.querySelectorAll('.evaluate-student').forEach(function (button) {
+            button.addEventListener('click', function () {
+                var updating = button.getAttribute('data-updating') === 'true';
+                var result = button.getAttribute('data-result') || '';
+                evaluateForm.action = evaluateForm.getAttribute('data-base') + '/'
+                    + button.getAttribute('data-employee-id') + '/evaluation';
+                document.getElementById('evaluateUpdating').value = updating ? 'true' : 'false';
+                document.getElementById('evaluateTitle').textContent = updating ? 'Cập nhật kết quả' : 'Đánh giá học viên';
+                document.getElementById('evaluateName').textContent = button.getAttribute('data-name') || '';
+                document.getElementById('evaluateSubmit').textContent = updating ? 'Cập nhật kết quả' : 'Lưu kết quả';
+                document.getElementById('evaluateNote').value = button.getAttribute('data-note') || '';
+                evaluateForm.querySelectorAll('input[name="result"]').forEach(function (input) {
+                    input.checked = input.value === result;
+                });
+                openModal(evaluateModal);
+            });
+        });
+        document.getElementById('close-evaluate').addEventListener('click', function () {
+            closeModal(evaluateModal);
+        });
+        document.getElementById('cancel-evaluate').addEventListener('click', function () {
+            closeModal(evaluateModal);
+        });
+        evaluateModal.addEventListener('click', function (event) {
+            if (event.target === evaluateModal) {
+                closeModal(evaluateModal);
+            }
+        });
+    })();
+</script>
 </body>
 </html>

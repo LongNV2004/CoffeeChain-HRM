@@ -1,5 +1,6 @@
 package com.example.coffee_hrm.entity;
 
+import com.example.coffee_hrm.common.enums.CertificationStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import jakarta.persistence.*;
 import lombok.*;
@@ -51,6 +52,10 @@ public class Employee {
     @Builder.Default
     private EmployeeStatus status = EmployeeStatus.ACTIVE;
 
+    @Column(name = "CertificationStatus", nullable = false, length = 20)
+    @Builder.Default
+    private CertificationStatus certificationStatus = CertificationStatus.NOTCERTIFIED;
+
     @Column(name = "HireDate", nullable = false)
     private LocalDate hireDate;
 
@@ -60,6 +65,13 @@ public class Employee {
     @CreationTimestamp
     @Column(name = "CreatedAt", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @PrePersist
+    void defaultCertificationStatus() {
+        if (certificationStatus == null) {
+            certificationStatus = CertificationStatus.NOTCERTIFIED;
+        }
+    }
 
     @OneToOne(mappedBy = "employee", fetch = FetchType.LAZY)
     private User user;

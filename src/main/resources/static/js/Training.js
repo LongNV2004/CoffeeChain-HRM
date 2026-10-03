@@ -98,6 +98,11 @@ document.addEventListener('DOMContentLoaded', function () {
         showClassError('Giờ bắt đầu phải nhỏ hơn giờ kết thúc.');
         return;
       }
+      if (!classForm.querySelector('input[name="skillIds"]:checked')) {
+        event.preventDefault();
+        showClassError('Vui lòng chọn ít nhất một kỹ năng đào tạo.');
+        return;
+      }
       var clock = window.CoffeeHrmTime;
       if (clock && clock.isBeforeNow(startDate.value, startTime.value)) {
         event.preventDefault();
@@ -105,4 +110,136 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     });
   }
+
+  initMultiSelects();
 });
+
+function initMultiSelects() {
+  var boxes = document.querySelectorAll('[data-ms]');
+  if (!boxes.length) {
+    return;
+  }
+
+  function closeAll() {
+    boxes.forEach(function (box) {
+      box.classList.remove('is-open');
+      var menu = box.querySelector('.ms-menu');
+      var trigger = box.querySelector('.ms-trigger');
+      if (menu) {
+        menu.hidden = true;
+      }
+      if (trigger) {
+        trigger.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
+
+  function checkedValues(name) {
+    return Array.prototype.map.call(
+      document.querySelectorAll('input[name="' + name + '"]:checked'),
+      function (input) { return input.value; }
+    );
+  }
+
+  function refreshBox(box) {
+    var value = box.querySelector('.ms-value');
+    var placeholder = box.getAttribute('data-placeholder') || 'Chọn';
+    var filterBy = box.getAttribute('data-filter-by');
+    var hint = box.querySelector('.ms-hint');
+    var selectedStores = filterBy ? checkedValues(filterBy) : null;
+    var visible = 0;
+
+    box.querySelectorAll('.ms-item').forEach(function (item) {
+      var show = true;
+      if (filterBy) {
+        show = selectedStores.indexOf(item.getAttribute('data-store-id')) >= 0;
+        item.hidden = !show;
+        if (!show) {
+          var input = item.querySelector('input');
+          if (input) {
+            input.checked = false;
+          }
+        }
+      }
+      if (show) {
+        visible += 1;
+      }
+    });
+
+    if (hint) {
+      if (filterBy && !selectedStores.length) {
+        hint.hidden = false;
+        hint.textContent = box.getAttribute('data-need-store') || 'Chọn cửa hàng trước.';
+      } else if (filterBy && !visible) {
+        hint.hidden = false;
+        hint.textContent = box.getAttribute('data-no-match') || 'Không có nhân viên thuộc cửa hàng đã chọn.';
+      } else {
+        hint.hidden = true;
+      }
+    }
+
+    if (!value) {
+      return;
+    }
+    var labels = Array.prototype.map.call(
+      box.querySelectorAll('.ms-item:not([hidden]) input:checked'),
+      function (input) {
+        var text = input.closest('.ms-item').querySelector('.ms-text');
+        if (!text) {
+          return '';
+        }
+        var name = text.querySelector('strong');
+        return (name ? name.textContent : text.textContent).trim();
+      }
+    ).filter(Boolean);
+
+    if (!labels.length) {
+      value.textContent = filterBy && !selectedStores.length
+        ? (box.getAttribute('data-need-store') || placeholder)
+        : placeholder;
+      value.classList.add('is-placeholder');
+      return;
+    }
+    value.classList.remove('is-placeholder');
+    value.textContent = labels.length <= 2
+      ? labels.join(', ')
+      : labels.slice(0, 2).join(', ') + ' +' + (labels.length - 2);
+  }
+
+  boxes.forEach(function (box) {
+    var trigger = box.querySelector('.ms-trigger');
+    var menu = box.querySelector('.ms-menu');
+    if (!trigger || !menu) {
+      return;
+    }
+    trigger.addEventListener('click', function (event) {
+      event.stopPropagation();
+      var willOpen = menu.hidden;
+      closeAll();
+      if (willOpen) {
+        menu.hidden = false;
+        box.classList.add('is-open');
+        trigger.setAttribute('aria-expanded', 'true');
+      }
+    });
+    menu.addEventListener('click', function (event) {
+      event.stopPropagation();
+    });
+    box.querySelectorAll('input[type="checkbox"]').forEach(function (input) {
+      input.addEventListener('change', function () {
+        refreshBox(box);
+        if (input.classList.contains('store-choice')) {
+          boxes.forEach(refreshBox);
+        }
+      });
+    });
+    refreshBox(box);
+  });
+
+  document.addEventListener('click', closeAll);
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') {
+      closeAll();
+    }
+  });
+}

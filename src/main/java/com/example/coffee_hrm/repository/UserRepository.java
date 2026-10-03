@@ -24,8 +24,18 @@ public interface UserRepository extends JpaRepository<User, Integer> {
 
     @Query("""
             SELECT u FROM User u
+            JOIN FETCH u.role
+            LEFT JOIN FETCH u.employee e
+            LEFT JOIN FETCH e.store
+            WHERE u.id = :id
+            """)
+    Optional<User> findByIdWithRole(@Param("id") Integer id);
+
+    @Query("""
+            SELECT u FROM User u
             JOIN FETCH u.role r
-            LEFT JOIN FETCH u.employee
+            LEFT JOIN FETCH u.employee e
+            LEFT JOIN FETCH e.store
             WHERE r.roleName = :roleName
               AND u.isActive = true
             """)

@@ -27,6 +27,19 @@
         <p>Mở chuông trên thanh menu để xem thông báo gửi đến tài khoản của bạn.</p>
     </section>
 
+    <section class="panel" id="training">
+        <h2>Đào tạo</h2>
+        <p th:if="${activeTrainingCount != null and activeTrainingCount > 0}">
+            Bạn đang tham gia <strong th:text="${activeTrainingCount}">0</strong> lớp đào tạo.
+        </p>
+        <p th:if="${activeTrainingCount == null or activeTrainingCount == 0}">
+            Xem các lớp đào tạo bạn được phân công và kết quả Đạt/Không đạt.
+        </p>
+        <p style="margin-top:12px;">
+            <a th:href="@{/training/staff}" style="color:var(--caramel);font-weight:600;font-size:13px;">Xem danh sách lớp đào tạo →</a>
+        </p>
+    </section>
+
     <!-- Alert Banner when having incoming shift swap requests -->
     <section class="alert-incoming-banner" th:if="${!#lists.isEmpty(dashboard.incomingShiftChanges)}"
              style="background: linear-gradient(135deg, #FFF8E1 0%, #FFF3E0 100%); border: 2px solid #FFE082; border-radius: 10px; padding: 18px 24px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; box-shadow: 0 4px 12px rgba(193,121,58,0.1);">

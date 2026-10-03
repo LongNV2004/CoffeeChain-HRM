@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đào tạo — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/StaffDashboard.css}">
+    <link rel="stylesheet" th:href="@{/css/Training.css}">
+</head>
+<body>
+<header th:replace="~{fragments/navbar :: staff('training')}"></header>
+
+<main class="wrap dash-main">
+    <section class="welcome">
+        <div class="eyebrow">Cá nhân — Nhân viên</div>
+        <h1>Đào tạo</h1>
+        <p>
+            <span th:text="${displayName}">Nhân viên</span>
+            <span th:if="${storeName}"> · <span th:text="${storeName}">Store</span></span>
+        </p>
+    </section>
+
+    <p class="flash success" th:if="${successMessage}" th:text="${successMessage}">OK</p>
+    <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}">Error</p>
+
+    <section class="panel">
+        <div class="panel-head">
+            <div>
+                <h2>Lớp được phân công</h2>
+                <p>Chỉ hiển thị các lớp mà quản lý đã thêm bạn vào. Kết quả do quản lý đánh giá, bạn chỉ được xem.</p>
+            </div>
+        </div>
+
+        <div class="table-scroll">
+            <table>
+                <thead>
+                <tr>
+                    <th>Tên lớp</th>
+                    <th>Kỹ năng</th>
+                    <th>Ngày bắt đầu</th>
+                    <th>Ngày kết thúc</th>
+                    <th>Giờ học</th>
+                    <th>Giảng viên</th>
+                    <th>Trạng thái</th>
+                    <th>Kết quả</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:if="${#lists.isEmpty(classes)}">
+                    <td colspan="9" class="empty">Bạn chưa được thêm vào lớp đào tạo nào.</td>
+                </tr>
+                <tr th:each="item : ${classes}">
+                    <td>
+                        <a class="row-link" th:href="@{/training/staff/classes/{id}(id=${item.id})}" th:text="${item.className}">Pha Chế 2</a>
+                    </td>
+                    <td th:text="${item.skillName} ?: '—'">Pha chế</td>
+                    <td th:text="${item.startDate != null} ? ${#temporals.format(item.startDate, 'dd/MM/yyyy')} : '—'">01/09/2026</td>
+                    <td th:text="${item.endDate != null} ? ${#temporals.format(item.endDate, 'dd/MM/yyyy')} : '—'">05/09/2026</td>
+                    <td>
+                        <span th:text="${item.startTime != null} ? ${#temporals.format(item.startTime, 'HH:mm')} : '—'">08:00</span>
+                        <span> – </span>
+                        <span th:text="${item.endTime != null} ? ${#temporals.format(item.endTime, 'HH:mm')} : '—'">10:00</span>
+                    </td>
+                    <td th:text="${item.trainer != null} ? ${item.trainer} : '—'">Nguyễn Văn A</td>
+                    <td>
+                        <span class="badge"
+                              th:classappend="${item.participationStatus == 'Đang tham gia'} ? ' badge-ok' : (${item.participationStatus == 'Đã kết thúc'} ? ' badge-off' : ' badge-wait')"
+                              th:text="${item.participationStatus}">Đang tham gia</span>
+                    </td>
+                    <td>
+                        <span class="badge"
+                              th:classappend="${item.resultLabel == 'Đạt'} ? ' badge-ok' : (${item.resultLabel == 'Không đạt'} ? ' badge-off' : ' badge-wait')"
+                              th:text="${item.resultLabel}">Chưa đánh giá</span>
+                    </td>
+                    <td>
+                        <a class="link-btn" th:href="@{/training/staff/classes/{id}(id=${item.id})}">Xem chi tiết</a>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+</body>
+</html>

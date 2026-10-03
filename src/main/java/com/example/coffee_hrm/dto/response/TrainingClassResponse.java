@@ -1,6 +1,7 @@
 package com.example.coffee_hrm.dto.response;
 
 import com.example.coffee_hrm.common.enums.TrainingClassStatus;
+import com.example.coffee_hrm.common.enums.TrainingType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -14,16 +15,20 @@ import java.util.List;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
+@Builder(toBuilder = true)
 public class TrainingClassResponse {
 
     private Integer id;
+    private TrainingType trainingType;
+    private String trainingTypeLabel;
     private Integer skillId;
     private String skillName;
     private Integer storeId;
     private String storeName;
     private String className;
+    private Integer trainerUserId;
     private String trainer;
+    private boolean evaluable;
     private LocalDate startDate;
     private LocalDate endDate;
     private LocalTime startTime;
@@ -32,6 +37,7 @@ public class TrainingClassResponse {
     private Integer maxParticipants;
     private String notes;
     private TrainingClassStatus status;
+    private boolean ended;
     private String createdByName;
     private List<TrainingClassStudentResponse> students;
     private String approvedByName;
