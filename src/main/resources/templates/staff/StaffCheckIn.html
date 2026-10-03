@@ -25,6 +25,16 @@
     <p class="flash" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
 
     <section class="panel" th:if="${clock != null}">
+        <h2>IP mạng cửa hàng</h2>
+        <p class="note">Bấm cập nhật khi đang dùng mạng cửa hàng. Hệ thống lấy IP của máy đang kết nối, không nhập sẵn. Check-in và check-out chỉ cần trùng IP cửa hàng tại thời điểm bấm.</p>
+        <p class="ip-line">IP cửa hàng đang lưu: <strong th:text="${clock.storeCurrentIp != null ? clock.storeCurrentIp : 'Chưa thiết lập'}">—</strong></p>
+        <p class="ip-line">IP máy đang kết nối: <strong th:text="${clock.requestIp != null ? clock.requestIp : '—'}">—</strong></p>
+        <form th:action="@{/attendance/staff/ip}" method="post">
+            <button class="secondary-btn" type="submit">Cập nhật IP cửa hàng</button>
+        </form>
+    </section>
+
+    <section class="panel" th:if="${clock != null}">
         <h2>Ca hiện tại</h2>
         <p class="ip-line">
             <span th:text="${clock.shiftName != null ? clock.shiftName : 'Chưa có ca phù hợp'}">Ca sáng</span>

@@ -26,9 +26,9 @@
 
     <section class="panel" th:if="${clock != null}">
         <h2>IP mạng cửa hàng</h2>
-        <p class="note">IP public của mạng có thể đổi. Hãy bấm cập nhật khi đang dùng mạng của cửa hàng. Staff chấm công theo IP đã lưu, không cần Manager đang check-in.</p>
-        <p class="ip-line">IP đang lưu: <strong th:text="${clock.storeCurrentIp != null ? clock.storeCurrentIp : 'Chưa thiết lập'}">—</strong></p>
-        <p class="ip-line">IP mạng hiện tại: <strong th:text="${clock.requestIp != null ? clock.requestIp : '—'}">—</strong></p>
+        <p class="note">Bấm cập nhật khi đang dùng mạng cửa hàng. Hệ thống lấy IP của máy đang kết nối, không nhập sẵn. Check-out không cần trùng IP lúc check-in, chỉ cần trùng IP cửa hàng tại thời điểm bấm.</p>
+        <p class="ip-line">IP cửa hàng đang lưu: <strong th:text="${clock.storeCurrentIp != null ? clock.storeCurrentIp : 'Chưa thiết lập'}">—</strong></p>
+        <p class="ip-line">IP máy đang kết nối: <strong th:text="${clock.requestIp != null ? clock.requestIp : '—'}">—</strong></p>
         <form th:action="@{/attendance/manager/ip}" method="post">
             <button class="secondary-btn" type="submit">Cập nhật IP cửa hàng</button>
         </form>

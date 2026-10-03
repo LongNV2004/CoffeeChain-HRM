@@ -317,6 +317,33 @@ class AttendanceServiceImplTest {
     }
 
     @Test
+    void checkOutUsesCurrentStoreIpNotTheCheckInIp() {
+        Attendance open = openAttendance(0);
+        open.setCheckInIp("113.0.0.1");
+        store.setCurrentIp("14.0.0.5");
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
+        when(attendanceRepository.findOpenByEmployeeId(20)).thenReturn(List.of(open));
+        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
+
+        attendanceService.checkOut(staffUser, "14.0.0.5", WORK_DATE.atTime(17, 0));
+
+        assertEquals("113.0.0.1", open.getCheckInIp());
+        assertEquals("14.0.0.5", open.getCheckOutIp());
+        assertEquals(AttendanceStatus.PRESENT, open.getStatus());
+    }
+
+    @Test
+    void staffUpdatesStoreIpFromTheConnectedMachine() {
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
+        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
+
+        attendanceService.updateStoreIp(staffUser, "::ffff:14.2.2.2");
+
+        assertEquals("14.2.2.2", store.getCurrentIp());
+        verify(storeRepository).save(store);
+    }
+
+    @Test
     void managerUpdatesOnlyTheManagedStoreIp() {
         Employee managerEmployee = Employee.builder().id(10).fullName("Manager A").store(store).build();
         store.setManager(managerEmployee);
