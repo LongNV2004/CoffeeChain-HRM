@@ -1,13 +1,13 @@
 package com.example.coffee_hrm.service;
 
-import com.example.coffee_hrm.entity.Employee;
+import com.example.coffee_hrm.dto.response.EmployeeResponse;
+import com.example.coffee_hrm.security.AuthenticatedUser;
 
 import java.util.List;
 
 public interface EmployeeService {
 
-    List<Employee> getEmployeesByStore(Integer storeId);
+    List<EmployeeResponse> getStoreEmployees(AuthenticatedUser actor, Integer storeId);
 
-    List<Employee> getAllEmployees();
-
+    EmployeeResponse changeEmployeeRole(AuthenticatedUser actor, Integer storeId, Integer employeeId, String role);
 }

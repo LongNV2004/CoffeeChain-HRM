@@ -1,46 +1,179 @@
 <!DOCTYPE html>
 <html lang="vi" xmlns:th="http://www.thymeleaf.org">
-
 <head>
     <meta charset="UTF-8">
-    <title>Nhân viên cửa hàng</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý nhân sự theo cửa hàng — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
 </head>
-
 <body>
+<header th:replace="~{fragments/navbar :: admin('employees')}"></header>
 
-<header th:replace="~{fragments/navbar :: admin('stores')}"></header>
 <main class="wrap dash-main">
     <section class="welcome">
-        <div class="eyebrow">Store</div>
-
-        <h1 th:text="${store.storeName}">
-            Nhân viên cửa hàng
-        </h1>
+        <div class="eyebrow">Trụ sở — Admin</div>
+        <h1>Quản lý nhân sự theo cửa hàng</h1>
+        <p>Chọn một cửa hàng để xem nhân viên và phân quyền Manager / Staff. Mỗi cửa hàng chỉ có 01 Manager.</p>
     </section>
+
+    <p class="flash success" th:if="${successMessage}" th:text="${successMessage}">OK</p>
+    <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}">Error</p>
+
     <section class="panel">
+        <form class="inline-form" method="get" th:action="@{/admin/employees}">
+            <label for="storeId">Cửa hàng</label>
+            <select id="storeId" name="storeId" required data-autosubmit>
+                <option value="" disabled th:selected="${selectedStore == null}">— Chọn cửa hàng —</option>
+                <option th:each="store : ${stores}"
+                        th:value="${store.id}"
+                        th:text="${store.storeName}"
+                        th:selected="${selectedStore != null and selectedStore.id == store.id}">Store</option>
+            </select>
+            <button type="submit" class="primary-btn btn-sm">Xem nhân sự</button>
+        </form>
+    </section>
+
+    <section class="panel" th:if="${selectedStore == null}">
+        <div class="panel-head">
+            <div>
+                <h2>Danh sách cửa hàng</h2>
+                <p>Tổng số <strong th:text="${#lists.size(stores)}">0</strong> cửa hàng trong chuỗi.</p>
+            </div>
+        </div>
         <table>
+            <thead>
             <tr>
+                <th>Store ID</th>
+                <th>Tên cửa hàng</th>
+                <th>Số nhân viên</th>
+                <th>Manager hiện tại</th>
+                <th>Trạng thái</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:if="${#lists.isEmpty(stores)}">
+                <td colspan="6" class="empty">Chưa có cửa hàng nào.</td>
+            </tr>
+            <tr th:each="store : ${stores}">
+                <td th:text="${store.id}">1</td>
+                <td><strong th:text="${store.storeName}">Store</strong></td>
+                <td th:text="${store.employeeCount}">0</td>
+                <td>
+                    <span th:if="${store.managerName != null}" th:text="${store.managerName}">Manager</span>
+                    <span th:if="${store.managerName == null}" class="muted">Chưa chỉ định</span>
+                </td>
+                <td>
+                    <span th:if="${store.isActive}" class="badge badge-ok">Hoạt động</span>
+                    <span th:unless="${store.isActive}" class="badge badge-off">Ngừng hoạt động</span>
+                </td>
+                <td>
+                    <a class="row-link" th:href="@{/admin/stores/{id}/employees(id=${store.id})}">Xem nhân sự</a>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section class="panel" th:if="${selectedStore != null}"
+             th:with="storeHasManager=${selectedStore.managerName != null or !employees.?[roleName?.name() == 'MANAGER'].isEmpty()}">
+        <div class="panel-head">
+            <div>
+                <h2 th:text="${selectedStore.storeName}">Store</h2>
+                <p>
+                    Store #<span th:text="${selectedStore.id}">1</span>
+                    · <span th:text="${selectedStore.address}">Address</span>
+                </p>
+                <p>
+                    Manager hiện tại:
+                    <strong th:if="${selectedStore.managerName != null}" th:text="${selectedStore.managerName}">Manager</strong>
+                    <span th:if="${selectedStore.managerName == null}" class="muted">Chưa chỉ định</span>
+                    · <span th:text="${#lists.size(employees)}">0</span> nhân viên
+                </p>
+            </div>
+            <span th:if="${selectedStore.isActive}" class="badge badge-ok">Hoạt động</span>
+            <span th:unless="${selectedStore.isActive}" class="badge badge-off">Ngừng hoạt động</span>
+        </div>
+
+        <table>
+            <thead>
+            <tr>
+                <th>Employee ID</th>
                 <th>Họ tên</th>
                 <th>Email</th>
                 <th>Số điện thoại</th>
+                <th>Role</th>
+                <th>Chứng chỉ</th>
                 <th>Trạng thái</th>
-                <th>Chứng nhận</th>
+                <th>Phân quyền</th>
             </tr>
-            <tr th:each="employee:${employees}">
-                <td th:text="${employee.fullName}"></td>
-                <td th:text="${employee.email}"></td>
-                <td th:text="${employee.phone}"></td>
+            </thead>
+            <tbody>
+            <tr th:if="${#lists.isEmpty(employees)}">
+                <td colspan="8" class="empty">Cửa hàng chưa có nhân viên nào.</td>
+            </tr>
+            <tr th:each="employee : ${employees}"
+                th:with="isManager=${employee.storeManager or (employee.roleName != null and employee.roleName.name() == 'MANAGER')}"
+                th:classappend="${employee.storeManager} ? 'row-highlight'">
+                <td th:text="${employee.id}">1</td>
+                <td><strong th:text="${employee.fullName}">Nhân viên</strong></td>
+                <td th:text="${employee.email} ?: '—'">email</td>
+                <td th:text="${employee.phone} ?: '—'">phone</td>
                 <td>
-    <span th:if="${employee.status.name() == 'ACTIVE'}"
-          class="status active">
-        ● Hoạt động
-    </span>
+                    <th:block th:switch="${employee.roleName?.name()}">
+                        <span th:case="'MANAGER'" class="badge badge-manager">Manager</span>
+                        <span th:case="'STAFF'" class="badge">Staff</span>
+                        <span th:case="'ADMIN'" class="badge">Admin</span>
+                        <span th:case="*" class="muted">Chưa có tài khoản</span>
+                    </th:block>
+                    <div class="muted" th:if="${employee.roleName != null and employee.roleName.name() == 'MANAGER' and !employee.storeManager}">
+                        Chưa gắn với cửa hàng
+                    </div>
                 </td>
-                <td th:text="${employee.certificationStatus != null} ? ${employee.certificationStatus.label} : 'Chưa chứng nhận'">Chưa chứng nhận</td>
+                <td>
+                    <span th:if="${employee.hasCertificate}" class="badge badge-ok">Có chứng chỉ</span>
+                    <span th:unless="${employee.hasCertificate}" class="badge">Không có chứng chỉ</span>
+                </td>
+                <td th:switch="${employee.status.name()}">
+                    <span th:case="'ACTIVE'" class="badge badge-ok">Đang làm việc</span>
+                    <span th:case="'ON_LEAVE'" class="badge badge-wait">Đang nghỉ phép</span>
+                    <span th:case="*" class="badge badge-off">Đã nghỉ việc</span>
+                </td>
+                <td>
+                    <span th:if="${employee.roleName == null}" class="muted">Cần tài khoản để phân quyền</span>
+                    <span th:if="${employee.roleName != null and employee.roleName.name() == 'ADMIN'}" class="muted">—</span>
+
+                    <form th:if="${employee.roleName != null and employee.roleName.name() != 'ADMIN' and isManager}"
+                          method="post"
+                          th:action="@{/admin/stores/{storeId}/employees/{employeeId}/role(storeId=${selectedStore.id},employeeId=${employee.id})}"
+                          th:attr="data-confirm='Chuyển ' + ${employee.fullName} + ' về STAFF? Cửa hàng sẽ chưa có Manager.'">
+                        <input type="hidden" name="role" value="STAFF">
+                        <button type="submit" class="logout-btn btn-sm">Chuyển về Staff</button>
+                    </form>
+
+                    <form th:if="${employee.roleName != null and employee.roleName.name() == 'STAFF' and !isManager}"
+                          method="post"
+                          th:action="@{/admin/stores/{storeId}/employees/{employeeId}/role(storeId=${selectedStore.id},employeeId=${employee.id})}"
+                          th:attr="data-confirm='Chỉ định ' + ${employee.fullName} + ' làm Manager của ' + ${selectedStore.storeName} + '?'">
+                        <input type="hidden" name="role" value="MANAGER">
+                        <button type="submit" class="primary-btn btn-sm"
+                                th:disabled="${storeHasManager or employee.status.name() == 'TERMINATED'}"
+                                th:title="${storeHasManager} ? 'Cửa hàng đã có Manager' : (${employee.status.name() == 'TERMINATED'} ? 'Nhân viên đã nghỉ việc' : '')">
+                            Chỉ định Manager
+                        </button>
+                    </form>
+                </td>
             </tr>
+            </tbody>
         </table>
+        <p class="muted">
+            Chứng chỉ được cập nhật từ nghiệp vụ đào tạo; Admin chỉ xem, không thay đổi tại đây.
+            Muốn đổi Manager, hãy chuyển Manager hiện tại về Staff trước.
+        </p>
     </section>
 </main>
+<script th:src="@{/js/AdminDashboard.js}"></script>
 </body>
 </html>

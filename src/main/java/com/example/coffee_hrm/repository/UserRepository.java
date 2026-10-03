@@ -23,6 +23,16 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     Optional<User> findByEmployee_Id(Integer employeeId);
 
     @Query("""
+            SELECT COUNT(u) FROM User u
+            WHERE u.role.roleName = :roleName
+              AND u.employee.store.id = :storeId
+              AND u.employee.id <> :excludedEmployeeId
+            """)
+    long countOtherStoreMembersWithRole(@Param("storeId") Integer storeId,
+                                        @Param("excludedEmployeeId") Integer excludedEmployeeId,
+                                        @Param("roleName") RoleName roleName);
+
+    @Query("""
             SELECT u FROM User u
             JOIN FETCH u.role
             LEFT JOIN FETCH u.employee e

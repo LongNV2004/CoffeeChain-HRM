@@ -62,6 +62,10 @@ public class Employee {
     @Column(name = "TerminationDate")
     private LocalDate terminationDate;
 
+    @Column(name = "HasCertificate", nullable = false)
+    @Builder.Default
+    private Boolean hasCertificate = false;
+
     @CreationTimestamp
     @Column(name = "CreatedAt", nullable = false, updatable = false)
     private LocalDateTime createdAt;
