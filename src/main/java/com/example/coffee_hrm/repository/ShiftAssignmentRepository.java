@@ -88,4 +88,34 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
             @Param("storeId") Integer storeId,
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate);
+
+    @Query("""
+            SELECT sa FROM ShiftAssignment sa
+            JOIN FETCH sa.shift s
+            JOIN FETCH s.store
+            JOIN FETCH sa.employee e
+            WHERE e.id = :employeeId
+              AND sa.workDate >= :fromDate
+              AND sa.workDate <= :toDate
+              AND sa.status = :status
+            ORDER BY sa.workDate ASC, s.startTime ASC
+            """)
+    List<ShiftAssignment> findAssignmentsForAttendance(
+            @Param("employeeId") Integer employeeId,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate,
+            @Param("status") AssignmentStatus status);
+
+    @Query("""
+            SELECT sa FROM ShiftAssignment sa
+            JOIN FETCH sa.shift s
+            JOIN FETCH s.store
+            JOIN FETCH sa.employee e
+            WHERE sa.workDate = :workDate
+              AND sa.status = :status
+              AND sa.isPublished = true
+            """)
+    List<ShiftAssignment> findPublishedAssignedOnDate(
+            @Param("workDate") LocalDate workDate,
+            @Param("status") AssignmentStatus status);
 }

@@ -43,6 +43,9 @@ public class Store {
     @Builder.Default
     private Boolean isActive = true;
 
+    @Column(name = "CurrentIp", length = 45)
+    private String currentIp;
+
     @CreationTimestamp
     @Column(name = "CreatedAt", nullable = false, updatable = false)
     private LocalDateTime createdAt;
