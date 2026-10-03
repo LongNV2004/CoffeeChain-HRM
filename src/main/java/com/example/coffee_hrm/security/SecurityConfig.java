@@ -75,15 +75,14 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/", "/coffee", "/login", "/logout", "/css/**", "/js/**", "/images/**", "/favicon.ico", "/error")
                         .permitAll()
-                        .requestMatchers("/dashboard/admin", "/admin/training", "/admin/training/**").hasRole("ADMIN")
-                        .requestMatchers("/training/staff", "/training/staff/**").hasRole("STAFF")
-                        .requestMatchers("/dashboard/manager", "/training", "/training/**",
+                        .requestMatchers("/dashboard/admin", "/admin", "/admin/**", "/admin/training", "/admin/training/**").hasRole("ADMIN")
+                        .requestMatchers("/dashboard/manager", "/manager/**", "/training", "/training/**",
                                 "/schedule/manager", "/schedule/manager/**",
                                 "/availability/manager", "/availability/manager/**",
                                 "/attendance/manager", "/attendance/manager/**").hasRole("MANAGER")
                         .requestMatchers("/dashboard/staff", "/schedule/staff", "/schedule/staff/**",
                                 "/availability", "/availability/**",
-                                "/attendance/staff", "/attendance/staff/**").hasRole("STAFF")
+                                "/attendance/staff", "/attendance/staff/**", "/training/staff", "/training/staff/**").hasRole("STAFF")
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((request, response, authException) ->

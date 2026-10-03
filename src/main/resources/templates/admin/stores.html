@@ -1,65 +1,73 @@
 <!DOCTYPE html>
 <html lang="vi" xmlns:th="http://www.thymeleaf.org">
-
 <head>
     <meta charset="UTF-8">
-    <title>Quản lý cửa hàng</title>
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý cửa hàng — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
 </head>
-
 <body>
 <header th:replace="~{fragments/navbar :: admin('stores')}"></header>
+
 <main class="wrap dash-main">
     <section class="welcome">
         <div class="eyebrow">Trụ sở — Admin</div>
         <h1>Quản lý cửa hàng</h1>
-        <p>Danh sách các cửa hàng trong chuỗi.</p>
+        <p>Danh sách các cửa hàng trong chuỗi và Manager phụ trách.</p>
     </section>
+
+    <p class="flash success" th:if="${successMessage}" th:text="${successMessage}">OK</p>
+    <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}">Error</p>
+
     <section class="panel">
-        <table class="store-table">
+        <div class="panel-head">
+            <div>
+                <h2>Danh sách cửa hàng</h2>
+                <p>Tổng số <strong th:text="${#lists.size(stores)}">0</strong> cửa hàng.</p>
+            </div>
+            <a class="primary-btn" th:href="@{/admin/stores/create}">Thêm cửa hàng</a>
+        </div>
+
+        <table>
             <thead>
             <tr>
-                <th>#</th>
+                <th>Store ID</th>
                 <th>Tên cửa hàng</th>
                 <th>Địa chỉ</th>
-                <th>Trạng thái</th>
                 <th>Số nhân viên</th>
-                <th>Thao tác</th>
+                <th>Manager hiện tại</th>
+                <th>Trạng thái</th>
+                <th></th>
             </tr>
             </thead>
             <tbody>
-            <tr th:each="store, stat : ${stores}">
-                <td th:text="${stat.count}"></td>
-                <td class="store-name"
-                    th:text="${store.storeName}">
-                </td>
-                <td th:text="${store.address}">
+            <tr th:if="${#lists.isEmpty(stores)}">
+                <td colspan="7" class="empty">Chưa có cửa hàng nào.</td>
+            </tr>
+            <tr th:each="store : ${stores}">
+                <td th:text="${store.id}">1</td>
+                <td><strong th:text="${store.storeName}">Store</strong></td>
+                <td th:text="${store.address}">Address</td>
+                <td th:text="${store.employeeCount}">0</td>
+                <td>
+                    <span th:if="${store.managerName != null}" th:text="${store.managerName}">Manager</span>
+                    <span th:if="${store.managerName == null}" class="muted">Chưa chỉ định</span>
                 </td>
                 <td>
-
-<span th:if="${store.isActive}"
-      class="status active">
-    ● Hoạt động
-</span>
-                    <span th:unless="${store.isActive}"
-                          class="status inactive">
-    ● Ngừng hoạt động
-</span>
+                    <span th:if="${store.isActive}" class="badge badge-ok">Hoạt động</span>
+                    <span th:unless="${store.isActive}" class="badge badge-off">Ngừng hoạt động</span>
                 </td>
-                <td>
-                    <span th:text="${store.employees.size()}"></span>
-                </td>
-                <td>
-                    <a class="btn-view"
-                       th:href="@{/admin/stores/{id}/employees(id=${store.id})}">
-                        👥 Xem nhân viên
-                    </a>
+                <td class="actions">
+                    <a class="row-link" th:href="@{/admin/stores/{id}/employees(id=${store.id})}">Nhân sự</a>
+                    <a class="row-link" th:href="@{/admin/stores/{id}/edit(id=${store.id})}">Cập nhật</a>
                 </td>
             </tr>
             </tbody>
         </table>
     </section>
 </main>
+<script th:src="@{/js/AdminDashboard.js}"></script>
 </body>
 </html>
