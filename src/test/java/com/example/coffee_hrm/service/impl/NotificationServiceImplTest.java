@@ -1,6 +1,7 @@
 package com.example.coffee_hrm.service.impl;
 
 import com.example.coffee_hrm.common.enums.NotificationType;
+import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.entity.Notification;
 import com.example.coffee_hrm.entity.Role;
@@ -88,6 +89,34 @@ class NotificationServiceImplTest {
         var items = notificationService.listMine(owner);
 
         assertEquals("/availability/manager", items.getFirst().getActionUrl());
+    }
+
+    @Test
+    void trainingEnrollmentNotificationOpensStaffClassDetail() {
+        User staff = User.builder()
+                .id(8)
+                .username("staff")
+                .passwordHash("hash")
+                .role(Role.builder().id(3).roleName(RoleName.STAFF).build())
+                .isActive(true)
+                .build();
+        when(notificationRepository.findByRecipient_IdOrderByCreatedAtDesc(8)).thenReturn(List.of(
+                Notification.builder()
+                        .id(15)
+                        .recipient(staff)
+                        .title("Bạn được thêm vào lớp đào tạo")
+                        .message("Bạn đã được thêm vào lớp đào tạo Pha Chế 2.")
+                        .type(NotificationType.TRAINING_CLASS_ENROLLED)
+                        .isRead(false)
+                        .referenceType("TRAINING_CLASS")
+                        .referenceId(22)
+                        .createdAt(LocalDateTime.now())
+                        .build()));
+
+        var items = notificationService.listMine(AuthenticatedUser.from(staff));
+
+        assertEquals("/training/staff/classes/22", items.getFirst().getActionUrl());
+        assertEquals("Bạn đã được thêm vào lớp đào tạo Pha Chế 2.", items.getFirst().getMessage());
     }
 
     @Test

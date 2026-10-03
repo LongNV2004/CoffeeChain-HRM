@@ -1,13 +1,19 @@
 package com.example.coffee_hrm.entity;
 
 import com.example.coffee_hrm.common.enums.TrainingClassStatus;
+import com.example.coffee_hrm.common.enums.TrainingType;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 
 @Entity
 @Table(name = "TrainingClasses")
@@ -17,7 +23,7 @@ import java.time.LocalTime;
 @AllArgsConstructor
 @Builder
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-@ToString(exclude = {"skill", "store", "createdBy", "approvedBy"})
+@ToString(exclude = {"skills", "store", "participatingStores", "createdBy", "trainer", "approvedBy", "enrollments"})
 public class TrainingClass {
 
     @Id
@@ -26,19 +32,36 @@ public class TrainingClass {
     @EqualsAndHashCode.Include
     private Integer id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "SkillId", nullable = false)
-    private TrainingSkill skill;
+    @Column(name = "TrainingType", nullable = false, length = 30)
+    @Builder.Default
+    private TrainingType trainingType = TrainingType.STORE_TRAINING;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "StoreId", nullable = false)
+    @BatchSize(size = 32)
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(name = "TrainingClassSkills",
+            joinColumns = @JoinColumn(name = "ClassId"),
+            inverseJoinColumns = @JoinColumn(name = "SkillId"))
+    @Builder.Default
+    private Set<TrainingSkill> skills = new LinkedHashSet<>();
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "StoreId")
     private Store store;
+
+    @BatchSize(size = 32)
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(name = "TrainingClassStores",
+            joinColumns = @JoinColumn(name = "ClassId"),
+            inverseJoinColumns = @JoinColumn(name = "StoreId"))
+    @Builder.Default
+    private Set<Store> participatingStores = new LinkedHashSet<>();
 
     @Column(name = "ClassName", nullable = false, length = 150)
     private String className;
 
-    @Column(name = "Trainer", length = 100)
-    private String trainer;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "TrainerId")
+    private User trainer;
 
     @Column(name = "StartDate", nullable = false)
     private LocalDate startDate;
@@ -79,4 +102,8 @@ public class TrainingClass {
     @CreationTimestamp
     @Column(name = "CreatedAt", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @Builder.Default
+    @OneToMany(mappedBy = "trainingClass", cascade = CascadeType.REMOVE)
+    private List<TrainingClassEnrollment> enrollments = new ArrayList<>();
 }

@@ -1,8 +1,10 @@
 package com.example.coffee_hrm.controller;
 
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.dto.request.AddTrainingClassStudentsRequest;
 import com.example.coffee_hrm.dto.request.CreateTrainingClassRequest;
 import com.example.coffee_hrm.dto.request.CreateTrainingSkillRequest;
+import com.example.coffee_hrm.dto.request.EvaluateTrainingStudentRequest;
 import com.example.coffee_hrm.dto.request.UpdateTrainingSkillRequest;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.TrainingService;
@@ -58,6 +60,7 @@ public class TrainingController {
             model.addAttribute("displayName", user.getDisplayName());
             model.addAttribute("storeName", user.getStoreName());
             model.addAttribute("classDetail", trainingService.getApprovedClassDetailForManager(id, user));
+            model.addAttribute("availableEmployees", trainingService.listAvailableEmployeesForClass(id, user));
             return "manager/TrainingClassDetail";
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
@@ -151,6 +154,51 @@ public class TrainingController {
         return "redirect:/training/create";
     }
 
+    @PostMapping("/classes/{id}/students")
+    public String addStudents(@PathVariable Integer id,
+                              @Valid @ModelAttribute("addStudentsForm") AddTrainingClassStudentsRequest addStudentsForm,
+                              BindingResult bindingResult,
+                              @AuthenticationPrincipal AuthenticatedUser user,
+                              RedirectAttributes redirectAttributes) {
+        String redirect = "redirect:/training/classes/" + id;
+        if (bindingResult.hasErrors()) {
+            redirectAttributes.addFlashAttribute("errorMessage",
+                    validationMessage(bindingResult, "Vui lòng chọn ít nhất một nhân viên."));
+            return redirect;
+        }
+        try {
+            int added = trainingService.addStudentsToClass(id, addStudentsForm, user);
+            redirectAttributes.addFlashAttribute("successMessage",
+                    added == 1 ? "Đã thêm nhân viên vào lớp đào tạo." : "Đã thêm " + added + " nhân viên vào lớp đào tạo.");
+        } catch (BusinessException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
+        }
+        return redirect;
+    }
+
+    @PostMapping("/classes/{id}/students/{employeeId}/evaluation")
+    public String evaluateStudent(@PathVariable Integer id,
+                                  @PathVariable Integer employeeId,
+                                  @Valid @ModelAttribute("evaluationForm") EvaluateTrainingStudentRequest evaluationForm,
+                                  BindingResult bindingResult,
+                                  @AuthenticationPrincipal AuthenticatedUser user,
+                                  RedirectAttributes redirectAttributes) {
+        String redirect = "redirect:/training/classes/" + id;
+        if (bindingResult.hasErrors()) {
+            redirectAttributes.addFlashAttribute("errorMessage",
+                    validationMessage(bindingResult, "Không thể lưu kết quả đánh giá."));
+            return redirect;
+        }
+        try {
+            trainingService.evaluateStudent(id, employeeId, evaluationForm, user);
+            redirectAttributes.addFlashAttribute("successMessage",
+                    evaluationForm.isUpdating() ? "Đã cập nhật kết quả đánh giá." : "Đã lưu kết quả đánh giá.");
+        } catch (BusinessException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
+        }
+        return redirect;
+    }
+
     @PostMapping("/classes/{id}/delete")
     public String deleteClass(@PathVariable Integer id,
                               @AuthenticationPrincipal AuthenticatedUser user,
@@ -198,6 +246,7 @@ public class TrainingController {
         model.addAttribute("storeName", user.getStoreName());
         model.addAttribute("classes", classPage.getContent());
         model.addAttribute("submittedClasses", trainingService.listSubmittedClassesForManager(user));
+        model.addAttribute("endedClasses", trainingService.listEndedClassesForManager(user));
         model.addAttribute("classPage", classPage);
         model.addAttribute("hasStore", trainingService.managerHasAssignedStore(user));
         model.addAttribute("filterSkills", trainingService.listActiveSkills());
@@ -215,6 +264,20 @@ public class TrainingController {
         model.addAttribute("skills", trainingService.listSkills());
         model.addAttribute("activeSkills", trainingService.listActiveSkills());
         model.addAttribute("hasStore", trainingService.managerHasAssignedStore(user));
+        model.addAttribute("storeEmployees", trainingService.listEmployeesForNewStoreClass(user));
+    }
+
+    private String validationMessage(BindingResult bindingResult, String fallback) {
+        if (bindingResult.hasFieldErrors("employeeIds")) {
+            return "Vui lòng chọn ít nhất một nhân viên.";
+        }
+        if (bindingResult.hasFieldErrors("result")) {
+            return "Vui lòng chọn kết quả đánh giá.";
+        }
+        if (bindingResult.hasFieldErrors("note")) {
+            return "Ghi chú tối đa 500 ký tự.";
+        }
+        return firstError(bindingResult, fallback);
     }
 
     private String firstError(BindingResult bindingResult, String fallback) {

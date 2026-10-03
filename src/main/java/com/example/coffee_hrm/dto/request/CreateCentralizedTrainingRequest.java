@@ -24,7 +24,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class CreateTrainingClassRequest implements Serializable {
+public class CreateCentralizedTrainingRequest implements Serializable {
 
     @Serial
     private static final long serialVersionUID = 1L;
@@ -32,7 +32,14 @@ public class CreateTrainingClassRequest implements Serializable {
     @NotEmpty(message = "Vui lòng chọn ít nhất một kỹ năng đào tạo")
     private List<@NotNull(message = "Kỹ năng không hợp lệ") Integer> skillIds = new ArrayList<>();
 
+    @NotEmpty(message = "Vui lòng chọn ít nhất một cửa hàng")
+    private List<@NotNull(message = "Cửa hàng không hợp lệ") Integer> storeIds = new ArrayList<>();
+
+    @NotEmpty(message = "Vui lòng chọn ít nhất một nhân viên")
     private List<@NotNull(message = "Nhân viên không hợp lệ") Integer> employeeIds = new ArrayList<>();
+
+    @NotNull(message = "Vui lòng chọn người đào tạo")
+    private Integer trainerId;
 
     @NotBlank(message = "Vui lòng nhập tên lớp")
     @Size(max = 150, message = "Tên lớp tối đa 150 ký tự")

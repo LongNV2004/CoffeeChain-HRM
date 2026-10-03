@@ -25,6 +25,7 @@
                 <th>Email</th>
                 <th>Số điện thoại</th>
                 <th>Trạng thái</th>
+                <th>Chứng nhận</th>
             </tr>
             <tr th:each="employee:${employees}">
                 <td th:text="${employee.fullName}"></td>
@@ -36,6 +37,7 @@
         ● Hoạt động
     </span>
                 </td>
+                <td th:text="${employee.certificationStatus != null} ? ${employee.certificationStatus.label} : 'Chưa chứng nhận'">Chưa chứng nhận</td>
             </tr>
         </table>
     </section>

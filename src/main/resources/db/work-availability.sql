@@ -15,7 +15,6 @@ BEGIN
     );
 END;
 GO
-
 IF COL_LENGTH(N'dbo.WorkAvailabilities', N'Status') IS NULL
 BEGIN
     ALTER TABLE dbo.WorkAvailabilities
@@ -36,3 +35,4 @@ BEGIN
             CHECK (Status IN (N'Pending', N'Approved', N'Rejected'));
 END;
 GO
+

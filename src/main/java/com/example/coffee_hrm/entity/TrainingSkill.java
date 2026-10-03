@@ -6,8 +6,6 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 @Entity
 @Table(name = "TrainingSkills")
@@ -17,7 +15,7 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-@ToString(exclude = {"createdBy", "classes"})
+@ToString(exclude = {"createdBy"})
 public class TrainingSkill {
 
     @Id
@@ -46,8 +44,4 @@ public class TrainingSkill {
     @CreationTimestamp
     @Column(name = "CreatedAt", nullable = false, updatable = false)
     private LocalDateTime createdAt;
-
-    @Builder.Default
-    @OneToMany(mappedBy = "skill", fetch = FetchType.LAZY)
-    private List<TrainingClass> classes = new ArrayList<>();
 }
