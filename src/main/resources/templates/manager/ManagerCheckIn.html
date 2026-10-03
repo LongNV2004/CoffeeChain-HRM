@@ -26,7 +26,7 @@
 
     <section class="panel" th:if="${clock != null}">
         <h2>IP mạng cửa hàng</h2>
-        <p class="note">Chỉ Manager được cập nhật. Bấm khi đang dùng mạng cửa hàng. Hệ thống lấy IP public của mạng đang kết nối, không lấy địa chỉ localhost.</p>
+        <p class="note">Chỉ Manager được cập nhật. Mỗi lần bấm sẽ lấy lại IP public của mạng đang kết nối và lưu đè IP cũ, kể cả khi vừa đổi Wi-Fi sang 4G.</p>
         <p class="ip-line">IP cửa hàng đang lưu: <strong th:text="${clock.storeCurrentIp != null ? clock.storeCurrentIp : 'Chưa thiết lập'}">—</strong></p>
         <p class="ip-line">IP mạng đang kết nối: <strong th:text="${clock.requestIp != null ? clock.requestIp : '—'}">—</strong></p>
         <form th:action="@{/attendance/manager/ip}" method="post">

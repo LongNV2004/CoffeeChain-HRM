@@ -28,7 +28,7 @@ public class AttendanceController {
     public String staffClock(@AuthenticationPrincipal AuthenticatedUser user,
                              HttpServletRequest request,
                              Model model) {
-        return clock(user, request, model, "staff/StaffCheckIn");
+        return clock(user, networkIpResolver.resolve(request), model, "staff/StaffCheckIn");
     }
 
     @PostMapping("/staff/check-in")
@@ -52,7 +52,7 @@ public class AttendanceController {
     public String managerClock(@AuthenticationPrincipal AuthenticatedUser user,
                                HttpServletRequest request,
                                Model model) {
-        return clock(user, request, model, "manager/ManagerCheckIn");
+        return clock(user, networkIpResolver.resolveFresh(request), model, "manager/ManagerCheckIn");
     }
 
     @PostMapping("/manager/check-in")
@@ -84,7 +84,7 @@ public class AttendanceController {
                                  RedirectAttributes redirectAttributes,
                                  String redirect) {
         try {
-            attendanceService.updateStoreIp(user, networkIpResolver.resolve(request));
+            attendanceService.updateStoreIp(user, networkIpResolver.resolveFresh(request));
             redirectAttributes.addFlashAttribute("pageMessage", "Đã cập nhật IP mạng cửa hàng theo máy đang kết nối.");
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("pageError", ex.getMessage());
@@ -92,9 +92,9 @@ public class AttendanceController {
         return redirect;
     }
 
-    private String clock(AuthenticatedUser user, HttpServletRequest request, Model model, String view) {
+    private String clock(AuthenticatedUser user, String requestIp, Model model, String view) {
         try {
-            model.addAttribute("clock", attendanceService.getClock(user, networkIpResolver.resolve(request)));
+            model.addAttribute("clock", attendanceService.getClock(user, requestIp));
             if (!model.containsAttribute("pageError")) {
                 model.addAttribute("pageError", null);
             }
