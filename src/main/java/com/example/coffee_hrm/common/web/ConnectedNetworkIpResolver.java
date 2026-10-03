@@ -33,21 +33,37 @@ public class ConnectedNetworkIpResolver {
         return publicIp != null ? publicIp : remote;
     }
 
+    /**
+     * Dùng khi Manager bấm cập nhật IP. Không dùng cache, để đổi Wi-Fi sang 4G
+     * vẫn lưu đúng IP public của mạng vừa kết nối.
+     */
+    public String resolveFresh(HttpServletRequest request) {
+        String remote = ClientIpResolver.resolve(request);
+        if (remote != null && !ClientIpResolver.isLocalOrPrivate(remote)) {
+            return remote;
+        }
+        return remember(lookupPublicIp());
+    }
+
     String currentPublicIp() {
         long now = System.currentTimeMillis();
         if (cachedPublicIp != null && now - cachedAt < CACHE_MILLIS) {
             return cachedPublicIp;
         }
-        String lookedUp = lookupPublicIp();
-        if (lookedUp != null) {
-            cachedPublicIp = lookedUp;
-            cachedAt = now;
-            return lookedUp;
-        }
-        return cachedPublicIp;
+        String lookedUp = remember(lookupPublicIp());
+        return lookedUp != null ? lookedUp : cachedPublicIp;
     }
 
-    private String lookupPublicIp() {
+    private String remember(String lookedUp) {
+        if (lookedUp == null) {
+            return null;
+        }
+        cachedPublicIp = lookedUp;
+        cachedAt = System.currentTimeMillis();
+        return lookedUp;
+    }
+
+    protected String lookupPublicIp() {
         try {
             HttpRequest request = HttpRequest.newBuilder(URI.create("https://api.ipify.org"))
                     .timeout(TIMEOUT)
