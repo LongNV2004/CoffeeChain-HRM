@@ -355,6 +355,34 @@ class AttendanceServiceImplTest {
     }
 
     @Test
+    void managerUpdateReplacesTheStoredIpWhenTheNetworkChanges() {
+        Employee managerEmployee = Employee.builder().id(10).fullName("Manager A").store(store).build();
+        store.setManager(managerEmployee);
+        store.setCurrentIp("118.68.6.70");
+        AuthenticatedUser manager = AuthenticatedUser.from(buildUser(2, "manager1", RoleName.MANAGER, managerEmployee));
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+
+        attendanceService.updateStoreIp(manager, "14.1.2.3");
+
+        assertEquals("14.1.2.3", store.getCurrentIp());
+    }
+
+    @Test
+    void managerUpdateDoesNotKeepLoopbackAsTheStoreIp() {
+        Employee managerEmployee = Employee.builder().id(10).fullName("Manager A").store(store).build();
+        store.setManager(managerEmployee);
+        AuthenticatedUser manager = AuthenticatedUser.from(buildUser(2, "manager1", RoleName.MANAGER, managerEmployee));
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> attendanceService.updateStoreIp(manager, "::1"));
+
+        assertEquals("Không xác định được địa chỉ IP.", ex.getMessage());
+        assertEquals("113.0.0.1", store.getCurrentIp());
+        verify(storeRepository, never()).save(any());
+    }
+
+    @Test
     void endedShiftWithoutAttendanceIsMarkedAbsent() {
         when(shiftAssignmentRepository.findPublishedAssignedOnDate(WORK_DATE, AssignmentStatus.ASSIGNED))
                 .thenReturn(List.of(morningAssignment));

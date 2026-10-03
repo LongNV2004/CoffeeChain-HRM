@@ -80,7 +80,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         }
         Store store = resolveManagedStore(user);
         String ip = ClientIpResolver.normalize(requestIp);
-        if (ip == null) {
+        if (ip == null || ClientIpResolver.isLocalOrPrivate(ip)) {
             throw new BusinessException("Không xác định được địa chỉ IP.");
         }
         store.setCurrentIp(ip);
