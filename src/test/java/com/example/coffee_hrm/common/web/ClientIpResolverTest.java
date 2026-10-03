@@ -26,4 +26,12 @@ class ClientIpResolverTest {
         assertFalse(ClientIpResolver.matches("10.0.0.1", "113.0.0.1"));
         assertFalse(ClientIpResolver.matches("113.0.0.1", null));
     }
+
+    @Test
+    void treatsLoopbackAndLanAddressesAsLocal() {
+        assertTrue(ClientIpResolver.isLocalOrPrivate("::1"));
+        assertTrue(ClientIpResolver.isLocalOrPrivate("127.0.0.1"));
+        assertTrue(ClientIpResolver.isLocalOrPrivate("192.168.1.20"));
+        assertFalse(ClientIpResolver.isLocalOrPrivate("118.68.6.70"));
+    }
 }
