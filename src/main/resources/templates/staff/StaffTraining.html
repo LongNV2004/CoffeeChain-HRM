@@ -9,7 +9,7 @@
     <link rel="stylesheet" th:href="@{/css/StaffDashboard.css}">
     <link rel="stylesheet" th:href="@{/css/Training.css}">
 </head>
-<body>
+<body th:attr="data-now=${#temporals.format(vietnamNow, 'yyyy-MM-dd') + 'T' + #temporals.format(vietnamNow, 'HH:mm:ss')}">
 <header th:replace="~{fragments/navbar :: staff('training')}"></header>
 
 <main class="wrap dash-main">
@@ -52,7 +52,8 @@
                 <tr th:if="${#lists.isEmpty(classes)}">
                     <td colspan="9" class="empty">Bạn chưa được thêm vào lớp đào tạo nào.</td>
                 </tr>
-                <tr th:each="item : ${classes}">
+                <tr th:each="item : ${classes}"
+                    th:data-end="${!item.ended and item.endDate != null and item.endTime != null ? #temporals.format(item.endDate, 'yyyy-MM-dd') + 'T' + #temporals.format(item.endTime, 'HH:mm:ss') : ''}">
                     <td>
                         <a class="row-link" th:href="@{/training/staff/classes/{id}(id=${item.id})}" th:text="${item.className}">Pha Chế 2</a>
                     </td>
@@ -84,5 +85,6 @@
         </div>
     </section>
 </main>
+<script th:src="@{/js/training-end-refresh.js}"></script>
 </body>
 </html>

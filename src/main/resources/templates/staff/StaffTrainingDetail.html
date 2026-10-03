@@ -9,7 +9,7 @@
     <link rel="stylesheet" th:href="@{/css/StaffDashboard.css}">
     <link rel="stylesheet" th:href="@{/css/Training.css}">
 </head>
-<body>
+<body th:attr="data-now=${#temporals.format(vietnamNow, 'yyyy-MM-dd') + 'T' + #temporals.format(vietnamNow, 'HH:mm:ss')},data-end=${!classDetail.ended and classDetail.endDate != null and classDetail.endTime != null ? #temporals.format(classDetail.endDate, 'yyyy-MM-dd') + 'T' + #temporals.format(classDetail.endTime, 'HH:mm:ss') : ''}">
 <header th:replace="~{fragments/navbar :: staff('training')}"></header>
 
 <main class="wrap dash-main">
@@ -96,5 +96,6 @@
         <p class="muted">Kết quả do quản lý đánh giá. Bạn chỉ được xem, không thể sửa.</p>
     </section>
 </main>
+<script th:src="@{/js/training-end-refresh.js}"></script>
 </body>
 </html>

@@ -15,6 +15,7 @@ import com.example.coffee_hrm.dto.request.CreateCentralizedTrainingRequest;
 import com.example.coffee_hrm.dto.request.CreateTrainingClassRequest;
 import com.example.coffee_hrm.dto.request.CreateTrainingSkillRequest;
 import com.example.coffee_hrm.dto.request.EvaluateTrainingStudentRequest;
+import com.example.coffee_hrm.dto.response.TrainingClassStudentResponse;
 import com.example.coffee_hrm.entity.Employee;
 import com.example.coffee_hrm.entity.Store;
 import com.example.coffee_hrm.entity.TrainingClass;
@@ -27,6 +28,8 @@ import com.example.coffee_hrm.repository.TrainingClassEnrollmentRepository;
 import com.example.coffee_hrm.repository.TrainingClassRepository;
 import com.example.coffee_hrm.repository.TrainingSkillRepository;
 import com.example.coffee_hrm.repository.UserRepository;
+import com.example.coffee_hrm.repository.EmployeeOpenSkill;
+import com.example.coffee_hrm.repository.EmployeePassedSkill;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.NotificationService;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,6 +51,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -461,7 +465,7 @@ class TrainingServiceImplTest {
                 .createdBy(user(2, RoleName.MANAGER, 20))
                 .build();
         when(trainingClassRepository.findOpenRequestsForManager(
-                5, 2, TrainingType.STORE_TRAINING, VietnamTime.today()))
+                eq(5), eq(2), eq(TrainingType.STORE_TRAINING), eq(VietnamTime.today()), any(LocalTime.class)))
                 .thenReturn(List.of(pending, rejected));
 
         var requests = trainingService.listSubmittedClassesForManager(manager);
@@ -501,7 +505,7 @@ class TrainingServiceImplTest {
                 .build();
         when(trainingClassRepository.searchApprovedActiveForManager(
                 eq(5), eq(2), eq(TrainingType.STORE_TRAINING),
-                eq(TrainingClassStatus.APPROVED), eq(VietnamTime.today()),
+                eq(TrainingClassStatus.APPROVED), eq(VietnamTime.today()), any(LocalTime.class),
                 eq(9), eq(VietnamTime.today()), eq("barista"), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(barista)));
 
@@ -515,7 +519,7 @@ class TrainingServiceImplTest {
         ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
         verify(trainingClassRepository).searchApprovedActiveForManager(
                 eq(5), eq(2), eq(TrainingType.STORE_TRAINING),
-                eq(TrainingClassStatus.APPROVED), eq(VietnamTime.today()),
+                eq(TrainingClassStatus.APPROVED), eq(VietnamTime.today()), any(LocalTime.class),
                 eq(9), eq(VietnamTime.today()), eq("barista"), captor.capture());
         Pageable pageable = captor.getValue();
         assertEquals(6, pageable.getPageSize());
@@ -672,6 +676,314 @@ class TrainingServiceImplTest {
 
         assertEquals("Số học viên vượt quá sĩ số tối đa của lớp.", ex.getMessage());
         verify(employeeRepository, never()).findByIdWithStore(any());
+    }
+
+    @Test
+    void employeeListCarriesPassedSkillIdsWithoutTreatingAnotherSkillAsCertified() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        Employee barista = employee(30, "Nguyễn Văn A", store, EmployeeStatus.ACTIVE);
+        Employee otherSkill = employee(31, "Lê Văn C", store, EmployeeStatus.ACTIVE);
+        Employee none = employee(32, "Trần Văn B", store, EmployeeStatus.ACTIVE);
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
+        when(employeeRepository.findByStore_IdAndStatus(5, EmployeeStatus.ACTIVE))
+                .thenReturn(List.of(none, barista, otherSkill));
+        when(trainingClassEnrollmentRepository.findPassedSkillsByEmployees(
+                any(), eq(TrainingResult.PASS), eq(TrainingClassStatus.APPROVED)))
+                .thenReturn(List.of(
+                        new EmployeePassedSkill(30, 1),
+                        new EmployeePassedSkill(31, 2)));
+
+        var employees = trainingService.listEmployeesForNewStoreClass(manager);
+
+        var nguyen = employees.stream().filter(item -> item.getEmployeeId().equals(30)).findFirst().orElseThrow();
+        var le = employees.stream().filter(item -> item.getEmployeeId().equals(31)).findFirst().orElseThrow();
+        var tran = employees.stream().filter(item -> item.getEmployeeId().equals(32)).findFirst().orElseThrow();
+        assertEquals(List.of(1), nguyen.getCertifiedSkillIds());
+        assertEquals("1", nguyen.getCertifiedSkillIdsCsv());
+        assertEquals("", nguyen.getStudyingSkillIdsCsv());
+        assertNull(nguyen.getStudyingSameSkill());
+        assertNull(nguyen.getHasCertificate());
+        assertEquals(List.of(2), le.getCertifiedSkillIds());
+        assertTrue(tran.getCertifiedSkillIds().isEmpty());
+        assertEquals("", tran.getCertifiedSkillIdsCsv());
+    }
+
+    @Test
+    void availableEmployeesAreCertifiedOnlyWhenTheyPassedEveryClassSkill() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        TrainingClass trainingClass = approvedClass(store, VietnamTime.today().plusDays(1));
+        trainingClass.setSkills(Set.of(
+                TrainingSkill.builder().id(1).skillName("Pha Chế").build(),
+                TrainingSkill.builder().id(2).skillName("Phục Vụ").build()));
+        Employee both = employee(30, "Nguyễn Văn A", store, EmployeeStatus.ACTIVE);
+        Employee brewOnly = employee(31, "Lê Văn C", store, EmployeeStatus.ACTIVE);
+        Employee none = employee(32, "Trần Văn B", store, EmployeeStatus.ACTIVE);
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
+        when(trainingClassRepository.findByIdWithDetails(10)).thenReturn(Optional.of(trainingClass));
+        when(trainingClassEnrollmentRepository.findEmployeeIdsByClassId(10)).thenReturn(List.of());
+        when(employeeRepository.findByStore_IdAndStatus(5, EmployeeStatus.ACTIVE))
+                .thenReturn(List.of(none, both, brewOnly));
+        when(trainingClassEnrollmentRepository.findPassedSkillsByEmployees(
+                any(), eq(TrainingResult.PASS), eq(TrainingClassStatus.APPROVED)))
+                .thenReturn(List.of(
+                        new EmployeePassedSkill(30, 1),
+                        new EmployeePassedSkill(30, 2),
+                        new EmployeePassedSkill(31, 1)));
+
+        var available = trainingService.listAvailableEmployeesForClass(10, manager);
+
+        assertTrue(employeeById(available, 30).getHasCertificate());
+        assertFalse(employeeById(available, 30).getStudyingSameSkill());
+        assertFalse(employeeById(available, 31).getHasCertificate());
+        assertFalse(employeeById(available, 31).getStudyingSameSkill());
+        assertFalse(employeeById(available, 32).getHasCertificate());
+        assertFalse(employeeById(available, 32).getStudyingSameSkill());
+        assertEquals(List.of(1), employeeById(available, 31).getCertifiedSkillIds());
+    }
+
+    @Test
+    void employeePickersExcludeManagerAccounts() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        Employee managerEmployee = employee(20, "Quản lý", store, EmployeeStatus.ACTIVE);
+        Employee staff = employee(30, "Nguyễn Văn A", store, EmployeeStatus.ACTIVE);
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
+        when(userRepository.findEmployeeIdsByRoleName(RoleName.MANAGER)).thenReturn(List.of(20));
+        when(employeeRepository.findByStore_IdAndStatus(5, EmployeeStatus.ACTIVE))
+                .thenReturn(List.of(managerEmployee, staff));
+        when(trainingClassEnrollmentRepository.findPassedSkillsByEmployees(
+                any(), eq(TrainingResult.PASS), eq(TrainingClassStatus.APPROVED)))
+                .thenReturn(List.of());
+
+        var forNewClass = trainingService.listEmployeesForNewStoreClass(manager);
+
+        assertEquals(List.of(30), forNewClass.stream().map(TrainingClassStudentResponse::getEmployeeId).toList());
+
+        when(trainingClassRepository.findByIdWithDetails(10))
+                .thenReturn(Optional.of(approvedClass(store, VietnamTime.today().plusDays(1))));
+        when(trainingClassEnrollmentRepository.findEmployeeIdsByClassId(10)).thenReturn(List.of());
+
+        var available = trainingService.listAvailableEmployeesForClass(10, manager);
+
+        assertEquals(List.of(30), available.stream().map(TrainingClassStudentResponse::getEmployeeId).toList());
+    }
+
+    @Test
+    void centralizedEmployeePickerExcludesManagersWhileTrainerPickerKeepsThem() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        Employee managerEmployee = employee(20, "Quản lý", store, EmployeeStatus.ACTIVE);
+        Employee staff = employee(30, "Nguyễn Văn A", store, EmployeeStatus.ACTIVE);
+        User trainer = user(2, RoleName.MANAGER, 20);
+        when(userRepository.findEmployeeIdsByRoleName(RoleName.MANAGER)).thenReturn(List.of(20));
+        when(employeeRepository.findByStatusWithStore(EmployeeStatus.ACTIVE))
+                .thenReturn(List.of(managerEmployee, staff));
+        when(trainingClassEnrollmentRepository.findPassedSkillsByEmployees(
+                any(), eq(TrainingResult.PASS), eq(TrainingClassStatus.APPROVED)))
+                .thenReturn(List.of());
+        when(userRepository.findActiveByRoleName(RoleName.MANAGER)).thenReturn(List.of(trainer));
+
+        var employees = trainingService.listActiveEmployees(admin);
+        var trainers = trainingService.listTrainerCandidates(admin);
+
+        assertEquals(List.of(30), employees.stream().map(item -> item.getEmployeeId()).toList());
+        assertEquals(List.of(2), trainers.stream().map(item -> item.getUserId()).toList());
+    }
+
+    @Test
+    void addStudentsRejectsManagerAccount() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
+        when(trainingClassRepository.findByIdWithDetails(10))
+                .thenReturn(Optional.of(approvedClass(store, VietnamTime.today().plusDays(1))));
+        when(trainingClassEnrollmentRepository.countByTrainingClass_Id(10)).thenReturn(0L);
+        when(userRepository.findEmployeeIdsByRoleName(RoleName.MANAGER)).thenReturn(List.of(20));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> trainingService.addStudentsToClass(
+                10, AddTrainingClassStudentsRequest.builder().employeeIds(List.of(20)).build(), manager));
+
+        assertEquals(
+                "Không thể thêm tài khoản Manager vào lớp. Manager chỉ được chọn làm người đào tạo khi Admin tạo lớp.",
+                ex.getMessage());
+        verify(trainingClassEnrollmentRepository, never()).save(any());
+        verify(employeeRepository, never()).findByIdWithStore(any());
+    }
+
+    @Test
+    void addStudentsRejectsEmployeeAlreadyCertifiedForEveryClassSkill() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        Employee employee = employee(30, "Nguyễn Văn A", store, EmployeeStatus.ACTIVE);
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
+        when(trainingClassRepository.findByIdWithDetails(10))
+                .thenReturn(Optional.of(approvedClass(store, VietnamTime.today().plusDays(1))));
+        when(trainingClassEnrollmentRepository.countByTrainingClass_Id(10)).thenReturn(0L);
+        when(employeeRepository.findByIdWithStore(30)).thenReturn(Optional.of(employee));
+        when(trainingClassEnrollmentRepository.existsByTrainingClass_IdAndEmployee_Id(10, 30)).thenReturn(false);
+        when(trainingClassEnrollmentRepository.findPassedSkillsByEmployees(
+                any(), eq(TrainingResult.PASS), eq(TrainingClassStatus.APPROVED)))
+                .thenReturn(List.of(new EmployeePassedSkill(30, 1)));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> trainingService.addStudentsToClass(
+                10, AddTrainingClassStudentsRequest.builder().employeeIds(List.of(30)).build(), manager));
+
+        assertEquals("Nhân viên Nguyễn Văn A đã có chứng chỉ cho kỹ năng của lớp này.", ex.getMessage());
+        verify(trainingClassEnrollmentRepository, never()).save(any());
+    }
+
+    @Test
+    void addStudentsAllowsEmployeeWhoStillMissesAClassSkill() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        TrainingClass trainingClass = approvedClass(store, VietnamTime.today().plusDays(1));
+        trainingClass.setSkills(Set.of(
+                TrainingSkill.builder().id(1).skillName("Pha Chế").build(),
+                TrainingSkill.builder().id(2).skillName("Phục Vụ").build()));
+        Employee employee = employee(31, "Lê Văn C", store, EmployeeStatus.ACTIVE);
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
+        when(trainingClassRepository.findByIdWithDetails(10)).thenReturn(Optional.of(trainingClass));
+        when(trainingClassEnrollmentRepository.countByTrainingClass_Id(10)).thenReturn(0L);
+        when(employeeRepository.findByIdWithStore(31)).thenReturn(Optional.of(employee));
+        when(trainingClassEnrollmentRepository.existsByTrainingClass_IdAndEmployee_Id(10, 31)).thenReturn(false);
+        when(trainingClassEnrollmentRepository.findPassedSkillsByEmployees(
+                any(), eq(TrainingResult.PASS), eq(TrainingClassStatus.APPROVED)))
+                .thenReturn(List.of(new EmployeePassedSkill(31, 1)));
+        when(userRepository.findByEmployee_Id(31)).thenReturn(Optional.empty());
+
+        int added = trainingService.addStudentsToClass(10, AddTrainingClassStudentsRequest.builder()
+                .employeeIds(List.of(31))
+                .build(), manager);
+
+        assertEquals(1, added);
+        verify(trainingClassEnrollmentRepository).save(any(TrainingClassEnrollment.class));
+    }
+
+    @Test
+    void addStudentsRejectsEmployeeStudyingTheSameSkillInAnotherOpenClass() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        Employee employee = employee(30, "Nguyễn Văn A", store, EmployeeStatus.ACTIVE);
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
+        when(trainingClassRepository.findByIdWithDetails(10))
+                .thenReturn(Optional.of(approvedClass(store, VietnamTime.today().plusDays(1))));
+        when(trainingClassEnrollmentRepository.countByTrainingClass_Id(10)).thenReturn(0L);
+        when(employeeRepository.findByIdWithStore(30)).thenReturn(Optional.of(employee));
+        when(trainingClassEnrollmentRepository.existsByTrainingClass_IdAndEmployee_Id(10, 30)).thenReturn(false);
+        when(trainingClassEnrollmentRepository.findOpenSkillEnrollments(
+                any(), eq(TrainingClassStatus.REJECTED), eq(10), any(), any()))
+                .thenReturn(List.of(new EmployeeOpenSkill(30, 1, "Espresso", "Lớp tập trung")));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> trainingService.addStudentsToClass(
+                10, AddTrainingClassStudentsRequest.builder().employeeIds(List.of(30)).build(), manager));
+
+        assertEquals("Nhân viên Nguyễn Văn A đang học kỹ năng Espresso ở lớp \"Lớp tập trung\" còn hiệu lực, "
+                + "nên không thể tham gia lớp khác cùng kỹ năng.", ex.getMessage());
+        verify(trainingClassEnrollmentRepository, never()).save(any());
+    }
+
+    @Test
+    void addStudentsRejectsWhenOnlyOneOfSeveralClassSkillsIsAlreadyBeingStudied() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        TrainingClass trainingClass = approvedClass(store, VietnamTime.today().plusDays(1));
+        trainingClass.setSkills(Set.of(
+                TrainingSkill.builder().id(1).skillName("Pha Chế").build(),
+                TrainingSkill.builder().id(2).skillName("Phục Vụ").build()));
+        Employee employee = employee(30, "Nguyễn Văn A", store, EmployeeStatus.ACTIVE);
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
+        when(trainingClassRepository.findByIdWithDetails(10)).thenReturn(Optional.of(trainingClass));
+        when(trainingClassEnrollmentRepository.countByTrainingClass_Id(10)).thenReturn(0L);
+        when(employeeRepository.findByIdWithStore(30)).thenReturn(Optional.of(employee));
+        when(trainingClassEnrollmentRepository.existsByTrainingClass_IdAndEmployee_Id(10, 30)).thenReturn(false);
+        when(trainingClassEnrollmentRepository.findOpenSkillEnrollments(
+                any(), eq(TrainingClassStatus.REJECTED), eq(10), any(), any()))
+                .thenReturn(List.of(new EmployeeOpenSkill(30, 2, "Phục Vụ", "Lớp tại cửa hàng")));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> trainingService.addStudentsToClass(
+                10, AddTrainingClassStudentsRequest.builder().employeeIds(List.of(30)).build(), manager));
+
+        assertEquals("Nhân viên Nguyễn Văn A đang học kỹ năng Phục Vụ ở lớp \"Lớp tại cửa hàng\" còn hiệu lực, "
+                + "nên không thể tham gia lớp khác cùng kỹ năng.", ex.getMessage());
+        verify(trainingClassEnrollmentRepository, never()).save(any());
+    }
+
+    @Test
+    void addStudentsAllowsEmployeeStudyingADifferentSkill() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        Employee employee = employee(30, "Nguyễn Văn A", store, EmployeeStatus.ACTIVE);
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
+        when(trainingClassRepository.findByIdWithDetails(10))
+                .thenReturn(Optional.of(approvedClass(store, VietnamTime.today().plusDays(1))));
+        when(trainingClassEnrollmentRepository.countByTrainingClass_Id(10)).thenReturn(0L);
+        when(employeeRepository.findByIdWithStore(30)).thenReturn(Optional.of(employee));
+        when(trainingClassEnrollmentRepository.existsByTrainingClass_IdAndEmployee_Id(10, 30)).thenReturn(false);
+        when(trainingClassEnrollmentRepository.findOpenSkillEnrollments(
+                any(), eq(TrainingClassStatus.REJECTED), eq(10), any(), any()))
+                .thenReturn(List.of(new EmployeeOpenSkill(30, 9, "Pha chế", "Lớp khác")));
+        when(userRepository.findByEmployee_Id(30)).thenReturn(Optional.empty());
+
+        int added = trainingService.addStudentsToClass(10, AddTrainingClassStudentsRequest.builder()
+                .employeeIds(List.of(30))
+                .build(), manager);
+
+        assertEquals(1, added);
+        verify(trainingClassEnrollmentRepository).save(any(TrainingClassEnrollment.class));
+    }
+
+    @Test
+    void availableEmployeesAreBlockedOnlyWhenAnOpenClassSharesASkill() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        Employee sameSkill = employee(30, "Nguyễn Văn A", store, EmployeeStatus.ACTIVE);
+        Employee otherSkill = employee(31, "Lê Văn C", store, EmployeeStatus.ACTIVE);
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
+        when(trainingClassRepository.findByIdWithDetails(10))
+                .thenReturn(Optional.of(approvedClass(store, VietnamTime.today().plusDays(1))));
+        when(trainingClassEnrollmentRepository.findEmployeeIdsByClassId(10)).thenReturn(List.of());
+        when(employeeRepository.findByStore_IdAndStatus(5, EmployeeStatus.ACTIVE))
+                .thenReturn(List.of(sameSkill, otherSkill));
+        when(trainingClassEnrollmentRepository.findOpenSkillEnrollments(
+                any(), eq(TrainingClassStatus.REJECTED), eq(10), any(), any()))
+                .thenReturn(List.of(
+                        new EmployeeOpenSkill(30, 1, "Espresso", "Lớp tập trung"),
+                        new EmployeeOpenSkill(31, 4, "Pha chế", "Lớp khác")));
+
+        var available = trainingService.listAvailableEmployeesForClass(10, manager);
+
+        assertTrue(employeeById(available, 30).getStudyingSameSkill());
+        assertEquals(List.of(1), employeeById(available, 30).getStudyingSkillIds());
+        assertFalse(employeeById(available, 30).getHasCertificate());
+        assertFalse(employeeById(available, 31).getStudyingSameSkill());
+        assertEquals(List.of(4), employeeById(available, 31).getStudyingSkillIds());
+    }
+
+    @Test
+    void newClassPickerShowsSkillsBeingStudiedBeforeAClassIsChosen() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        Employee employee = employee(30, "Nguyễn Văn A", store, EmployeeStatus.ACTIVE);
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
+        when(employeeRepository.findByStore_IdAndStatus(5, EmployeeStatus.ACTIVE)).thenReturn(List.of(employee));
+        when(trainingClassEnrollmentRepository.findOpenSkillEnrollments(
+                any(), eq(TrainingClassStatus.REJECTED), eq(0), any(), any()))
+                .thenReturn(List.of(new EmployeeOpenSkill(30, 1, "Espresso", "Lớp tập trung")));
+
+        var employees = trainingService.listEmployeesForNewStoreClass(manager);
+
+        var option = employees.get(0);
+        assertEquals(List.of(1), option.getStudyingSkillIds());
+        assertEquals("1", option.getStudyingSkillIdsCsv());
+        assertNull(option.getStudyingSameSkill());
+    }
+
+    @Test
+    void classIsEndedOnceCurrentTimeReachesEndTime() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        TrainingClass finishedToday = approvedClass(store, VietnamTime.today());
+        finishedToday.setEndTime(LocalTime.MIN);
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
+        when(trainingClassRepository.findByIdWithDetails(10)).thenReturn(Optional.of(finishedToday));
+        when(trainingClassEnrollmentRepository.findByClassIdWithEmployee(10)).thenReturn(List.of());
+
+        assertTrue(trainingService.getApprovedClassDetailForManager(10, manager).isEnded());
+
+        TrainingClass stillRunning = approvedClass(store, VietnamTime.today().plusDays(1));
+        stillRunning.setEndTime(LocalTime.NOON);
+        when(trainingClassRepository.findByIdWithDetails(10)).thenReturn(Optional.of(stillRunning));
+
+        assertFalse(trainingService.getApprovedClassDetailForManager(10, manager).isEnded());
     }
 
     @Test
@@ -1087,6 +1399,13 @@ class TrainingServiceImplTest {
                         .build(), admin));
 
         assertEquals("Nhân viên không thuộc các cửa hàng của lớp đào tạo.", ex.getMessage());
+    }
+
+    private TrainingClassStudentResponse employeeById(List<TrainingClassStudentResponse> employees, Integer employeeId) {
+        return employees.stream()
+                .filter(item -> employeeId.equals(item.getEmployeeId()))
+                .findFirst()
+                .orElseThrow();
     }
 
     private User staffAccount(Integer userId, Integer employeeId) {

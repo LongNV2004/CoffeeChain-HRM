@@ -30,6 +30,12 @@ th{color:var(--ink-soft);font-weight:500;}
 .badge-ok{background:#E6F0E7;color:#3F6B45;}
 .badge-off{background:#F6E4DC;color:#8A4632;}
 .badge-wait{background:#F4E8D4;color:#8A5A20;}
+.badge-cert{background:#E5F6EA;color:#157347;}
+.badge-nocert{background:#FDECEC;color:#B42318;}
+.badge-studying{background:#F4E8D4;color:#8A5A20;}
+.employee-name-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.cert-badge{flex:none;margin-top:0;white-space:nowrap;}
+.cert-badge[hidden]{display:none;}
 .flash{padding:10px 12px;border:1px solid var(--line);background:#fff;margin:16px 0 0;font-size:14px;}
 .flash.success{border-color:#C9DCCB;color:#3F6B45;}
 .flash.error{border-color:#E8C7BB;color:var(--clay);}
@@ -118,6 +124,8 @@ th{color:var(--ink-soft);font-weight:500;}
 .stack-form .ms-item input{width:auto;}
 .ms-item:last-child{border-bottom:0;}
 .ms-item[hidden]{display:none;}
+.ms-item.is-certified,.picker-list label.is-certified,
+.ms-item.is-studying,.picker-list label.is-studying{cursor:default;background:#FBF8F6;}
 .ms-item .muted{display:block;}
 .ms-hint{margin:0;padding:10px 12px;font-size:13px;color:var(--ink-soft);}
 .ms-hint[hidden]{display:none;}

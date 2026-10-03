@@ -231,10 +231,15 @@ function initMultiSelects() {
         if (input.classList.contains('store-choice')) {
           boxes.forEach(refreshBox);
         }
+        if (input.name === 'skillIds') {
+          syncEmployeeEligibility(refreshBox);
+        }
       });
     });
     refreshBox(box);
   });
+
+  syncEmployeeEligibility(refreshBox);
 
   document.addEventListener('click', closeAll);
   document.addEventListener('keydown', function (event) {
@@ -242,4 +247,57 @@ function initMultiSelects() {
       closeAll();
     }
   });
+}
+
+function skillIdList(item, attribute) {
+  return (item.getAttribute(attribute) || '')
+    .split(',')
+    .map(function (value) { return value.trim(); })
+    .filter(Boolean);
+}
+
+function syncEmployeeEligibility(refreshBox) {
+  var skillInputs = document.querySelectorAll('input[name="skillIds"]');
+  if (!skillInputs.length) {
+    return;
+  }
+  var selected = Array.prototype.map.call(skillInputs, function (input) {
+    return input.checked ? String(input.value) : '';
+  }).filter(Boolean);
+
+  document.querySelectorAll('[data-certified-skills]').forEach(function (item) {
+    var badge = item.querySelector('.cert-badge');
+    var input = item.querySelector('input[name="employeeIds"]');
+    var held = skillIdList(item, 'data-certified-skills');
+    var studying = skillIdList(item, 'data-studying-skills');
+    var covered = selected.length > 0 && selected.every(function (skillId) {
+      return held.indexOf(skillId) >= 0;
+    });
+    var inProgress = !covered && selected.length > 0 && selected.some(function (skillId) {
+      return studying.indexOf(skillId) >= 0;
+    });
+    if (badge) {
+      badge.hidden = selected.length === 0;
+      badge.textContent = covered ? 'Có chứng chỉ' : (inProgress ? 'Đang học' : 'Không chứng chỉ');
+      badge.classList.toggle('badge-cert', covered);
+      badge.classList.toggle('badge-studying', inProgress);
+      badge.classList.toggle('badge-nocert', selected.length > 0 && !covered && !inProgress);
+    }
+    item.classList.toggle('is-certified', covered);
+    item.classList.toggle('is-studying', inProgress);
+    if (input) {
+      input.disabled = covered || inProgress;
+      if (covered || inProgress) {
+        input.checked = false;
+      }
+    }
+  });
+
+  if (typeof refreshBox === 'function') {
+    document.querySelectorAll('[data-ms]').forEach(function (box) {
+      if (box.querySelector('input[name="employeeIds"]')) {
+        refreshBox(box);
+      }
+    });
+  }
 }
