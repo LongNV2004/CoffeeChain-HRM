@@ -34,7 +34,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
       showFieldError(
           usernameError,
-          'Vui lòng nhập tên đăng nhập'
+          'Vui lòng nhập email hoặc tên đăng nhập'
       );
 
       valid = false;
@@ -57,7 +57,7 @@ document.addEventListener('DOMContentLoaded', function () {
       event.preventDefault();
 
       showMessage(
-          'Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.',
+          'Vui lòng nhập đầy đủ thông tin đăng nhập.',
           'error'
       );
     }

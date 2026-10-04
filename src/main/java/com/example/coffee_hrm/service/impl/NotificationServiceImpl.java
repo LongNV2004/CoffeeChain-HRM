@@ -117,6 +117,15 @@ public class NotificationServiceImpl implements NotificationService {
             case "WORK_AVAILABILITY" -> user.getRoleName() == RoleName.MANAGER
                     ? "/availability/manager"
                     : null;
+            case "RECRUITMENT_REQUEST" -> switch (user.getRoleName()) {
+                case ADMIN -> notification.getReferenceId() == null
+                        ? "/admin/recruitment"
+                        : "/admin/recruitment/" + notification.getReferenceId();
+                case MANAGER -> notification.getReferenceId() == null
+                        ? "/manager/recruitment"
+                        : "/manager/recruitment/" + notification.getReferenceId();
+                case STAFF -> null;
+            };
             default -> null;
         };
     }

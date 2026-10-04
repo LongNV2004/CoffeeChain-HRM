@@ -165,9 +165,8 @@
                         <span class="employee-name-row">
                             <strong th:text="${employee.fullName}">Nhân viên</strong>
                             <span class="badge"
-                                  th:if="${employee.hasCertificate != null or employee.studyingSameSkill != null}"
                                   th:classappend="${employee.hasCertificate} ? ' badge-cert' : (${employee.studyingSameSkill} ? ' badge-studying' : ' badge-nocert')"
-                                  th:text="${employee.hasCertificate} ? 'Có chứng chỉ' : (${employee.studyingSameSkill} ? 'Đang học' : 'Không chứng chỉ')">Không chứng chỉ</span>
+                                  th:text="${employee.hasCertificate} ? 'Có chứng chỉ' : (${employee.studyingSameSkill} ? 'Đang học' : 'Không có chứng chỉ')">Không có chứng chỉ</span>
                         </span>
                         <span class="muted" th:text="${employee.email != null} ? ${employee.email} : ''">email</span>
                     </span>

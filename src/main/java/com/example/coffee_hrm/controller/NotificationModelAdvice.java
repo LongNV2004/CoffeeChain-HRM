@@ -34,8 +34,7 @@ public class NotificationModelAdvice {
         if (user.getRoleName() != RoleName.ADMIN) {
             return 0;
         }
-        Integer count = recruitmentRequestService.countPendingRequests();
-        return count == null ? 0 : count;
+        return recruitmentRequestService.countPendingRequests();
     }
 
     @ModelAttribute("activeTrainingCount")

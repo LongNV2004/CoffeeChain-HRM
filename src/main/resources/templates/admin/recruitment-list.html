@@ -10,51 +10,97 @@
 </head>
 <body>
 <header th:replace="~{fragments/navbar :: admin('recruitment')}"></header>
-
 <main class="wrap dash-main">
     <section class="welcome">
         <div class="eyebrow">Trụ sở — Admin</div>
-        <h1>Yêu cầu tuyển dụng</h1>
-        <p>Xem và phê duyệt đề xuất bổ sung nhân sự từ các cửa hàng.</p>
+        <h1>Đề xuất tuyển nhân sự</h1>
+        <p>Duyệt để tạo tài khoản Staff và gửi mật khẩu tạm thời qua email, hoặc từ chối đề xuất.</p>
     </section>
 
+    <p class="flash success" th:if="${successMessage}" th:text="${successMessage}"></p>
+    <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}"></p>
+
     <section class="panel">
+        <h2>Bộ lọc</h2>
+        <form class="filter-grid" th:action="@{/admin/recruitment}" method="get">
+            <label>
+                Cửa hàng
+                <select name="storeId">
+                    <option value="">Tất cả cửa hàng</option>
+                    <option th:each="store : ${stores}"
+                            th:value="${store.id}"
+                            th:text="${store.storeName}"
+                            th:selected="${storeId != null and storeId == store.id}">Store</option>
+                </select>
+            </label>
+            <label>
+                Manager
+                <select name="managerId">
+                    <option value="">Tất cả Manager</option>
+                    <option th:each="manager : ${managers}"
+                            th:value="${manager.id}"
+                            th:text="${manager.name + ' — ' + manager.storeName}"
+                            th:selected="${managerId != null and managerId == manager.id}">Manager</option>
+                </select>
+            </label>
+            <label>
+                Trạng thái
+                <select name="status">
+                    <option value="">Tất cả trạng thái</option>
+                    <option th:each="item : ${statuses}"
+                            th:value="${item.name()}"
+                            th:text="${item.label}"
+                            th:selected="${selectedStatus == item}">Chờ duyệt</option>
+                </select>
+            </label>
+            <label>
+                Từ ngày
+                <input type="date" name="createdFrom" th:value="${createdFrom}">
+            </label>
+            <label>
+                Đến ngày
+                <input type="date" name="createdTo" th:value="${createdTo}">
+            </label>
+            <div class="form-actions">
+                <button class="primary-btn" type="submit">Lọc</button>
+                <a class="back-link" th:href="@{/admin/recruitment}">Xóa lọc</a>
+            </div>
+        </form>
+
         <table>
             <thead>
             <tr>
+                <th>Nhân viên</th>
+                <th>Email</th>
+                <th>Điện thoại</th>
                 <th>Cửa hàng</th>
-                <th>Số lượng</th>
-                <th>Lý do</th>
+                <th>Manager</th>
                 <th>Trạng thái</th>
-                <th>Duyệt</th>
+                <th>Ngày gửi</th>
+                <th></th>
             </tr>
             </thead>
             <tbody>
             <tr th:if="${#lists.isEmpty(requests)}">
-                <td colspan="5" class="empty">Chưa có đề xuất tuyển nhân sự.</td>
+                <td colspan="8" class="empty">Chưa có đề xuất tuyển nhân sự.</td>
             </tr>
             <tr th:each="request : ${requests}">
-                <td th:text="${request.store.storeName}">Store</td>
-                <td th:text="${request.requestedNumber}">0</td>
-                <td th:text="${request.reason}">Reason</td>
+                <td th:text="${request.fullName}">Nguyễn Văn A</td>
+                <td th:text="${request.email}">a@shop.vn</td>
+                <td th:text="${request.phone}">0901234567</td>
+                <td th:text="${request.storeName}">Store</td>
+                <td th:text="${request.managerName}">Manager</td>
                 <td>
                     <span class="badge"
                           th:classappend="${request.status.name() == 'APPROVED'} ? ' badge-ok' : (${request.status.name() == 'REJECTED'} ? ' badge-off' : ' badge-wait')"
-                          th:text="${request.status.dbValue}">Pending</span>
+                          th:text="${request.statusLabel}">Chờ duyệt</span>
                 </td>
-                <td class="actions">
-                    <form th:action="@{/admin/recruitment/{id}/approve(id=${request.id})}" method="post">
-                        <button type="submit" class="primary-btn">Duyệt</button>
-                    </form>
-                    <form th:action="@{/admin/recruitment/{id}/reject(id=${request.id})}" method="post">
-                        <button type="submit" class="logout-btn">Từ chối</button>
-                    </form>
-                </td>
+                <td th:text="${request.createdAt != null} ? ${#temporals.format(request.createdAt, 'dd/MM/yyyy HH:mm')} : ''">01/01/2026</td>
+                <td><a class="row-link" th:href="@{/admin/recruitment/{id}(id=${request.id})}">Chi tiết</a></td>
             </tr>
             </tbody>
         </table>
     </section>
 </main>
-<script th:src="@{/js/AdminDashboard.js}"></script>
 </body>
 </html>

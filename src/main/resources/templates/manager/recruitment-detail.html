@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chi tiết đề xuất tuyển nhân sự — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
+</head>
+<body>
+<header th:replace="~{fragments/navbar :: manager('recruitment')}"></header>
+<main class="wrap dash-main">
+    <section class="welcome">
+        <div class="eyebrow">Cửa hàng — Manager</div>
+        <h1 th:text="${request.fullName}">Nhân viên</h1>
+        <p>Đề xuất này đang chờ Admin quyết định. Bạn không thể tự duyệt hoặc tạo tài khoản.</p>
+    </section>
+
+    <section class="panel" style="max-width:720px;">
+        <dl class="info-list">
+            <div><dt>Cửa hàng</dt><dd th:text="${request.storeName}">Store</dd></div>
+            <div><dt>Email</dt><dd th:text="${request.email}">a@shop.vn</dd></div>
+            <div><dt>Số điện thoại</dt><dd th:text="${request.phone}">0901</dd></div>
+            <div><dt>Địa chỉ</dt><dd th:text="${request.address != null ? request.address : '—'}">—</dd></div>
+            <div>
+                <dt>Trạng thái</dt>
+                <dd>
+                    <span class="badge"
+                          th:classappend="${request.status.name() == 'APPROVED'} ? ' badge-ok' : (${request.status.name() == 'REJECTED'} ? ' badge-off' : ' badge-wait')"
+                          th:text="${request.statusLabel}">Chờ duyệt</span>
+                </dd>
+            </div>
+            <div><dt>Ngày gửi</dt><dd th:text="${request.createdAt != null} ? ${#temporals.format(request.createdAt, 'dd/MM/yyyy HH:mm')} : '—'">—</dd></div>
+            <div th:if="${request.reviewedAt != null}">
+                <dt>Ngày xử lý</dt>
+                <dd th:text="${#temporals.format(request.reviewedAt, 'dd/MM/yyyy HH:mm')}">—</dd>
+            </div>
+            <div th:if="${request.status.name() == 'REJECTED'}">
+                <dt>Lý do từ chối</dt>
+                <dd th:text="${request.rejectReason != null ? request.rejectReason : 'Không có lý do từ chối.'}">Lý do</dd>
+            </div>
+        </dl>
+        <p class="muted" th:if="${request.status.name() == 'APPROVED'}">Admin đã duyệt. Tài khoản Staff được tạo và mật khẩu tạm thời đã gửi qua email. Mật khẩu không hiển thị trên hệ thống.</p>
+        <p class="muted"><a class="back-link" th:href="@{/manager/recruitment}">Quay lại danh sách</a></p>
+    </section>
+</main>
+</body>
+</html>

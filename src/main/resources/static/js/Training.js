@@ -277,11 +277,11 @@ function syncEmployeeEligibility(refreshBox) {
       return studying.indexOf(skillId) >= 0;
     });
     if (badge) {
-      badge.hidden = selected.length === 0;
-      badge.textContent = covered ? 'Có chứng chỉ' : (inProgress ? 'Đang học' : 'Không chứng chỉ');
+      badge.hidden = false;
+      badge.textContent = covered ? 'Có chứng chỉ' : (inProgress ? 'Đang học' : 'Không có chứng chỉ');
       badge.classList.toggle('badge-cert', covered);
       badge.classList.toggle('badge-studying', inProgress);
-      badge.classList.toggle('badge-nocert', selected.length > 0 && !covered && !inProgress);
+      badge.classList.toggle('badge-nocert', !covered && !inProgress);
     }
     item.classList.toggle('is-certified', covered);
     item.classList.toggle('is-studying', inProgress);

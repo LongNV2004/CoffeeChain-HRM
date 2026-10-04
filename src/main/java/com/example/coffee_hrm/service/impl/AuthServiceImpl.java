@@ -28,7 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
 
-    private static final String LOGIN_FAILED_MESSAGE = "Tên đăng nhập hoặc mật khẩu không chính xác.";
+    private static final String LOGIN_FAILED_MESSAGE = "Email, tên đăng nhập hoặc mật khẩu không chính xác.";
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;

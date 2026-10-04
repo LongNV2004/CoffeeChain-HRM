@@ -16,9 +16,11 @@ public interface UserRepository extends JpaRepository<User, Integer> {
             JOIN FETCH u.role
             LEFT JOIN FETCH u.employee e
             LEFT JOIN FETCH e.store
-            WHERE u.username = :username
+            WHERE LOWER(u.username) = LOWER(:username)
             """)
     Optional<User> findByUsername(@Param("username") String username);
+
+    boolean existsByUsernameIgnoreCase(String username);
 
     Optional<User> findByEmployee_Id(Integer employeeId);
 

@@ -14,6 +14,7 @@ import com.example.coffee_hrm.service.EmployeeService;
 import com.example.coffee_hrm.service.NotificationService;
 import com.example.coffee_hrm.service.RecruitmentRequestService;
 import com.example.coffee_hrm.service.StoreService;
+import com.example.coffee_hrm.service.TrainingService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -52,6 +53,8 @@ class AdminEmployeeControllerTest {
     private NotificationService notificationService;
     @MockitoBean
     private RecruitmentRequestService recruitmentRequestService;
+    @MockitoBean
+    private TrainingService trainingService;
 
     @Test
     void managerAndStaffCannotViewStoreEmployees() throws Exception {

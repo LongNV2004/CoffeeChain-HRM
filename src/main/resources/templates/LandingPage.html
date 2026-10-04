@@ -108,7 +108,7 @@
                         </h2>
 
                         <p>
-                            Đăng nhập bằng tài khoản được cấp theo vai trò của bạn.
+                            Nhân viên đăng nhập bằng email. Admin và Manager có thể dùng tên đăng nhập được cấp.
                         </p>
 
                     </div>
@@ -118,7 +118,7 @@
                     <div class="field">
 
                         <label for="username">
-                            Tên đăng nhập
+                            Email hoặc tên đăng nhập
                         </label>
 
                         <div class="input-wrap">
@@ -142,11 +142,11 @@
                                     th:field="*{username}"
                                     type="text"
                                     autocomplete="username"
-                                    placeholder="Nhập tên đăng nhập"
+                                    placeholder="Nhập email hoặc tên đăng nhập"
                                     required
                                     minlength="3"
-                                    maxlength="50"
-                                    pattern="[A-Za-z0-9._]+"
+                                    maxlength="100"
+                                    pattern="[A-Za-z0-9._@+%\-]+"
                             >
 
                         </div>
@@ -240,7 +240,7 @@
                             class="form-msg"
                             id="form-message"
                             th:classappend="${loginValidationMessage != null or loginError} ? ' show error' : (${logoutSuccess} ? ' show success' : '')"
-                            th:text="${loginValidationMessage != null} ? ${loginValidationMessage} : (${loginError} ? (${errorCode == 'unauthorized'} ? 'Tài khoản không có quyền truy cập hệ thống.' : (${errorCode == 'inactive'} ? 'Tài khoản đã bị vô hiệu hóa.' : 'Tên đăng nhập hoặc mật khẩu không chính xác.')) : (${logoutSuccess} ? 'Bạn đã đăng xuất thành công.' : ''))"
+                            th:text="${loginValidationMessage != null} ? ${loginValidationMessage} : (${loginError} ? (${errorCode == 'unauthorized'} ? 'Tài khoản không có quyền truy cập hệ thống.' : (${errorCode == 'inactive'} ? 'Tài khoản đã bị vô hiệu hóa.' : 'Email, tên đăng nhập hoặc mật khẩu không chính xác.')) : (${logoutSuccess} ? 'Bạn đã đăng xuất thành công.' : ''))"
                     ></p>
 
 
