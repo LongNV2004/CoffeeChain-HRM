@@ -8,11 +8,13 @@ import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 
 @Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -22,9 +24,11 @@ public class UpdateEmployeeRequest {
     @Size(max = 100)
     private String fullName;
 
+    @NotBlank
     @Size(max = 15)
     private String phone;
 
+    @NotBlank
     @Email
     @Size(max = 100)
     private String email;
@@ -45,4 +49,6 @@ public class UpdateEmployeeRequest {
     private LocalDate hireDate;
 
     private LocalDate terminationDate;
+    @NotBlank
+    private String role;
 }
