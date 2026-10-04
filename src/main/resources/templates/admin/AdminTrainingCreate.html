@@ -52,7 +52,6 @@
 
             <div class="ms-field">
                 <p>Nhân viên</p>
-                <p class="muted">Chỉ hiện nhân viên đang làm việc thuộc các cửa hàng đã chọn. Tài khoản Manager không nằm trong danh sách này; Manager chỉ được chọn ở mục Người đào tạo. Nhân viên mới mặc định Không có chứng chỉ và trạng thái hiện cạnh tên. Sau khi chọn kỹ năng, trạng thái cập nhật theo kỹ năng đó. Nhân viên đã có đủ chứng chỉ, hoặc đang học một kỹ năng đó ở lớp còn hiệu lực chưa bị từ chối và chưa đánh giá, không thể thêm vào lớp.</p>
                 <p class="empty" th:if="${employees == null or #lists.isEmpty(employees)}">Không có nhân viên đang làm việc.</p>
                 <div class="ms" data-ms data-placeholder="Chọn nhân viên"
                      data-filter-by="storeIds"
