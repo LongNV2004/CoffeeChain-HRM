@@ -37,8 +37,8 @@
 
     <section class="panel">
         <h2>Lọc theo thời gian</h2>
-        <p class="note">Chỉ hiển thị dữ liệu chấm công của chính bạn. Hệ thống ghi nhận tổng giờ làm việc, chưa có cột ngày công riêng. Ca làm việc lấy từ lịch phân ca cùng ngày.</p>
-        <form class="filter-form" method="get" th:action="@{/attendance/staff}">
+        <p class="note">Chỉ hiển thị dữ liệu chấm công của chính bạn. Giờ ca được lưu tại thời điểm check-in. Tổng thời gian chỉ cộng các ca đã check-out.</p>
+        <form class="filter-form" method="get" th:action="@{/attendance/staff/history}">
             <label>Từ ngày
                 <input type="date" name="from" th:max="${vietnamToday}" th:value="${#temporals.format(history.fromDate, 'yyyy-MM-dd')}">
             </label>
@@ -47,6 +47,7 @@
             </label>
             <button class="primary-btn" type="submit">Xem lịch sử</button>
         </form>
+        <a class="link-btn" th:href="@{/attendance/staff}">Quay lại chấm công</a>
     </section>
 
     <section class="panel">
@@ -56,12 +57,20 @@
             <table>
                 <thead>
                 <tr>
-                    <th>Ngày làm việc</th>
+                    <th>Ngày</th>
                     <th>Nhân viên</th>
-                    <th>Ca làm việc</th>
+                    <th>Cửa hàng</th>
+                    <th>Ca</th>
+                    <th>Bắt đầu ca</th>
+                    <th>Kết thúc ca</th>
                     <th>Check-in</th>
                     <th>Check-out</th>
-                    <th>Tổng thời gian</th>
+                    <th>Thời gian làm</th>
+                    <th>Đi muộn</th>
+                    <th>Về sớm</th>
+                    <th>Còn thiếu</th>
+                    <th>IP Check-in</th>
+                    <th>IP Check-out</th>
                     <th>Trạng thái</th>
                 </tr>
                 </thead>
@@ -72,12 +81,20 @@
                         <span th:text="${row.employeeName}">Tên</span>
                         <span th:text="'#' + ${row.employeeId}">#1</span>
                     </td>
+                    <td th:text="${row.storeName}">Cửa hàng</td>
                     <td th:text="${row.shiftLabel}">Ca sáng</td>
+                    <td th:text="${row.scheduledStartLabel}">08:00</td>
+                    <td th:text="${row.scheduledEndLabel}">17:00</td>
                     <td th:text="${row.checkInLabel}">08:00</td>
                     <td th:text="${row.checkOutLabel}">17:00</td>
                     <td th:text="${row.totalHoursLabel}">8 giờ</td>
+                    <td th:text="${row.lateLabel}">0 phút</td>
+                    <td th:text="${row.earlyLabel}">0 phút</td>
+                    <td th:text="${row.missingLabel}">0 phút</td>
+                    <td th:text="${row.checkInIp}">—</td>
+                    <td th:text="${row.checkOutIp}">—</td>
                     <td>
-                        <span class="status-tag" th:classappend="${row.statusCss}" th:text="${row.statusLabel}">Đúng giờ</span>
+                        <span class="status-tag" th:classappend="${row.statusCss}" th:text="${row.statusLabel}">Có mặt</span>
                     </td>
                 </tr>
                 </tbody>
