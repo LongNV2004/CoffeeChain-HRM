@@ -1,0 +1,420 @@
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Cormorant+Garamond:wght@600;700&display=swap');
+
+/* Chỉ áp dụng bố cục dịch ngang trên các trang thực sự chứa sidebar. */
+body:has(.coffee-sidebar) {
+    --coffee-sidebar-width: 296px;
+    padding-left: var(--coffee-sidebar-width);
+    transition: padding-left .22s ease;
+}
+body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 76px; }
+body:has(.coffee-sidebar) main.wrap {
+    width: auto;
+    max-width: none;
+    margin-right: 28px;
+    margin-left: 28px;
+}
+
+.coffee-sidebar,
+.coffee-sidebar * { box-sizing: border-box; }
+
+.coffee-sidebar {
+    --coffee-ink: #f9efdf;
+    --coffee-muted: #ceaa91;
+    --coffee-highlight: #e9b97f;
+    position: fixed;
+    z-index: 1050;
+    inset: 0 auto 0 0;
+    display: flex;
+    flex-direction: column;
+    width: 296px;
+    height: 100vh;
+    height: 100dvh;
+    padding: 18px 13px 0;
+    background: linear-gradient(165deg, #1d0e09 0%, #2c160e 54%, #28150f 100%);
+    border-right: 1px solid #4a2b1b;
+    color: var(--coffee-ink);
+    font: 500 13px/1.55 'Be Vietnam Pro', Arial, sans-serif;
+    box-shadow: 5px 0 20px rgba(26, 13, 6, .09);
+    transition: width .22s ease;
+}
+
+.coffee-sidebar button,
+.coffee-sidebar a { font: inherit; }
+.coffee-sidebar button { cursor: pointer; }
+.coffee-sidebar a { text-decoration: none; }
+.coffee-sidebar button:focus-visible,
+.coffee-sidebar a:focus-visible {
+    outline: 2px solid #ffd491;
+    outline-offset: 2px;
+}
+.coffee-icon-sprite {
+    width: 0;
+    height: 0;
+    position: absolute;
+    overflow: hidden;
+}
+.coffee-sidebar .coffee-icon {
+    width: 20px;
+    height: 20px;
+    flex: 0 0 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* Header + nút thu gọn. */
+.coffee-sidebar-head {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 62px;
+    padding: 0 1px 13px 2px;
+    border-bottom: 1px solid rgba(239, 183, 137, .13);
+}
+.coffee-sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    flex: 1;
+    min-width: 0;
+}
+.coffee-brand-mark {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    border-radius: 12px;
+    color: #281309;
+    background: linear-gradient(140deg, #dfb17e, #905837);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1);
+}
+.coffee-sidebar .coffee-brand-mark .coffee-icon {
+    width: 27px;
+    height: 27px;
+}
+.coffee-brand-title {
+    min-width: 0;
+    white-space: nowrap;
+}
+.coffee-brand-title strong {
+    display: block;
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 25px;
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: .2px;
+}
+.coffee-brand-title small {
+    display: block;
+    color: var(--coffee-muted);
+    font: 600 9px/1.4 'Be Vietnam Pro', Arial, sans-serif;
+    letter-spacing: 1.1px;
+    margin-top: 5px;
+}
+.coffee-sidebar-toggle {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 32px;
+    flex: 0 0 28px;
+    padding: 0;
+    color: #e4b48d;
+    background: transparent;
+    border: 0;
+    border-radius: 8px;
+}
+.coffee-sidebar-toggle:hover { background: rgba(222, 156, 111, .14); }
+
+/* Tên vai trò hiện tại. */
+.coffee-role-chip {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 66px;
+    padding: 12px;
+    margin: 16px 1px 15px;
+    border: 1px solid rgba(188, 113, 74, .21);
+    border-radius: 13px;
+    background: rgba(56, 27, 17, .63);
+}
+.coffee-role-chip > .coffee-icon { color: #f1bc41; }
+.coffee-role-chip small,
+.coffee-role-chip strong { display: block; }
+.coffee-role-chip small {
+    color: var(--coffee-muted);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .45px;
+}
+.coffee-role-chip strong {
+    color: #fff3e6;
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+/* Menu có vùng cuộn riêng, footer không trôi khỏi đáy. */
+.coffee-sidebar-menu {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #80523d transparent;
+    padding: 2px 0 12px;
+}
+.coffee-menu-section { display: flex; flex-direction: column; gap: 5px; }
+.coffee-sidebar .coffee-menu-item {
+    display: flex;
+    width: 100%;
+    min-height: 46px;
+    align-items: center;
+    gap: 14px;
+    padding: 11px 13px;
+    border: none;
+    border-radius: 11px;
+    color: #e2c1a9;
+    background: transparent;
+    text-align: left;
+    transition: background-color .16s, color .16s;
+}
+.coffee-sidebar .coffee-menu-item > .coffee-icon:first-child { flex-shrink: 0; }
+.coffee-sidebar .coffee-menu-item > span:not(.coffee-menu-count) {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    flex: 1;
+}
+.coffee-sidebar .coffee-menu-item:hover,
+.coffee-sidebar .coffee-group-toggle:hover {
+    background: rgba(212, 156, 116, .11);
+    color: #ffdbb4;
+}
+.coffee-sidebar .coffee-menu-item.is-active {
+    color: #2b170d;
+    background: linear-gradient(100deg, #e3b078, #9d6245);
+    font-weight: 700;
+    box-shadow: 0 5px 12px rgba(13, 6, 3, .12);
+}
+.coffee-sidebar .coffee-menu-group.is-open > .coffee-group-toggle {
+    color: #ffcf60;
+}
+.coffee-sidebar .coffee-group-toggle .coffee-chevron {
+    width: 17px;
+    height: 17px;
+    flex: 0 0 17px;
+    margin-left: auto;
+    transition: transform .2s;
+}
+.coffee-menu-group.is-open .coffee-chevron { transform: rotate(180deg); }
+.coffee-group-children {
+    display: none;
+    margin: 2px 0 5px 34px;
+    padding: 3px 0 3px 11px;
+    border-left: 1px solid rgba(236, 180, 128, .24);
+}
+.coffee-menu-group.is-open .coffee-group-children { display: flex; flex-direction: column; }
+.coffee-sidebar .coffee-group-children a {
+    display: block;
+    padding: 9px 12px;
+    margin: 1px 0;
+    color: #cfaa90;
+    font-size: 11px;
+    line-height: 1.7;
+    border-radius: 8px;
+    overflow-wrap: anywhere;
+}
+.coffee-sidebar .coffee-group-children a:hover,
+.coffee-sidebar .coffee-group-children a.is-active {
+    color: #ffcf60;
+    background: rgba(227, 176, 120, .1);
+}
+.coffee-sidebar .coffee-menu-count {
+    margin-left: auto;
+    padding: 0 5px;
+    color: #ffcf60;
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+/* Thông báo là mục trên cùng của menu, riêng bên ngoài vùng cuộn
+   để popup không bị cắt khi menu của role có nhiều mục. */
+.coffee-sidebar-notification {
+    flex: 0 0 auto;
+    margin: 0 0 7px;
+}
+.coffee-sidebar-notification .notif-wrap { position: static; width: 100%; }
+.coffee-sidebar .coffee-sidebar-notification .notif-bell-btn {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 14px;
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    min-height: 46px;
+    height: auto;
+    padding: 11px 13px;
+    color: #e2c1a9;
+    background: transparent;
+    border: 0;
+    border-radius: 11px;
+    box-shadow: none;
+    text-align: left;
+    font: inherit;
+    line-height: 1.55;
+}
+.coffee-sidebar .coffee-sidebar-notification .notif-bell-btn > svg {
+    width: 20px;
+    height: 20px;
+    flex: 0 0 20px;
+    fill: none;
+    stroke: currentColor;
+}
+.coffee-sidebar .coffee-sidebar-notification .notif-bell-btn:hover,
+.coffee-sidebar .coffee-sidebar-notification .notif-bell-btn[aria-expanded="true"] {
+    color: #ffdbb4;
+    background: rgba(212, 156, 116, .11);
+}
+.coffee-sidebar .coffee-sidebar-notification .notif-bell-btn > .coffee-side-label {
+    flex: 1;
+    min-width: 0;
+}
+.coffee-sidebar .coffee-sidebar-notification .notif-badge {
+    position: absolute;
+    top: 5px;
+    left: 25px;
+    right: auto;
+    transform: none;
+    pointer-events: none;
+}
+/* Popup mở ngang từ sidebar, nằm phía trên thay vì footer. */
+.coffee-sidebar .notif-popup {
+    position: fixed;
+    left: 307px;
+    right: auto;
+    top: clamp(90px, 23vh, 213px);
+    bottom: auto;
+    width: min(360px, calc(100vw - 324px));
+    max-height: min(570px, calc(100dvh - clamp(90px, 23vh, 213px) - 16px));
+    overflow-y: auto;
+    z-index: 1600;
+}
+
+/* Nút quay lại và thông tin tài khoản vẫn được ghim dưới cùng. */
+.coffee-sidebar-bottom {
+    flex: 0 0 auto;
+    padding-bottom: max(11px, env(safe-area-inset-bottom));
+    border-top: 1px solid rgba(239, 183, 137, .13);
+    background: #28150f;
+}
+.coffee-sidebar .coffee-back-button {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 14px;
+    min-height: 41px;
+    padding: 7px 13px;
+    color: #debda5;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    border-radius: 9px;
+}
+.coffee-sidebar .coffee-back-button:hover { background: rgba(212, 156, 116, .11); }
+.coffee-account-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 13px 2px 0;
+    margin-top: 6px;
+    border-top: 1px solid rgba(239, 183, 137, .13);
+}
+.coffee-account-avatar {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    color: #412617;
+    background: linear-gradient(120deg, #f8d5a2, #aa6b49);
+    border: 2px solid rgba(255, 229, 196, .46);
+}
+.coffee-account-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.coffee-account-avatar img:not([hidden]) ~ svg { display: none; }
+.coffee-account-avatar [hidden] { display: none !important; }
+.coffee-account-info { flex: 1; min-width: 0; }
+.coffee-account-info strong,
+.coffee-account-info small {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.coffee-account-info strong { font-size: 11px; color: #fff4e7; }
+.coffee-account-info small { font-size: 10px; color: var(--coffee-muted); }
+.coffee-logout-form { flex: 0 0 auto; margin: 0; }
+.coffee-sidebar .coffee-logout-button {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 34px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    color: #e5b188;
+    background: transparent;
+}
+.coffee-sidebar .coffee-logout-button:hover { color: #fff; background: rgba(212, 156, 116, .14); }
+
+/* Thu gọn thật sự: xóa không gian chữ, không ép cắt chữ như ảnh lỗi. */
+.coffee-sidebar.is-collapsed { width: 76px; padding-right: 10px; padding-left: 10px; }
+.coffee-sidebar.is-collapsed .coffee-side-label { display: none !important; }
+.coffee-sidebar.is-collapsed .coffee-sidebar-head { flex-direction: column; gap: 4px; padding-bottom: 8px; }
+.coffee-sidebar.is-collapsed .coffee-sidebar-brand { flex: 0 0 44px; }
+.coffee-sidebar.is-collapsed .coffee-sidebar-toggle {
+    width: 44px;
+    height: 27px;
+    transform: rotate(180deg);
+}
+.coffee-sidebar.is-collapsed .coffee-role-chip {
+    justify-content: center;
+    min-height: 44px;
+    margin: 12px 0;
+    padding: 10px;
+}
+.coffee-sidebar.is-collapsed .coffee-menu-item,
+.coffee-sidebar.is-collapsed .coffee-back-button,
+.coffee-sidebar.is-collapsed .coffee-sidebar-notification .notif-bell-btn {
+    justify-content: center;
+    gap: 0;
+    padding: 11px;
+}
+.coffee-sidebar.is-collapsed .coffee-sidebar-notification .notif-badge {
+    left: 24px;
+}
+.coffee-sidebar.is-collapsed .coffee-group-children { display: none !important; }
+.coffee-sidebar.is-collapsed .coffee-account-row { justify-content: center; flex-wrap: wrap; gap: 2px; }
+.coffee-sidebar.is-collapsed .coffee-logout-form { flex: 0 0 100%; display: flex; justify-content: center; }
+.coffee-sidebar.is-collapsed .notif-popup {
+    left: 85px;
+    width: min(360px, calc(100vw - 101px));
+}
+
+@media (max-width: 700px) {
+    body:has(.coffee-sidebar) main.wrap { margin-right: 12px; margin-left: 12px; }
+    .coffee-sidebar:not(.is-collapsed) .notif-popup {
+        left: 8px;
+        top: clamp(90px, 23vh, 213px);
+        bottom: auto;
+        width: min(360px, calc(100vw - 16px));
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    body:has(.coffee-sidebar),
+    .coffee-sidebar,
+    .coffee-sidebar * { transition-duration: .01ms !important; }
+}
