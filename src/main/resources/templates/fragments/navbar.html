@@ -40,6 +40,8 @@
                th:class="${active == 'stores'} ? 'active'">Quản lý cửa hàng</a>
             <a th:href="@{/admin/employees}"
                th:class="${active == 'employees'} ? 'active'">Quản lý nhân sự</a>
+            <a th:href="@{/attendance/admin}"
+               th:class="${active == 'attendance'} ? 'active'">Chấm công</a>
             <a th:href="@{/admin/recruitment}"
                th:class="${active == 'recruitment'} ? 'active'">Duyệt đề xuất tuyển nhân sự
                 <span th:if="${pendingRecruitments != null and pendingRecruitments > 0}"

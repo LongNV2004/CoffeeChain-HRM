@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chấm công — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/AttendanceHistory.css}">
+</head>
+<body>
+<header th:replace="~{fragments/navbar :: manager('attendance')}"></header>
+
+<main class="wrap dash-main">
+    <section class="welcome">
+        <div class="eyebrow">Cửa hàng — Manager</div>
+        <h1>Chấm công</h1>
+        <p th:if="${clock != null}">
+            <span th:text="${clock.employeeName}">Manager</span>
+            <span th:if="${clock.storeName != null}" th:text="'· ' + ${clock.storeName}">· Cửa hàng</span>
+        </p>
+    </section>
+
+    <p class="flash-ok" th:if="${pageMessage}" th:text="${pageMessage}">Thành công</p>
+    <p class="flash" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
+
+    <section class="panel" th:if="${clock != null}">
+        <h2>IP mạng cửa hàng</h2>
+        <p class="note">Chỉ Manager được cập nhật. Mỗi lần bấm sẽ lấy lại IP public của mạng đang kết nối và lưu đè IP cũ, kể cả khi vừa đổi Wi-Fi sang 4G.</p>
+        <p class="ip-line">IP cửa hàng đang lưu: <strong th:text="${clock.storeCurrentIp != null ? clock.storeCurrentIp : 'Chưa thiết lập'}">—</strong></p>
+        <p class="ip-line">IP mạng đang kết nối: <strong th:text="${clock.requestIp != null ? clock.requestIp : '—'}">—</strong></p>
+        <form th:action="@{/attendance/manager/ip}" method="post">
+            <button class="secondary-btn" type="submit">Cập nhật IP cửa hàng</button>
+        </form>
+    </section>
+
+    <section class="panel" th:if="${clock != null}">
+        <h2>Ca hiện tại</h2>
+        <p class="ip-line">
+            <span th:text="${clock.shiftName != null ? clock.shiftName : 'Chưa có ca phù hợp'}">Ca sáng</span>
+        </p>
+        <p class="ip-line">
+            <span th:text="${clock.scheduledStartLabel}">08:00</span>
+            —
+            <span th:text="${clock.scheduledEndLabel}">17:00</span>
+        </p>
+        <p class="note">Trạng thái: <strong th:text="${clock.statusLabel}">Chưa Check-in</strong></p>
+        <div class="clock-actions">
+            <form th:action="@{/attendance/manager/check-in}" method="post">
+                <button class="primary-btn" type="submit">Check-in</button>
+            </form>
+            <form th:action="@{/attendance/manager/check-out}" method="post">
+                <button class="secondary-btn" type="submit">Check-out</button>
+            </form>
+        </div>
+    </section>
+
+    <section class="panel" th:if="${clock != null}">
+        <h2>Lịch sử gần đây</h2>
+        <p class="empty" th:if="${#lists.isEmpty(clock.recent)}">Chưa có bản ghi chấm công.</p>
+        <ul class="recent-list" th:if="${!#lists.isEmpty(clock.recent)}">
+            <li th:each="item : ${clock.recent}">
+                <span th:text="${#temporals.format(item.workDate, 'dd/MM/yyyy')}">04/10/2026</span>
+                <span th:text="${item.timeLabel}">08:00 - 17:05</span>
+            </li>
+        </ul>
+        <a class="link-btn" th:href="@{/attendance/manager/history}">Xem lịch sử</a>
+    </section>
+</main>
+</body>
+</html>

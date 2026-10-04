@@ -9,16 +9,13 @@
     <link rel="stylesheet" th:href="@{/css/AttendanceHistory.css}">
 </head>
 <body>
-<header th:replace="~{fragments/navbar :: manager('attendance')}"></header>
+<header th:replace="~{fragments/navbar :: admin('attendance')}"></header>
 
 <main class="wrap dash-main">
     <section class="welcome">
-        <div class="eyebrow">Cửa hàng — Manager</div>
+        <div class="eyebrow">Hệ thống — Admin</div>
         <h1>Lịch sử chấm công</h1>
-        <p>
-            <span th:text="${history.employeeName}">Manager</span>
-            <span th:if="${history.storeName != null}" th:text="'· ' + ${history.storeName}">· Cửa hàng</span>
-        </p>
+        <p>Toàn bộ Manager và Staff. Admin không chấm công hộ cửa hàng.</p>
     </section>
 
     <p class="flash" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
@@ -36,8 +33,19 @@
 
     <section class="panel">
         <h2>Bộ lọc</h2>
-        <p class="note">Chỉ xem bản thân và nhân viên thuộc cửa hàng bạn quản lý. Giờ ca là giờ đã lưu lúc chấm công.</p>
-        <form class="filter-form" method="get" th:action="@{/attendance/manager/history}">
+        <p class="note">Tổng thời gian chỉ tính các ca đã check-out. Ca và giờ trên từng dòng là dữ liệu lưu lúc chấm công.</p>
+        <form class="filter-form" method="get" th:action="@{/attendance/admin}">
+            <label>Cửa hàng
+                <select name="storeId">
+                    <option value="">Tất cả</option>
+                    <option th:each="store : ${history.stores}"
+                            th:value="${store.storeId}"
+                            th:text="${store.storeName}"
+                            th:selected="${history.filterStoreId != null and history.filterStoreId.equals(store.storeId)}">
+                        Cửa hàng
+                    </option>
+                </select>
+            </label>
             <label>Nhân viên
                 <select name="employeeId">
                     <option value="">Tất cả</option>
@@ -85,7 +93,6 @@
             </label>
             <button class="primary-btn" type="submit">Xem lịch sử</button>
         </form>
-        <a class="link-btn" th:href="@{/attendance/manager}">Quay lại chấm công</a>
     </section>
 
     <section class="panel">
