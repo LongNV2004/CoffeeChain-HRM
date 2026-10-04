@@ -14,6 +14,8 @@ public interface EmployeeRepository extends JpaRepository<Employee, Integer> {
 
     long countByStore_IdAndStatusNot(Integer storeId, EmployeeStatus status);
 
+    boolean existsByEmailIgnoreCase(String email);
+
     List<Employee> findByStore_IdAndStatus(Integer storeId, EmployeeStatus status);
 
     @Query("""

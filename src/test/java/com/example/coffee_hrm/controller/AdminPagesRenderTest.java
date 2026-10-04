@@ -4,10 +4,9 @@ import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RecruitmentStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.dto.response.EmployeeResponse;
+import com.example.coffee_hrm.dto.response.RecruitmentRequestResponse;
 import com.example.coffee_hrm.dto.response.StoreResponse;
-import com.example.coffee_hrm.entity.RecruitmentRequest;
 import com.example.coffee_hrm.entity.Role;
-import com.example.coffee_hrm.entity.Store;
 import com.example.coffee_hrm.entity.User;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.security.DatabaseUserDetailsService;
@@ -17,6 +16,7 @@ import com.example.coffee_hrm.service.EmployeeService;
 import com.example.coffee_hrm.service.NotificationService;
 import com.example.coffee_hrm.service.RecruitmentRequestService;
 import com.example.coffee_hrm.service.StoreService;
+import com.example.coffee_hrm.service.TrainingService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -24,18 +24,26 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest({StoreController.class, AdminEmployeeController.class, RecruitmentRequestController.class})
+@WebMvcTest({StoreController.class, AdminEmployeeController.class, AdminRecruitmentController.class})
 @Import({SecurityConfig.class, RoleBasedRedirector.class})
 class AdminPagesRenderTest {
 
@@ -52,6 +60,8 @@ class AdminPagesRenderTest {
     private DatabaseUserDetailsService userDetailsService;
     @MockitoBean
     private NotificationService notificationService;
+    @MockitoBean
+    private TrainingService trainingService;
 
     @Test
     void storeListShowsCreateButtonAndUnassignedManager() throws Exception {
@@ -112,21 +122,70 @@ class AdminPagesRenderTest {
     }
 
     @Test
-    void recruitmentListRenders() throws Exception {
-        Store store = Store.builder().id(1).storeName("Store A").address("A").build();
-        when(recruitmentRequestService.getAllRequests()).thenReturn(List.of(
-                RecruitmentRequest.builder().id(3).store(store).requestedNumber(2).reason("Thiếu người")
-                        .status(RecruitmentStatus.APPROVED).build()));
+    void recruitmentListRendersCandidateWithoutPassword() throws Exception {
+        when(storeService.getStores(any())).thenReturn(List.of());
+        when(recruitmentRequestService.listManagerOptions()).thenReturn(List.of());
+        when(recruitmentRequestService.listForAdmin(any(), nullable(Integer.class), nullable(Integer.class),
+                nullable(RecruitmentStatus.class), nullable(java.time.LocalDate.class), nullable(java.time.LocalDate.class)))
+                .thenReturn(List.of(RecruitmentRequestResponse.builder()
+                        .id(3)
+                        .fullName("Nguyễn Văn B")
+                        .email("b@store.vn")
+                        .phone("0901234567")
+                        .storeName("Store A")
+                        .managerName("Manager A")
+                        .status(RecruitmentStatus.PENDING)
+                        .statusLabel("Chờ duyệt")
+                        .createdAt(LocalDateTime.of(2026, 10, 4, 8, 0))
+                        .build()));
 
         mockMvc.perform(get("/admin/recruitment").with(user(admin())))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("badge-ok")))
-                .andExpect(content().string(containsString("/admin/recruitment/3/approve")));
+                .andExpect(content().string(containsString("Nguyễn Văn B")))
+                .andExpect(content().string(containsString("b@store.vn")))
+                .andExpect(content().string(containsString("badge-wait")))
+                .andExpect(content().string(containsString("/admin/recruitment/3")))
+                .andExpect(content().string(not(containsString("name=\"password\""))))
+                .andExpect(content().string(not(containsString("/approve"))));
+    }
+
+    @Test
+    void recruitmentDetailOffersApproveAndRejectWithoutPassword() throws Exception {
+        when(recruitmentRequestService.getForAdmin(any(), eq(3))).thenReturn(RecruitmentRequestResponse.builder()
+                .id(3)
+                .fullName("Nguyễn Văn B")
+                .email("b@store.vn")
+                .phone("0901234567")
+                .storeName("Store A")
+                .managerName("Manager A")
+                .status(RecruitmentStatus.PENDING)
+                .statusLabel("Chờ duyệt")
+                .createdAt(LocalDateTime.of(2026, 10, 4, 8, 0))
+                .build());
+
+        mockMvc.perform(get("/admin/recruitment/3").with(user(admin())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("/admin/recruitment/3/approve")))
+                .andExpect(content().string(containsString("/admin/recruitment/3/reject")))
+                .andExpect(content().string(containsString("name=\"rejectReason\"")))
+                .andExpect(content().string(not(containsString("name=\"password\""))));
+    }
+
+    @Test
+    void managerCannotApproveRecruitment() throws Exception {
+        mockMvc.perform(post("/admin/recruitment/3/approve").with(user(manager())).with(csrf()))
+                .andExpect(redirectedUrl("/dashboard/manager"));
+        verify(recruitmentRequestService, never()).approve(any(), any());
     }
 
     private StoreResponse storeResponse() {
         return StoreResponse.builder().id(5).storeName("Coffee Nguyễn Trãi").address("12 Nguyễn Trãi")
                 .totalLeaveDays(12).isActive(true).employeeCount(0).build();
+    }
+
+    private AuthenticatedUser manager() {
+        Role role = Role.builder().id(2).roleName(RoleName.MANAGER).build();
+        return AuthenticatedUser.from(User.builder().id(2).username("manager").passwordHash("x").role(role).isActive(true).build());
     }
 
     private AuthenticatedUser admin() {

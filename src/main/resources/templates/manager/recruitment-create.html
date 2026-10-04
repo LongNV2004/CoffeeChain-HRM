@@ -2,92 +2,65 @@
 <html lang="vi" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>Đề xuất tuyển nhân sự</title>
-    <link rel="stylesheet" th:href="@{/css/ManagerDashboard.css}">
-    <style>
-        .request-form{
-            max-width:600px;
-            margin:0 auto;
-        }
-        .request-form label{
-            display:block;
-            margin-bottom:10px;
-            font-size:18px;
-            font-weight:600;
-            color:#2b1b12;
-            text-align:left;
-        }
-        .request-form input,
-        .request-form textarea{
-            display:block;
-            margin-left:auto;
-            margin-right:auto;
-            width:100%;
-            max-width:420px;
-            padding:14px 16px;
-            font-size:17px;
-            border:1px solid #d8c9b5;
-            border-radius:12px;
-            background:#fffdf9;
-            color:#2b1b12;
-            margin-bottom:24px;
-            outline:none;
-        }
-        .request-form input:focus,
-        .request-form textarea:focus{
-            border-color:#c1793a;
-            box-shadow:0 0 0 3px rgba(193,121,58,0.15);
-        }
-        .request-form textarea{
-            min-height:120px;
-            resize:vertical;
-        }
-        .submit-btn{
-            border:none;
-            border-radius:14px;
-            padding:14px 24px;
-            font-size:18px;
-            font-weight:600;
-            background:#c1793a;
-            color:white;
-            cursor:pointer;
-        }
-        .submit-btn:hover{
-            background:#a9652f;
-        }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tạo đề xuất tuyển nhân sự — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
 </head>
 <body>
 <header th:replace="~{fragments/navbar :: manager('recruitment')}"></header>
 <main class="wrap dash-main">
     <section class="welcome">
-        <div class="eyebrow">
-            Cửa hàng — Manager
-        </div>
-        <h1>
-            Đề xuất tuyển nhân sự
-        </h1>
-        <p>
-            Gửi yêu cầu bổ sung nhân viên cho cửa hàng.
-        </p>
+        <div class="eyebrow">Cửa hàng — Manager</div>
+        <h1>Tạo đề xuất tuyển nhân sự</h1>
+        <p>Nhập thông tin ứng viên. Hệ thống chưa tạo tài khoản cho đến khi Admin duyệt.</p>
     </section>
-    <section class="action-card">
-        <form class="request-form"
+
+    <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}"></p>
+
+    <section class="panel" style="max-width:640px;">
+        <p th:if="${storeName == null}">Bạn chưa được gán làm quản lý cửa hàng nên chưa thể gửi đề xuất.</p>
+        <form th:if="${storeName != null}"
+              class="stack-form"
               th:action="@{/manager/recruitment/create}"
+              th:object="${form}"
               method="post">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
 
-            <label for="storeId">ID cửa hàng</label>
-            <input id="storeId" name="storeId" type="number">
+            <label>
+                Cửa hàng
+                <input type="text" th:value="${storeName}" readonly>
+            </label>
 
-            <label for="requestedNumber">Số lượng cần tuyển</label>
-            <input id="requestedNumber" name="requestedNumber" type="number">
+            <label>
+                Họ và tên
+                <input type="text" th:field="*{fullName}" maxlength="100" required>
+                <span class="field-error" th:if="${#fields.hasErrors('fullName')}" th:errors="*{fullName}"></span>
+            </label>
 
-            <label for="reason">Lý do</label>
-            <textarea id="reason" name="reason"></textarea>
+            <label>
+                Email
+                <input type="email" th:field="*{email}" maxlength="100" required>
+                <span class="field-error" th:if="${#fields.hasErrors('email')}" th:errors="*{email}"></span>
+            </label>
 
-            <button type="submit" class="submit-btn">
-                Gửi yêu cầu
-            </button>
+            <label>
+                Số điện thoại
+                <input type="text" th:field="*{phone}" maxlength="15" required>
+                <span class="field-error" th:if="${#fields.hasErrors('phone')}" th:errors="*{phone}"></span>
+            </label>
+
+            <label>
+                Địa chỉ
+                <textarea th:field="*{address}" maxlength="255" rows="3"></textarea>
+                <span class="field-error" th:if="${#fields.hasErrors('address')}" th:errors="*{address}"></span>
+            </label>
+
+            <div class="form-actions">
+                <button class="primary-btn" type="submit">Gửi đề xuất</button>
+                <a class="back-link" th:href="@{/manager/recruitment}">Quay lại danh sách</a>
+            </div>
         </form>
     </section>
 </main>

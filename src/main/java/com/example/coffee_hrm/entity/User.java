@@ -23,7 +23,7 @@ public class User {
     @EqualsAndHashCode.Include
     private Integer id;
 
-    @Column(name = "Username", nullable = false, unique = true, length = 50)
+    @Column(name = "Username", nullable = false, unique = true, length = 100)
     private String username;
 
     @Column(name = "PasswordHash", nullable = false, length = 255)

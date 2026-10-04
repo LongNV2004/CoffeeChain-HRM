@@ -148,6 +148,7 @@
                 <p class="muted">Người đào tạo: <strong th:text="${displayName}">Manager</strong>.</p>
                 <div class="ms-field">
                     <p>Học viên của cửa hàng</p>
+                    <p class="muted">Nhân viên mới mặc định Không có chứng chỉ. Trạng thái hiện cạnh tên; sau khi chọn kỹ năng, trạng thái cập nhật theo kỹ năng đó.</p>
                     <p class="empty" th:if="${storeEmployees == null or #lists.isEmpty(storeEmployees)}">Cửa hàng chưa có nhân viên đang làm việc.</p>
                     <div class="ms" data-ms data-placeholder="Chọn học viên"
                          th:if="${storeEmployees != null and !#lists.isEmpty(storeEmployees)}">
@@ -163,7 +164,7 @@
                                 <span class="ms-text">
                                     <span class="employee-name-row">
                                         <strong th:text="${employee.fullName}">Nhân viên</strong>
-                                        <span class="badge cert-badge" hidden>Không chứng chỉ</span>
+                                        <span class="badge cert-badge badge-nocert">Không có chứng chỉ</span>
                                     </span>
                                     <span class="muted" th:text="${employee.email != null} ? ${employee.email} : ''">email</span>
                                 </span>

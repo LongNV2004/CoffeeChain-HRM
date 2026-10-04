@@ -16,9 +16,9 @@ import lombok.Setter;
 @Builder
 public class LoginRequest {
 
-    @NotBlank(message = "Vui lòng nhập tên đăng nhập")
-    @Size(min = 3, max = 50, message = "Tên đăng nhập phải từ 3 đến 50 ký tự")
-    @Pattern(regexp = "^[A-Za-z0-9._]+$", message = "Tên đăng nhập chỉ gồm chữ, số, dấu chấm và gạch dưới")
+    @NotBlank(message = "Vui lòng nhập email hoặc tên đăng nhập")
+    @Size(min = 3, max = 100, message = "Email hoặc tên đăng nhập phải từ 3 đến 100 ký tự")
+    @Pattern(regexp = "^[A-Za-z0-9._@+%\\-]+$", message = "Email hoặc tên đăng nhập không hợp lệ")
     private String username;
 
     @NotBlank(message = "Vui lòng nhập mật khẩu")

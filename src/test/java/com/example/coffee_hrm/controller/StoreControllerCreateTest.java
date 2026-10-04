@@ -13,6 +13,7 @@ import com.example.coffee_hrm.security.SecurityConfig;
 import com.example.coffee_hrm.service.NotificationService;
 import com.example.coffee_hrm.service.RecruitmentRequestService;
 import com.example.coffee_hrm.service.StoreService;
+import com.example.coffee_hrm.service.TrainingService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,6 +57,8 @@ class StoreControllerCreateTest {
     private NotificationService notificationService;
     @MockitoBean
     private RecruitmentRequestService recruitmentRequestService;
+    @MockitoBean
+    private TrainingService trainingService;
 
     @Test
     void adminOpensCreateFormWithDefaults() throws Exception {
