@@ -91,9 +91,13 @@ public class DashboardServiceImpl implements DashboardService {
         Integer employeeId = user.getEmployeeId();
         Employee employee = employeeId == null ? null : employeeRepository.findByIdWithStore(employeeId).orElse(null);
 
-        Attendance todayAttendance = employeeId == null
-                ? null
-                : attendanceRepository.findByEmployee_IdAndWorkDate(employeeId, VietnamTime.today()).orElse(null);
+        List<Attendance> todayRecords = employeeId == null
+                ? List.of()
+                : attendanceRepository.findByEmployee_IdAndWorkDateOrderByIdDesc(employeeId, VietnamTime.today());
+        Attendance todayAttendance = todayRecords.stream()
+                .filter(item -> item.getCheckInTime() != null && item.getCheckOutTime() == null)
+                .findFirst()
+                .orElse(todayRecords.isEmpty() ? null : todayRecords.getFirst());
 
         List<StaffDashboardView.ScheduleItem> upcoming = employeeId == null
                 ? List.of()
