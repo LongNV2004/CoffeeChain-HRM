@@ -14,6 +14,12 @@ public interface StaffAvailabilityService {
 
     List<WorkAvailabilityResponse> listMyNextWeekAvailabilities(AuthenticatedUser staff);
 
+    /**
+     * Lý do nhân viên đang đăng nhập không được đăng ký ca.
+     * {@code null} khi {@code certificationStatus = CERTIFIED}.
+     */
+    String registrationBlockedMessage(AuthenticatedUser staff);
+
     /** Ghi đè đề xuất tuần kế tiếp và thông báo Manager cửa hàng. */
     int submitNextWeekAvailability(SubmitWorkAvailabilityRequest request, AuthenticatedUser staff);
 

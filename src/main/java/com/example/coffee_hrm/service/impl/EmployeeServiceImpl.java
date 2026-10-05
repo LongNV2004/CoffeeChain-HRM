@@ -1,5 +1,6 @@
 package com.example.coffee_hrm.service.impl;
-
+import com.example.coffee_hrm.dto.request.CreateEmployeeRequest;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
@@ -17,6 +18,8 @@ import com.example.coffee_hrm.service.EmployeeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.example.coffee_hrm.dto.request.UpdateEmployeeRequest;
+import java.time.LocalDate;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -42,7 +45,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     static final String INACTIVE_ACCOUNT_CANNOT_BE_MANAGER =
             "Tài khoản của nhân viên đang bị khóa nên không thể chỉ định làm Manager";
     static final String ROLE_NOT_CONFIGURED = "Role %s chưa được cấu hình trong hệ thống";
-
+    private final PasswordEncoder passwordEncoder;
     private static final Set<RoleName> ASSIGNABLE_ROLES = EnumSet.of(RoleName.MANAGER, RoleName.STAFF);
 
     private final EmployeeRepository employeeRepository;
@@ -60,6 +63,199 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .toList();
     }
 
+    @Override
+    @Transactional
+
+    public EmployeeResponse createEmployee(
+            AuthenticatedUser actor,
+            CreateEmployeeRequest request
+    ) {
+        requireAdmin(actor);
+
+        RoleName role = parseAssignableRole(request.getRole());
+
+        if (role == RoleName.MANAGER && !request.isCreateAccount()) {
+            throw new BusinessException(
+                    "Nhân viên cần có tài khoản để được chỉ định làm Manager"
+            );
+        }
+
+        String email = request.getEmail() == null
+                ? "" : request.getEmail().trim();
+
+        if (email.isBlank()) {
+            throw new BusinessException("Email không được để trống");
+        }
+
+        if (employeeRepository.existsByEmailIgnoreCase(email)) {
+            throw new BusinessException("Email đã được sử dụng");
+        }
+
+        String username = null;
+
+        if (request.isCreateAccount()) {
+            username = request.getUsername() == null
+                    ? "" : request.getUsername().trim();
+
+            if (username.isBlank()
+                    || request.getTemporaryPassword() == null
+                    || request.getTemporaryPassword().isBlank()) {
+                throw new BusinessException(
+                        "Vui lòng nhập tên đăng nhập và mật khẩu tạm thời"
+                );
+            }
+
+            if (userRepository.findByUsername(username).isPresent()) {
+                throw new BusinessException(
+                        "Tên đăng nhập đã tồn tại"
+                );
+            }
+        }
+
+        Store store = role == RoleName.MANAGER
+                ? storeRepository.findByIdForUpdate(request.getStoreId())
+                .orElseThrow(() -> new BusinessException(STORE_NOT_FOUND))
+                : storeRepository.findById(request.getStoreId())
+                .orElseThrow(() -> new BusinessException(STORE_NOT_FOUND));
+
+        Employee employee = Employee.builder()
+                .fullName(request.getFullName().trim())
+                .phone(request.getPhone().trim())
+                .email(email)
+                .address(request.getAddress())
+                .avatarUrl(request.getAvatarUrl())
+                .store(store)
+                .status(EmployeeStatus.ACTIVE)
+                .hireDate(request.getHireDate())
+                .build();
+
+        employeeRepository.save(employee);
+
+        User account = null;
+
+        if (request.isCreateAccount()) {
+            account = User.builder()
+                    .username(username)
+                    .passwordHash(passwordEncoder.encode(
+                            request.getTemporaryPassword()
+                    ))
+                    .employee(employee)
+                    .role(requireRole(RoleName.STAFF))
+                    .build();
+
+            userRepository.save(account);
+            employee.setUser(account);
+
+            if (role == RoleName.MANAGER) {
+                promoteToManager(employee, account, store);
+            }
+        }
+
+        return toResponse(employee, account, store);
+    }
+    @Override
+    @Transactional
+    public EmployeeResponse updateEmployee(
+            AuthenticatedUser actor,
+            Integer storeId,
+            Integer employeeId,
+            UpdateEmployeeRequest request
+    ) {
+        requireAdmin(actor);
+
+        Employee employee = employeeRepository
+                .findByIdWithStoreAndManager(employeeId)
+                .orElseThrow(() -> new BusinessException(EMPLOYEE_NOT_FOUND));
+
+        if (!storeId.equals(employee.getStore().getId())) {
+            throw new BusinessException(EMPLOYEE_NOT_IN_STORE);
+        }
+
+        RoleName targetRole = parseAssignableRole(request.getRole());
+        User account = userRepository.findByEmployee_Id(employeeId).orElse(null);
+
+        if (account != null
+                && account.getRole().getRoleName() == RoleName.ADMIN) {
+            throw new BusinessException(ADMIN_ROLE_LOCKED);
+        }
+
+        if (targetRole == RoleName.MANAGER && account == null) {
+            throw new BusinessException(ACCOUNT_REQUIRED);
+        }
+
+        if (targetRole == RoleName.MANAGER
+                && request.getStatus() == EmployeeStatus.TERMINATED) {
+            throw new BusinessException(TERMINATED_CANNOT_BE_MANAGER);
+        }
+
+        List<Store> managedStores =
+                storeRepository.findAllByManager_Id(employeeId);
+
+        boolean currentlyManager = !managedStores.isEmpty()
+                || (account != null
+                && account.getRole().getRoleName() == RoleName.MANAGER);
+
+        if (targetRole == RoleName.MANAGER
+                && currentlyManager
+                && !storeId.equals(request.getStoreId())) {
+            throw new BusinessException(
+                    "Hãy chuyển Manager về Staff trước khi chuyển cửa hàng"
+            );
+        }
+
+        if (request.getStatus() == EmployeeStatus.TERMINATED) {
+            LocalDate terminationDate = request.getTerminationDate();
+
+            if (terminationDate == null
+                    || terminationDate.isBefore(request.getHireDate())) {
+                throw new BusinessException(
+                        "Ngày nghỉ việc phải có và không được trước ngày vào làm"
+                );
+            }
+        }
+
+        String email = request.getEmail().trim();
+
+        if ((employee.getEmail() == null
+                || !employee.getEmail().equalsIgnoreCase(email))
+                && employeeRepository.existsByEmailIgnoreCase(email)) {
+            throw new BusinessException("Email đã được sử dụng");
+        }
+
+        if (targetRole == RoleName.STAFF && currentlyManager) {
+            if (account == null) {
+                throw new BusinessException(ACCOUNT_REQUIRED);
+            }
+            demoteToStaff(employee, account);
+        }
+
+        Store targetStore = storeRepository
+                .findByIdForUpdate(request.getStoreId())
+                .orElseThrow(() -> new BusinessException(STORE_NOT_FOUND));
+
+        employee.setFullName(request.getFullName().trim());
+        employee.setPhone(request.getPhone().trim());
+        employee.setEmail(email);
+        employee.setAddress(request.getAddress());
+        employee.setAvatarUrl(request.getAvatarUrl());
+        employee.setStore(targetStore);
+        employee.setHireDate(request.getHireDate());
+        employee.setStatus(request.getStatus());
+        employee.setTerminationDate(
+                request.getStatus() == EmployeeStatus.TERMINATED
+                        ? request.getTerminationDate() : null
+        );
+
+        if (targetRole == RoleName.MANAGER
+                && !targetStore.getId().equals(
+                managedStores.isEmpty()
+                        ? null : managedStores.get(0).getId()
+        )) {
+            promoteToManager(employee, account, targetStore);
+        }
+
+        return toResponse(employee, account, targetStore);
+    }
     @Override
     @Transactional
     public EmployeeResponse changeEmployeeRole(AuthenticatedUser actor, Integer storeId, Integer employeeId, String role) {
