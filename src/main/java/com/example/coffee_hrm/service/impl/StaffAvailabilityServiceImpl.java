@@ -1,6 +1,7 @@
 package com.example.coffee_hrm.service.impl;
 
 import com.example.coffee_hrm.common.enums.ApprovalStatus;
+import com.example.coffee_hrm.common.enums.CertificationStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.NotificationType;
 import com.example.coffee_hrm.common.enums.RoleName;
@@ -50,6 +51,12 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
     private static final String[] VI_DAYS = {"Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"};
     private static final String AVAILABILITY_REF = "WORK_AVAILABILITY";
+    static final String NOT_CERTIFIED_MESSAGE =
+            "Bạn chưa có chứng chỉ nên không thể đăng ký ca làm việc. "
+                    + "Vui lòng hoàn thành khóa đào tạo và đạt yêu cầu để được cấp chứng chỉ.";
+    static final String NOT_CERTIFIED_APPROVAL_MESSAGE =
+            "Nhân viên chưa có chứng chỉ nên không thể đăng ký ca làm việc. "
+                    + "Vui lòng hoàn thành khóa đào tạo và đạt yêu cầu để được cấp chứng chỉ.";
 
     private final WorkAvailabilityRepository workAvailabilityRepository;
     private final ShiftRepository shiftRepository;
@@ -81,9 +88,16 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
     }
 
     @Override
+    public String registrationBlockedMessage(AuthenticatedUser staff) {
+        Employee employee = requireStaffEmployee(staff);
+        return isCertified(employee) ? null : NOT_CERTIFIED_MESSAGE;
+    }
+
+    @Override
     @Transactional
     public int submitNextWeekAvailability(SubmitWorkAvailabilityRequest request, AuthenticatedUser staff) {
         Employee employee = requireStaffEmployeeWithManager(staff);
+        requireCertifiedToRegisterShift(employee);
         LocalDate weekStart = nextWeekMonday();
         LocalDate weekEnd = weekStart.plusDays(6);
 
@@ -175,6 +189,9 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                     "Đề xuất đã bị từ chối nên không tự xếp lịch. Dùng Phân ca trên Lịch làm việc nếu vẫn cần xếp nhân viên này.");
         }
 
+        if (!isCertified(employee)) {
+            throw new BusinessException(NOT_CERTIFIED_APPROVAL_MESSAGE);
+        }
         scheduleService.assignShiftFromApprovedAvailability(
                 AssignShiftRequest.builder()
                         .employeeId(employee.getId())
@@ -415,6 +432,16 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                 .orElseThrow(() -> new BusinessException("Không tìm thấy hồ sơ nhân viên."));
         validateActiveStaffStore(employee);
         return employee;
+    }
+
+    private void requireCertifiedToRegisterShift(Employee employee) {
+        if (!isCertified(employee)) {
+            throw new BusinessException(NOT_CERTIFIED_MESSAGE);
+        }
+    }
+
+    private boolean isCertified(Employee employee) {
+        return employee.getCertificationStatus() == CertificationStatus.CERTIFIED;
     }
 
     private void validateActiveStaffStore(Employee employee) {

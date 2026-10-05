@@ -1,10 +1,13 @@
 package com.example.coffee_hrm.service.impl;
 
 import com.example.coffee_hrm.common.enums.ApprovalStatus;
+import com.example.coffee_hrm.common.enums.CertificationStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.AssignShiftRequest;
+import com.example.coffee_hrm.dto.request.SubmitWorkAvailabilityRequest;
 import com.example.coffee_hrm.entity.Employee;
 import com.example.coffee_hrm.entity.Role;
 import com.example.coffee_hrm.entity.Shift;
@@ -27,12 +30,15 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -74,7 +80,13 @@ class StaffAvailabilityServiceImplTest {
     void setUp() {
         store = Store.builder().id(1).storeName("Store 1").build();
         Employee manager = Employee.builder().id(10).fullName("Manager A").store(store).status(EmployeeStatus.ACTIVE).build();
-        staff = Employee.builder().id(20).fullName("Trần Văn Tuấn").store(store).status(EmployeeStatus.ACTIVE).build();
+        staff = Employee.builder()
+                .id(20)
+                .fullName("Trần Văn Tuấn")
+                .store(store)
+                .status(EmployeeStatus.ACTIVE)
+                .certificationStatus(CertificationStatus.CERTIFIED)
+                .build();
         managerUser = AuthenticatedUser.from(buildUser(2, "manager1", RoleName.MANAGER, manager));
         shift = Shift.builder()
                 .id(1)
@@ -224,6 +236,79 @@ class StaffAvailabilityServiceImplTest {
     }
 
     @Test
+    void approveRejectsStaffWithoutCertificate() {
+        staff.setCertificationStatus(CertificationStatus.NOTCERTIFIED);
+        WorkAvailability availability = pendingAvailability();
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        when(workAvailabilityRepository.findByIdWithDetails(5)).thenReturn(Optional.of(availability));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.reviewAvailability(5, true, managerUser));
+
+        assertEquals(StaffAvailabilityServiceImpl.NOT_CERTIFIED_APPROVAL_MESSAGE, ex.getMessage());
+        assertEquals(ApprovalStatus.PENDING, availability.getStatus());
+        verify(scheduleService, never()).assignShiftFromApprovedAvailability(any(), any());
+        verify(workAvailabilityRepository, never()).save(any());
+    }
+
+    @Test
+    void submitRejectsStaffWithoutCertificate() {
+        staff.setCertificationStatus(CertificationStatus.NOTCERTIFIED);
+        AuthenticatedUser staffUser = AuthenticatedUser.from(buildUser(3, "staff1", RoleName.STAFF, staff));
+        when(employeeRepository.findByIdWithStoreAndManager(20)).thenReturn(Optional.of(staff));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.submitNextWeekAvailability(nextWeekRequest(), staffUser));
+
+        assertEquals(StaffAvailabilityServiceImpl.NOT_CERTIFIED_MESSAGE, ex.getMessage());
+        verify(workAvailabilityRepository, never()).deleteByEmployeeAndDateRange(any(), any(), any());
+        verify(workAvailabilityRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void submitRejectsWhenCertificationStatusIsMissing() {
+        staff.setCertificationStatus(null);
+        AuthenticatedUser staffUser = AuthenticatedUser.from(buildUser(3, "staff1", RoleName.STAFF, staff));
+        when(employeeRepository.findByIdWithStoreAndManager(20)).thenReturn(Optional.of(staff));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.submitNextWeekAvailability(nextWeekRequest(), staffUser));
+
+        assertEquals(StaffAvailabilityServiceImpl.NOT_CERTIFIED_MESSAGE, ex.getMessage());
+        verify(workAvailabilityRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void submitAllowsCertifiedStaff() {
+        AuthenticatedUser staffUser = AuthenticatedUser.from(buildUser(3, "staff1", RoleName.STAFF, staff));
+        when(employeeRepository.findByIdWithStoreAndManager(20)).thenReturn(Optional.of(staff));
+        when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shift));
+
+        int count = service.submitNextWeekAvailability(nextWeekRequest(), staffUser);
+
+        assertEquals(1, count);
+        verify(workAvailabilityRepository).deleteByEmployeeAndDateRange(eq(20), any(LocalDate.class), any(LocalDate.class));
+        verify(workAvailabilityRepository).saveAll(any());
+    }
+
+    @Test
+    void registrationBlockedMessageExplainsMissingCertificate() {
+        staff.setCertificationStatus(CertificationStatus.NOTCERTIFIED);
+        AuthenticatedUser staffUser = AuthenticatedUser.from(buildUser(3, "staff1", RoleName.STAFF, staff));
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staff));
+
+        assertEquals(StaffAvailabilityServiceImpl.NOT_CERTIFIED_MESSAGE, service.registrationBlockedMessage(staffUser));
+    }
+
+    @Test
+    void registrationBlockedMessageIsNullForCertifiedStaff() {
+        AuthenticatedUser staffUser = AuthenticatedUser.from(buildUser(3, "staff1", RoleName.STAFF, staff));
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staff));
+
+        assertNull(service.registrationBlockedMessage(staffUser));
+    }
+
+    @Test
     void reviewAllThrowsWhenNothingPending() {
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
         when(workAvailabilityRepository.findByStoreAndDateRange(eq(1), any(LocalDate.class), any(LocalDate.class)))
@@ -234,6 +319,15 @@ class StaffAvailabilityServiceImplTest {
 
         assertTrue(ex.getMessage().contains("chờ duyệt"));
         verify(scheduleService, never()).assignShiftFromApprovedAvailability(any(), any());
+    }
+
+    private SubmitWorkAvailabilityRequest nextWeekRequest() {
+        LocalDate nextMonday = VietnamTime.today()
+                .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+                .plusWeeks(1);
+        return SubmitWorkAvailabilityRequest.builder()
+                .selectedSlots(List.of("1:" + nextMonday))
+                .build();
     }
 
     private WorkAvailability pendingAvailability() {

@@ -28,10 +28,18 @@
 
     <section class="panel" th:if="${availabilityGrid != null}">
         <h2>Tuần làm việc kế tiếp</h2>
-        <p>
+        <p class="flash error" th:if="${registrationBlockMessage}" th:text="${registrationBlockMessage}">
+            Bạn chưa có chứng chỉ nên không thể đăng ký ca làm việc.
+        </p>
+        <p th:if="${registrationBlockMessage == null}">
             Tick các ô ngày/ca bạn có thể làm tại cửa hàng hiện tại.
             Chỉ áp dụng cho <strong th:text="${availabilityGrid.formattedWeekRange}">tuần kế tiếp</strong>.
             Không đăng ký tuần hiện tại hoặc tuần đã qua.
+        </p>
+        <p th:if="${registrationBlockMessage != null}">
+            Bạn vẫn xem được các ngày/ca của
+            <strong th:text="${availabilityGrid.formattedWeekRange}">tuần kế tiếp</strong>,
+            nhưng chưa thể chọn hay gửi lịch rảnh.
         </p>
         <p class="muted" th:if="${#lists.isEmpty(availabilityGrid.shiftRows)}">
             Cửa hàng chưa có ca làm việc. Liên hệ Manager để tạo ca trước.
@@ -39,7 +47,9 @@
 
         <form class="availability-form" th:action="@{/availability}" th:object="${availabilityForm}" method="post"
               th:if="${!#lists.isEmpty(availabilityGrid.shiftRows)}">
-            <p class="flash error" th:if="${availabilityError}" th:text="${availabilityError}">Error</p>
+            <p class="flash error"
+               th:if="${availabilityError != null and availabilityError != registrationBlockMessage}"
+               th:text="${availabilityError}">Error</p>
 
             <div class="availability-grid-wrap">
                 <table class="availability-grid">
@@ -62,7 +72,8 @@
                             <label class="slot-check">
                                 <input type="checkbox"
                                        th:field="*{selectedSlots}"
-                                       th:value="${cell.slotKey}">
+                                       th:value="${cell.slotKey}"
+                                       th:disabled="${registrationBlockMessage != null}">
                                 <span class="slot-box" aria-hidden="true"></span>
                                 <span class="sr-only"
                                       th:text="'Chọn ' + ${row.shiftName} + ' ngày ' + ${#temporals.format(cell.date, 'dd/MM/yyyy')}">
@@ -75,7 +86,7 @@
                 </table>
             </div>
 
-            <div class="form-actions">
+            <div class="form-actions" th:if="${registrationBlockMessage == null}">
                 <button class="primary-btn" type="submit">Submit Availability</button>
                 <p class="muted">Sau khi gửi, Manager duyệt từng đề xuất. Đề xuất được duyệt sẽ tự vào lịch làm việc tuần kế tiếp. Gửi lại sẽ thay toàn bộ đề xuất của tuần này và đưa về trạng thái chờ duyệt.</p>
             </div>
