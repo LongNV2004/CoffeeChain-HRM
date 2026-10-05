@@ -70,7 +70,7 @@ class AdminPagesRenderTest {
         mockMvc.perform(get("/admin/stores").with(user(admin())))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("/admin/stores/create")))
-                .andExpect(content().string(containsString("Chưa chỉ định")))
+                .andExpect(content().string(containsString("Chưa phân công")))
                 .andExpect(content().string(containsString("Coffee Nguyễn Trãi")));
     }
 

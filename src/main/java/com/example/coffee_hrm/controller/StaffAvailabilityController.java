@@ -60,10 +60,12 @@ public class StaffAvailabilityController {
         try {
             model.addAttribute("availabilityGrid", staffAvailabilityService.getNextWeekAvailabilityGrid(user));
             model.addAttribute("availabilities", staffAvailabilityService.listMyNextWeekAvailabilities(user));
+            model.addAttribute("registrationBlockMessage", staffAvailabilityService.registrationBlockedMessage(user));
             model.addAttribute("pageError", null);
         } catch (BusinessException ex) {
             model.addAttribute("availabilityGrid", null);
             model.addAttribute("availabilities", List.of());
+            model.addAttribute("registrationBlockMessage", null);
             model.addAttribute("pageError", ex.getMessage());
         }
     }
