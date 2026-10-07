@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quản lý đào tạo — CoffeeHRM</title>
+    <title>Danh mục kỹ năng — CoffeeHRM</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/ManagerDashboard.css}">
@@ -15,7 +15,7 @@
 <main class="wrap dash-main">
     <section class="welcome">
         <div class="eyebrow">Cửa hàng — Manager</div>
-        <h1>Tạo lớp đào tạo</h1>
+        <h1>Danh mục kỹ năng</h1>
         <p>
             <span th:text="${displayName}">Manager</span>
             <span th:if="${storeName}"> · <span th:text="${storeName}">Store</span></span>
@@ -26,25 +26,10 @@
     <p class="flash success" th:if="${successMessage}" th:text="${successMessage}">OK</p>
     <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}">Error</p>
 
-    <section class="split-train">
+    <section>
         <article class="panel">
             <h2>Danh mục kỹ năng</h2>
-            <p>Xem, thêm, sửa, ngừng hoặc kích hoạt lại kỹ năng đào tạo. Skill ngừng dùng không bị xóa khỏi hệ thống.</p>
-
-            <form class="stack-form" th:action="@{/training/skills}" th:object="${skillForm}" method="post">
-                <h3>Thêm kỹ năng mới</h3>
-                <p class="flash error" th:if="${skillError}" th:text="${skillError}">Error</p>
-                <label>Tên kỹ năng
-                    <input type="text" th:field="*{skillName}" maxlength="100" pattern="[^0-9]*" title="Tên kỹ năng không được chứa số" required>
-                </label>
-                <label>Mô tả
-                    <textarea th:field="*{description}" maxlength="500" rows="2"></textarea>
-                </label>
-                <label>Yêu cầu
-                    <textarea th:field="*{requirements}" maxlength="500" rows="2"></textarea>
-                </label>
-                <button class="primary-btn" type="submit">Thêm kỹ năng</button>
-            </form>
+            <p>Xem danh mục kỹ năng đào tạo. Việc sửa và ngừng kỹ năng do Admin thực hiện.</p>
 
             <table>
                 <thead>
@@ -53,149 +38,23 @@
                     <th>Mô tả</th>
                     <th>Yêu cầu</th>
                     <th>Trạng thái</th>
-                    <th></th>
                 </tr>
                 </thead>
                 <tbody>
                 <tr th:if="${#lists.isEmpty(skills)}">
-                    <td colspan="5" class="empty">Chưa có kỹ năng đào tạo.</td>
+                    <td colspan="4" class="empty">Chưa có kỹ năng đào tạo.</td>
                 </tr>
-                <tr th:each="skill : ${skills}"
-                    th:attr="data-id=${skill.id},data-name=${skill.skillName},data-description=${skill.description},data-requirements=${skill.requirements}">
+                <tr th:each="skill : ${skills}">
                     <td th:text="${skill.skillName}">Skill</td>
-                    <td th:text="${skill.description}">Desc</td>
-                    <td th:text="${skill.requirements}">Req</td>
+                    <td th:text="${skill.description} ?: '—'">Desc</td>
+                    <td th:text="${skill.requirements} ?: '—'">Req</td>
                     <td>
                         <span class="badge" th:classappend="${skill.status.name() == 'ACTIVE'} ? ' badge-ok' : ' badge-off'"
                               th:text="${skill.status.dbValue}">Active</span>
                     </td>
-                    <td class="actions">
-                        <button type="button" class="link-btn edit-skill"
-                                th:if="${skill.status.name() == 'ACTIVE'}">Sửa</button>
-                        <form th:if="${skill.status.name() == 'ACTIVE'}"
-                              th:action="@{/training/skills/{id}/deactivate(id=${skill.id})}"
-                              method="post"
-                              onsubmit="return confirm('Ngừng sử dụng kỹ năng này?');">
-                            <button class="link-btn danger" type="submit">Ngừng</button>
-                        </form>
-                        <form th:if="${skill.status.name() == 'INACTIVE'}"
-                              th:action="@{/training/skills/{id}/activate(id=${skill.id})}"
-                              method="post"
-                              onsubmit="return confirm('Kích hoạt lại kỹ năng này?');">
-                            <button class="link-btn" type="submit">Kích hoạt</button>
-                        </form>
-                    </td>
                 </tr>
                 </tbody>
             </table>
-
-            <form id="update-skill-form" class="stack-form hidden"
-                  th:action="@{/training/skills/0}"
-                  th:object="${updateSkillForm}"
-                  method="post">
-                <h3>Cập nhật kỹ năng</h3>
-                <p class="flash error" th:if="${skillUpdateError}" th:text="${skillUpdateError}">Error</p>
-                <input type="hidden" id="editingSkillId" th:value="${editingSkillId}">
-                <label>Tên kỹ năng
-                    <input type="text" th:field="*{skillName}" maxlength="100" pattern="[^0-9]*" title="Tên kỹ năng không được chứa số" required>
-                </label>
-                <label>Mô tả
-                    <textarea th:field="*{description}" maxlength="500" rows="2"></textarea>
-                </label>
-                <label>Yêu cầu
-                    <textarea th:field="*{requirements}" maxlength="500" rows="2"></textarea>
-                </label>
-                <div class="form-actions">
-                    <button class="primary-btn" type="submit">Lưu thay đổi</button>
-                    <button class="logout-btn" type="button" id="cancel-edit">Hủy</button>
-                </div>
-            </form>
-        </article>
-
-        <article class="panel">
-            <h2>Tạo lớp đào tạo</h2>
-            <p>Đây là lớp đào tạo tại cửa hàng. Cửa hàng và người đào tạo được lấy từ tài khoản đang đăng nhập, không thể đổi. Có thể chọn nhiều kỹ năng và nhân viên của cửa hàng này. Thời gian tính theo giờ Việt Nam (UTC+7).</p>
-
-            <div class="store-banner warning" th:unless="${hasStore}">
-                <h2>Chưa được gán cửa hàng</h2>
-                <p>Liên hệ Admin trước khi tạo lớp đào tạo.</p>
-            </div>
-
-            <form id="training-class-form" class="stack-form" th:if="${hasStore}" th:action="@{/training/classes}" th:object="${classForm}" method="post">
-                <p class="flash error" th:if="${classError}" th:text="${classError}">Error</p>
-                <p id="class-client-error" class="flash error" hidden></p>
-                <div class="ms-field">
-                    <p>Kỹ năng</p>
-                    <p class="empty" th:if="${activeSkills == null or #lists.isEmpty(activeSkills)}">Chưa có kỹ năng đang hoạt động.</p>
-                    <div class="ms" data-ms data-placeholder="Chọn kỹ năng"
-                         th:if="${activeSkills != null and !#lists.isEmpty(activeSkills)}">
-                        <button type="button" class="ms-trigger" aria-expanded="false" aria-haspopup="listbox">
-                            <span class="ms-value is-placeholder">Chọn kỹ năng</span>
-                            <span class="ms-caret" aria-hidden="true"></span>
-                        </button>
-                        <div class="ms-menu" hidden>
-                            <label class="ms-item" th:each="skill : ${activeSkills}">
-                                <input type="checkbox" name="skillIds" th:value="${skill.id}"
-                                       th:checked="${classForm.skillIds != null and classForm.skillIds.contains(skill.id)}">
-                                <span class="ms-text" th:text="${skill.skillName}">Skill</span>
-                            </label>
-                        </div>
-                    </div>
-                </div>
-                <label>Tên lớp
-                    <input type="text" th:field="*{className}" maxlength="150" required>
-                </label>
-                <p class="muted">Người đào tạo: <strong th:text="${displayName}">Manager</strong>.</p>
-                <div class="ms-field">
-                    <p>Học viên của cửa hàng</p>
-                    <p class="muted">Nhân viên mới mặc định Không có chứng chỉ. Trạng thái hiện cạnh tên; sau khi chọn kỹ năng, trạng thái cập nhật theo kỹ năng đó.</p>
-                    <p class="empty" th:if="${storeEmployees == null or #lists.isEmpty(storeEmployees)}">Cửa hàng chưa có nhân viên đang làm việc.</p>
-                    <div class="ms" data-ms data-placeholder="Chọn học viên"
-                         th:if="${storeEmployees != null and !#lists.isEmpty(storeEmployees)}">
-                        <button type="button" class="ms-trigger" aria-expanded="false" aria-haspopup="listbox">
-                            <span class="ms-value is-placeholder">Chọn học viên</span>
-                            <span class="ms-caret" aria-hidden="true"></span>
-                        </button>
-                        <div class="ms-menu" hidden>
-                            <label class="ms-item" th:each="employee : ${storeEmployees}"
-                                   th:attr="data-certified-skills=${employee.certifiedSkillIdsCsv},data-studying-skills=${employee.studyingSkillIdsCsv}">
-                                <input type="checkbox" name="employeeIds" th:value="${employee.employeeId}"
-                                       th:checked="${classForm.employeeIds != null and classForm.employeeIds.contains(employee.employeeId)}">
-                                <span class="ms-text">
-                                    <span class="employee-name-row">
-                                        <strong th:text="${employee.fullName}">Nhân viên</strong>
-                                        <span class="badge cert-badge badge-nocert">Không có chứng chỉ</span>
-                                    </span>
-                                    <span class="muted" th:text="${employee.email != null} ? ${employee.email} : ''">email</span>
-                                </span>
-                            </label>
-                        </div>
-                    </div>
-                </div>
-                <div class="two-col">
-                    <label>Ngày bắt đầu
-                        <input type="date" id="class-start-date" th:field="*{startDate}" th:min="${vietnamToday}" required>
-                    </label>
-                    <label>Ngày kết thúc
-                        <input type="date" id="class-end-date" th:field="*{endDate}" th:min="${vietnamToday}" required>
-                    </label>
-                </div>
-                <div class="two-col">
-                    <label>Giờ bắt đầu
-                        <input type="time" id="class-start-time" th:field="*{startTime}" required>
-                    </label>
-                    <label>Giờ kết thúc
-                        <input type="time" id="class-end-time" th:field="*{endTime}" required>
-                    </label>
-                </div>
-                <label>Sĩ số tối đa
-                    <input type="number" th:field="*{maxParticipants}" min="1">
-                </label>
-                <label>Ghi chú
-                    <textarea th:field="*{notes}" maxlength="500" rows="2"></textarea>
-                </label>
-                <button class="primary-btn" type="submit">Gửi Admin duyệt</button>
-            </form>
         </article>
     </section>
 </main>

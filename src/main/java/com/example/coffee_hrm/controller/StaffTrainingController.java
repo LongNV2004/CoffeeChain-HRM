@@ -1,6 +1,7 @@
 package com.example.coffee_hrm.controller;
 
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.dto.response.EmployeeTrainingClassResponse;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.TrainingService;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.util.Comparator;
 import java.util.List;
 
 @Controller
@@ -27,12 +29,29 @@ public class StaffTrainingController {
     public String classListPage(@AuthenticationPrincipal AuthenticatedUser user, Model model) {
         model.addAttribute("displayName", user.getDisplayName());
         model.addAttribute("storeName", user.getStoreName());
+        List<EmployeeTrainingClassResponse> classes;
         try {
-            model.addAttribute("classes", trainingService.listClassesForEmployee(user));
+            classes = trainingService.listClassesForEmployee(user);
         } catch (BusinessException ex) {
-            model.addAttribute("classes", List.of());
+            classes = List.of();
             model.addAttribute("errorMessage", ex.getMessage());
         }
+        model.addAttribute("upcomingClasses", classes.stream()
+                .filter(item -> !item.isEnded())
+                .toList());
+        model.addAttribute("historyClasses", classes.stream()
+                .filter(EmployeeTrainingClassResponse::isEnded)
+                .sorted(Comparator
+                        .comparing(EmployeeTrainingClassResponse::getStartDate,
+                                Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(EmployeeTrainingClassResponse::getStartTime,
+                                Comparator.nullsLast(Comparator.reverseOrder())))
+                .toList());
+        model.addAttribute("resultClasses", classes.stream()
+                .filter(EmployeeTrainingClassResponse::isEnded)
+                .sorted(Comparator.comparing(EmployeeTrainingClassResponse::getEvaluatedAt,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .toList());
         return "staff/StaffTraining";
     }
 

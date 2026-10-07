@@ -29,14 +29,14 @@
         <div class="panel-head">
             <div>
                 <h2>Lớp đã duyệt đang hoạt động</h2>
-                <p>Lớp tại cửa hàng của bạn và lớp tập trung mà bạn là người đào tạo, sau khi Admin đã duyệt. Đến giờ kết thúc, lớp tự chuyển xuống mục đã kết thúc.</p>
+                <p>Lớp tại cửa hàng của bạn và lớp bạn được phân công đào tạo. Đến giờ kết thúc, lớp tự chuyển xuống mục đã kết thúc.</p>
             </div>
-            <a class="primary-btn" th:href="@{/training/create}">Tạo lớp đào tạo</a>
+            <a class="primary-btn" th:href="@{/training/skills}">Danh mục kỹ năng</a>
         </div>
 
         <div class="store-banner warning" th:unless="${hasStore}">
             <h2>Chưa được gán cửa hàng</h2>
-            <p>Liên hệ Admin trước khi tạo lớp đào tạo.</p>
+            <p>Bạn vẫn xem được lớp mà bạn được phân công đào tạo.</p>
         </div>
 
         <form class="filter-bar" th:action="@{/training}" method="get">
@@ -166,7 +166,7 @@
         <div class="panel-head">
             <div>
                 <h2>Yêu cầu đã gửi Admin</h2>
-                <p>Gồm lớp bạn tạo và lớp tập trung được giao cho bạn đào tạo. Lớp đã đến giờ kết thúc không còn hiện ở đây.</p>
+                <p>Gồm lớp tại cửa hàng của bạn và lớp bạn được phân công đào tạo. Lớp đã đến giờ kết thúc không còn hiện ở đây.</p>
             </div>
         </div>
         <table>
