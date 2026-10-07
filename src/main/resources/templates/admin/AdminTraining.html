@@ -9,7 +9,7 @@
     <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
     <link rel="stylesheet" th:href="@{/css/Training.css}">
 </head>
-<body>
+<body th:attr="data-now=${#temporals.format(vietnamNow, 'yyyy-MM-dd') + 'T' + #temporals.format(vietnamNow, 'HH:mm:ss')}">
 <header th:replace="~{fragments/navbar :: admin('training')}"></header>
 
 <main class="wrap dash-main">
@@ -18,10 +18,11 @@
         <h1>Duyệt lớp đào tạo</h1>
         <p>
             <span th:text="${displayName}">Admin</span>
-            · duyệt lớp tại cửa hàng và tạo lớp đào tạo tập trung
+            · xem danh sách lớp, tạo lớp đào tạo và tạo kỹ năng đào tạo
         </p>
-        <p style="margin-top:12px;">
-            <a class="primary-btn" th:href="@{/admin/training/create}">Tạo lớp đào tạo tập trung</a>
+        <p class="actions" style="margin-top:12px;">
+            <a class="primary-btn" th:href="@{/admin/training/create}">Tạo lớp đào tạo</a>
+            <a class="primary-btn" th:href="@{/admin/training/skills}">Tạo kỹ năng</a>
         </p>
     </section>
 
@@ -29,52 +30,96 @@
     <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}">Error</p>
 
     <section class="panel">
-        <h2>Lớp chờ duyệt</h2>
-        <p>Approve chuyển sang APPROVED, Reject chuyển sang REJECTED. Hệ thống lưu người duyệt và thời điểm duyệt.</p>
+        <div class="panel-head">
+            <div>
+                <h2>Lớp đang hoạt động</h2>
+                <p>Lớp đã duyệt và chưa đến giờ kết thúc. Đến giờ kết thúc, lớp tự rời khỏi danh sách này. Admin chỉ xem, không đánh giá nhân viên.</p>
+            </div>
+        </div>
+
+        <form class="filter-bar" th:action="@{/admin/training}" method="get">
+            <label>Kỹ năng
+                <select name="skillId">
+                    <option value="">Tất cả kỹ năng</option>
+                    <option th:each="skill : ${filterSkills}"
+                            th:value="${skill.id}"
+                            th:selected="${skillId != null and skillId == skill.id}"
+                            th:text="${skill.skillName}">Skill</option>
+                </select>
+            </label>
+            <label>Ngày
+                <input type="date" name="date" th:value="${date}">
+            </label>
+            <label>Tìm kiếm
+                <input type="search" name="keyword" placeholder="Tên lớp, cửa hàng, kỹ năng, giảng viên"
+                       th:value="${keyword}">
+            </label>
+            <label>Sắp xếp giờ bắt đầu
+                <select name="sortDir">
+                    <option value="asc" th:selected="${sortDir == 'asc'}">Tăng dần</option>
+                    <option value="desc" th:selected="${sortDir == 'desc'}">Giảm dần</option>
+                </select>
+            </label>
+            <div class="filter-actions">
+                <button class="primary-btn" type="submit">Lọc</button>
+                <a class="back-link" th:href="@{/admin/training}">Xóa lọc</a>
+            </div>
+        </form>
+
         <table>
             <thead>
             <tr>
-                <th>Lớp</th>
-                <th>Loại</th>
-                <th>Cửa hàng</th>
+                <th>Tên lớp</th>
                 <th>Kỹ năng</th>
-                <th>Người đào tạo</th>
-                <th>Lịch</th>
-                <th>Người tạo</th>
+                <th>Cửa hàng</th>
+                <th>Ngày</th>
+                <th>Giờ bắt đầu</th>
+                <th>Giờ kết thúc</th>
+                <th>Sĩ số</th>
                 <th></th>
             </tr>
             </thead>
             <tbody>
-            <tr th:if="${#lists.isEmpty(pendingClasses)}">
-                <td colspan="8" class="empty">Không có lớp PENDING_APPROVAL.</td>
+            <tr th:if="${#lists.isEmpty(classes)}">
+                <td colspan="8" class="empty">Không có lớp đào tạo phù hợp.</td>
             </tr>
-            <tr th:each="item : ${pendingClasses}">
+            <tr th:each="item : ${classes}"
+                th:data-end="${item.endDate != null and item.endTime != null ? #temporals.format(item.endDate, 'yyyy-MM-dd') + 'T' + #temporals.format(item.endTime, 'HH:mm:ss') : ''}">
                 <td>
-                    <strong th:text="${item.className}">Class</strong>
-                    <div class="muted" th:text="${item.location}">Location</div>
+                    <a class="row-link" th:href="@{/admin/training/classes/{id}(id=${item.id})}" th:text="${item.className}">Class</a>
                 </td>
-                <td th:text="${item.trainingTypeLabel} ?: '—'">Loại</td>
+                <td th:text="${item.skillName}">Skill</td>
                 <td th:text="${item.storeName} ?: '—'">Store</td>
-                <td th:text="${item.skillName} ?: '—'">Skill</td>
-                <td th:text="${item.trainer} ?: '—'">Trainer</td>
                 <td>
-                    <span th:text="${item.startDate}">start</span>
+                    <span th:text="${item.startDate}">2026-01-01</span>
                     <span> → </span>
-                    <span th:text="${item.endDate}">end</span>
+                    <span th:text="${item.endDate}">2026-01-02</span>
                 </td>
-                <td th:text="${item.createdByName}">manager</td>
+                <td th:text="${item.startTime != null} ? ${#temporals.format(item.startTime, 'HH:mm')} : '—'">08:00</td>
+                <td th:text="${item.endTime != null} ? ${#temporals.format(item.endTime, 'HH:mm')} : '—'">10:00</td>
+                <td th:text="${item.maxParticipants != null} ? ${item.maxParticipants} : '—'">—</td>
                 <td class="actions">
-                    <form th:action="@{/admin/training/classes/{id}/approve(id=${item.id})}" method="post">
-                        <button class="primary-btn" type="submit">Approve</button>
-                    </form>
-                    <form th:action="@{/admin/training/classes/{id}/reject(id=${item.id})}" method="post"
-                          onsubmit="return confirm('Từ chối lớp đào tạo này?');">
-                        <button class="logout-btn" type="submit">Reject</button>
-                    </form>
+                    <a class="link-btn" th:href="@{/admin/training/classes/{id}(id=${item.id})}">Xem chi tiết</a>
                 </td>
             </tr>
             </tbody>
         </table>
+
+        <nav class="pagination" th:if="${totalPages > 0}" aria-label="Phân trang danh sách lớp đang hoạt động">
+            <a class="page-btn"
+               th:classappend="${classPage.first} ? ' disabled'"
+               th:href="${classPage.first} ? '#' : @{/admin/training(page=${currentPage - 1}, skillId=${skillId}, date=${date}, keyword=${keyword}, sortDir=${sortDir})}">Trang trước</a>
+            <span class="page-numbers">
+                <a th:each="p : ${#numbers.sequence(1, totalPages)}"
+                   class="page-btn"
+                   th:classappend="${p == currentPage} ? ' active'"
+                   th:href="@{/admin/training(page=${p}, skillId=${skillId}, date=${date}, keyword=${keyword}, sortDir=${sortDir})}"
+                   th:text="${p}">1</a>
+            </span>
+            <a class="page-btn"
+               th:classappend="${classPage.last} ? ' disabled'"
+               th:href="${classPage.last} ? '#' : @{/admin/training(page=${currentPage + 1}, skillId=${skillId}, date=${date}, keyword=${keyword}, sortDir=${sortDir})}">Trang tiếp theo</a>
+        </nav>
     </section>
 
     <section class="panel" style="margin-top:16px;">
@@ -113,5 +158,6 @@
     </section>
 </main>
 <script th:src="@{/js/AdminDashboard.js}"></script>
+<script th:src="@{/js/training-end-refresh.js}"></script>
 </body>
 </html>

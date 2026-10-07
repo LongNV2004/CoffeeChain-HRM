@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
     var id = row.getAttribute('data-id');
-    form.action = context + '/training/skills/' + id;
+    form.action = context + '/admin/training/skills/' + id;
     form.querySelector('[name="skillName"]').value = row.getAttribute('data-name') || '';
     form.querySelector('[name="description"]').value = row.getAttribute('data-description') || '';
     form.querySelector('[name="requirements"]').value = row.getAttribute('data-requirements') || '';
@@ -231,8 +231,8 @@ function initMultiSelects() {
         if (input.classList.contains('store-choice')) {
           boxes.forEach(refreshBox);
         }
-        if (input.name === 'skillIds') {
-          syncEmployeeEligibility(refreshBox);
+        if (input.classList.contains('store-choice') || input.name === 'skillIds') {
+          syncEmployeeEligibility();
         }
       });
     });
@@ -256,48 +256,183 @@ function skillIdList(item, attribute) {
     .filter(Boolean);
 }
 
-function syncEmployeeEligibility(refreshBox) {
-  var skillInputs = document.querySelectorAll('input[name="skillIds"]');
-  if (!skillInputs.length) {
+function syncEmployeeEligibility() {
+  var rows = document.querySelectorAll('.enroll-row');
+  if (!rows.length) {
     return;
   }
-  var selected = Array.prototype.map.call(skillInputs, function (input) {
-    return input.checked ? String(input.value) : '';
-  }).filter(Boolean);
-
-  document.querySelectorAll('[data-certified-skills]').forEach(function (item) {
-    var badge = item.querySelector('.cert-badge');
-    var input = item.querySelector('input[name="employeeIds"]');
-    var held = skillIdList(item, 'data-certified-skills');
-    var studying = skillIdList(item, 'data-studying-skills');
-    var covered = selected.length > 0 && selected.every(function (skillId) {
-      return held.indexOf(skillId) >= 0;
-    });
-    var inProgress = !covered && selected.length > 0 && selected.some(function (skillId) {
-      return studying.indexOf(skillId) >= 0;
-    });
-    if (badge) {
-      badge.hidden = false;
-      badge.textContent = covered ? 'Có chứng chỉ' : (inProgress ? 'Đang học' : 'Không có chứng chỉ');
-      badge.classList.toggle('badge-cert', covered);
-      badge.classList.toggle('badge-studying', inProgress);
-      badge.classList.toggle('badge-nocert', !covered && !inProgress);
-    }
-    item.classList.toggle('is-certified', covered);
-    item.classList.toggle('is-studying', inProgress);
-    if (input) {
-      input.disabled = covered || inProgress;
-      if (covered || inProgress) {
-        input.checked = false;
-      }
-    }
+  var selectedStores = Array.prototype.map.call(
+    document.querySelectorAll('input[name="storeIds"]:checked'),
+    function (input) { return input.value; }
+  );
+  var selectedSkills = Array.prototype.map.call(
+    document.querySelectorAll('input[name="skillIds"]:checked'),
+    function (input) { return String(input.value); }
+  );
+  var skillNames = {};
+  document.querySelectorAll('input[name="skillIds"]').forEach(function (input) {
+    var text = input.closest('.ms-item');
+    var label = text ? text.querySelector('.ms-text') : null;
+    skillNames[String(input.value)] = label ? label.textContent.trim() : '';
   });
 
-  if (typeof refreshBox === 'function') {
-    document.querySelectorAll('[data-ms]').forEach(function (box) {
-      if (box.querySelector('input[name="employeeIds"]')) {
-        refreshBox(box);
+  var visible = 0;
+  rows.forEach(function (row) {
+    var inStore = selectedStores.indexOf(row.getAttribute('data-store-id')) >= 0;
+    row.hidden = !inStore;
+    var input = row.querySelector('input[name="employeeIds"]');
+    if (!inStore) {
+      if (input) {
+        input.checked = false;
+        input.disabled = true;
+      }
+      return;
+    }
+    visible += 1;
+    renderEnrollmentRow(row, selectedSkills, skillNames);
+  });
+
+  var empty = document.getElementById('enroll-empty');
+  var list = document.getElementById('enroll-list');
+  if (empty) {
+    if (!selectedStores.length) {
+      empty.hidden = false;
+      empty.textContent = 'Chọn cửa hàng trước.';
+    } else if (!visible) {
+      empty.hidden = false;
+      empty.textContent = 'Không có nhân viên thuộc các cửa hàng đã chọn.';
+    } else {
+      empty.hidden = true;
+    }
+  }
+  if (list) {
+    list.hidden = !selectedStores.length || !visible;
+  }
+}
+
+function renderEnrollmentRow(row, selectedSkills, skillNames) {
+  var input = row.querySelector('input[name="employeeIds"]');
+  var cert = row.querySelector('.enroll-cert');
+  var latest = row.querySelector('.enroll-latest');
+  var badge = row.querySelector('.cert-badge');
+  var snapshots = skillSnapshotMap(row.getAttribute('data-skills'));
+  var studying = skillIdList(row, 'data-studying-skills');
+
+  if (!selectedSkills.length) {
+    if (cert) {
+      cert.textContent = 'Chọn kỹ năng để xem chứng chỉ';
+    }
+    if (latest) {
+      latest.textContent = '—';
+    }
+    setEligibilityBadge(badge, 'Chọn kỹ năng', 'badge-wait');
+    row.classList.remove('is-blocked', 'is-retake');
+    if (input) {
+      input.disabled = true;
+      input.checked = false;
+    }
+    return;
+  }
+
+  var certHtml = '';
+  var latestHtml = '';
+  var allCertified = true;
+  var anyStudying = false;
+  selectedSkills.forEach(function (skillId) {
+    var snap = snapshots[skillId] || {};
+    var name = skillNames[skillId] || snap.name || 'Kỹ năng';
+    var inTraining = studying.indexOf(skillId) >= 0;
+    var certified = !!snap.certified;
+    if (!certified) {
+      allCertified = false;
+    }
+    if (inTraining) {
+      anyStudying = true;
+    }
+    certHtml += '<span class="skill-line"><span class="skill-name">' + escapeHtml(name) + '</span> '
+      + (certified
+        ? '<span class="cert-on">🟢 Đã có chứng chỉ</span>'
+        : '<span class="cert-off">🔴 Chưa có chứng chỉ</span>')
+      + (certified && snap.certifiedDate
+        ? '<span class="muted">Ngày đạt: ' + escapeHtml(snap.certifiedDate) + '</span>'
+        : '')
+      + '</span>';
+    latestHtml += '<span class="skill-line"><span class="skill-name">' + escapeHtml(name) + ':</span> '
+      + escapeHtml(latestAttemptText(snap, inTraining)) + '</span>';
+  });
+  if (cert) {
+    cert.innerHTML = certHtml;
+  }
+  if (latest) {
+    latest.innerHTML = latestHtml;
+  }
+
+  var badgeText = 'Có thể đăng ký';
+  var badgeClass = 'badge-ok';
+  if (anyStudying) {
+    badgeText = 'Không thể đăng ký';
+    badgeClass = 'badge-off';
+  } else if (allCertified) {
+    badgeText = 'Có thể học lại';
+    badgeClass = 'badge-cert';
+  }
+  setEligibilityBadge(badge, badgeText, badgeClass);
+  row.classList.toggle('is-blocked', anyStudying);
+  row.classList.toggle('is-retake', !anyStudying && allCertified);
+  if (input) {
+    input.disabled = anyStudying;
+    if (anyStudying) {
+      input.checked = false;
+    }
+  }
+}
+
+function latestAttemptText(snap, inTraining) {
+  if (inTraining) {
+    var trainingDate = snap && snap.latest === 'IN_TRAINING' ? snap.latestDate : '';
+    return 'ĐANG ĐÀO TẠO' + (trainingDate ? ' · ' + trainingDate : '');
+  }
+  if (!snap || !snap.latest) {
+    return '—';
+  }
+  var label = snap.latest === 'PASS'
+    ? 'PASS'
+    : (snap.latest === 'NOT_PASS' ? 'NOT PASS' : (snap.latest === 'IN_TRAINING' ? 'ĐANG ĐÀO TẠO' : snap.latest));
+  return label + (snap.latestDate ? ' · ' + snap.latestDate : '');
+}
+
+function skillSnapshotMap(raw) {
+  if (!raw) {
+    return {};
+  }
+  try {
+    var parsed = JSON.parse(raw);
+    var map = {};
+    (parsed || []).forEach(function (item) {
+      if (item && item.id != null) {
+        map[String(item.id)] = item;
       }
     });
+    return map;
+  } catch (error) {
+    return {};
   }
+}
+
+function setEligibilityBadge(badge, text, badgeClass) {
+  if (!badge) {
+    return;
+  }
+  badge.hidden = false;
+  badge.textContent = text;
+  badge.classList.remove('badge-cert', 'badge-studying', 'badge-nocert', 'badge-ok', 'badge-off', 'badge-wait');
+  badge.classList.add(badgeClass);
+}
+
+function escapeHtml(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }

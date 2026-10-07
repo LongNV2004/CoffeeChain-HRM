@@ -25,57 +25,75 @@
     <p class="flash success" th:if="${successMessage}" th:text="${successMessage}">OK</p>
     <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}">Error</p>
 
-    <section class="panel">
+    <section class="panel" id="upcoming">
         <div class="panel-head">
             <div>
-                <h2>Lớp được phân công</h2>
-                <p>Chỉ hiển thị các lớp mà quản lý đã thêm bạn vào. Kết quả do quản lý đánh giá, bạn chỉ được xem.</p>
+                <h2>Lớp đào tạo</h2>
+                <p>Các lớp bạn đã được ghi danh và chưa kết thúc, gồm lớp sắp diễn ra và lớp đang diễn ra.</p>
             </div>
         </div>
+        <div th:replace="~{fragments/staffTrainingTable :: classTable(rows=${upcomingClasses}, emptyText='Bạn chưa có lớp đào tạo sắp tới.')}"></div>
+    </section>
 
+    <section class="panel" id="history">
+        <div class="panel-head">
+            <div>
+                <h2>Lịch sử đào tạo</h2>
+                <p>Các lớp đã kết thúc mà bạn đã tham gia.</p>
+            </div>
+        </div>
+        <div th:replace="~{fragments/staffTrainingTable :: classTable(rows=${historyClasses}, emptyText='Bạn chưa có lịch sử đào tạo.')}"></div>
+    </section>
+
+    <section class="panel" id="results">
+        <div class="panel-head">
+            <div>
+                <h2>Kết quả đào tạo</h2>
+                <p>Kết quả do người đào tạo đánh giá sau khi lớp kết thúc. Bạn chỉ được xem.</p>
+            </div>
+        </div>
         <div class="table-scroll">
             <table>
                 <thead>
                 <tr>
                     <th>Tên lớp</th>
                     <th>Kỹ năng</th>
-                    <th>Ngày bắt đầu</th>
-                    <th>Ngày kết thúc</th>
-                    <th>Giờ học</th>
-                    <th>Giảng viên</th>
-                    <th>Trạng thái</th>
                     <th>Kết quả</th>
+                    <th>Kỹ năng PASS</th>
+                    <th>Kỹ năng NOT PASS</th>
+                    <th>Ngày đánh giá</th>
                     <th></th>
                 </tr>
                 </thead>
                 <tbody>
-                <tr th:if="${#lists.isEmpty(classes)}">
-                    <td colspan="9" class="empty">Bạn chưa được thêm vào lớp đào tạo nào.</td>
+                <tr th:if="${#lists.isEmpty(resultClasses)}">
+                    <td colspan="7" class="empty">Chưa có kết quả đánh giá.</td>
                 </tr>
-                <tr th:each="item : ${classes}"
-                    th:data-end="${!item.ended and item.endDate != null and item.endTime != null ? #temporals.format(item.endDate, 'yyyy-MM-dd') + 'T' + #temporals.format(item.endTime, 'HH:mm:ss') : ''}">
+                <tr th:each="item : ${resultClasses}">
                     <td>
                         <a class="row-link" th:href="@{/training/staff/classes/{id}(id=${item.id})}" th:text="${item.className}">Pha Chế 2</a>
                     </td>
                     <td th:text="${item.skillName} ?: '—'">Pha chế</td>
-                    <td th:text="${item.startDate != null} ? ${#temporals.format(item.startDate, 'dd/MM/yyyy')} : '—'">01/09/2026</td>
-                    <td th:text="${item.endDate != null} ? ${#temporals.format(item.endDate, 'dd/MM/yyyy')} : '—'">05/09/2026</td>
                     <td>
-                        <span th:text="${item.startTime != null} ? ${#temporals.format(item.startTime, 'HH:mm')} : '—'">08:00</span>
-                        <span> – </span>
-                        <span th:text="${item.endTime != null} ? ${#temporals.format(item.endTime, 'HH:mm')} : '—'">10:00</span>
-                    </td>
-                    <td th:text="${item.trainer != null} ? ${item.trainer} : '—'">Nguyễn Văn A</td>
-                    <td>
-                        <span class="badge"
-                              th:classappend="${item.participationStatus == 'Đang tham gia'} ? ' badge-ok' : (${item.participationStatus == 'Đã kết thúc'} ? ' badge-off' : ' badge-wait')"
-                              th:text="${item.participationStatus}">Đang tham gia</span>
+                        <span th:if="${item.resultCode == null}">Chưa có kết quả đánh giá</span>
+                        <span th:if="${item.resultCode != null}"
+                              class="badge"
+                              th:classappend="${item.resultCode == 'PASS'} ? ' badge-ok' : ' badge-off'"
+                              th:text="${item.resultCode}">PASS</span>
                     </td>
                     <td>
-                        <span class="badge"
-                              th:classappend="${item.resultLabel == 'Đạt'} ? ' badge-ok' : (${item.resultLabel == 'Không đạt'} ? ' badge-off' : ' badge-wait')"
-                              th:text="${item.resultLabel}">Chưa đánh giá</span>
+                        <span th:if="${#lists.isEmpty(item.passedSkillNames)}">—</span>
+                        <span th:each="skill, stat : ${item.passedSkillNames}">
+                            <span th:text="${skill}">Pha chế</span><span th:if="${!stat.last}">, </span>
+                        </span>
                     </td>
+                    <td>
+                        <span th:if="${#lists.isEmpty(item.notPassedSkillNames)}">—</span>
+                        <span th:each="skill, stat : ${item.notPassedSkillNames}">
+                            <span th:text="${skill}">Pha chế</span><span th:if="${!stat.last}">, </span>
+                        </span>
+                    </td>
+                    <td th:text="${item.evaluatedAt != null} ? ${#temporals.format(item.evaluatedAt, 'dd/MM/yyyy HH:mm')} : '—'">01/09/2026</td>
                     <td>
                         <a class="link-btn" th:href="@{/training/staff/classes/{id}(id=${item.id})}">Xem chi tiết</a>
                     </td>

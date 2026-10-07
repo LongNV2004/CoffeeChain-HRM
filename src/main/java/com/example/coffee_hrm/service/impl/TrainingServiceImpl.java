@@ -16,6 +16,7 @@ import com.example.coffee_hrm.dto.request.CreateTrainingClassRequest;
 import com.example.coffee_hrm.dto.request.CreateTrainingSkillRequest;
 import com.example.coffee_hrm.dto.request.EvaluateTrainingStudentRequest;
 import com.example.coffee_hrm.dto.request.UpdateTrainingSkillRequest;
+import com.example.coffee_hrm.dto.response.EmployeeSkillStatusLine;
 import com.example.coffee_hrm.dto.response.EmployeeTrainingClassResponse;
 import com.example.coffee_hrm.dto.response.TrainingClassResponse;
 import com.example.coffee_hrm.dto.response.TrainingClassStudentResponse;
@@ -30,6 +31,7 @@ import com.example.coffee_hrm.entity.TrainingSkill;
 import com.example.coffee_hrm.entity.User;
 import com.example.coffee_hrm.repository.EmployeeOpenSkill;
 import com.example.coffee_hrm.repository.EmployeePassedSkill;
+import com.example.coffee_hrm.repository.EmployeeSkillTrainingFact;
 import com.example.coffee_hrm.repository.EmployeeRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.repository.TrainingClassEnrollmentRepository;
@@ -48,6 +50,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -98,7 +101,7 @@ public class TrainingServiceImpl implements TrainingService {
     @Override
     @Transactional
     public TrainingSkillResponse createSkill(CreateTrainingSkillRequest request, AuthenticatedUser actor) {
-        requireManager(actor);
+        requireAdmin(actor, "Chỉ Admin mới được tạo kỹ năng đào tạo.");
         String skillName = requireSkillName(request.getSkillName());
         if (trainingSkillRepository.existsBySkillNameIgnoreCase(skillName)) {
             throw new BusinessException("Tên kỹ năng đã tồn tại.");
@@ -117,7 +120,7 @@ public class TrainingServiceImpl implements TrainingService {
     @Override
     @Transactional
     public TrainingSkillResponse updateSkill(Integer skillId, UpdateTrainingSkillRequest request, AuthenticatedUser actor) {
-        requireManager(actor);
+        requireAdmin(actor, "Chỉ Admin mới được sửa kỹ năng đào tạo.");
         TrainingSkill skill = trainingSkillRepository.findById(skillId)
                 .orElseThrow(() -> new BusinessException("Không tìm thấy kỹ năng đào tạo."));
         if (skill.getStatus() == TrainingSkillStatus.INACTIVE) {
@@ -138,7 +141,7 @@ public class TrainingServiceImpl implements TrainingService {
     @Override
     @Transactional
     public TrainingSkillResponse deactivateSkill(Integer skillId, AuthenticatedUser actor) {
-        requireManager(actor);
+        requireAdmin(actor, "Chỉ Admin mới được ngừng kỹ năng đào tạo.");
         TrainingSkill skill = trainingSkillRepository.findById(skillId)
                 .orElseThrow(() -> new BusinessException("Không tìm thấy kỹ năng đào tạo."));
         if (skill.getStatus() == TrainingSkillStatus.INACTIVE) {
@@ -151,7 +154,7 @@ public class TrainingServiceImpl implements TrainingService {
     @Override
     @Transactional
     public TrainingSkillResponse activateSkill(Integer skillId, AuthenticatedUser actor) {
-        requireManager(actor);
+        requireAdmin(actor, "Chỉ Admin mới được kích hoạt kỹ năng đào tạo.");
         TrainingSkill skill = trainingSkillRepository.findById(skillId)
                 .orElseThrow(() -> new BusinessException("Không tìm thấy kỹ năng đào tạo."));
         if (skill.getStatus() == TrainingSkillStatus.ACTIVE) {
@@ -178,21 +181,22 @@ public class TrainingServiceImpl implements TrainingService {
                 employeeRepository.findByStore_IdAndStatus(store.getId(), EmployeeStatus.ACTIVE));
         Map<Integer, Set<Integer>> passedSkills = passedSkillIdsByEmployee(employees);
         Map<Integer, List<EmployeeOpenSkill>> openSkills = openSkillsByEmployee(employees, null);
+        Map<Integer, Map<Integer, SkillSnapshot>> snapshots = skillSnapshotsByEmployee(employees);
         return employees.stream()
                 .sorted(Comparator.comparing(Employee::getFullName, String.CASE_INSENSITIVE_ORDER))
-                .map(employee -> toAvailableEmployee(employee, passedSkills, openSkills, null))
+                .map(employee -> toAvailableEmployee(employee, passedSkills, openSkills, null, snapshots))
                 .toList();
     }
 
     @Override
     public List<Store> listActiveStores(AuthenticatedUser admin) {
-        requireAdmin(admin, "Chỉ Admin mới được tạo lớp đào tạo tập trung.");
+        requireAdmin(admin, "Chỉ Admin mới được tạo lớp đào tạo.");
         return storeRepository.findByIsActiveTrueOrderByStoreNameAsc();
     }
 
     @Override
     public List<TrainingTrainerOption> listTrainerCandidates(AuthenticatedUser admin) {
-        requireAdmin(admin, "Chỉ Admin mới được tạo lớp đào tạo tập trung.");
+        requireAdmin(admin, "Chỉ Admin mới được tạo lớp đào tạo.");
         return userRepository.findActiveByRoleName(RoleName.MANAGER).stream()
                 .map(user -> TrainingTrainerOption.builder()
                         .userId(user.getId())
@@ -207,23 +211,16 @@ public class TrainingServiceImpl implements TrainingService {
 
     @Override
     public List<TrainingEmployeeOption> listActiveEmployees(AuthenticatedUser admin) {
-        requireAdmin(admin, "Chỉ Admin mới được tạo lớp đào tạo tập trung.");
+        requireAdmin(admin, "Chỉ Admin mới được tạo lớp đào tạo.");
         List<Employee> employees = excludeManagerAccounts(
                 employeeRepository.findByStatusWithStore(EmployeeStatus.ACTIVE)).stream()
                 .filter(employee -> employee.getStore() != null && employee.getStore().getId() != null)
                 .toList();
         Map<Integer, Set<Integer>> passedSkills = passedSkillIdsByEmployee(employees);
         Map<Integer, List<EmployeeOpenSkill>> openSkills = openSkillsByEmployee(employees, null);
+        Map<Integer, Map<Integer, SkillSnapshot>> snapshots = skillSnapshotsByEmployee(employees);
         return employees.stream()
-                .map(employee -> TrainingEmployeeOption.builder()
-                        .employeeId(employee.getId())
-                        .fullName(employee.getFullName())
-                        .email(employee.getEmail())
-                        .storeId(employee.getStore().getId())
-                        .storeName(employee.getStore().getStoreName())
-                        .certifiedSkillIds(certifiedSkillIdsFor(employee.getId(), passedSkills))
-                        .studyingSkillIds(studyingSkillIdsFor(employee.getId(), openSkills))
-                        .build())
+                .map(employee -> toEmployeeOption(employee, passedSkills, openSkills, snapshots))
                 .toList();
     }
 
@@ -320,10 +317,11 @@ public class TrainingServiceImpl implements TrainingService {
                 .toList();
         Map<Integer, Set<Integer>> passedSkills = passedSkillIdsByEmployee(employees);
         Map<Integer, List<EmployeeOpenSkill>> openSkills = openSkillsByEmployee(employees, classId);
+        Map<Integer, Map<Integer, SkillSnapshot>> snapshots = skillSnapshotsByEmployee(employees);
         Set<Integer> classSkillIds = skillIdsOf(trainingClass);
         return employees.stream()
                 .sorted(Comparator.comparing(Employee::getFullName, String.CASE_INSENSITIVE_ORDER))
-                .map(employee -> toAvailableEmployee(employee, passedSkills, openSkills, classSkillIds))
+                .map(employee -> toAvailableEmployee(employee, passedSkills, openSkills, trainingClass, snapshots))
                 .toList();
     }
 
@@ -386,9 +384,40 @@ public class TrainingServiceImpl implements TrainingService {
         enrollment.setEvaluationNote(note);
         enrollment.setEvaluatedAt(VietnamTime.now());
         enrollment.setEvaluatedBy(loadUser(manager.getUserId()));
-        employee.setCertificationStatus(request.getResult() == TrainingResult.PASS
-                ? CertificationStatus.CERTIFIED
-                : CertificationStatus.NOTCERTIFIED);
+        syncEmployeeCertificationRollup(employee, request.getResult());
+        notifyEvaluatedEmployee(trainingClass, employee, request.getResult(), note, alreadyEvaluated);
+    }
+
+    /**
+     * Cờ trên nhân viên chỉ phục vụ đăng ký ca: CERTIFIED khi còn ít nhất một kỹ năng đã PASS.
+     * Không dùng cờ này để cấp hoặc thu hồi chứng chỉ của kỹ năng khác.
+     * NOT PASS chỉ bỏ cờ khi không còn kỹ năng nào đã PASS.
+     */
+    private void syncEmployeeCertificationRollup(Employee employee, TrainingResult result) {
+        if (employee == null) {
+            return;
+        }
+        if (result == TrainingResult.PASS) {
+            employee.setCertificationStatus(CertificationStatus.CERTIFIED);
+            return;
+        }
+        if (!hasAnyCertifiedSkill(employee.getId())) {
+            employee.setCertificationStatus(CertificationStatus.NOTCERTIFIED);
+        }
+    }
+
+    private boolean hasAnyCertifiedSkill(Integer employeeId) {
+        if (employeeId == null) {
+            return false;
+        }
+        List<EmployeePassedSkill> rows = trainingClassEnrollmentRepository.findPassedSkillsByEmployees(
+                List.of(employeeId), TrainingResult.PASS, TrainingClassStatus.APPROVED);
+        if (rows == null || rows.isEmpty()) {
+            return false;
+        }
+        return rows.stream().anyMatch(row -> row != null
+                && employeeId.equals(row.getEmployeeId())
+                && row.getSkillId() != null);
     }
 
     @Override
@@ -445,56 +474,20 @@ public class TrainingServiceImpl implements TrainingService {
     }
 
     @Override
-    @Transactional
-    public TrainingClassResponse createClass(CreateTrainingClassRequest request, AuthenticatedUser manager) {
-        requireManager(manager);
-        Store store = requireManagerStore(manager);
-        if (manager.getStoreId() != null && !manager.getStoreId().equals(store.getId())) {
-            throw new BusinessException("Bạn chỉ được tạo lớp đào tạo cho cửa hàng của mình.");
-        }
-        validateSchedule(request.getStartDate(), request.getEndDate(), request.getStartTime(), request.getEndTime());
-        String className = requireUniqueOpenClassName(request.getClassName());
-        List<TrainingSkill> skills = requireActiveSkills(request.getSkillIds());
-        ensureNoScheduleOverlap(List.of(store.getId()), request.getStartDate(), request.getEndDate(),
-                request.getStartTime(), request.getEndTime(), null);
-
-        User creator = loadUser(manager.getUserId());
-        TrainingClass trainingClass = TrainingClass.builder()
-                .trainingType(TrainingType.STORE_TRAINING)
-                .skills(new LinkedHashSet<>(skills))
-                .store(store)
-                .participatingStores(new LinkedHashSet<>(List.of(store)))
-                .className(className)
-                .trainer(creator)
-                .startDate(request.getStartDate())
-                .endDate(request.getEndDate())
-                .startTime(request.getStartTime())
-                .endTime(request.getEndTime())
-                .maxParticipants(request.getMaxParticipants())
-                .notes(blankToNull(request.getNotes()))
-                .status(TrainingClassStatus.PENDING_APPROVAL)
-                .createdBy(creator)
-                .build();
-
-        TrainingClass saved = trainingClassRepository.save(trainingClass);
-        enrollEmployees(saved, request.getEmployeeIds(), false);
-        TrainingClass detailed = trainingClassRepository.findByIdWithDetails(saved.getId()).orElse(saved);
-        notifyAdminsNewClass(detailed, manager);
-        return toClassResponse(detailed);
+    public TrainingClassResponse createClass(CreateTrainingClassRequest request, AuthenticatedUser actor) {
+        throw new BusinessException("Chỉ Admin mới được tạo lớp đào tạo.");
     }
 
     @Override
     @Transactional
     public TrainingClassResponse createCentralizedClass(CreateCentralizedTrainingRequest request,
                                                         AuthenticatedUser admin) {
-        requireAdmin(admin, "Chỉ Admin mới được tạo lớp đào tạo tập trung.");
+        requireAdmin(admin, "Chỉ Admin mới được tạo lớp đào tạo.");
         validateSchedule(request.getStartDate(), request.getEndDate(), request.getStartTime(), request.getEndTime());
         String className = requireUniqueOpenClassName(request.getClassName());
         List<TrainingSkill> skills = requireActiveSkills(request.getSkillIds());
         List<Store> stores = requireStores(request.getStoreIds());
-        if (stores.size() < 2) {
-            throw new BusinessException("Đào tạo tập trung phải chọn ít nhất hai cửa hàng.");
-        }
+        boolean singleStore = stores.size() == 1;
         User trainer = requireManagerTrainer(request.getTrainerId());
         if (trainer.getId().equals(admin.getUserId())) {
             throw new BusinessException("Người tạo lớp và người đào tạo là hai vai trò khác nhau.");
@@ -504,8 +497,9 @@ public class TrainingServiceImpl implements TrainingService {
 
         User creator = loadUser(admin.getUserId());
         TrainingClass trainingClass = TrainingClass.builder()
-                .trainingType(TrainingType.CENTRALIZED_TRAINING)
+                .trainingType(singleStore ? TrainingType.STORE_TRAINING : TrainingType.CENTRALIZED_TRAINING)
                 .skills(new LinkedHashSet<>(skills))
+                .store(singleStore ? stores.get(0) : null)
                 .participatingStores(new LinkedHashSet<>(stores))
                 .className(className)
                 .trainer(trainer)
@@ -529,6 +523,55 @@ public class TrainingServiceImpl implements TrainingService {
         TrainingClass detailed = trainingClassRepository.findByIdWithDetails(saved.getId()).orElse(saved);
         notifyAssignedTrainer(detailed, trainer);
         return toClassResponse(detailed);
+    }
+
+    @Override
+    public Page<TrainingClassResponse> listActiveClassesForAdmin(AuthenticatedUser admin,
+                                                                 Integer skillId,
+                                                                 LocalDate date,
+                                                                 String keyword,
+                                                                 String sortDir,
+                                                                 int page) {
+        requireAdmin(admin, "Chỉ Admin mới được xem danh sách lớp đang hoạt động.");
+        Sort sort = classListSort(date, sortDir);
+        int pageIndex = Math.max(page, 1) - 1;
+        Pageable pageable = PageRequest.of(pageIndex, CLASS_LIST_PAGE_SIZE, sort);
+        String normalizedKeyword = blankToNull(keyword);
+        LocalTime currentTime = VietnamTime.currentTime();
+        Page<TrainingClass> result = trainingClassRepository.searchApprovedActiveForAdmin(
+                TrainingClassStatus.APPROVED,
+                VietnamTime.today(),
+                currentTime,
+                skillId,
+                date,
+                normalizedKeyword,
+                pageable);
+        if (result.getTotalPages() > 0 && pageIndex >= result.getTotalPages()) {
+            pageable = PageRequest.of(result.getTotalPages() - 1, CLASS_LIST_PAGE_SIZE, sort);
+            result = trainingClassRepository.searchApprovedActiveForAdmin(
+                    TrainingClassStatus.APPROVED,
+                    VietnamTime.today(),
+                    currentTime,
+                    skillId,
+                    date,
+                    normalizedKeyword,
+                    pageable);
+        }
+        return result.map(this::toClassResponse);
+    }
+
+    @Override
+    public TrainingClassResponse getApprovedClassDetailForAdmin(Integer classId, AuthenticatedUser admin) {
+        requireAdmin(admin, "Chỉ Admin mới được xem lớp đào tạo.");
+        TrainingClass trainingClass = trainingClassRepository.findByIdWithDetails(classId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy lớp đào tạo."));
+        if (trainingClass.getStatus() != TrainingClassStatus.APPROVED) {
+            throw new BusinessException("Không tìm thấy lớp đào tạo.");
+        }
+        List<TrainingClassEnrollment> enrollments = trainingClassEnrollmentRepository.findByClassIdWithEmployee(classId);
+        return toClassResponse(trainingClass, enrollments).toBuilder()
+                .evaluable(false)
+                .build();
     }
 
     @Override
@@ -668,6 +711,38 @@ public class TrainingServiceImpl implements TrainingService {
                 trainingClass.getId());
     }
 
+    private void notifyEvaluatedEmployee(TrainingClass trainingClass,
+                                         Employee employee,
+                                         TrainingResult result,
+                                         String note,
+                                         boolean updated) {
+        if (employee == null || employee.getId() == null) {
+            return;
+        }
+        Optional<User> account = userRepository.findByEmployee_Id(employee.getId());
+        if (account == null || account.isEmpty() || account.get().getId() == null) {
+            return;
+        }
+        String className = trainingClass.getClassName() == null ? "" : trainingClass.getClassName().trim();
+        String resultLabel = result.getLabel();
+        String title = updated
+                ? "Kết quả đánh giá đã được cập nhật"
+                : "Bạn đã được đánh giá lớp đào tạo";
+        StringBuilder message = new StringBuilder(updated
+                ? "Kết quả đánh giá lớp \"" + className + "\" đã được cập nhật thành " + resultLabel + "."
+                : "Bạn đã được đánh giá lớp \"" + className + "\". Kết quả: " + resultLabel + ".");
+        if (note != null && !note.isBlank()) {
+            message.append(" Ghi chú: ").append(note.trim()).append(".");
+        }
+        notificationService.notifyUsers(
+                List.of(account.get()),
+                title,
+                message.toString(),
+                NotificationType.TRAINING_CLASS_EVALUATED,
+                TRAINING_CLASS_REF,
+                trainingClass.getId());
+    }
+
     private void notifyEnrolledEmployees(TrainingClass trainingClass, List<User> recipients) {
         if (recipients == null || recipients.isEmpty()) {
             return;
@@ -676,7 +751,8 @@ public class TrainingServiceImpl implements TrainingService {
         notificationService.notifyUsers(
                 recipients,
                 "Bạn được thêm vào lớp đào tạo",
-                "Bạn đã được thêm vào lớp đào tạo " + className + ".",
+                "Bạn đã được thêm vào lớp đào tạo " + className
+                        + ". Kết quả đánh giá sẽ có sau khi lớp kết thúc.",
                 NotificationType.TRAINING_CLASS_ENROLLED,
                 TRAINING_CLASS_REF,
                 trainingClass.getId());
@@ -849,19 +925,22 @@ public class TrainingServiceImpl implements TrainingService {
         return !VietnamTime.currentTime().isBefore(startTime);
     }
 
-    private String participationStatus(TrainingClass trainingClass) {
+    private String scheduleStatus(TrainingClass trainingClass) {
         if (hasEnded(trainingClass)) {
             return "Đã kết thúc";
         }
         if (hasStarted(trainingClass)) {
-            return "Đang tham gia";
+            return "Đang diễn ra";
         }
-        return "Chưa bắt đầu";
+        return "Sắp diễn ra";
     }
 
     private EmployeeTrainingClassResponse toEmployeeClass(TrainingClassEnrollment enrollment) {
         TrainingClass trainingClass = enrollment.getTrainingClass();
         TrainingResult result = enrollment.getResult();
+        boolean ended = hasEnded(trainingClass);
+        List<String> skills = skillNames(trainingClass);
+        Employee employee = enrollment.getEmployee();
         return EmployeeTrainingClassResponse.builder()
                 .id(trainingClass.getId())
                 .className(trainingClass.getClassName())
@@ -875,12 +954,51 @@ public class TrainingServiceImpl implements TrainingService {
                 .supervisorName(userDisplayName(trainingClass.getCreatedBy()))
                 .location(trainingClass.getLocation())
                 .notes(trainingClass.getNotes())
-                .participationStatus(participationStatus(trainingClass))
-                .ended(hasEnded(trainingClass))
+                .dateLabel(trainingDateLabel(trainingClass))
+                .placeLabel(placeLabel(trainingClass))
+                .employeeName(employee == null ? null : employee.getFullName())
+                .enrollmentStatus("Đã ghi danh")
+                .completionStatus(ended ? "Đã hoàn thành" : "Chưa hoàn thành")
+                .participationStatus(scheduleStatus(trainingClass))
+                .ended(ended)
                 .result(result)
                 .resultLabel(result == null ? "Chưa đánh giá" : result.getLabel())
+                .resultCode(resultCode(result))
+                .passedSkillNames(result == TrainingResult.PASS ? skills : List.of())
+                .notPassedSkillNames(result == TrainingResult.NOT_PASS ? skills : List.of())
                 .evaluationNote(enrollment.getEvaluationNote())
+                .evaluatedAt(enrollment.getEvaluatedAt())
                 .build();
+    }
+
+    private String resultCode(TrainingResult result) {
+        if (result == null) {
+            return null;
+        }
+        return result == TrainingResult.PASS ? "PASS" : "NOT PASS";
+    }
+
+    private String trainingDateLabel(TrainingClass trainingClass) {
+        if (trainingClass.getStartDate() == null) {
+            return null;
+        }
+        String start = DATE_FORMAT.format(trainingClass.getStartDate());
+        if (trainingClass.getEndDate() == null || trainingClass.getEndDate().equals(trainingClass.getStartDate())) {
+            return start;
+        }
+        return start + " – " + DATE_FORMAT.format(trainingClass.getEndDate());
+    }
+
+    private String placeLabel(TrainingClass trainingClass) {
+        String location = blankToNull(trainingClass.getLocation());
+        String store = storeLabel(trainingClass);
+        if (location == null) {
+            return store;
+        }
+        if (store == null) {
+            return location;
+        }
+        return location + " · " + store;
     }
 
     private void requireManager(AuthenticatedUser actor) {
@@ -932,7 +1050,6 @@ public class TrainingServiceImpl implements TrainingService {
         }
 
         Set<Integer> classSkillIds = skillIdsOf(trainingClass);
-        Map<Integer, Set<Integer>> passedSkills = passedSkillIdsByEmployeeIds(ids);
         Map<Integer, List<EmployeeOpenSkill>> openSkills = openSkillsByEmployeeIds(ids, trainingClass.getId());
         Set<Integer> managerIds = managerEmployeeIds();
         List<User> recipients = new ArrayList<>();
@@ -955,10 +1072,6 @@ public class TrainingServiceImpl implements TrainingService {
                     && trainingClassEnrollmentRepository.existsByTrainingClass_IdAndEmployee_Id(
                     trainingClass.getId(), employeeId)) {
                 throw new BusinessException("Nhân viên " + employee.getFullName() + " đã được ghi danh vào lớp này.");
-            }
-            if (alreadyCertifiedForClassSkills(employeeId, classSkillIds, passedSkills)) {
-                throw new BusinessException("Nhân viên " + employee.getFullName()
-                        + " đã có chứng chỉ cho kỹ năng của lớp này.");
             }
             EmployeeOpenSkill conflict = conflictingOpenSkill(employeeId, classSkillIds, openSkills);
             if (conflict != null) {
@@ -1091,15 +1204,20 @@ public class TrainingServiceImpl implements TrainingService {
         return trimmed;
     }
 
-    private String skillLabel(TrainingClass trainingClass) {
+    private List<String> skillNames(TrainingClass trainingClass) {
         if (trainingClass.getSkills() == null || trainingClass.getSkills().isEmpty()) {
-            return null;
+            return List.of();
         }
         return trainingClass.getSkills().stream()
                 .map(TrainingSkill::getSkillName)
                 .filter(name -> name != null && !name.isBlank())
                 .sorted(String.CASE_INSENSITIVE_ORDER)
-                .collect(Collectors.joining(", "));
+                .toList();
+    }
+
+    private String skillLabel(TrainingClass trainingClass) {
+        List<String> names = skillNames(trainingClass);
+        return names.isEmpty() ? null : String.join(", ", names);
     }
 
     private String storeLabel(TrainingClass trainingClass) {
@@ -1171,63 +1289,121 @@ public class TrainingServiceImpl implements TrainingService {
                 .status(trainingClass.getStatus())
                 .ended(hasEnded(trainingClass))
                 .createdByName(userDisplayName(trainingClass.getCreatedBy()))
-                .students(toStudentResponses(enrollments))
+                .students(toStudentResponses(trainingClass, enrollments))
                 .approvedByName(userDisplayName(trainingClass.getApprovedBy()))
                 .approvedAt(trainingClass.getApprovedAt())
                 .createdAt(trainingClass.getCreatedAt())
                 .build();
     }
 
-    private List<TrainingClassStudentResponse> toStudentResponses(List<TrainingClassEnrollment> enrollments) {
+    private List<TrainingClassStudentResponse> toStudentResponses(TrainingClass trainingClass,
+                                                                  List<TrainingClassEnrollment> enrollments) {
+        if (enrollments == null || enrollments.isEmpty()) {
+            return List.of();
+        }
+        Map<Integer, Map<Integer, SkillSnapshot>> snapshots = skillSnapshotsByEmployeeIds(
+                enrollments.stream().map(enrollment -> enrollment.getEmployee().getId()).toList());
+        List<TrainingSkill> classSkills = sortedSkills(trainingClass);
         return enrollments.stream()
                 .map(enrollment -> {
                     Employee employee = enrollment.getEmployee();
-                    TrainingResult result = enrollment.getResult();
-                    CertificationStatus certificationStatus = employee.getCertificationStatus() == null
-                            ? CertificationStatus.NOTCERTIFIED
-                            : employee.getCertificationStatus();
+                    List<EmployeeSkillStatusLine> lines = skillLines(
+                            employee.getId(),
+                            classSkills,
+                            snapshots.getOrDefault(employee.getId(), Map.of()),
+                            Set.of(),
+                            trainingClass,
+                            enrollment);
                     return TrainingClassStudentResponse.builder()
                             .employeeId(employee.getId())
                             .fullName(employee.getFullName())
                             .email(employee.getEmail())
                             .phone(employee.getPhone())
-                            .result(result)
-                            .resultLabel(result == null ? "Chưa đánh giá" : result.getLabel())
-                            .certificationStatus(certificationStatus)
-                            .certificationLabel(certificationStatus.getLabel())
+                            .storeName(employee.getStore() != null ? employee.getStore().getStoreName() : null)
+                            .result(enrollment.getResult())
+                            .resultLabel(enrollment.getResult() == null ? "Chưa đánh giá" : enrollment.getResult().getLabel())
+                            .skillStatuses(lines)
+                            .certificationLabel(certificationSummary(lines))
                             .evaluationNote(enrollment.getEvaluationNote())
                             .build();
                 })
                 .toList();
     }
 
+    private TrainingEmployeeOption toEmployeeOption(Employee employee,
+                                                    Map<Integer, Set<Integer>> passedSkills,
+                                                    Map<Integer, List<EmployeeOpenSkill>> openSkills,
+                                                    Map<Integer, Map<Integer, SkillSnapshot>> snapshots) {
+        List<Integer> certifiedSkillIds = certifiedSkillIdsFor(employee.getId(), passedSkills);
+        List<Integer> studyingSkillIds = studyingSkillIdsFor(employee.getId(), openSkills);
+        return TrainingEmployeeOption.builder()
+                .employeeId(employee.getId())
+                .fullName(employee.getFullName())
+                .email(employee.getEmail())
+                .storeId(employee.getStore().getId())
+                .storeName(employee.getStore().getStoreName())
+                .certifiedSkillIds(certifiedSkillIds)
+                .studyingSkillIds(studyingSkillIds)
+                .skillStatuses(historyLines(
+                        snapshots.getOrDefault(employee.getId(), Map.of()),
+                        new HashSet<>(studyingSkillIds)))
+                .build();
+    }
+
     private TrainingClassStudentResponse toAvailableEmployee(Employee employee,
                                                              Map<Integer, Set<Integer>> passedSkills,
                                                              Map<Integer, List<EmployeeOpenSkill>> openSkills,
-                                                             Set<Integer> classSkillIds) {
+                                                             TrainingClass trainingClass,
+                                                             Map<Integer, Map<Integer, SkillSnapshot>> snapshots) {
+        Set<Integer> classSkillIds = trainingClass == null ? Set.of() : skillIdsOf(trainingClass);
         List<Integer> certifiedSkillIds = certifiedSkillIdsFor(employee.getId(), passedSkills);
         List<Integer> studyingSkillIds = studyingSkillIdsFor(employee.getId(), openSkills);
-        boolean skillsSelected = classSkillIds != null && !classSkillIds.isEmpty();
+        boolean skillsSelected = trainingClass != null && !classSkillIds.isEmpty();
+        boolean studyingSameSkill = skillsSelected
+                && conflictingOpenSkill(employee.getId(), classSkillIds, openSkills) != null;
+        boolean certifiedForClass = skillsSelected
+                && alreadyCertifiedForClassSkills(employee.getId(), classSkillIds, passedSkills);
+        List<EmployeeSkillStatusLine> lines = skillsSelected
+                ? skillLines(
+                employee.getId(),
+                sortedSkills(trainingClass),
+                snapshots.getOrDefault(employee.getId(), Map.of()),
+                new HashSet<>(studyingSkillIds),
+                null,
+                null)
+                : historyLines(snapshots.getOrDefault(employee.getId(), Map.of()), new HashSet<>(studyingSkillIds));
         return TrainingClassStudentResponse.builder()
                 .employeeId(employee.getId())
+                .storeId(employee.getStore() != null ? employee.getStore().getId() : null)
+                .storeName(employee.getStore() != null ? employee.getStore().getStoreName() : null)
                 .fullName(employee.getFullName())
                 .email(employee.getEmail())
                 .phone(employee.getPhone())
                 .resultLabel("Chưa đánh giá")
                 .certifiedSkillIds(certifiedSkillIds)
-                .hasCertificate(skillsSelected
-                        ? alreadyCertifiedForClassSkills(employee.getId(), classSkillIds, passedSkills)
-                        : null)
+                .hasCertificate(skillsSelected ? certifiedForClass : null)
                 .studyingSkillIds(studyingSkillIds)
-                .studyingSameSkill(skillsSelected
-                        ? conflictingOpenSkill(employee.getId(), classSkillIds, openSkills) != null
-                        : null)
+                .studyingSameSkill(skillsSelected ? studyingSameSkill : null)
+                .skillStatuses(lines)
+                .eligibilityLabel(skillsSelected ? eligibilityLabel(studyingSameSkill, certifiedForClass) : null)
+                .certificationLabel(skillsSelected ? certificationSummary(lines) : null)
                 .build();
     }
 
+    private String eligibilityLabel(boolean studyingSameSkill, boolean certifiedForClass) {
+        if (studyingSameSkill) {
+            return "Không thể đăng ký";
+        }
+        if (certifiedForClass) {
+            return "Có thể học lại";
+        }
+        return "Có thể đăng ký";
+    }
+
     /**
-     * Chứng chỉ theo kỹ năng = đã Đạt một lớp đã duyệt có kỹ năng đó.
-     * Không dùng Employees.CertificationStatus vì cờ đó là trạng thái chung, không gắn với từng kỹ năng.
+     * Chứng chỉ theo kỹ năng = đã PASS ít nhất một lớp đã duyệt có đúng kỹ năng đó.
+     * Ngày chứng chỉ là ngày PASS gần nhất. NOT PASS sau đó không xóa chứng chỉ và không đổi ngày.
+     * Không dùng Employees.CertificationStatus vì cờ đó không gắn với từng kỹ năng.
      */
     private Map<Integer, Set<Integer>> passedSkillIdsByEmployee(List<Employee> employees) {
         if (employees == null || employees.isEmpty()) {
@@ -1351,5 +1527,259 @@ public class TrainingServiceImpl implements TrainingService {
             return "này";
         }
         return conflict.getSkillName();
+    }
+
+    private Map<Integer, Map<Integer, SkillSnapshot>> skillSnapshotsByEmployee(List<Employee> employees) {
+        if (employees == null || employees.isEmpty()) {
+            return Map.of();
+        }
+        return skillSnapshotsByEmployeeIds(employees.stream().map(Employee::getId).toList());
+    }
+
+    private Map<Integer, Map<Integer, SkillSnapshot>> skillSnapshotsByEmployeeIds(Collection<Integer> employeeIds) {
+        List<Integer> ids = employeeIds == null
+                ? List.of()
+                : employeeIds.stream().filter(Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        List<EmployeeSkillTrainingFact> facts = trainingClassEnrollmentRepository.findSkillTrainingFacts(
+                ids, TrainingClassStatus.REJECTED);
+        Map<Integer, Map<Integer, SkillSnapshot>> snapshots = new HashMap<>();
+        if (facts == null) {
+            return snapshots;
+        }
+        for (EmployeeSkillTrainingFact fact : facts) {
+            if (fact == null || fact.getEmployeeId() == null || fact.getSkillId() == null) {
+                continue;
+            }
+            SkillSnapshot snapshot = snapshots
+                    .computeIfAbsent(fact.getEmployeeId(), ignored -> new HashMap<>())
+                    .computeIfAbsent(fact.getSkillId(), ignored -> new SkillSnapshot(fact.getSkillId(), fact.getSkillName()));
+            if (snapshot.skillName == null || snapshot.skillName.isBlank()) {
+                snapshot.skillName = fact.getSkillName();
+            }
+            applyFact(snapshot, fact);
+        }
+        return snapshots;
+    }
+
+    private void applyFact(SkillSnapshot snapshot, EmployeeSkillTrainingFact fact) {
+        if (fact.getClassStatus() == TrainingClassStatus.APPROVED && fact.getResult() == TrainingResult.PASS) {
+            LocalDate passDate = fact.getEvaluatedAt() != null
+                    ? fact.getEvaluatedAt().toLocalDate()
+                    : fact.getEndDate();
+            snapshot.certified = true;
+            if (passDate != null && (snapshot.certifiedDate == null || passDate.isAfter(snapshot.certifiedDate))) {
+                snapshot.certifiedDate = passDate;
+            }
+        }
+        LocalDateTime activity = activityTime(fact);
+        if (snapshot.latestActivity == null || activity.isAfter(snapshot.latestActivity)) {
+            snapshot.latestActivity = activity;
+            snapshot.latestCode = latestCode(fact);
+            snapshot.latestDate = latestDisplayDate(fact, snapshot.latestCode);
+        }
+    }
+
+    private LocalDateTime activityTime(EmployeeSkillTrainingFact fact) {
+        if (fact.getEvaluatedAt() != null) {
+            return fact.getEvaluatedAt();
+        }
+        if (fact.getStartDate() != null) {
+            return fact.getStartDate().atStartOfDay();
+        }
+        if (fact.getEndDate() != null) {
+            return fact.getEndDate().atStartOfDay();
+        }
+        return LocalDateTime.MIN;
+    }
+
+    private String latestCode(EmployeeSkillTrainingFact fact) {
+        if (fact.getResult() == TrainingResult.PASS) {
+            return "PASS";
+        }
+        if (fact.getResult() == TrainingResult.NOT_PASS) {
+            return "NOT_PASS";
+        }
+        if (factStillOpen(fact)) {
+            return "IN_TRAINING";
+        }
+        return null;
+    }
+
+    private LocalDate latestDisplayDate(EmployeeSkillTrainingFact fact, String latestCode) {
+        if ("IN_TRAINING".equals(latestCode)) {
+            return fact.getStartDate() != null ? fact.getStartDate() : fact.getEndDate();
+        }
+        if (fact.getEvaluatedAt() != null) {
+            return fact.getEvaluatedAt().toLocalDate();
+        }
+        return fact.getEndDate();
+    }
+
+    private boolean factStillOpen(EmployeeSkillTrainingFact fact) {
+        if (fact.getResult() != null || fact.getEndDate() == null) {
+            return fact.getResult() == null;
+        }
+        LocalDate today = VietnamTime.today();
+        if (fact.getEndDate().isAfter(today)) {
+            return true;
+        }
+        if (fact.getEndDate().isBefore(today)) {
+            return false;
+        }
+        LocalTime endTime = fact.getEndTime();
+        return endTime == null || endTime.isAfter(VietnamTime.currentTime());
+    }
+
+    private List<TrainingSkill> sortedSkills(TrainingClass trainingClass) {
+        if (trainingClass == null || trainingClass.getSkills() == null || trainingClass.getSkills().isEmpty()) {
+            return List.of();
+        }
+        return trainingClass.getSkills().stream()
+                .filter(skill -> skill != null && skill.getId() != null)
+                .sorted(Comparator.comparing(
+                        skill -> skill.getSkillName() == null ? "" : skill.getSkillName(),
+                        String.CASE_INSENSITIVE_ORDER))
+                .toList();
+    }
+
+    private List<EmployeeSkillStatusLine> skillLines(Integer employeeId,
+                                                     List<TrainingSkill> skills,
+                                                     Map<Integer, SkillSnapshot> snapshots,
+                                                     Set<Integer> studyingSkillIds,
+                                                     TrainingClass currentClass,
+                                                     TrainingClassEnrollment currentEnrollment) {
+        if (skills == null || skills.isEmpty()) {
+            return List.of();
+        }
+        List<EmployeeSkillStatusLine> lines = new ArrayList<>();
+        for (TrainingSkill skill : skills) {
+            SkillSnapshot snapshot = copySnapshot(snapshots.get(skill.getId()), skill);
+            if (currentClass != null && currentEnrollment != null) {
+                applyFact(snapshot, new EmployeeSkillTrainingFact(
+                        employeeId,
+                        skill.getId(),
+                        skill.getSkillName(),
+                        currentEnrollment.getResult(),
+                        currentEnrollment.getEvaluatedAt(),
+                        currentClass.getStartDate(),
+                        currentClass.getEndDate(),
+                        currentClass.getEndTime(),
+                        currentClass.getStatus()));
+            }
+            boolean studying = studyingSkillIds != null && studyingSkillIds.contains(skill.getId());
+            if (studying && !"IN_TRAINING".equals(snapshot.latestCode)) {
+                snapshot.latestCode = "IN_TRAINING";
+                snapshot.latestDate = null;
+            }
+            lines.add(toSkillLine(snapshot));
+        }
+        return lines;
+    }
+
+    private List<EmployeeSkillStatusLine> historyLines(Map<Integer, SkillSnapshot> snapshots,
+                                                       Set<Integer> studyingSkillIds) {
+        if ((snapshots == null || snapshots.isEmpty()) && (studyingSkillIds == null || studyingSkillIds.isEmpty())) {
+            return List.of();
+        }
+        Map<Integer, SkillSnapshot> merged = new HashMap<>();
+        if (snapshots != null) {
+            snapshots.forEach((skillId, snapshot) -> merged.put(skillId, copySnapshot(snapshot, null)));
+        }
+        if (studyingSkillIds != null) {
+            for (Integer skillId : studyingSkillIds) {
+                SkillSnapshot snapshot = merged.computeIfAbsent(skillId, ignored -> new SkillSnapshot(skillId, null));
+                if (!"IN_TRAINING".equals(snapshot.latestCode)) {
+                    snapshot.latestCode = "IN_TRAINING";
+                    snapshot.latestDate = null;
+                }
+            }
+        }
+        return merged.values().stream()
+                .sorted(Comparator.comparing(
+                        snapshot -> snapshot.skillName == null ? "" : snapshot.skillName,
+                        String.CASE_INSENSITIVE_ORDER))
+                .map(this::toSkillLine)
+                .toList();
+    }
+
+    private SkillSnapshot copySnapshot(SkillSnapshot source, TrainingSkill skill) {
+        SkillSnapshot copy = new SkillSnapshot(
+                skill != null ? skill.getId() : (source == null ? null : source.skillId),
+                skill != null && skill.getSkillName() != null
+                        ? skill.getSkillName()
+                        : (source == null ? null : source.skillName));
+        if (source != null) {
+            copy.certified = source.certified;
+            copy.certifiedDate = source.certifiedDate;
+            copy.latestCode = source.latestCode;
+            copy.latestDate = source.latestDate;
+            copy.latestActivity = source.latestActivity;
+        }
+        return copy;
+    }
+
+    private EmployeeSkillStatusLine toSkillLine(SkillSnapshot snapshot) {
+        boolean certified = snapshot.certified;
+        String skillName = snapshot.skillName == null || snapshot.skillName.isBlank() ? "Kỹ năng" : snapshot.skillName;
+        CertificationStatus status = certified ? CertificationStatus.CERTIFIED : CertificationStatus.NOTCERTIFIED;
+        String latestCode = "IN_TRAINING".equals(snapshot.latestCode) || "PASS".equals(snapshot.latestCode)
+                || "NOT_PASS".equals(snapshot.latestCode)
+                ? snapshot.latestCode
+                : null;
+        return EmployeeSkillStatusLine.builder()
+                .skillId(snapshot.skillId)
+                .skillName(skillName)
+                .certificationStatus(status)
+                .certificationLabel(status.name() + " - " + skillName)
+                .certifiedDateLabel(certified ? formatDate(snapshot.certifiedDate) : null)
+                .latestResultCode(latestCode)
+                .latestResultLabel(latestLabel(latestCode))
+                .latestDateLabel(latestCode == null ? null : formatDate(snapshot.latestDate))
+                .build();
+    }
+
+    private String latestLabel(String latestCode) {
+        if ("PASS".equals(latestCode)) {
+            return "PASS";
+        }
+        if ("NOT_PASS".equals(latestCode)) {
+            return "NOT PASS";
+        }
+        if ("IN_TRAINING".equals(latestCode)) {
+            return "ĐANG ĐÀO TẠO";
+        }
+        return null;
+    }
+
+    private String formatDate(LocalDate date) {
+        return date == null ? null : date.format(DATE_FORMAT);
+    }
+
+    private String certificationSummary(List<EmployeeSkillStatusLine> lines) {
+        if (lines == null || lines.isEmpty()) {
+            return null;
+        }
+        return lines.stream()
+                .map(EmployeeSkillStatusLine::getCertificationLabel)
+                .filter(label -> label != null && !label.isBlank())
+                .collect(Collectors.joining(", "));
+    }
+
+    private static final class SkillSnapshot {
+        private final Integer skillId;
+        private String skillName;
+        private boolean certified;
+        private LocalDate certifiedDate;
+        private String latestCode;
+        private LocalDate latestDate;
+        private LocalDateTime latestActivity;
+
+        private SkillSnapshot(Integer skillId, String skillName) {
+            this.skillId = skillId;
+            this.skillName = skillName;
+        }
     }
 }

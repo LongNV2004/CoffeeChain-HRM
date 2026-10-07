@@ -77,6 +77,15 @@ public interface TrainingService {
 
     TrainingClassResponse createCentralizedClass(CreateCentralizedTrainingRequest request, AuthenticatedUser admin);
 
+    Page<TrainingClassResponse> listActiveClassesForAdmin(AuthenticatedUser admin,
+                                                          Integer skillId,
+                                                          LocalDate date,
+                                                          String keyword,
+                                                          String sortDir,
+                                                          int page);
+
+    TrainingClassResponse getApprovedClassDetailForAdmin(Integer classId, AuthenticatedUser admin);
+
     List<TrainingClassResponse> listPendingClasses();
 
     List<TrainingClassResponse> listAllClassesForAdmin();
