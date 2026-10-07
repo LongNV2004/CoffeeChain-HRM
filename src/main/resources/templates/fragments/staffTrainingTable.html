@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="classTable(rows, emptyText)" class="table-scroll">
+    <table class="training-table">
+        <thead>
+        <tr>
+            <th>Tên lớp</th>
+            <th>Kỹ năng</th>
+            <th>Ngày đào tạo</th>
+            <th>Giờ bắt đầu</th>
+            <th>Giờ kết thúc</th>
+            <th>Địa điểm / cơ sở</th>
+            <th>Trainer</th>
+            <th>Trạng thái</th>
+            <th>Kết quả</th>
+            <th></th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:if="${#lists.isEmpty(rows)}">
+            <td colspan="10" class="empty" th:text="${emptyText}">Không có lớp.</td>
+        </tr>
+        <tr th:each="item : ${rows}"
+            th:data-end="${!item.ended and item.endDate != null and item.endTime != null ? #temporals.format(item.endDate, 'yyyy-MM-dd') + 'T' + #temporals.format(item.endTime, 'HH:mm:ss') : ''}">
+            <td>
+                <a class="row-link" th:href="@{/training/staff/classes/{id}(id=${item.id})}" th:text="${item.className}">Pha Chế 2</a>
+            </td>
+            <td th:text="${item.skillName} ?: '—'">Pha chế</td>
+            <td th:text="${item.dateLabel} ?: '—'">01/09/2026</td>
+            <td th:text="${item.startTime != null} ? ${#temporals.format(item.startTime, 'HH:mm')} : '—'">08:00</td>
+            <td th:text="${item.endTime != null} ? ${#temporals.format(item.endTime, 'HH:mm')} : '—'">10:00</td>
+            <td th:text="${item.placeLabel} ?: '—'">Quầy bar · Store A</td>
+            <td th:text="${item.trainer != null} ? ${item.trainer} : '—'">Nguyễn Văn A</td>
+            <td>
+                <span class="badge"
+                      th:classappend="${item.participationStatus == 'Đang diễn ra'} ? ' badge-ok' : (${item.participationStatus == 'Đã kết thúc'} ? ' badge-off' : ' badge-wait')"
+                      th:text="${item.participationStatus}">Sắp diễn ra</span>
+            </td>
+            <td>
+                <span th:if="${item.resultCode == null}">—</span>
+                <span th:if="${item.resultCode != null}"
+                      class="badge"
+                      th:classappend="${item.resultCode == 'PASS'} ? ' badge-ok' : ' badge-off'"
+                      th:text="${item.resultCode}">PASS</span>
+            </td>
+            <td>
+                <a class="link-btn" th:href="@{/training/staff/classes/{id}(id=${item.id})}">Xem chi tiết</a>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+</body>
+</html>

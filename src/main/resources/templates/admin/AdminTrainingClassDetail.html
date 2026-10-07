@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chi tiết lớp đào tạo — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
+    <link rel="stylesheet" th:href="@{/css/Training.css}">
+</head>
+<body>
+<header th:replace="~{fragments/navbar :: admin('training')}"></header>
+
+<main class="wrap dash-main">
+    <section class="welcome">
+        <div class="eyebrow">Trụ sở — Admin</div>
+        <h1 th:text="${classDetail.className}">Tên lớp</h1>
+        <p>
+            <span th:text="${displayName}">Admin</span>
+            · xem thông tin lớp và học viên. Admin không đánh giá nhân viên.
+        </p>
+        <div style="margin-top:12px;" class="actions">
+            <a class="back-link" th:href="@{/admin/training}">← Quay lại danh sách lớp</a>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>Thông tin lớp</h2>
+        <dl class="detail-list">
+            <div>
+                <dt>Tên lớp</dt>
+                <dd th:text="${classDetail.className}">Class</dd>
+            </div>
+            <div>
+                <dt>Loại lớp</dt>
+                <dd th:text="${classDetail.trainingTypeLabel} ?: '—'">Đào tạo tại cửa hàng</dd>
+            </div>
+            <div>
+                <dt>Kỹ năng</dt>
+                <dd th:text="${classDetail.skillName} ?: '—'">Skill</dd>
+            </div>
+            <div>
+                <dt>Cửa hàng</dt>
+                <dd th:text="${classDetail.storeName} ?: '—'">Store</dd>
+            </div>
+            <div>
+                <dt>Ngày bắt đầu</dt>
+                <dd th:text="${classDetail.startDate != null} ? ${#temporals.format(classDetail.startDate, 'dd/MM/yyyy')} : '—'">01/01/2026</dd>
+            </div>
+            <div>
+                <dt>Ngày kết thúc</dt>
+                <dd th:text="${classDetail.endDate != null} ? ${#temporals.format(classDetail.endDate, 'dd/MM/yyyy')} : '—'">02/01/2026</dd>
+            </div>
+            <div>
+                <dt>Giờ bắt đầu</dt>
+                <dd th:text="${classDetail.startTime != null} ? ${#temporals.format(classDetail.startTime, 'HH:mm')} : '—'">08:00</dd>
+            </div>
+            <div>
+                <dt>Giờ kết thúc</dt>
+                <dd th:text="${classDetail.endTime != null} ? ${#temporals.format(classDetail.endTime, 'HH:mm')} : '—'">10:00</dd>
+            </div>
+            <div>
+                <dt>Người tạo</dt>
+                <dd th:text="${classDetail.createdByName} ?: '—'">Admin</dd>
+            </div>
+            <div>
+                <dt>Người đào tạo</dt>
+                <dd th:text="${classDetail.trainer} ?: '—'">Trainer</dd>
+            </div>
+            <div th:if="${classDetail.location != null}">
+                <dt>Địa điểm</dt>
+                <dd th:text="${classDetail.location}">Location</dd>
+            </div>
+            <div th:if="${classDetail.notes != null}">
+                <dt>Ghi chú</dt>
+                <dd th:text="${classDetail.notes}">Notes</dd>
+            </div>
+        </dl>
+    </section>
+
+    <section class="panel" style="margin-top:16px;">
+        <div class="panel-head">
+            <div>
+                <h2>Danh sách học viên</h2>
+                <p>Admin xem danh sách học viên và kết quả đã có. Việc đánh giá do người đào tạo thực hiện.</p>
+            </div>
+        </div>
+        <p class="muted" th:if="${classDetail.maxParticipants != null}">
+            Sĩ số tối đa: <span th:text="${classDetail.maxParticipants}">20</span>.
+            Đã ghi danh: <span th:text="${classDetail.students != null} ? ${#lists.size(classDetail.students)} : 0">0</span>.
+        </p>
+        <p class="empty" th:if="${classDetail.students == null or #lists.isEmpty(classDetail.students)}">
+            Chưa có học viên được ghi danh vào lớp này.
+        </p>
+        <table th:if="${classDetail.students != null and !#lists.isEmpty(classDetail.students)}">
+            <thead>
+            <tr>
+                <th>Họ tên</th>
+                <th>Email</th>
+                <th>Số điện thoại</th>
+                <th>Kết quả</th>
+                <th>Chứng chỉ</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="student : ${classDetail.students}">
+                <td th:text="${student.fullName}">Name</td>
+                <td th:text="${student.email} ?: '—'">email</td>
+                <td th:text="${student.phone} ?: '—'">phone</td>
+                <td>
+                    <span class="badge"
+                          th:classappend="${student.resultLabel == 'Đạt'} ? ' badge-ok' : (${student.resultLabel == 'Không đạt'} ? ' badge-off' : ' badge-wait')"
+                          th:text="${student.resultLabel}">Chưa đánh giá</span>
+                    <div class="muted" th:if="${student.evaluationNote != null}" th:text="${student.evaluationNote}">Ghi chú</div>
+                </td>
+                <td>
+                    <span class="skill-line" th:each="skill : ${student.skillStatuses}">
+                        <span th:text="${skill.certificationLabel}">CERTIFIED - Pha chế</span>
+                        <span class="muted" th:if="${skill.certifiedDateLabel != null}"
+                              th:text="|Ngày đạt: ${skill.certifiedDateLabel}|">Ngày đạt: 01/10/2026</span>
+                    </span>
+                    <span th:if="${student.skillStatuses == null or #lists.isEmpty(student.skillStatuses)}">—</span>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+</main>
+<script th:src="@{/js/AdminDashboard.js}"></script>
+</body>
+</html>
