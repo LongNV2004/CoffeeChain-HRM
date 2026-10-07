@@ -21,7 +21,7 @@
             <span th:if="${storeName}"> · <span th:text="${storeName}">Store</span></span>
         </p>
         <div style="margin-top:12px;">
-            <a class="back-link" th:href="@{/training/staff}">← Quay lại danh sách đào tạo</a>
+            <a class="back-link" th:href="@{/training/staff}">← Quay lại lịch đào tạo</a>
         </div>
     </section>
 
@@ -37,63 +37,107 @@
                 <dd th:text="${classDetail.skillName} ?: '—'">Pha chế</dd>
             </div>
             <div>
-                <dt>Cửa hàng</dt>
-                <dd th:text="${classDetail.storeName} ?: '—'">Store</dd>
+                <dt>Ngày</dt>
+                <dd th:text="${classDetail.dateLabel} ?: '—'">01/09/2026</dd>
             </div>
             <div>
-                <dt>Ngày bắt đầu</dt>
-                <dd th:text="${classDetail.startDate != null} ? ${#temporals.format(classDetail.startDate, 'dd/MM/yyyy')} : '—'">01/09/2026</dd>
+                <dt>Thời gian</dt>
+                <dd>
+                    <span th:text="${classDetail.startTime != null} ? ${#temporals.format(classDetail.startTime, 'HH:mm')} : '—'">08:00</span>
+                    <span> – </span>
+                    <span th:text="${classDetail.endTime != null} ? ${#temporals.format(classDetail.endTime, 'HH:mm')} : '—'">10:00</span>
+                </dd>
             </div>
             <div>
-                <dt>Ngày kết thúc</dt>
-                <dd th:text="${classDetail.endDate != null} ? ${#temporals.format(classDetail.endDate, 'dd/MM/yyyy')} : '—'">05/09/2026</dd>
+                <dt>Địa điểm</dt>
+                <dd th:text="${classDetail.location != null and !classDetail.location.isBlank()} ? ${classDetail.location} : '—'">Quầy bar</dd>
             </div>
             <div>
-                <dt>Giờ bắt đầu</dt>
-                <dd th:text="${classDetail.startTime != null} ? ${#temporals.format(classDetail.startTime, 'HH:mm')} : '—'">08:00</dd>
+                <dt>Cơ sở</dt>
+                <dd th:text="${classDetail.storeName} ?: '—'">Store A</dd>
             </div>
             <div>
-                <dt>Giờ kết thúc</dt>
-                <dd th:text="${classDetail.endTime != null} ? ${#temporals.format(classDetail.endTime, 'HH:mm')} : '—'">10:00</dd>
-            </div>
-            <div>
-                <dt>Giảng viên</dt>
+                <dt>Trainer</dt>
                 <dd th:text="${classDetail.trainer != null} ? ${classDetail.trainer} : '—'">Nguyễn Văn A</dd>
             </div>
             <div>
-                <dt>Người phụ trách</dt>
-                <dd th:text="${classDetail.supervisorName != null} ? ${classDetail.supervisorName} : '—'">Manager</dd>
-            </div>
-            <div th:if="${classDetail.location != null}">
-                <dt>Địa điểm</dt>
-                <dd th:text="${classDetail.location}">Quầy bar</dd>
-            </div>
-            <div th:if="${classDetail.notes != null}">
-                <dt>Ghi chú lớp</dt>
-                <dd th:text="${classDetail.notes}">Notes</dd>
+                <dt>Mô tả</dt>
+                <dd th:text="${classDetail.notes != null and !classDetail.notes.isBlank()} ? ${classDetail.notes} : '—'">Nội dung lớp</dd>
             </div>
             <div>
-                <dt>Trạng thái tham gia</dt>
+                <dt>Trạng thái lớp</dt>
                 <dd>
                     <span class="badge"
-                          th:classappend="${classDetail.participationStatus == 'Đang tham gia'} ? ' badge-ok' : (${classDetail.participationStatus == 'Đã kết thúc'} ? ' badge-off' : ' badge-wait')"
-                          th:text="${classDetail.participationStatus}">Đang tham gia</span>
+                          th:classappend="${classDetail.participationStatus == 'Đang diễn ra'} ? ' badge-ok' : (${classDetail.participationStatus == 'Đã kết thúc'} ? ' badge-off' : ' badge-wait')"
+                          th:text="${classDetail.participationStatus}">Sắp diễn ra</span>
                 </dd>
             </div>
+        </dl>
+    </section>
+
+    <section class="panel">
+        <h2>Thông tin tham gia</h2>
+        <dl class="detail-list">
+            <div>
+                <dt>Nhân viên</dt>
+                <dd th:text="${classDetail.employeeName != null} ? ${classDetail.employeeName} : ${displayName}">Nhân viên</dd>
+            </div>
+            <div>
+                <dt>Trạng thái enrollment</dt>
+                <dd>
+                    <span class="badge badge-ok" th:text="${classDetail.enrollmentStatus}">Đã ghi danh</span>
+                </dd>
+            </div>
+            <div>
+                <dt>Trạng thái hoàn thành</dt>
+                <dd>
+                    <span class="badge"
+                          th:classappend="${classDetail.completionStatus == 'Đã hoàn thành'} ? ' badge-ok' : ' badge-wait'"
+                          th:text="${classDetail.completionStatus}">Chưa hoàn thành</span>
+                </dd>
+            </div>
+        </dl>
+    </section>
+
+    <section class="panel">
+        <h2>Kết quả</h2>
+        <p th:if="${classDetail.result == null}">Chưa có kết quả đánh giá</p>
+        <dl class="detail-list" th:if="${classDetail.result != null}">
             <div>
                 <dt>Kết quả</dt>
                 <dd>
                     <span class="badge"
-                          th:classappend="${classDetail.resultLabel == 'Đạt'} ? ' badge-ok' : (${classDetail.resultLabel == 'Không đạt'} ? ' badge-off' : ' badge-wait')"
-                          th:text="${classDetail.resultLabel}">Chưa đánh giá</span>
+                          th:classappend="${classDetail.resultCode == 'PASS'} ? ' badge-ok' : ' badge-off'"
+                          th:text="${classDetail.resultCode}">PASS</span>
                 </dd>
+            </div>
+            <div>
+                <dt>Các kỹ năng đã PASS</dt>
+                <dd>
+                    <span th:if="${#lists.isEmpty(classDetail.passedSkillNames)}">Không có</span>
+                    <ul class="skill-result-list" th:unless="${#lists.isEmpty(classDetail.passedSkillNames)}">
+                        <li th:each="skill : ${classDetail.passedSkillNames}" th:text="${skill}">Pha chế</li>
+                    </ul>
+                </dd>
+            </div>
+            <div>
+                <dt>Các kỹ năng NOT PASS</dt>
+                <dd>
+                    <span th:if="${#lists.isEmpty(classDetail.notPassedSkillNames)}">Không có</span>
+                    <ul class="skill-result-list" th:unless="${#lists.isEmpty(classDetail.notPassedSkillNames)}">
+                        <li th:each="skill : ${classDetail.notPassedSkillNames}" th:text="${skill}">Pha chế</li>
+                    </ul>
+                </dd>
+            </div>
+            <div>
+                <dt>Ngày đánh giá</dt>
+                <dd th:text="${classDetail.evaluatedAt != null} ? ${#temporals.format(classDetail.evaluatedAt, 'dd/MM/yyyy HH:mm')} : '—'">01/09/2026 18:00</dd>
             </div>
             <div th:if="${classDetail.evaluationNote != null and !classDetail.evaluationNote.isBlank()}">
                 <dt>Ghi chú đánh giá</dt>
                 <dd th:text="${classDetail.evaluationNote}">Làm tốt</dd>
             </div>
         </dl>
-        <p class="muted">Kết quả do quản lý đánh giá. Bạn chỉ được xem, không thể sửa.</p>
     </section>
 </main>
 <script th:src="@{/js/training-end-refresh.js}"></script>

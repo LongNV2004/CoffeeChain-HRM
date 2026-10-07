@@ -29,6 +29,16 @@ public class TrainingClassStudentResponse {
     private String certificationLabel;
     private String evaluationNote;
 
+    /** Chứng chỉ và lần đào tạo gần nhất của từng kỹ năng đang xét. */
+    @Builder.Default
+    private List<EmployeeSkillStatusLine> skillStatuses = List.of();
+
+    /**
+     * Có thể đăng ký / Có thể học lại / Đang đào tạo.
+     * Null khi chưa chọn kỹ năng của lớp.
+     */
+    private String eligibilityLabel;
+
     /** Kỹ năng nhân viên đã đạt. Dùng khi kỹ năng lớp được chọn sau trên giao diện. */
     @Builder.Default
     private List<Integer> certifiedSkillIds = List.of();

@@ -105,7 +105,7 @@
                 <th>Email</th>
                 <th>Số điện thoại</th>
                 <th>Kết quả</th>
-                <th>Chứng nhận</th>
+                <th>Chứng chỉ</th>
                 <th></th>
             </tr>
             </thead>
@@ -120,7 +120,14 @@
                           th:text="${student.resultLabel}">Chưa đánh giá</span>
                     <div class="muted" th:if="${student.evaluationNote != null}" th:text="${student.evaluationNote}">Ghi chú</div>
                 </td>
-                <td th:text="${student.certificationLabel} ?: 'Chưa chứng nhận'">Chưa chứng nhận</td>
+                <td>
+                    <span class="skill-line" th:each="skill : ${student.skillStatuses}">
+                        <span th:text="${skill.certificationLabel}">CERTIFIED - Pha chế</span>
+                        <span class="muted" th:if="${skill.certifiedDateLabel != null}"
+                              th:text="|Ngày đạt: ${skill.certifiedDateLabel}|">Ngày đạt: 01/10/2026</span>
+                    </span>
+                    <span th:if="${student.skillStatuses == null or #lists.isEmpty(student.skillStatuses)}">—</span>
+                </td>
                 <td class="actions">
                     <button type="button"
                             class="link-btn evaluate-student"
@@ -145,30 +152,49 @@
 </main>
 
 <div class="modal" id="addStudentsModal">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-wide">
         <div class="modal-header">
             <h2>Thêm nhân viên</h2>
             <button class="close-btn" type="button" id="close-add-students" aria-label="Đóng">×</button>
         </div>
         <form id="add-students-form" th:action="@{/training/classes/{id}/students(id=${classDetail.id})}" method="post">
-            <p class="muted" style="margin-top:0;">Chọn nhân viên đang làm việc thuộc phạm vi của lớp. Tài khoản Manager không được thêm vào lớp — Manager chỉ chọn được ở mục người đào tạo khi Admin tạo lớp. Thêm vào lớp không làm đổi trạng thái chứng nhận. Nhân viên đã có chứng chỉ cho mọi kỹ năng của lớp không thể thêm lại, trừ khi lớp có kỹ năng mà nhân viên chưa có. Nhân viên đang học một kỹ năng của lớp ở lớp khác còn hiệu lực, chưa bị từ chối và chưa đánh giá cũng không thể thêm.</p>
+            <p class="muted" style="margin-top:0;">Chứng chỉ là trạng thái hiện tại của từng kỹ năng. Lần gần nhất là kết quả đào tạo mới nhất: nhân viên đã có chứng chỉ vẫn được học lại, và lần học lại không đạt không làm mất chứng chỉ. Nhân viên đang học một kỹ năng của lớp ở lớp khác còn hiệu lực thì không thể đăng ký.</p>
             <p class="flash error" id="add-students-error" hidden>Vui lòng chọn ít nhất một nhân viên.</p>
             <p class="empty" th:if="${availableEmployees == null or #lists.isEmpty(availableEmployees)}">
                 Không còn nhân viên nào của cửa hàng để thêm vào lớp.
             </p>
-            <div class="picker-list" th:if="${availableEmployees != null and !#lists.isEmpty(availableEmployees)}">
-                <label th:each="employee : ${availableEmployees}"
-                       th:classappend="${employee.hasCertificate} ? ' is-certified' : (${employee.studyingSameSkill} ? ' is-studying' : '')">
+            <div class="enroll-list" th:if="${availableEmployees != null and !#lists.isEmpty(availableEmployees)}">
+                <div class="enroll-head">
+                    <span></span>
+                    <span>Nhân viên</span>
+                    <span>Cửa hàng</span>
+                    <span>Chứng chỉ</span>
+                    <span>Lần gần nhất</span>
+                    <span>Trạng thái</span>
+                </div>
+                <label class="enroll-row" th:each="employee : ${availableEmployees}"
+                       th:classappend="${employee.studyingSameSkill} ? ' is-blocked' : (${employee.hasCertificate} ? ' is-retake' : '')">
                     <input type="checkbox" name="employeeIds" th:value="${employee.employeeId}"
-                           th:disabled="${employee.hasCertificate or employee.studyingSameSkill}">
-                    <span>
-                        <span class="employee-name-row">
-                            <strong th:text="${employee.fullName}">Nhân viên</strong>
-                            <span class="badge"
-                                  th:classappend="${employee.hasCertificate} ? ' badge-cert' : (${employee.studyingSameSkill} ? ' badge-studying' : ' badge-nocert')"
-                                  th:text="${employee.hasCertificate} ? 'Có chứng chỉ' : (${employee.studyingSameSkill} ? 'Đang học' : 'Không có chứng chỉ')">Không có chứng chỉ</span>
+                           th:disabled="${employee.studyingSameSkill}">
+                    <span class="enroll-name" th:text="${employee.fullName}">Nhân viên</span>
+                    <span class="enroll-store" th:text="${employee.storeName} ?: '—'">Cửa hàng</span>
+                    <span class="enroll-cert">
+                        <span class="skill-line" th:each="skill : ${employee.skillStatuses}">
+                            <span class="skill-name" th:text="${skill.skillName}">Pha chế</span>
+                            <span th:if="${skill.certificationStatus != null and skill.certificationStatus.name() == 'CERTIFIED'}" class="cert-on">🟢 Đã có chứng chỉ</span>
+                            <span th:unless="${skill.certificationStatus != null and skill.certificationStatus.name() == 'CERTIFIED'}" class="cert-off">🔴 Chưa có chứng chỉ</span>
+                            <span class="muted" th:if="${skill.certifiedDateLabel != null}"
+                                  th:text="|Ngày đạt: ${skill.certifiedDateLabel}|">Ngày đạt: 01/10/2026</span>
                         </span>
-                        <span class="muted" th:text="${employee.email != null} ? ${employee.email} : ''">email</span>
+                    </span>
+                    <span class="enroll-latest">
+                        <span class="skill-line" th:each="skill : ${employee.skillStatuses}"
+                              th:text="${skill.latestSummary}">Pha chế: PASS · 01/10/2026</span>
+                    </span>
+                    <span class="enroll-state">
+                        <span class="badge"
+                              th:classappend="${employee.eligibilityLabel == 'Có thể học lại'} ? ' badge-cert' : (${employee.eligibilityLabel == 'Không thể đăng ký'} ? ' badge-off' : ' badge-ok')"
+                              th:text="${employee.eligibilityLabel} ?: 'Có thể đăng ký'">Có thể đăng ký</span>
                     </span>
                 </label>
             </div>
@@ -257,13 +283,10 @@
                     event.preventDefault();
                     if (addError) {
                         addError.hidden = false;
-                        var certifiedBlocked = addForm.querySelector('label.is-certified input[name="employeeIds"]');
-                        var studyingBlocked = addForm.querySelector('label.is-studying input[name="employeeIds"]');
-                        addError.textContent = certifiedBlocked
-                            ? 'Nhân viên đã có chứng chỉ cho kỹ năng của lớp không thể thêm lại.'
-                            : (studyingBlocked
-                                ? 'Nhân viên đang học kỹ năng này ở lớp còn hiệu lực không thể thêm vào lớp khác.'
-                                : 'Vui lòng chọn ít nhất một nhân viên.');
+                        var studyingBlocked = addForm.querySelector('label.is-blocked input[name="employeeIds"]');
+                        addError.textContent = studyingBlocked
+                            ? 'Nhân viên đang học kỹ năng này ở lớp còn hiệu lực không thể đăng ký vào lớp khác.'
+                            : 'Vui lòng chọn ít nhất một nhân viên.';
                     }
                 }
             });

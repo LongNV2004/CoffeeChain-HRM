@@ -136,6 +136,38 @@ th{color:var(--ink-soft);font-weight:500;}
 }
 .picker-list label:last-child{border-bottom:0;}
 .picker-list .muted{display:block;}
+.enroll-list{border:1px solid var(--line);border-radius:6px;max-height:420px;overflow:auto;background:#fff;}
+.enroll-list[hidden]{display:none;}
+.enroll-head,.enroll-row{
+  display:grid;
+  grid-template-columns:28px minmax(120px,1.1fr) minmax(100px,.9fr) minmax(170px,1.6fr) minmax(150px,1.4fr) 148px;
+  gap:8px 12px;align-items:center;padding:8px 12px;
+}
+.stack-form label.enroll-row{display:grid;gap:8px 12px;color:var(--espresso);font-size:13px;}
+.enroll-head{
+  position:sticky;top:0;z-index:1;background:var(--paper);color:var(--ink-soft);
+  font-size:12px;border-bottom:1px solid var(--line);
+}
+.enroll-row{border-bottom:1px solid var(--paper-dim);cursor:pointer;}
+.enroll-row:last-child{border-bottom:0;}
+.enroll-row[hidden],
+.stack-form label.enroll-row[hidden]{display:none;}
+.enroll-row.is-blocked{cursor:default;background:#FBF8F6;}
+.enroll-row input,.stack-form .enroll-row input{width:auto;margin:0;}
+.enroll-name{font-weight:600;}
+.enroll-store,.enroll-cert,.enroll-latest{min-width:0;}
+.skill-line{display:block;line-height:1.4;}
+.skill-line .skill-name{font-weight:500;}
+.skill-line .muted{display:block;margin-top:0;}
+.cert-on{color:#157347;}
+.cert-off{color:#B42318;}
+.enroll-state .badge{white-space:nowrap;}
+.modal-dialog.modal-wide{max-width:960px;}
+@media (max-width:800px){
+  .enroll-head{display:none;}
+  .enroll-head,.enroll-row,.stack-form label.enroll-row{grid-template-columns:28px 1fr;}
+  .enroll-cert,.enroll-latest,.enroll-state{grid-column:2;}
+}
 .result-choices{display:flex;gap:16px;margin:12px 0;}
 .result-choices label{display:flex;gap:8px;align-items:center;font-size:14px;}
 .note-field{display:grid;gap:6px;font-size:13px;color:var(--ink-soft);}
@@ -143,6 +175,9 @@ th{color:var(--ink-soft);font-weight:500;}
   font:inherit;color:var(--espresso);border:1px solid var(--line);background:#fff;
   padding:8px 10px;border-radius:6px;width:100%;resize:vertical;
 }
+.skill-result-list{margin:0;padding-left:18px;}
+.skill-result-list li{margin:2px 0;}
+.training-table{width:100%;border-collapse:collapse;margin-top:14px;font-size:14px;}
 @media (max-width:900px){
   .split-train,.two-col,.filter-bar{grid-template-columns:1fr;}
 }

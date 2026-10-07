@@ -44,6 +44,7 @@ public interface TrainingClassEnrollmentRepository extends JpaRepository<Trainin
     @Query("""
             SELECT e FROM TrainingClassEnrollment e
             JOIN FETCH e.trainingClass c
+            LEFT JOIN FETCH e.employee
             LEFT JOIN FETCH c.store
             LEFT JOIN FETCH c.trainer trainerUser
             LEFT JOIN FETCH trainerUser.employee
@@ -59,6 +60,7 @@ public interface TrainingClassEnrollmentRepository extends JpaRepository<Trainin
     @Query("""
             SELECT e FROM TrainingClassEnrollment e
             JOIN FETCH e.trainingClass c
+            LEFT JOIN FETCH e.employee
             LEFT JOIN FETCH c.store
             LEFT JOIN FETCH c.trainer trainerUser
             LEFT JOIN FETCH trainerUser.employee
@@ -119,4 +121,20 @@ public interface TrainingClassEnrollmentRepository extends JpaRepository<Trainin
                                                      @Param("excludeClassId") Integer excludeClassId,
                                                      @Param("today") LocalDate today,
                                                      @Param("currentTime") LocalTime currentTime);
+
+    /**
+     * Mọi lần học kỹ năng chưa bị từ chối. Dùng để tính chứng chỉ và lần đào tạo gần nhất theo từng kỹ năng.
+     */
+    @Query("""
+            SELECT new com.example.coffee_hrm.repository.EmployeeSkillTrainingFact(
+                e.employee.id, skill.id, skill.skillName, e.result, e.evaluatedAt,
+                c.startDate, c.endDate, c.endTime, c.status)
+            FROM TrainingClassEnrollment e
+            JOIN e.trainingClass c
+            JOIN c.skills skill
+            WHERE e.employee.id IN :employeeIds
+              AND c.status <> :rejectedStatus
+            """)
+    List<EmployeeSkillTrainingFact> findSkillTrainingFacts(@Param("employeeIds") Collection<Integer> employeeIds,
+                                                           @Param("rejectedStatus") TrainingClassStatus rejectedStatus);
 }

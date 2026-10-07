@@ -2,10 +2,7 @@ package com.example.coffee_hrm.controller;
 
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.dto.request.AddTrainingClassStudentsRequest;
-import com.example.coffee_hrm.dto.request.CreateTrainingClassRequest;
-import com.example.coffee_hrm.dto.request.CreateTrainingSkillRequest;
 import com.example.coffee_hrm.dto.request.EvaluateTrainingStudentRequest;
-import com.example.coffee_hrm.dto.request.UpdateTrainingSkillRequest;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.TrainingService;
 import jakarta.validation.Valid;
@@ -69,89 +66,15 @@ public class TrainingController {
     }
 
     @GetMapping("/create")
-    public String createClassPage(@AuthenticationPrincipal AuthenticatedUser user, Model model) {
-        populateCreatePage(user, model);
-        if (!model.containsAttribute("skillForm")) {
-            model.addAttribute("skillForm", new CreateTrainingSkillRequest());
-        }
-        if (!model.containsAttribute("updateSkillForm")) {
-            model.addAttribute("updateSkillForm", new UpdateTrainingSkillRequest());
-        }
-        if (!model.containsAttribute("classForm")) {
-            model.addAttribute("classForm", new CreateTrainingClassRequest());
-        }
+    public String createClassPage(RedirectAttributes redirectAttributes) {
+        redirectAttributes.addFlashAttribute("errorMessage", "Chỉ Admin mới được tạo lớp đào tạo.");
+        return "redirect:/training";
+    }
+
+    @GetMapping("/skills")
+    public String skillPage(@AuthenticationPrincipal AuthenticatedUser user, Model model) {
+        populateSkillPage(user, model);
         return "manager/Training";
-    }
-
-    @PostMapping("/skills")
-    public String createSkill(@Valid @ModelAttribute("skillForm") CreateTrainingSkillRequest skillForm,
-                              BindingResult bindingResult,
-                              RedirectAttributes redirectAttributes,
-                              @AuthenticationPrincipal AuthenticatedUser user) {
-        if (bindingResult.hasErrors()) {
-            redirectAttributes.addFlashAttribute("skillForm", skillForm);
-            redirectAttributes.addFlashAttribute("skillError", firstError(bindingResult, "Không thể tạo kỹ năng."));
-            return "redirect:/training/create";
-        }
-        try {
-            trainingService.createSkill(skillForm, user);
-            redirectAttributes.addFlashAttribute("successMessage", "Đã thêm kỹ năng đào tạo.");
-            return "redirect:/training/create";
-        } catch (BusinessException ex) {
-            redirectAttributes.addFlashAttribute("skillForm", skillForm);
-            redirectAttributes.addFlashAttribute("skillError", ex.getMessage());
-            return "redirect:/training/create";
-        }
-    }
-
-    @PostMapping("/skills/{id}")
-    public String updateSkill(@PathVariable Integer id,
-                              @Valid @ModelAttribute("updateSkillForm") UpdateTrainingSkillRequest updateSkillForm,
-                              BindingResult bindingResult,
-                              RedirectAttributes redirectAttributes,
-                              @AuthenticationPrincipal AuthenticatedUser user) {
-        if (bindingResult.hasErrors()) {
-            redirectAttributes.addFlashAttribute("updateSkillForm", updateSkillForm);
-            redirectAttributes.addFlashAttribute("skillUpdateError", firstError(bindingResult, "Không thể cập nhật kỹ năng."));
-            redirectAttributes.addFlashAttribute("editingSkillId", id);
-            return "redirect:/training/create";
-        }
-        try {
-            trainingService.updateSkill(id, updateSkillForm, user);
-            redirectAttributes.addFlashAttribute("successMessage", "Đã cập nhật kỹ năng đào tạo.");
-            return "redirect:/training/create";
-        } catch (BusinessException ex) {
-            redirectAttributes.addFlashAttribute("updateSkillForm", updateSkillForm);
-            redirectAttributes.addFlashAttribute("skillUpdateError", ex.getMessage());
-            redirectAttributes.addFlashAttribute("editingSkillId", id);
-            return "redirect:/training/create";
-        }
-    }
-
-    @PostMapping("/skills/{id}/deactivate")
-    public String deactivateSkill(@PathVariable Integer id,
-                                  @AuthenticationPrincipal AuthenticatedUser user,
-                                  RedirectAttributes redirectAttributes) {
-        try {
-            trainingService.deactivateSkill(id, user);
-            redirectAttributes.addFlashAttribute("successMessage", "Đã ngừng sử dụng kỹ năng đào tạo.");
-        } catch (BusinessException ex) {
-            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
-        }
-        return "redirect:/training/create";
-    }
-
-    @PostMapping("/skills/{id}/activate")
-    public String activateSkill(@PathVariable Integer id,
-                                @AuthenticationPrincipal AuthenticatedUser user,
-                                RedirectAttributes redirectAttributes) {
-        try {
-            trainingService.activateSkill(id, user);
-            redirectAttributes.addFlashAttribute("successMessage", "Đã kích hoạt lại kỹ năng đào tạo.");
-        } catch (BusinessException ex) {
-            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
-        }
-        return "redirect:/training/create";
     }
 
     @PostMapping("/classes/{id}/students")
@@ -213,24 +136,9 @@ public class TrainingController {
     }
 
     @PostMapping("/classes")
-    public String createClass(@Valid @ModelAttribute("classForm") CreateTrainingClassRequest classForm,
-                              BindingResult bindingResult,
-                              RedirectAttributes redirectAttributes,
-                              @AuthenticationPrincipal AuthenticatedUser user) {
-        if (bindingResult.hasErrors()) {
-            redirectAttributes.addFlashAttribute("classForm", classForm);
-            redirectAttributes.addFlashAttribute("classError", firstError(bindingResult, "Không thể tạo lớp đào tạo."));
-            return "redirect:/training/create";
-        }
-        try {
-            trainingService.createClass(classForm, user);
-            redirectAttributes.addFlashAttribute("successMessage", "Đã gửi lớp đào tạo cho Admin duyệt.");
-            return "redirect:/training";
-        } catch (BusinessException ex) {
-            redirectAttributes.addFlashAttribute("classForm", classForm);
-            redirectAttributes.addFlashAttribute("classError", ex.getMessage());
-            return "redirect:/training/create";
-        }
+    public String createClass(RedirectAttributes redirectAttributes) {
+        redirectAttributes.addFlashAttribute("errorMessage", "Chỉ Admin mới được tạo lớp đào tạo.");
+        return "redirect:/training";
     }
 
     private void populateListPage(AuthenticatedUser user,
@@ -258,13 +166,11 @@ public class TrainingController {
         model.addAttribute("totalPages", classPage.getTotalPages());
     }
 
-    private void populateCreatePage(AuthenticatedUser user, Model model) {
+    private void populateSkillPage(AuthenticatedUser user, Model model) {
         model.addAttribute("displayName", user.getDisplayName());
         model.addAttribute("storeName", user.getStoreName());
         model.addAttribute("skills", trainingService.listSkills());
         model.addAttribute("activeSkills", trainingService.listActiveSkills());
-        model.addAttribute("hasStore", trainingService.managerHasAssignedStore(user));
-        model.addAttribute("storeEmployees", trainingService.listEmployeesForNewStoreClass(user));
     }
 
     private String validationMessage(BindingResult bindingResult, String fallback) {
