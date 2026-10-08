@@ -419,7 +419,7 @@ public class ScheduleServiceImpl implements ScheduleService {
 
         for (ShiftAssignment sa : assignments) {
             totalCount++;
-            boolean isPub = Boolean.TRUE.equals(sa.getIsPublished());
+            boolean isPub = sa.getIsPublished() == null || Boolean.TRUE.equals(sa.getIsPublished());
             if (isPub) {
                 publishedCount++;
             } else {

@@ -384,6 +384,20 @@ class ScheduleServiceImplTest {
         verify(shiftChangeRequestRepository, never()).save(any());
     }
 
+    @Test
+    void shiftAssignmentDefaultsToPublished() {
+        ShiftAssignment sa = ShiftAssignment.builder()
+                .employee(empTuan)
+                .shift(shiftMorning)
+                .workDate(VietnamTime.today())
+                .build();
+        assertTrue(sa.getIsPublished());
+
+        sa.prePersist();
+        assertTrue(sa.getIsPublished());
+        assertNotNull(sa.getPublishedAt());
+    }
+
     private User buildUser(Integer id, String username, RoleName roleName, Employee employee) {
         Role role = Role.builder().id(roleName == RoleName.ADMIN ? 1 : (roleName == RoleName.MANAGER ? 2 : 3)).roleName(roleName).build();
         return User.builder()
