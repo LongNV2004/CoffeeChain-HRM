@@ -54,6 +54,20 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final RoleRepository roleRepository;
 
     @Override
+    public List<EmployeeResponse> getAllEmployees(AuthenticatedUser actor) {
+        requireAdmin(actor);
+
+        return employeeRepository
+                .findAllForAdmin(EmployeeStatus.TERMINATED)
+                .stream()
+                .map(employee -> toResponse(
+                        employee,
+                        employee.getUser(),
+                        employee.getStore()
+                ))
+                .toList();
+    }
+    @Override
     public List<EmployeeResponse> getStoreEmployees(AuthenticatedUser actor, Integer storeId) {
         requireAdmin(actor);
         Store store = storeRepository.findById(storeId)

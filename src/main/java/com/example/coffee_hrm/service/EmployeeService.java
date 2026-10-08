@@ -11,6 +11,7 @@ public interface EmployeeService {
             AuthenticatedUser actor,
             CreateEmployeeRequest request
     );
+    List<EmployeeResponse> getAllEmployees(AuthenticatedUser actor);
     List<EmployeeResponse> getStoreEmployees(AuthenticatedUser actor, Integer storeId);
     EmployeeResponse updateEmployee(
             AuthenticatedUser actor,
