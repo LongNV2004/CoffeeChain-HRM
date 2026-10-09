@@ -1,0 +1,3241 @@
+diff --git a/src/main/java/com/example/coffee_hrm/common/enums/AttendanceStatus.java b/src/main/java/com/example/coffee_hrm/common/enums/AttendanceStatus.java
+index ebd8ff5..17305bf 100644
+--- a/src/main/java/com/example/coffee_hrm/common/enums/AttendanceStatus.java
++++ b/src/main/java/com/example/coffee_hrm/common/enums/AttendanceStatus.java
+@@ -7,9 +7,11 @@ import lombok.RequiredArgsConstructor;
+ @RequiredArgsConstructor
+ public enum AttendanceStatus {
+ 
++    PRESENT("Present"),
+     ON_TIME("OnTime"),
+     LATE("Late"),
+     EARLY_LEAVE("EarlyLeave"),
++    LATE_AND_EARLY("LateAndEarly"),
+     ABSENT("Absent");
+ 
+     private final String dbValue;
+diff --git a/src/main/java/com/example/coffee_hrm/common/web/ClientIpResolver.java b/src/main/java/com/example/coffee_hrm/common/web/ClientIpResolver.java
+new file mode 100644
+index 0000000..03d1786
+--- /dev/null
++++ b/src/main/java/com/example/coffee_hrm/common/web/ClientIpResolver.java
+@@ -0,0 +1,86 @@
++package com.example.coffee_hrm.common.web;
++
++import jakarta.servlet.http.HttpServletRequest;
++
++public final class ClientIpResolver {
++
++    private ClientIpResolver() {
++    }
++
++    /**
++     * Ứng dụng không cấu hình trusted proxy, nên chỉ dùng địa chỉ socket của request.
++     * Header X-Forwarded-For do client tự gửi không được dùng để tránh giả mạo IP.
++     */
++    public static String resolve(HttpServletRequest request) {
++        if (request == null) {
++            return null;
++        }
++        return normalize(request.getRemoteAddr());
++    }
++
++    public static String normalize(String ip) {
++        if (ip == null) {
++            return null;
++        }
++        String value = ip.trim();
++        if (value.isEmpty()) {
++            return null;
++        }
++        if (value.regionMatches(true, 0, "::ffff:", 0, 7)) {
++            value = value.substring(7);
++        }
++        int zone = value.indexOf('%');
++        if (zone > 0) {
++            value = value.substring(0, zone);
++        }
++        if ("0:0:0:0:0:0:0:1".equals(value)) {
++            return "::1";
++        }
++        return value;
++    }
++
++    public static boolean isLocalOrPrivate(String ip) {
++        String value = normalize(ip);
++        if (value == null) {
++            return true;
++        }
++        if ("::1".equalsIgnoreCase(value)) {
++            return true;
++        }
++        String lower = value.toLowerCase();
++        if (lower.startsWith("fe80:") || lower.startsWith("fc") || lower.startsWith("fd")) {
++            return true;
++        }
++        if (lower.contains(":")) {
++            return false;
++        }
++        String[] parts = lower.split("\\.");
++        if (parts.length != 4) {
++            return true;
++        }
++        int first;
++        int second;
++        try {
++            first = Integer.parseInt(parts[0]);
++            second = Integer.parseInt(parts[1]);
++        } catch (NumberFormatException ex) {
++            return true;
++        }
++        if (first == 0 || first == 10 || first == 127) {
++            return true;
++        }
++        if (first == 169 && second == 254) {
++            return true;
++        }
++        if (first == 172 && second >= 16 && second <= 31) {
++            return true;
++        }
++        return first == 192 && second == 168;
++    }
++
++    public static boolean matches(String requestIp, String storeIp) {
++        String left = normalize(requestIp);
++        String right = normalize(storeIp);
++        return left != null && right != null && left.equalsIgnoreCase(right);
++    }
++}
+diff --git a/src/main/java/com/example/coffee_hrm/common/web/ConnectedNetworkIpResolver.java b/src/main/java/com/example/coffee_hrm/common/web/ConnectedNetworkIpResolver.java
+new file mode 100644
+index 0000000..dbc0ec4
+--- /dev/null
++++ b/src/main/java/com/example/coffee_hrm/common/web/ConnectedNetworkIpResolver.java
+@@ -0,0 +1,85 @@
++package com.example.coffee_hrm.common.web;
++
++import jakarta.servlet.http.HttpServletRequest;
++import org.springframework.stereotype.Component;
++
++import java.net.URI;
++import java.net.http.HttpClient;
++import java.net.http.HttpRequest;
++import java.net.http.HttpResponse;
++import java.time.Duration;
++
++@Component
++public class ConnectedNetworkIpResolver {
++
++    private static final Duration TIMEOUT = Duration.ofSeconds(3);
++    private static final long CACHE_MILLIS = 60_000;
++
++    private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
++    private volatile String cachedPublicIp;
++    private volatile long cachedAt;
++
++    /**
++     * Khi mở web bằng localhost, socket chỉ là ::1/127.0.0.1.
++     * IP mạng đang dùng là IP public của kết nối ra internet, giống trang kiểm tra IP.
++     * Request từ internet thì dùng đúng IP socket, không tin header client tự gửi.
++     */
++    public String resolve(HttpServletRequest request) {
++        String remote = ClientIpResolver.resolve(request);
++        if (remote != null && !ClientIpResolver.isLocalOrPrivate(remote)) {
++            return remote;
++        }
++        String publicIp = currentPublicIp();
++        return publicIp != null ? publicIp : remote;
++    }
++
++    /**
++     * Dùng khi Manager bấm cập nhật IP. Không dùng cache, để đổi Wi-Fi sang 4G
++     * vẫn lưu đúng IP public của mạng vừa kết nối.
++     */
++    public String resolveFresh(HttpServletRequest request) {
++        String remote = ClientIpResolver.resolve(request);
++        if (remote != null && !ClientIpResolver.isLocalOrPrivate(remote)) {
++            return remote;
++        }
++        return remember(lookupPublicIp());
++    }
++
++    String currentPublicIp() {
++        long now = System.currentTimeMillis();
++        if (cachedPublicIp != null && now - cachedAt < CACHE_MILLIS) {
++            return cachedPublicIp;
++        }
++        String lookedUp = remember(lookupPublicIp());
++        return lookedUp != null ? lookedUp : cachedPublicIp;
++    }
++
++    private String remember(String lookedUp) {
++        if (lookedUp == null) {
++            return null;
++        }
++        cachedPublicIp = lookedUp;
++        cachedAt = System.currentTimeMillis();
++        return lookedUp;
++    }
++
++    protected String lookupPublicIp() {
++        try {
++            HttpRequest request = HttpRequest.newBuilder(URI.create("https://api.ipify.org"))
++                    .timeout(TIMEOUT)
++                    .GET()
++                    .build();
++            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
++            if (response.statusCode() != 200) {
++                return null;
++            }
++            String ip = ClientIpResolver.normalize(response.body());
++            if (ip == null || ClientIpResolver.isLocalOrPrivate(ip)) {
++                return null;
++            }
++            return ip;
++        } catch (Exception ex) {
++            return null;
++        }
++    }
++}
+diff --git a/src/main/java/com/example/coffee_hrm/config/AttendanceSchedulingConfig.java b/src/main/java/com/example/coffee_hrm/config/AttendanceSchedulingConfig.java
+new file mode 100644
+index 0000000..8f954e0
+--- /dev/null
++++ b/src/main/java/com/example/coffee_hrm/config/AttendanceSchedulingConfig.java
+@@ -0,0 +1,9 @@
++package com.example.coffee_hrm.config;
++
++import org.springframework.context.annotation.Configuration;
++import org.springframework.scheduling.annotation.EnableScheduling;
++
++@Configuration
++@EnableScheduling
++public class AttendanceSchedulingConfig {
++}
+diff --git a/src/main/java/com/example/coffee_hrm/controller/AttendanceController.java b/src/main/java/com/example/coffee_hrm/controller/AttendanceController.java
+new file mode 100644
+index 0000000..cca55bc
+--- /dev/null
++++ b/src/main/java/com/example/coffee_hrm/controller/AttendanceController.java
+@@ -0,0 +1,133 @@
++package com.example.coffee_hrm.controller;
++
++import com.example.coffee_hrm.common.exception.BusinessException;
++import com.example.coffee_hrm.common.web.ConnectedNetworkIpResolver;
++import com.example.coffee_hrm.security.AuthenticatedUser;
++import com.example.coffee_hrm.service.AttendanceService;
++import jakarta.servlet.http.HttpServletRequest;
++import lombok.RequiredArgsConstructor;
++import org.springframework.security.access.prepost.PreAuthorize;
++import org.springframework.security.core.annotation.AuthenticationPrincipal;
++import org.springframework.stereotype.Controller;
++import org.springframework.ui.Model;
++import org.springframework.web.bind.annotation.GetMapping;
++import org.springframework.web.bind.annotation.PostMapping;
++import org.springframework.web.bind.annotation.RequestMapping;
++import org.springframework.web.servlet.mvc.support.RedirectAttributes;
++
++@Controller
++@RequiredArgsConstructor
++@RequestMapping("/attendance")
++public class AttendanceController {
++
++    private final AttendanceService attendanceService;
++    private final ConnectedNetworkIpResolver networkIpResolver;
++
++    @GetMapping("/staff")
++    @PreAuthorize("hasRole('STAFF')")
++    public String staffClock(@AuthenticationPrincipal AuthenticatedUser user,
++                             HttpServletRequest request,
++                             Model model) {
++        return clock(user, networkIpResolver.resolve(request), model, "staff/StaffCheckIn");
++    }
++
++    @PostMapping("/staff/check-in")
++    @PreAuthorize("hasRole('STAFF')")
++    public String staffCheckIn(@AuthenticationPrincipal AuthenticatedUser user,
++                               HttpServletRequest request,
++                               RedirectAttributes redirectAttributes) {
++        return submitCheckIn(user, request, redirectAttributes, "redirect:/attendance/staff");
++    }
++
++    @PostMapping("/staff/check-out")
++    @PreAuthorize("hasRole('STAFF')")
++    public String staffCheckOut(@AuthenticationPrincipal AuthenticatedUser user,
++                                HttpServletRequest request,
++                                RedirectAttributes redirectAttributes) {
++        return submitCheckOut(user, request, redirectAttributes, "redirect:/attendance/staff");
++    }
++
++    @GetMapping("/manager")
++    @PreAuthorize("hasRole('MANAGER')")
++    public String managerClock(@AuthenticationPrincipal AuthenticatedUser user,
++                               HttpServletRequest request,
++                               Model model) {
++        return clock(user, networkIpResolver.resolveFresh(request), model, "manager/ManagerCheckIn");
++    }
++
++    @PostMapping("/manager/check-in")
++    @PreAuthorize("hasRole('MANAGER')")
++    public String managerCheckIn(@AuthenticationPrincipal AuthenticatedUser user,
++                                 HttpServletRequest request,
++                                 RedirectAttributes redirectAttributes) {
++        return submitCheckIn(user, request, redirectAttributes, "redirect:/attendance/manager");
++    }
++
++    @PostMapping("/manager/check-out")
++    @PreAuthorize("hasRole('MANAGER')")
++    public String managerCheckOut(@AuthenticationPrincipal AuthenticatedUser user,
++                                  HttpServletRequest request,
++                                  RedirectAttributes redirectAttributes) {
++        return submitCheckOut(user, request, redirectAttributes, "redirect:/attendance/manager");
++    }
++
++    @PostMapping("/manager/ip")
++    @PreAuthorize("hasRole('MANAGER')")
++    public String managerUpdateStoreIp(@AuthenticationPrincipal AuthenticatedUser user,
++                                       HttpServletRequest request,
++                                       RedirectAttributes redirectAttributes) {
++        return updateStoreIp(user, request, redirectAttributes, "redirect:/attendance/manager");
++    }
++
++    private String updateStoreIp(AuthenticatedUser user,
++                                 HttpServletRequest request,
++                                 RedirectAttributes redirectAttributes,
++                                 String redirect) {
++        try {
++            attendanceService.updateStoreIp(user, networkIpResolver.resolveFresh(request));
++            redirectAttributes.addFlashAttribute("pageMessage", "Đã cập nhật IP mạng cửa hàng theo máy đang kết nối.");
++        } catch (BusinessException ex) {
++            redirectAttributes.addFlashAttribute("pageError", ex.getMessage());
++        }
++        return redirect;
++    }
++
++    private String clock(AuthenticatedUser user, String requestIp, Model model, String view) {
++        try {
++            model.addAttribute("clock", attendanceService.getClock(user, requestIp));
++            if (!model.containsAttribute("pageError")) {
++                model.addAttribute("pageError", null);
++            }
++        } catch (BusinessException ex) {
++            model.addAttribute("clock", null);
++            model.addAttribute("pageError", ex.getMessage());
++        }
++        return view;
++    }
++
++    private String submitCheckIn(AuthenticatedUser user,
++                                 HttpServletRequest request,
++                                 RedirectAttributes redirectAttributes,
++                                 String redirect) {
++        try {
++            attendanceService.checkIn(user, networkIpResolver.resolve(request));
++            redirectAttributes.addFlashAttribute("pageMessage", "Check-in thành công.");
++        } catch (BusinessException ex) {
++            redirectAttributes.addFlashAttribute("pageError", ex.getMessage());
++        }
++        return redirect;
++    }
++
++    private String submitCheckOut(AuthenticatedUser user,
++                                  HttpServletRequest request,
++                                  RedirectAttributes redirectAttributes,
++                                  String redirect) {
++        try {
++            attendanceService.checkOut(user, networkIpResolver.resolve(request));
++            redirectAttributes.addFlashAttribute("pageMessage", "Check-out thành công.");
++        } catch (BusinessException ex) {
++            redirectAttributes.addFlashAttribute("pageError", ex.getMessage());
++        }
++        return redirect;
++    }
++}
+diff --git a/src/main/java/com/example/coffee_hrm/controller/AttendanceHistoryController.java b/src/main/java/com/example/coffee_hrm/controller/AttendanceHistoryController.java
+index 4f00a52..f80c33f 100644
+--- a/src/main/java/com/example/coffee_hrm/controller/AttendanceHistoryController.java
++++ b/src/main/java/com/example/coffee_hrm/controller/AttendanceHistoryController.java
+@@ -1,7 +1,9 @@
+ package com.example.coffee_hrm.controller;
+ 
++import com.example.coffee_hrm.common.enums.AttendanceStatus;
+ import com.example.coffee_hrm.common.exception.BusinessException;
+ import com.example.coffee_hrm.common.time.VietnamTime;
++import com.example.coffee_hrm.dto.request.AttendanceHistoryQuery;
+ import com.example.coffee_hrm.dto.response.AttendanceHistoryView;
+ import com.example.coffee_hrm.security.AuthenticatedUser;
+ import com.example.coffee_hrm.service.AttendanceHistoryService;
+@@ -26,7 +28,7 @@ public class AttendanceHistoryController {
+ 
+     private final AttendanceHistoryService attendanceHistoryService;
+ 
+-    @GetMapping("/staff")
++    @GetMapping("/staff/history")
+     @PreAuthorize("hasRole('STAFF')")
+     public String staffHistory(@RequestParam(value = "from", required = false)
+                                @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+@@ -34,19 +36,24 @@ public class AttendanceHistoryController {
+                                @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+                                @AuthenticationPrincipal AuthenticatedUser user,
+                                Model model) {
++        AttendanceHistoryQuery query = AttendanceHistoryQuery.builder().fromDate(from).toDate(to).build();
+         try {
+-            model.addAttribute("history", attendanceHistoryService.getStaffHistory(user, from, to));
++            model.addAttribute("history", attendanceHistoryService.getStaffHistory(user, query));
+             model.addAttribute("pageError", null);
+         } catch (BusinessException ex) {
+-            model.addAttribute("history", emptyHistory(user, from, to, null));
++            model.addAttribute("history", emptyHistory(user, from, to, null, null));
+             model.addAttribute("pageError", ex.getMessage());
+         }
+         return "staff/StaffAttendance";
+     }
+ 
+-    @GetMapping("/manager")
++    @GetMapping("/manager/history")
+     @PreAuthorize("hasRole('MANAGER')")
+     public String managerHistory(@RequestParam(value = "employeeId", required = false) Integer employeeId,
++                                 @RequestParam(value = "shiftId", required = false) Integer shiftId,
++                                 @RequestParam(value = "status", required = false) String status,
++                                 @RequestParam(value = "late", required = false) Boolean late,
++                                 @RequestParam(value = "early", required = false) Boolean early,
+                                  @RequestParam(value = "from", required = false)
+                                  @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+                                  @RequestParam(value = "to", required = false)
+@@ -54,19 +61,77 @@ public class AttendanceHistoryController {
+                                  @AuthenticationPrincipal AuthenticatedUser user,
+                                  Model model) {
+         try {
+-            model.addAttribute("history", attendanceHistoryService.getManagerHistory(user, employeeId, from, to));
++            model.addAttribute("history", attendanceHistoryService.getManagerHistory(user, historyQuery(
++                    from, to, employeeId, null, shiftId, status, late, early)));
+             model.addAttribute("pageError", null);
+         } catch (BusinessException ex) {
+-            model.addAttribute("history", emptyHistory(user, from, to, employeeId));
++            model.addAttribute("history", emptyHistory(user, from, to, employeeId, null));
+             model.addAttribute("pageError", ex.getMessage());
+         }
+         return "manager/ManagerAttendance";
+     }
+ 
++    @GetMapping("/admin")
++    @PreAuthorize("hasRole('ADMIN')")
++    public String adminHistory(@RequestParam(value = "storeId", required = false) Integer storeId,
++                               @RequestParam(value = "employeeId", required = false) Integer employeeId,
++                               @RequestParam(value = "shiftId", required = false) Integer shiftId,
++                               @RequestParam(value = "status", required = false) String status,
++                               @RequestParam(value = "late", required = false) Boolean late,
++                               @RequestParam(value = "early", required = false) Boolean early,
++                               @RequestParam(value = "from", required = false)
++                               @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
++                               @RequestParam(value = "to", required = false)
++                               @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
++                               @AuthenticationPrincipal AuthenticatedUser user,
++                               Model model) {
++        try {
++            model.addAttribute("history", attendanceHistoryService.getAdminHistory(user, historyQuery(
++                    from, to, employeeId, storeId, shiftId, status, late, early)));
++            model.addAttribute("pageError", null);
++        } catch (BusinessException ex) {
++            model.addAttribute("history", emptyHistory(user, from, to, employeeId, storeId));
++            model.addAttribute("pageError", ex.getMessage());
++        }
++        return "admin/AdminAttendance";
++    }
++
++    private AttendanceHistoryQuery historyQuery(LocalDate from,
++                                                LocalDate to,
++                                                Integer employeeId,
++                                                Integer storeId,
++                                                Integer shiftId,
++                                                String status,
++                                                Boolean late,
++                                                Boolean early) {
++        return AttendanceHistoryQuery.builder()
++                .fromDate(from)
++                .toDate(to)
++                .employeeId(employeeId)
++                .storeId(storeId)
++                .shiftId(shiftId)
++                .status(parseStatus(status))
++                .lateOnly(Boolean.TRUE.equals(late))
++                .earlyOnly(Boolean.TRUE.equals(early))
++                .build();
++    }
++
++    private AttendanceStatus parseStatus(String status) {
++        if (status == null || status.isBlank()) {
++            return null;
++        }
++        try {
++            return AttendanceStatus.fromDbValue(status);
++        } catch (IllegalArgumentException ex) {
++            throw new BusinessException("Trạng thái chấm công không hợp lệ.");
++        }
++    }
++
+     private AttendanceHistoryView emptyHistory(AuthenticatedUser user,
+                                                LocalDate from,
+                                                LocalDate to,
+-                                               Integer employeeId) {
++                                               Integer employeeId,
++                                               Integer storeId) {
+         LocalDate today = VietnamTime.today();
+         return AttendanceHistoryView.builder()
+                 .employeeId(user.getEmployeeId())
+@@ -75,7 +140,11 @@ public class AttendanceHistoryController {
+                 .fromDate(from != null ? from : today.withDayOfMonth(1))
+                 .toDate(to != null ? to : today)
+                 .filterEmployeeId(employeeId)
++                .filterStoreId(storeId)
+                 .employees(List.of())
++                .stores(List.of())
++                .shifts(List.of())
++                .statuses(List.of())
+                 .rows(List.of())
+                 .recordCount(0)
+                 .totalHours(BigDecimal.ZERO)
+diff --git a/src/main/java/com/example/coffee_hrm/dto/request/AttendanceHistoryQuery.java b/src/main/java/com/example/coffee_hrm/dto/request/AttendanceHistoryQuery.java
+new file mode 100644
+index 0000000..5e02042
+--- /dev/null
++++ b/src/main/java/com/example/coffee_hrm/dto/request/AttendanceHistoryQuery.java
+@@ -0,0 +1,21 @@
++package com.example.coffee_hrm.dto.request;
++
++import com.example.coffee_hrm.common.enums.AttendanceStatus;
++import lombok.Builder;
++import lombok.Getter;
++
++import java.time.LocalDate;
++
++@Getter
++@Builder
++public class AttendanceHistoryQuery {
++
++    private final LocalDate fromDate;
++    private final LocalDate toDate;
++    private final Integer employeeId;
++    private final Integer storeId;
++    private final Integer shiftId;
++    private final AttendanceStatus status;
++    private final boolean lateOnly;
++    private final boolean earlyOnly;
++}
+diff --git a/src/main/java/com/example/coffee_hrm/dto/response/AttendanceClockView.java b/src/main/java/com/example/coffee_hrm/dto/response/AttendanceClockView.java
+new file mode 100644
+index 0000000..327df9e
+--- /dev/null
++++ b/src/main/java/com/example/coffee_hrm/dto/response/AttendanceClockView.java
+@@ -0,0 +1,30 @@
++package com.example.coffee_hrm.dto.response;
++
++import lombok.Builder;
++import lombok.Getter;
++
++import java.time.LocalDate;
++import java.util.List;
++
++@Getter
++@Builder
++public class AttendanceClockView {
++
++    private final String employeeName;
++    private final String storeName;
++    private final String shiftName;
++    private final String scheduledStartLabel;
++    private final String scheduledEndLabel;
++    private final String statusLabel;
++    private final boolean manager;
++    private final String storeCurrentIp;
++    private final String requestIp;
++    private final List<RecentItem> recent;
++
++    @Getter
++    @Builder
++    public static class RecentItem {
++        private final LocalDate workDate;
++        private final String timeLabel;
++    }
++}
+diff --git a/src/main/java/com/example/coffee_hrm/dto/response/AttendanceHistoryView.java b/src/main/java/com/example/coffee_hrm/dto/response/AttendanceHistoryView.java
+index de3a23f..a2a3b55 100644
+--- a/src/main/java/com/example/coffee_hrm/dto/response/AttendanceHistoryView.java
++++ b/src/main/java/com/example/coffee_hrm/dto/response/AttendanceHistoryView.java
+@@ -17,7 +17,15 @@ public class AttendanceHistoryView {
+     private final LocalDate fromDate;
+     private final LocalDate toDate;
+     private final Integer filterEmployeeId;
++    private final Integer filterStoreId;
++    private final Integer filterShiftId;
++    private final String filterStatus;
++    private final boolean lateOnly;
++    private final boolean earlyOnly;
+     private final List<EmployeeOption> employees;
++    private final List<StoreOption> stores;
++    private final List<ShiftOption> shifts;
++    private final List<StatusOption> statuses;
+     private final List<AttendanceRow> rows;
+     private final int recordCount;
+     private final BigDecimal totalHours;
+@@ -30,6 +38,27 @@ public class AttendanceHistoryView {
+         private final String fullName;
+     }
+ 
++    @Getter
++    @Builder
++    public static class StoreOption {
++        private final Integer storeId;
++        private final String storeName;
++    }
++
++    @Getter
++    @Builder
++    public static class ShiftOption {
++        private final Integer shiftId;
++        private final String label;
++    }
++
++    @Getter
++    @Builder
++    public static class StatusOption {
++        private final String value;
++        private final String label;
++    }
++
+     @Getter
+     @Builder
+     public static class AttendanceRow {
+@@ -37,9 +66,17 @@ public class AttendanceHistoryView {
+         private final Integer employeeId;
+         private final String employeeName;
+         private final LocalDate workDate;
++        private final String storeName;
++        private final String scheduledStartLabel;
++        private final String scheduledEndLabel;
+         private final String checkInLabel;
+         private final String checkOutLabel;
+         private final String totalHoursLabel;
++        private final String lateLabel;
++        private final String earlyLabel;
++        private final String missingLabel;
++        private final String checkInIp;
++        private final String checkOutIp;
+         private final String statusLabel;
+         private final String statusCss;
+         private final String shiftLabel;
+diff --git a/src/main/java/com/example/coffee_hrm/entity/Attendance.java b/src/main/java/com/example/coffee_hrm/entity/Attendance.java
+index afad4d2..dbcd479 100644
+--- a/src/main/java/com/example/coffee_hrm/entity/Attendance.java
++++ b/src/main/java/com/example/coffee_hrm/entity/Attendance.java
+@@ -4,20 +4,24 @@ import com.example.coffee_hrm.common.enums.AttendanceStatus;
+ import jakarta.persistence.*;
+ import lombok.*;
+ 
++import org.hibernate.annotations.CreationTimestamp;
++import org.hibernate.annotations.UpdateTimestamp;
++
+ import java.math.BigDecimal;
+ import java.time.LocalDate;
+ import java.time.LocalDateTime;
++import java.time.LocalTime;
+ 
+ @Entity
+ @Table(name = "Attendances",
+-        uniqueConstraints = @UniqueConstraint(columnNames = {"EmployeeId", "WorkDate"}))
++        uniqueConstraints = @UniqueConstraint(columnNames = {"EmployeeId", "ShiftId", "WorkDate"}))
+ @Getter
+ @Setter
+ @NoArgsConstructor
+ @AllArgsConstructor
+ @Builder
+ @EqualsAndHashCode(onlyExplicitlyIncluded = true)
+-@ToString(exclude = "employee")
++@ToString(exclude = {"employee", "store", "shift"})
+ public class Attendance {
+ 
+     @Id
+@@ -45,5 +49,47 @@ public class Attendance {
+     @Column(name = "Status", nullable = false, length = 20)
+     @Builder.Default
+     private AttendanceStatus status = AttendanceStatus.ABSENT;
++
++    @ManyToOne(fetch = FetchType.LAZY)
++    @JoinColumn(name = "StoreId")
++    private Store store;
++
++    @ManyToOne(fetch = FetchType.LAZY)
++    @JoinColumn(name = "ShiftId")
++    private Shift shift;
++
++    @Column(name = "ScheduledShiftName", length = 50)
++    private String scheduledShiftName;
++
++    @Column(name = "ScheduledStartTime")
++    private LocalTime scheduledStartTime;
++
++    @Column(name = "ScheduledEndTime")
++    private LocalTime scheduledEndTime;
++
++    @Column(name = "CheckInIp", length = 45)
++    private String checkInIp;
++
++    @Column(name = "CheckOutIp", length = 45)
++    private String checkOutIp;
++
++    @Column(name = "WorkingMinutes")
++    private Integer workingMinutes;
++
++    @Column(name = "LateMinutes", nullable = false)
++    @Builder.Default
++    private Integer lateMinutes = 0;
++
++    @Column(name = "EarlyLeaveMinutes", nullable = false)
++    @Builder.Default
++    private Integer earlyLeaveMinutes = 0;
++
++    @CreationTimestamp
++    @Column(name = "CreatedAt", updatable = false)
++    private LocalDateTime createdAt;
++
++    @UpdateTimestamp
++    @Column(name = "UpdatedAt")
++    private LocalDateTime updatedAt;
+ }
+ 
+diff --git a/src/main/java/com/example/coffee_hrm/entity/Store.java b/src/main/java/com/example/coffee_hrm/entity/Store.java
+index 17e199c..892c887 100644
+--- a/src/main/java/com/example/coffee_hrm/entity/Store.java
++++ b/src/main/java/com/example/coffee_hrm/entity/Store.java
+@@ -43,6 +43,9 @@ public class Store {
+     @Builder.Default
+     private Boolean isActive = true;
+ 
++    @Column(name = "CurrentIp", length = 45)
++    private String currentIp;
++
+     @CreationTimestamp
+     @Column(name = "CreatedAt", nullable = false, updatable = false)
+     private LocalDateTime createdAt;
+diff --git a/src/main/java/com/example/coffee_hrm/repository/AttendanceRepository.java b/src/main/java/com/example/coffee_hrm/repository/AttendanceRepository.java
+index 7b1f325..695047b 100644
+--- a/src/main/java/com/example/coffee_hrm/repository/AttendanceRepository.java
++++ b/src/main/java/com/example/coffee_hrm/repository/AttendanceRepository.java
+@@ -1,6 +1,7 @@
+ package com.example.coffee_hrm.repository;
+ 
+ import com.example.coffee_hrm.entity.Attendance;
++import org.springframework.data.domain.Pageable;
+ import org.springframework.data.jpa.repository.JpaRepository;
+ import org.springframework.data.jpa.repository.Query;
+ import org.springframework.data.repository.query.Param;
+@@ -13,6 +14,41 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Integer>
+ 
+     Optional<Attendance> findByEmployee_IdAndWorkDate(Integer employeeId, LocalDate workDate);
+ 
++    List<Attendance> findByEmployee_IdAndWorkDateOrderByIdDesc(Integer employeeId, LocalDate workDate);
++
++    Optional<Attendance> findByEmployee_IdAndShift_IdAndWorkDate(Integer employeeId, Integer shiftId, LocalDate workDate);
++
++    @Query("""
++            SELECT a FROM Attendance a
++            LEFT JOIN FETCH a.store
++            LEFT JOIN FETCH a.shift
++            WHERE a.employee.id = :employeeId
++              AND a.checkInTime IS NOT NULL
++              AND a.checkOutTime IS NULL
++            ORDER BY a.checkInTime DESC, a.id DESC
++            """)
++    List<Attendance> findOpenByEmployeeId(@Param("employeeId") Integer employeeId);
++
++    @Query("""
++            SELECT a FROM Attendance a
++            WHERE a.employee.id = :employeeId
++            ORDER BY a.workDate DESC, a.id DESC
++            """)
++    List<Attendance> findRecentByEmployee(@Param("employeeId") Integer employeeId, Pageable pageable);
++
++    @Query("""
++            SELECT a FROM Attendance a
++            JOIN FETCH a.employee e
++            JOIN FETCH e.store
++            LEFT JOIN FETCH a.store
++            LEFT JOIN FETCH a.shift
++            WHERE a.workDate >= :fromDate
++              AND a.workDate <= :toDate
++            ORDER BY a.workDate DESC, e.fullName ASC, a.id DESC
++            """)
++    List<Attendance> findHistoryBetween(@Param("fromDate") LocalDate fromDate,
++                                        @Param("toDate") LocalDate toDate);
++
+     @Query("""
+             SELECT a FROM Attendance a
+             JOIN FETCH a.employee e
+diff --git a/src/main/java/com/example/coffee_hrm/repository/ShiftAssignmentRepository.java b/src/main/java/com/example/coffee_hrm/repository/ShiftAssignmentRepository.java
+index 54f881f..d3b4b0e 100644
+--- a/src/main/java/com/example/coffee_hrm/repository/ShiftAssignmentRepository.java
++++ b/src/main/java/com/example/coffee_hrm/repository/ShiftAssignmentRepository.java
+@@ -88,4 +88,34 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
+             @Param("storeId") Integer storeId,
+             @Param("startDate") LocalDate startDate,
+             @Param("endDate") LocalDate endDate);
++
++    @Query("""
++            SELECT sa FROM ShiftAssignment sa
++            JOIN FETCH sa.shift s
++            JOIN FETCH s.store
++            JOIN FETCH sa.employee e
++            WHERE e.id = :employeeId
++              AND sa.workDate >= :fromDate
++              AND sa.workDate <= :toDate
++              AND sa.status = :status
++            ORDER BY sa.workDate ASC, s.startTime ASC
++            """)
++    List<ShiftAssignment> findAssignmentsForAttendance(
++            @Param("employeeId") Integer employeeId,
++            @Param("fromDate") LocalDate fromDate,
++            @Param("toDate") LocalDate toDate,
++            @Param("status") AssignmentStatus status);
++
++    @Query("""
++            SELECT sa FROM ShiftAssignment sa
++            JOIN FETCH sa.shift s
++            JOIN FETCH s.store
++            JOIN FETCH sa.employee e
++            WHERE sa.workDate = :workDate
++              AND sa.status = :status
++              AND sa.isPublished = true
++            """)
++    List<ShiftAssignment> findPublishedAssignedOnDate(
++            @Param("workDate") LocalDate workDate,
++            @Param("status") AssignmentStatus status);
+ }
+diff --git a/src/main/java/com/example/coffee_hrm/security/SecurityConfig.java b/src/main/java/com/example/coffee_hrm/security/SecurityConfig.java
+index 3e06bda..92a94dd 100644
+--- a/src/main/java/com/example/coffee_hrm/security/SecurityConfig.java
++++ b/src/main/java/com/example/coffee_hrm/security/SecurityConfig.java
+@@ -75,7 +75,8 @@ public class SecurityConfig {
+                 .authorizeHttpRequests(auth -> auth
+                         .requestMatchers("/", "/coffee", "/login", "/logout", "/css/**", "/js/**", "/images/**", "/favicon.ico", "/error")
+                         .permitAll()
+-                        .requestMatchers("/dashboard/admin", "/admin", "/admin/**", "/admin/training", "/admin/training/**").hasRole("ADMIN")
++                        .requestMatchers("/dashboard/admin", "/admin", "/admin/**", "/admin/training", "/admin/training/**",
++                                "/attendance/admin", "/attendance/admin/**").hasRole("ADMIN")
+                         .requestMatchers("/dashboard/manager", "/manager/**", "/training", "/training/**",
+                                 "/schedule/manager", "/schedule/manager/**",
+                                 "/availability/manager", "/availability/manager/**",
+diff --git a/src/main/java/com/example/coffee_hrm/service/AttendanceAbsenceScheduler.java b/src/main/java/com/example/coffee_hrm/service/AttendanceAbsenceScheduler.java
+new file mode 100644
+index 0000000..72c0a9c
+--- /dev/null
++++ b/src/main/java/com/example/coffee_hrm/service/AttendanceAbsenceScheduler.java
+@@ -0,0 +1,19 @@
++package com.example.coffee_hrm.service;
++
++import com.example.coffee_hrm.common.time.VietnamTime;
++import lombok.RequiredArgsConstructor;
++import org.springframework.scheduling.annotation.Scheduled;
++import org.springframework.stereotype.Component;
++
++@Component
++@RequiredArgsConstructor
++public class AttendanceAbsenceScheduler {
++
++    private final AttendanceService attendanceService;
++
++    @Scheduled(cron = "0 5 * * * *", zone = "Asia/Ho_Chi_Minh")
++    public void markEndedShiftsAbsent() {
++        attendanceService.markAbsences(VietnamTime.today().minusDays(1));
++        attendanceService.markAbsences(VietnamTime.today());
++    }
++}
+diff --git a/src/main/java/com/example/coffee_hrm/service/AttendanceHistoryService.java b/src/main/java/com/example/coffee_hrm/service/AttendanceHistoryService.java
+index d5f0f4b..8bbd17c 100644
+--- a/src/main/java/com/example/coffee_hrm/service/AttendanceHistoryService.java
++++ b/src/main/java/com/example/coffee_hrm/service/AttendanceHistoryService.java
+@@ -1,5 +1,6 @@
+ package com.example.coffee_hrm.service;
+ 
++import com.example.coffee_hrm.dto.request.AttendanceHistoryQuery;
+ import com.example.coffee_hrm.dto.response.AttendanceHistoryView;
+ import com.example.coffee_hrm.security.AuthenticatedUser;
+ 
+@@ -9,8 +10,14 @@ public interface AttendanceHistoryService {
+ 
+     AttendanceHistoryView getStaffHistory(AuthenticatedUser user, LocalDate fromDate, LocalDate toDate);
+ 
++    AttendanceHistoryView getStaffHistory(AuthenticatedUser user, AttendanceHistoryQuery query);
++
+     AttendanceHistoryView getManagerHistory(AuthenticatedUser user,
+                                             Integer employeeId,
+                                             LocalDate fromDate,
+                                             LocalDate toDate);
++
++    AttendanceHistoryView getManagerHistory(AuthenticatedUser user, AttendanceHistoryQuery query);
++
++    AttendanceHistoryView getAdminHistory(AuthenticatedUser user, AttendanceHistoryQuery query);
+ }
+diff --git a/src/main/java/com/example/coffee_hrm/service/AttendancePolicyProperties.java b/src/main/java/com/example/coffee_hrm/service/AttendancePolicyProperties.java
+new file mode 100644
+index 0000000..3f14957
+--- /dev/null
++++ b/src/main/java/com/example/coffee_hrm/service/AttendancePolicyProperties.java
+@@ -0,0 +1,23 @@
++package com.example.coffee_hrm.service;
++
++import lombok.Getter;
++import lombok.Setter;
++import org.springframework.boot.context.properties.ConfigurationProperties;
++import org.springframework.stereotype.Component;
++
++@Getter
++@Setter
++@Component
++@ConfigurationProperties(prefix = "coffee-hrm.attendance")
++public class AttendancePolicyProperties {
++
++    private int checkInLeadMinutes = 60;
++
++    private int lateThresholdMinutes = 20;
++
++    /**
++     * true: cho Check-out sớm và lưu số phút thiếu.
++     * false: không cho Check-out trước giờ kết thúc ca.
++     */
++    private boolean allowEarlyCheckout = true;
++}
+diff --git a/src/main/java/com/example/coffee_hrm/service/AttendanceService.java b/src/main/java/com/example/coffee_hrm/service/AttendanceService.java
+new file mode 100644
+index 0000000..21d9b29
+--- /dev/null
++++ b/src/main/java/com/example/coffee_hrm/service/AttendanceService.java
+@@ -0,0 +1,19 @@
++package com.example.coffee_hrm.service;
++
++import com.example.coffee_hrm.dto.response.AttendanceClockView;
++import com.example.coffee_hrm.security.AuthenticatedUser;
++
++import java.time.LocalDate;
++
++public interface AttendanceService {
++
++    AttendanceClockView getClock(AuthenticatedUser user, String requestIp);
++
++    void checkIn(AuthenticatedUser user, String requestIp);
++
++    void checkOut(AuthenticatedUser user, String requestIp);
++
++    void updateStoreIp(AuthenticatedUser user, String requestIp);
++
++    void markAbsences(LocalDate workDate);
++}
+diff --git a/src/main/java/com/example/coffee_hrm/service/impl/AttendanceHistoryServiceImpl.java b/src/main/java/com/example/coffee_hrm/service/impl/AttendanceHistoryServiceImpl.java
+index 7218c92..528c098 100644
+--- a/src/main/java/com/example/coffee_hrm/service/impl/AttendanceHistoryServiceImpl.java
++++ b/src/main/java/com/example/coffee_hrm/service/impl/AttendanceHistoryServiceImpl.java
+@@ -3,16 +3,20 @@ package com.example.coffee_hrm.service.impl;
+ import com.example.coffee_hrm.common.enums.AssignmentStatus;
+ import com.example.coffee_hrm.common.enums.AttendanceStatus;
+ import com.example.coffee_hrm.common.enums.EmployeeStatus;
++import com.example.coffee_hrm.common.enums.RoleName;
+ import com.example.coffee_hrm.common.exception.BusinessException;
+ import com.example.coffee_hrm.common.time.VietnamTime;
++import com.example.coffee_hrm.dto.request.AttendanceHistoryQuery;
+ import com.example.coffee_hrm.dto.response.AttendanceHistoryView;
+ import com.example.coffee_hrm.entity.Attendance;
+ import com.example.coffee_hrm.entity.Employee;
++import com.example.coffee_hrm.entity.Shift;
+ import com.example.coffee_hrm.entity.ShiftAssignment;
+ import com.example.coffee_hrm.entity.Store;
+ import com.example.coffee_hrm.repository.AttendanceRepository;
+ import com.example.coffee_hrm.repository.EmployeeRepository;
+ import com.example.coffee_hrm.repository.ShiftAssignmentRepository;
++import com.example.coffee_hrm.repository.ShiftRepository;
+ import com.example.coffee_hrm.repository.StoreRepository;
+ import com.example.coffee_hrm.security.AuthenticatedUser;
+ import com.example.coffee_hrm.service.AttendanceHistoryService;
+@@ -21,8 +25,10 @@ import org.springframework.stereotype.Service;
+ import org.springframework.transaction.annotation.Transactional;
+ 
+ import java.math.BigDecimal;
++import java.math.RoundingMode;
+ import java.time.LocalDate;
+ import java.time.LocalDateTime;
++import java.time.LocalTime;
+ import java.time.format.DateTimeFormatter;
+ import java.time.temporal.ChronoUnit;
+ import java.util.ArrayList;
+@@ -44,19 +50,31 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
+     private final ShiftAssignmentRepository shiftAssignmentRepository;
+     private final EmployeeRepository employeeRepository;
+     private final StoreRepository storeRepository;
++    private final ShiftRepository shiftRepository;
+ 
+     @Override
+     @Transactional(readOnly = true)
+     public AttendanceHistoryView getStaffHistory(AuthenticatedUser user, LocalDate fromDate, LocalDate toDate) {
++        return getStaffHistory(user, AttendanceHistoryQuery.builder()
++                .fromDate(fromDate)
++                .toDate(toDate)
++                .build());
++    }
++
++    @Override
++    @Transactional(readOnly = true)
++    public AttendanceHistoryView getStaffHistory(AuthenticatedUser user, AttendanceHistoryQuery query) {
+         Employee employee = resolveStaffEmployee(user);
+-        LocalDate[] range = resolveRange(fromDate, toDate);
+-        List<Attendance> records = attendanceRepository.findHistoryByEmployee(
+-                employee.getId(), range[0], range[1]);
++        AttendanceHistoryQuery safeQuery = query == null ? AttendanceHistoryQuery.builder().build() : query;
++        LocalDate[] range = resolveRange(safeQuery.getFromDate(), safeQuery.getToDate());
++        List<Attendance> records = applyFilters(attendanceRepository.findHistoryByEmployee(
++                employee.getId(), range[0], range[1]), safeQuery);
+         Map<String, String> shifts = shiftLabels(shiftAssignmentRepository.findWeeklyAssignmentsForEmployee(
+                 employee.getId(), range[0], range[1], AssignmentStatus.ASSIGNED));
+ 
+         return buildView(employee.getId(), employee.getFullName(), storeName(employee.getStore()),
+-                range[0], range[1], null, List.of(), records, shifts);
++                range[0], range[1], null, null, null, safeQuery,
++                List.of(), List.of(), List.of(), records, shifts);
+     }
+ 
+     @Override
+@@ -65,21 +83,88 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
+                                                    Integer employeeId,
+                                                    LocalDate fromDate,
+                                                    LocalDate toDate) {
++        return getManagerHistory(user, AttendanceHistoryQuery.builder()
++                .employeeId(employeeId)
++                .fromDate(fromDate)
++                .toDate(toDate)
++                .build());
++    }
++
++    @Override
++    @Transactional(readOnly = true)
++    public AttendanceHistoryView getManagerHistory(AuthenticatedUser user, AttendanceHistoryQuery query) {
+         Store store = resolveManagerStore(user);
+-        LocalDate[] range = resolveRange(fromDate, toDate);
++        AttendanceHistoryQuery safeQuery = query == null ? AttendanceHistoryQuery.builder().build() : query;
++        Integer employeeId = safeQuery.getEmployeeId();
+         if (employeeId != null) {
+-            assertEmployeeInStore(employeeId, store);
++            assertEmployeeVisibleToManager(employeeId, store, user);
+         }
+-
++        if (safeQuery.getShiftId() != null && shiftRepository != null
++                && shiftRepository.findByIdAndStore_Id(safeQuery.getShiftId(), store.getId()).isEmpty()) {
++            throw new BusinessException("Ca làm việc không thuộc cửa hàng bạn quản lý.");
++        }
++        LocalDate[] range = resolveRange(safeQuery.getFromDate(), safeQuery.getToDate());
+         List<AttendanceHistoryView.EmployeeOption> employees = loadStoreEmployees(store.getId());
+         List<Attendance> records = employeeId == null
+                 ? attendanceRepository.findHistoryByStore(store.getId(), range[0], range[1])
+                 : attendanceRepository.findHistoryByStoreAndEmployee(store.getId(), employeeId, range[0], range[1]);
++        records = applyFilters(records, safeQuery);
+         Map<String, String> shifts = shiftLabels(shiftAssignmentRepository.findWeeklyAssignmentsForStore(
+                 store.getId(), range[0], range[1], AssignmentStatus.ASSIGNED));
++        List<AttendanceHistoryView.ShiftOption> shiftOptions = shiftRepository == null
++                ? List.of()
++                : shiftRepository.findByStore_IdOrderByStartTimeAsc(store.getId()).stream()
++                .map(this::toShiftOption)
++                .toList();
+ 
+         return buildView(null, user.getDisplayName(), store.getStoreName(),
+-                range[0], range[1], employeeId, employees, records, shifts);
++                range[0], range[1], store.getId(), employeeId, null, safeQuery,
++                employees, List.of(), shiftOptions, records, shifts);
++    }
++
++    @Override
++    @Transactional(readOnly = true)
++    public AttendanceHistoryView getAdminHistory(AuthenticatedUser user, AttendanceHistoryQuery query) {
++        if (user == null || user.getRoleName() != RoleName.ADMIN) {
++            throw new BusinessException("Bạn không có quyền xem lịch sử chấm công toàn hệ thống.");
++        }
++        AttendanceHistoryQuery safeQuery = query == null ? AttendanceHistoryQuery.builder().build() : query;
++        LocalDate[] range = resolveRange(safeQuery.getFromDate(), safeQuery.getToDate());
++        if (safeQuery.getStoreId() != null && safeQuery.getEmployeeId() != null) {
++            assertEmployeeInStore(safeQuery.getEmployeeId(), safeQuery.getStoreId());
++        }
++        List<Attendance> records = applyFilters(
++                attendanceRepository.findHistoryBetween(range[0], range[1]), safeQuery);
++        if (safeQuery.getStoreId() != null) {
++            records = records.stream()
++                    .filter(attendance -> belongsToStore(attendance, safeQuery.getStoreId()))
++                    .toList();
++        }
++        if (safeQuery.getEmployeeId() != null) {
++            records = records.stream()
++                    .filter(attendance -> attendance.getEmployee() != null
++                            && Objects.equals(attendance.getEmployee().getId(), safeQuery.getEmployeeId()))
++                    .toList();
++        }
++        List<AttendanceHistoryView.StoreOption> stores = storeRepository.findAllWithManager().stream()
++                .map(store -> AttendanceHistoryView.StoreOption.builder()
++                        .storeId(store.getId())
++                        .storeName(store.getStoreName())
++                        .build())
++                .toList();
++        List<AttendanceHistoryView.EmployeeOption> employees = safeQuery.getStoreId() == null
++                ? allEmployeeOptions()
++                : loadStoreEmployees(safeQuery.getStoreId());
++        List<AttendanceHistoryView.ShiftOption> shiftOptions = List.of();
++        if (safeQuery.getStoreId() != null && shiftRepository != null) {
++            shiftOptions = shiftRepository.findByStore_IdOrderByStartTimeAsc(safeQuery.getStoreId()).stream()
++                    .map(this::toShiftOption)
++                    .toList();
++        }
++        return buildView(null, user.getDisplayName(), null,
++                range[0], range[1], safeQuery.getStoreId(), safeQuery.getEmployeeId(),
++                safeQuery.getStoreId(), safeQuery,
++                employees, stores, shiftOptions, records, Map.of());
+     }
+ 
+     private AttendanceHistoryView buildView(Integer employeeId,
+@@ -87,32 +172,57 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
+                                             String storeName,
+                                             LocalDate fromDate,
+                                             LocalDate toDate,
++                                            Integer viewStoreId,
+                                             Integer filterEmployeeId,
++                                            Integer filterStoreId,
++                                            AttendanceHistoryQuery query,
+                                             List<AttendanceHistoryView.EmployeeOption> employees,
++                                            List<AttendanceHistoryView.StoreOption> stores,
++                                            List<AttendanceHistoryView.ShiftOption> shiftOptions,
+                                             List<Attendance> records,
+                                             Map<String, String> shifts) {
+         List<AttendanceHistoryView.AttendanceRow> rows = new ArrayList<>();
+         BigDecimal totalHours = BigDecimal.ZERO;
++        int minuteTotal = 0;
++        boolean hasMinuteTotal = false;
+         for (Attendance attendance : records) {
+             Employee employee = attendance.getEmployee();
+-            if (attendance.getTotalHours() != null) {
++            boolean completed = attendance.getCheckOutTime() != null;
++            if (completed && attendance.getWorkingMinutes() != null) {
++                minuteTotal += attendance.getWorkingMinutes();
++                hasMinuteTotal = true;
++            } else if (completed && attendance.getTotalHours() != null) {
+                 totalHours = totalHours.add(attendance.getTotalHours());
+             }
+             String shiftKey = employee.getId() + "|" + attendance.getWorkDate();
++            String rowStore = attendance.getStore() != null
++                    ? attendance.getStore().getStoreName()
++                    : storeName(employee.getStore());
+             rows.add(AttendanceHistoryView.AttendanceRow.builder()
+                     .attendanceId(attendance.getId())
+                     .employeeId(employee.getId())
+                     .employeeName(employee.getFullName())
+                     .workDate(attendance.getWorkDate())
++                    .storeName(rowStore != null ? rowStore : "—")
++                    .scheduledStartLabel(formatTime(attendance.getScheduledStartTime()))
++                    .scheduledEndLabel(formatTime(attendance.getScheduledEndTime()))
+                     .checkInLabel(formatClock(attendance.getWorkDate(), attendance.getCheckInTime()))
+                     .checkOutLabel(formatClock(attendance.getWorkDate(), attendance.getCheckOutTime()))
+-                    .totalHoursLabel(formatHours(attendance.getTotalHours()))
++                    .totalHoursLabel(rowHoursLabel(attendance))
++                    .lateLabel(formatMinuteValue(attendance.getLateMinutes()))
++                    .earlyLabel(completed ? formatMinuteValue(attendance.getEarlyLeaveMinutes()) : "—")
++                    .missingLabel(missingLabel(attendance))
++                    .checkInIp(blankToDash(attendance.getCheckInIp()))
++                    .checkOutIp(blankToDash(attendance.getCheckOutIp()))
+                     .statusLabel(statusLabel(attendance.getStatus()))
+                     .statusCss(statusCss(attendance.getStatus()))
+-                    .shiftLabel(shifts.getOrDefault(shiftKey, "Chưa phân ca"))
++                    .shiftLabel(snapshotShiftLabel(attendance, shifts.getOrDefault(shiftKey, "Chưa phân ca")))
+                     .build());
+         }
+ 
++        String totalLabel = hasMinuteTotal
++                ? formatMinutes(minuteTotal + hoursToMinutes(totalHours))
++                : formatHours(totalHours);
+         return AttendanceHistoryView.builder()
+                 .employeeId(employeeId)
+                 .employeeName(employeeName)
+@@ -120,14 +230,116 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
+                 .fromDate(fromDate)
+                 .toDate(toDate)
+                 .filterEmployeeId(filterEmployeeId)
++                .filterStoreId(filterStoreId != null ? filterStoreId : viewStoreId)
++                .filterShiftId(query != null ? query.getShiftId() : null)
++                .filterStatus(query != null && query.getStatus() != null ? query.getStatus().getDbValue() : null)
++                .lateOnly(query != null && query.isLateOnly())
++                .earlyOnly(query != null && query.isEarlyOnly())
+                 .employees(employees)
++                .stores(stores)
++                .shifts(shiftOptions)
++                .statuses(statusOptions())
+                 .rows(rows)
+                 .recordCount(rows.size())
+                 .totalHours(totalHours)
+-                .totalHoursLabel(formatHours(totalHours))
++                .totalHoursLabel(totalLabel)
++                .build();
++    }
++
++    private List<Attendance> applyFilters(List<Attendance> records, AttendanceHistoryQuery query) {
++        if (query == null || (query.getShiftId() == null && query.getStatus() == null
++                && !query.isLateOnly() && !query.isEarlyOnly())) {
++            return records;
++        }
++        return records.stream()
++                .filter(attendance -> matches(attendance, query))
++                .toList();
++    }
++
++    private boolean matches(Attendance attendance, AttendanceHistoryQuery query) {
++        if (query.getShiftId() != null
++                && (attendance.getShift() == null || !query.getShiftId().equals(attendance.getShift().getId()))) {
++            return false;
++        }
++        if (query.getStatus() != null && attendance.getStatus() != query.getStatus()) {
++            return false;
++        }
++        if (query.isLateOnly() && !isLate(attendance)) {
++            return false;
++        }
++        return !query.isEarlyOnly() || isEarly(attendance);
++    }
++
++    private boolean isLate(Attendance attendance) {
++        return attendance.getStatus() == AttendanceStatus.LATE
++                || attendance.getStatus() == AttendanceStatus.LATE_AND_EARLY
++                || (attendance.getLateMinutes() != null && attendance.getLateMinutes() > 0);
++    }
++
++    private boolean isEarly(Attendance attendance) {
++        return attendance.getStatus() == AttendanceStatus.EARLY_LEAVE
++                || attendance.getStatus() == AttendanceStatus.LATE_AND_EARLY
++                || (attendance.getEarlyLeaveMinutes() != null && attendance.getEarlyLeaveMinutes() > 0);
++    }
++
++    private boolean belongsToStore(Attendance attendance, Integer storeId) {
++        if (attendance.getStore() != null && Objects.equals(attendance.getStore().getId(), storeId)) {
++            return true;
++        }
++        return attendance.getEmployee() != null
++                && attendance.getEmployee().getStore() != null
++                && Objects.equals(attendance.getEmployee().getStore().getId(), storeId);
++    }
++
++    private void assertEmployeeInStore(Integer employeeId, Integer storeId) {
++        Employee employee = employeeRepository.findByIdWithStore(employeeId)
++                .orElseThrow(() -> new BusinessException("Nhân viên không tồn tại."));
++        if (employee.getStore() == null || !Objects.equals(employee.getStore().getId(), storeId)) {
++            throw new BusinessException("Nhân viên không thuộc cửa hàng đã chọn.");
++        }
++    }
++
++    private List<AttendanceHistoryView.EmployeeOption> allEmployeeOptions() {
++        List<AttendanceHistoryView.EmployeeOption> employees = new ArrayList<>();
++        employees.addAll(toEmployeeOptions(employeeRepository.findByStatusWithStore(EmployeeStatus.ACTIVE)));
++        employees.addAll(toEmployeeOptions(employeeRepository.findByStatusWithStore(EmployeeStatus.ON_LEAVE)));
++        employees.addAll(toEmployeeOptions(employeeRepository.findByStatusWithStore(EmployeeStatus.TERMINATED)));
++        return employees;
++    }
++
++    private List<AttendanceHistoryView.EmployeeOption> toEmployeeOptions(List<Employee> employees) {
++        return employees.stream()
++                .map(employee -> AttendanceHistoryView.EmployeeOption.builder()
++                        .employeeId(employee.getId())
++                        .fullName(employee.getFullName()
++                                + (employee.getStore() != null ? " — " + employee.getStore().getStoreName() : ""))
++                        .build())
++                .toList();
++    }
++
++    private AttendanceHistoryView.ShiftOption toShiftOption(Shift shift) {
++        return AttendanceHistoryView.ShiftOption.builder()
++                .shiftId(shift.getId())
++                .label(shift.getShiftName()
++                        + " ("
++                        + shift.getStartTime().format(TIME_FORMATTER)
++                        + "–"
++                        + shift.getEndTime().format(TIME_FORMATTER)
++                        + ")")
+                 .build();
+     }
+ 
++    private List<AttendanceHistoryView.StatusOption> statusOptions() {
++        List<AttendanceHistoryView.StatusOption> options = new ArrayList<>();
++        for (AttendanceStatus status : AttendanceStatus.values()) {
++            options.add(AttendanceHistoryView.StatusOption.builder()
++                    .value(status.getDbValue())
++                    .label(statusLabel(status))
++                    .build());
++        }
++        return options;
++    }
++
+     private List<AttendanceHistoryView.EmployeeOption> loadStoreEmployees(Integer storeId) {
+         List<Employee> employees = new ArrayList<>();
+         employees.addAll(employeeRepository.findByStore_IdAndStatus(storeId, EmployeeStatus.ACTIVE));
+@@ -162,6 +374,27 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
+         return labels;
+     }
+ 
++    private String snapshotShiftLabel(Attendance attendance, String fallback) {
++        if (attendance.getScheduledShiftName() != null
++                && attendance.getScheduledStartTime() != null
++                && attendance.getScheduledEndTime() != null) {
++            return attendance.getScheduledShiftName()
++                    + " ("
++                    + attendance.getScheduledStartTime().format(TIME_FORMATTER)
++                    + "–"
++                    + attendance.getScheduledEndTime().format(TIME_FORMATTER)
++                    + ")";
++        }
++        return fallback;
++    }
++
++    private void assertEmployeeVisibleToManager(Integer employeeId, Store store, AuthenticatedUser user) {
++        if (Objects.equals(employeeId, user.getEmployeeId())) {
++            return;
++        }
++        assertEmployeeInStore(employeeId, store);
++    }
++
+     private void assertEmployeeInStore(Integer employeeId, Store store) {
+         Employee employee = employeeRepository.findByIdWithStore(employeeId)
+                 .orElseThrow(() -> new BusinessException("Nhân viên không tồn tại."));
+@@ -212,6 +445,73 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
+         return time.format(TIME_FORMATTER);
+     }
+ 
++    private String formatTime(LocalTime time) {
++        return time == null ? "—" : time.format(TIME_FORMATTER);
++    }
++
++    private String rowHoursLabel(Attendance attendance) {
++        if (attendance.getCheckOutTime() == null) {
++            return "—";
++        }
++        if (attendance.getWorkingMinutes() != null) {
++            return formatMinutes(attendance.getWorkingMinutes());
++        }
++        return formatHours(attendance.getTotalHours());
++    }
++
++    private String missingLabel(Attendance attendance) {
++        if (attendance.getStatus() == AttendanceStatus.ABSENT) {
++            return formatMinutes(scheduledMinutes(attendance));
++        }
++        if (attendance.getCheckOutTime() == null) {
++            return "—";
++        }
++        return formatMinuteValue(attendance.getEarlyLeaveMinutes());
++    }
++
++    private int scheduledMinutes(Attendance attendance) {
++        if (attendance.getWorkDate() == null
++                || attendance.getScheduledStartTime() == null
++                || attendance.getScheduledEndTime() == null) {
++            return 0;
++        }
++        LocalDateTime start = LocalDateTime.of(attendance.getWorkDate(), attendance.getScheduledStartTime());
++        LocalDateTime end = LocalDateTime.of(attendance.getWorkDate(), attendance.getScheduledEndTime());
++        if (!end.isAfter(start)) {
++            end = end.plusDays(1);
++        }
++        return (int) ChronoUnit.MINUTES.between(start, end);
++    }
++
++    private String formatMinuteValue(Integer minutes) {
++        if (minutes == null) {
++            return "—";
++        }
++        return formatMinutes(minutes);
++    }
++
++    private String formatMinutes(int minutes) {
++        if (minutes <= 0) {
++            return "0 phút";
++        }
++        int hours = minutes / 60;
++        int remain = minutes % 60;
++        if (hours == 0) {
++            return remain + " phút";
++        }
++        if (remain == 0) {
++            return hours + " giờ";
++        }
++        return hours + " giờ " + remain + " phút";
++    }
++
++    private int hoursToMinutes(BigDecimal hours) {
++        if (hours == null) {
++            return 0;
++        }
++        return hours.multiply(BigDecimal.valueOf(60)).setScale(0, RoundingMode.HALF_UP).intValue();
++    }
++
+     private String formatHours(BigDecimal hours) {
+         if (hours == null) {
+             return "—";
+@@ -219,14 +519,20 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
+         return hours.stripTrailingZeros().toPlainString() + " giờ";
+     }
+ 
++    private String blankToDash(String value) {
++        return value == null || value.isBlank() ? "—" : value;
++    }
++
+     private String statusLabel(AttendanceStatus status) {
+         if (status == null) {
+             return "—";
+         }
+         return switch (status) {
++            case PRESENT -> "Có mặt";
+             case ON_TIME -> "Đúng giờ";
+             case LATE -> "Đi muộn";
+             case EARLY_LEAVE -> "Về sớm";
++            case LATE_AND_EARLY -> "Đi muộn và về sớm";
+             case ABSENT -> "Vắng";
+         };
+     }
+@@ -236,9 +542,10 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
+             return "status-unknown";
+         }
+         return switch (status) {
+-            case ON_TIME -> "status-on-time";
++            case PRESENT, ON_TIME -> "status-on-time";
+             case LATE -> "status-late";
+             case EARLY_LEAVE -> "status-early";
++            case LATE_AND_EARLY -> "status-late-early";
+             case ABSENT -> "status-absent";
+         };
+     }
+diff --git a/src/main/java/com/example/coffee_hrm/service/impl/AttendanceServiceImpl.java b/src/main/java/com/example/coffee_hrm/service/impl/AttendanceServiceImpl.java
+new file mode 100644
+index 0000000..0f08441
+--- /dev/null
++++ b/src/main/java/com/example/coffee_hrm/service/impl/AttendanceServiceImpl.java
+@@ -0,0 +1,498 @@
++package com.example.coffee_hrm.service.impl;
++
++import com.example.coffee_hrm.common.enums.AssignmentStatus;
++import com.example.coffee_hrm.common.enums.AttendanceStatus;
++import com.example.coffee_hrm.common.enums.RoleName;
++import com.example.coffee_hrm.common.exception.BusinessException;
++import com.example.coffee_hrm.common.time.VietnamTime;
++import com.example.coffee_hrm.common.web.ClientIpResolver;
++import com.example.coffee_hrm.dto.response.AttendanceClockView;
++import com.example.coffee_hrm.entity.Attendance;
++import com.example.coffee_hrm.entity.Employee;
++import com.example.coffee_hrm.entity.Shift;
++import com.example.coffee_hrm.entity.ShiftAssignment;
++import com.example.coffee_hrm.entity.Store;
++import com.example.coffee_hrm.repository.AttendanceRepository;
++import com.example.coffee_hrm.repository.EmployeeRepository;
++import com.example.coffee_hrm.repository.ShiftAssignmentRepository;
++import com.example.coffee_hrm.repository.StoreRepository;
++import com.example.coffee_hrm.security.AuthenticatedUser;
++import com.example.coffee_hrm.service.AttendancePolicyProperties;
++import com.example.coffee_hrm.service.AttendanceService;
++import lombok.RequiredArgsConstructor;
++import org.springframework.dao.DataIntegrityViolationException;
++import org.springframework.data.domain.PageRequest;
++import org.springframework.stereotype.Service;
++import org.springframework.transaction.annotation.Transactional;
++
++import java.time.LocalDate;
++import java.time.LocalDateTime;
++import java.time.LocalTime;
++import java.time.format.DateTimeFormatter;
++import java.time.temporal.ChronoUnit;
++import java.util.Comparator;
++import java.util.List;
++import java.util.Optional;
++
++@Service
++@RequiredArgsConstructor
++public class AttendanceServiceImpl implements AttendanceService {
++
++    static final String WRONG_IP = "Sai địa chỉ IP";
++    static final String TOO_EARLY = "Chưa đến thời gian Check-in";
++    static final String NO_SHIFT = "Bạn không có ca làm việc tại thời điểm hiện tại.";
++    static final String ALREADY_IN = "Bạn đã Check-in cho ca làm việc này.";
++    static final String NOT_CHECKED_IN = "Bạn chưa Check-in cho ca làm việc này.";
++    static final String ALREADY_OUT = "Bạn đã Check-out cho ca làm việc này.";
++    static final String EARLY_CHECKOUT_BLOCKED = "Chưa đến giờ kết thúc ca. Không thể Check-out sớm.";
++
++    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
++
++    private final AttendanceRepository attendanceRepository;
++    private final ShiftAssignmentRepository shiftAssignmentRepository;
++    private final EmployeeRepository employeeRepository;
++    private final StoreRepository storeRepository;
++    private final AttendancePolicyProperties policy;
++
++    @Override
++    @Transactional(readOnly = true)
++    public AttendanceClockView getClock(AuthenticatedUser user, String requestIp) {
++        return buildClock(user, requestIp, VietnamTime.now());
++    }
++
++    @Override
++    @Transactional
++    public void checkIn(AuthenticatedUser user, String requestIp) {
++        checkIn(user, requestIp, VietnamTime.now());
++    }
++
++    @Override
++    @Transactional
++    public void checkOut(AuthenticatedUser user, String requestIp) {
++        checkOut(user, requestIp, VietnamTime.now());
++    }
++
++    @Override
++    @Transactional
++    public void updateStoreIp(AuthenticatedUser user, String requestIp) {
++        if (user == null || user.getRoleName() != RoleName.MANAGER) {
++            throw new BusinessException("Bạn không có quyền cập nhật IP cửa hàng.");
++        }
++        Store store = resolveManagedStore(user);
++        String ip = ClientIpResolver.normalize(requestIp);
++        if (ip == null || ClientIpResolver.isLocalOrPrivate(ip)) {
++            throw new BusinessException("Không xác định được địa chỉ IP.");
++        }
++        store.setCurrentIp(ip);
++        storeRepository.save(store);
++    }
++
++    @Override
++    @Transactional
++    public void markAbsences(LocalDate workDate) {
++        markAbsences(workDate, VietnamTime.now());
++    }
++
++    void checkIn(AuthenticatedUser user, String requestIp, LocalDateTime rawNow) {
++        Employee employee = resolveCheckEmployee(user);
++        LocalDateTime now = truncate(rawNow);
++        List<ShiftWindow> windows = loadWindows(employee.getId(), now.toLocalDate());
++        ShiftWindow chosen = selectCheckInWindow(windows, now, employee.getId());
++        Store store = storeForShift(user, employee, chosen.assignment().getShift());
++        assertIp(store, requestIp);
++        if (findAttendance(employee.getId(), chosen).isPresent()) {
++            throw new BusinessException(ALREADY_IN);
++        }
++
++        int lateMinutes = lateMinutes(chosen.shiftStart(), now);
++        Attendance attendance = Attendance.builder()
++                .employee(employee)
++                .store(store)
++                .shift(chosen.assignment().getShift())
++                .workDate(chosen.assignment().getWorkDate())
++                .scheduledShiftName(chosen.assignment().getShift().getShiftName())
++                .scheduledStartTime(chosen.assignment().getShift().getStartTime())
++                .scheduledEndTime(chosen.assignment().getShift().getEndTime())
++                .checkInTime(now)
++                .checkInIp(ClientIpResolver.normalize(requestIp))
++                .lateMinutes(lateMinutes)
++                .earlyLeaveMinutes(0)
++                .status(lateMinutes > 0 ? AttendanceStatus.LATE : AttendanceStatus.PRESENT)
++                .build();
++        try {
++            attendanceRepository.saveAndFlush(attendance);
++        } catch (DataIntegrityViolationException ex) {
++            throw new BusinessException(ALREADY_IN);
++        }
++    }
++
++    void checkOut(AuthenticatedUser user, String requestIp, LocalDateTime rawNow) {
++        Employee employee = resolveCheckEmployee(user);
++        LocalDateTime now = truncate(rawNow);
++        List<Attendance> openRecords = attendanceRepository.findOpenByEmployeeId(employee.getId());
++        if (!openRecords.isEmpty()) {
++            completeCheckout(openRecords.getFirst(), now, requestIp);
++            return;
++        }
++
++        List<ShiftWindow> windows = loadWindows(employee.getId(), now.toLocalDate());
++        Optional<ShiftWindow> relevant = relevantWindow(windows, now);
++        if (relevant.isEmpty()) {
++            throw new BusinessException(NO_SHIFT);
++        }
++        Optional<Attendance> existing = findAttendance(employee.getId(), relevant.get());
++        if (existing.isPresent() && existing.get().getCheckOutTime() != null) {
++            Store store = storeOf(existing.get(), employee);
++            assertIp(store, requestIp);
++            throw new BusinessException(ALREADY_OUT);
++        }
++        throw new BusinessException(NOT_CHECKED_IN);
++    }
++
++    void markAbsences(LocalDate workDate, LocalDateTime rawNow) {
++        if (workDate == null) {
++            return;
++        }
++        LocalDateTime now = truncate(rawNow);
++        List<ShiftAssignment> assignments = shiftAssignmentRepository.findPublishedAssignedOnDate(
++                workDate, AssignmentStatus.ASSIGNED);
++        for (ShiftAssignment assignment : assignments) {
++            if (assignment.getShift() == null || assignment.getEmployee() == null) {
++                continue;
++            }
++            ShiftWindow window = windowOf(assignment);
++            if (now.isBefore(window.shiftEnd())) {
++                continue;
++            }
++            if (findAttendance(assignment.getEmployee().getId(), window).isPresent()) {
++                continue;
++            }
++            Attendance absent = Attendance.builder()
++                    .employee(assignment.getEmployee())
++                    .store(assignment.getShift().getStore())
++                    .shift(assignment.getShift())
++                    .workDate(assignment.getWorkDate())
++                    .scheduledShiftName(assignment.getShift().getShiftName())
++                    .scheduledStartTime(assignment.getShift().getStartTime())
++                    .scheduledEndTime(assignment.getShift().getEndTime())
++                    .lateMinutes(0)
++                    .earlyLeaveMinutes(0)
++                    .status(AttendanceStatus.ABSENT)
++                    .build();
++            try {
++                attendanceRepository.saveAndFlush(absent);
++            } catch (DataIntegrityViolationException ignored) {
++                // Ca này đã có bản ghi chấm công.
++            }
++        }
++    }
++
++    private void completeCheckout(Attendance attendance, LocalDateTime now, String requestIp) {
++        if (attendance.getCheckOutTime() != null) {
++            throw new BusinessException(ALREADY_OUT);
++        }
++        Store store = storeOf(attendance, attendance.getEmployee());
++        // So với IP cửa hàng tại thời điểm check-out, không bắt checkOutIp trùng checkInIp.
++        assertIp(store, requestIp);
++        LocalDateTime scheduledEnd = scheduledEnd(attendance);
++        if (!policy.isAllowEarlyCheckout() && scheduledEnd != null && now.isBefore(scheduledEnd)) {
++            throw new BusinessException(EARLY_CHECKOUT_BLOCKED);
++        }
++        int earlyMinutes = 0;
++        if (scheduledEnd != null && now.isBefore(scheduledEnd)) {
++            earlyMinutes = (int) ChronoUnit.MINUTES.between(now, scheduledEnd);
++        }
++        LocalDateTime checkIn = attendance.getCheckInTime() == null
++                ? now
++                : truncate(attendance.getCheckInTime());
++        int workingMinutes = (int) Math.max(0, ChronoUnit.MINUTES.between(checkIn, now));
++        int lateMinutes = attendance.getLateMinutes() == null ? 0 : attendance.getLateMinutes();
++        attendance.setCheckOutTime(now);
++        attendance.setCheckOutIp(ClientIpResolver.normalize(requestIp));
++        attendance.setWorkingMinutes(workingMinutes);
++        attendance.setEarlyLeaveMinutes(earlyMinutes);
++        attendance.setStatus(resolveStatus(lateMinutes, earlyMinutes));
++        attendanceRepository.save(attendance);
++    }
++
++    private AttendanceClockView buildClock(AuthenticatedUser user, String requestIp, LocalDateTime rawNow) {
++        Employee employee = resolveCheckEmployee(user);
++        LocalDateTime now = truncate(rawNow);
++        boolean manager = user.getRoleName() == RoleName.MANAGER;
++        Store managedStore = null;
++        if (manager && user.getEmployeeId() != null) {
++            managedStore = storeRepository.findByManager_Id(user.getEmployeeId()).orElse(null);
++        }
++        Store displayStore = managedStore != null ? managedStore : employee.getStore();
++
++        String shiftName = null;
++        String startLabel = "—";
++        String endLabel = "—";
++        String statusLabel = NO_SHIFT;
++        List<Attendance> openRecords = attendanceRepository.findOpenByEmployeeId(employee.getId());
++        if (!openRecords.isEmpty()) {
++            Attendance open = openRecords.getFirst();
++            shiftName = open.getScheduledShiftName();
++            startLabel = formatTime(open.getScheduledStartTime());
++            endLabel = formatTime(open.getScheduledEndTime());
++            statusLabel = statusText(open.getStatus());
++        } else {
++            List<ShiftWindow> windows = loadWindows(employee.getId(), now.toLocalDate());
++            Optional<ShiftWindow> current = firstEligible(windows, now);
++            if (current.isPresent()) {
++                ShiftWindow window = current.get();
++                shiftName = window.assignment().getShift().getShiftName();
++                startLabel = formatTime(window.assignment().getShift().getStartTime());
++                endLabel = formatTime(window.assignment().getShift().getEndTime());
++                Optional<Attendance> existing = findAttendance(employee.getId(), window);
++                if (existing.isPresent() && existing.get().getCheckOutTime() != null) {
++                    statusLabel = statusText(existing.get().getStatus());
++                } else if (existing.isPresent()) {
++                    statusLabel = statusText(existing.get().getStatus());
++                } else {
++                    statusLabel = "Chưa Check-in";
++                }
++            } else {
++                Optional<ShiftWindow> upcoming = windows.stream()
++                        .filter(window -> now.isBefore(window.windowOpen()))
++                        .min(Comparator.comparing(ShiftWindow::shiftStart));
++                if (upcoming.isPresent()) {
++                    Shift shift = upcoming.get().assignment().getShift();
++                    shiftName = shift.getShiftName();
++                    startLabel = formatTime(shift.getStartTime());
++                    endLabel = formatTime(shift.getEndTime());
++                    statusLabel = TOO_EARLY;
++                }
++            }
++        }
++
++        List<AttendanceClockView.RecentItem> recent = attendanceRepository
++                .findRecentByEmployee(employee.getId(), PageRequest.of(0, 5))
++                .stream()
++                .map(this::toRecentItem)
++                .toList();
++
++        return AttendanceClockView.builder()
++                .employeeName(employee.getFullName())
++                .storeName(displayStore != null ? displayStore.getStoreName() : null)
++                .shiftName(shiftName)
++                .scheduledStartLabel(startLabel)
++                .scheduledEndLabel(endLabel)
++                .statusLabel(statusLabel)
++                .manager(manager)
++                .storeCurrentIp(displayStore != null ? displayStore.getCurrentIp() : null)
++                .requestIp(ClientIpResolver.normalize(requestIp))
++                .recent(recent)
++                .build();
++    }
++
++    private AttendanceClockView.RecentItem toRecentItem(Attendance attendance) {
++        String checkIn = attendance.getCheckInTime() == null
++                ? "—"
++                : truncate(attendance.getCheckInTime()).format(TIME_FORMATTER);
++        String checkOut = attendance.getCheckOutTime() == null
++                ? "—"
++                : truncate(attendance.getCheckOutTime()).format(TIME_FORMATTER);
++        return AttendanceClockView.RecentItem.builder()
++                .workDate(attendance.getWorkDate())
++                .timeLabel(checkIn + " - " + checkOut)
++                .build();
++    }
++
++    private ShiftWindow selectCheckInWindow(List<ShiftWindow> windows, LocalDateTime now, Integer employeeId) {
++        List<ShiftWindow> eligible = eligible(windows, now);
++        if (eligible.isEmpty()) {
++            boolean upcoming = windows.stream().anyMatch(window -> now.isBefore(window.windowOpen()));
++            if (upcoming) {
++                throw new BusinessException(TOO_EARLY);
++            }
++            throw new BusinessException(NO_SHIFT);
++        }
++        ShiftWindow alreadyCheckedIn = null;
++        for (ShiftWindow window : eligible) {
++            if (findAttendance(employeeId, window).isEmpty()) {
++                return window;
++            }
++            if (alreadyCheckedIn == null) {
++                alreadyCheckedIn = window;
++            }
++        }
++        return alreadyCheckedIn;
++    }
++
++    private Optional<ShiftWindow> relevantWindow(List<ShiftWindow> windows, LocalDateTime now) {
++        Optional<ShiftWindow> eligible = firstEligible(windows, now);
++        if (eligible.isPresent()) {
++            return eligible;
++        }
++        return windows.stream()
++                .filter(window -> !now.isBefore(window.windowOpen()))
++                .max(Comparator.comparing(ShiftWindow::shiftStart));
++    }
++
++    private Optional<ShiftWindow> firstEligible(List<ShiftWindow> windows, LocalDateTime now) {
++        return eligible(windows, now).stream().findFirst();
++    }
++
++    private List<ShiftWindow> eligible(List<ShiftWindow> windows, LocalDateTime now) {
++        return windows.stream()
++                .filter(window -> !now.isBefore(window.windowOpen()) && now.isBefore(window.shiftEnd()))
++                .sorted(Comparator
++                        .comparing((ShiftWindow window) -> now.isBefore(window.shiftStart()))
++                        .thenComparing(ShiftWindow::shiftStart))
++                .toList();
++    }
++
++    private List<ShiftWindow> loadWindows(Integer employeeId, LocalDate day) {
++        return shiftAssignmentRepository.findAssignmentsForAttendance(
++                        employeeId, day.minusDays(1), day.plusDays(1), AssignmentStatus.ASSIGNED)
++                .stream()
++                .filter(assignment -> Boolean.TRUE.equals(assignment.getIsPublished()))
++                .filter(assignment -> assignment.getShift() != null
++                        && assignment.getShift().getStartTime() != null
++                        && assignment.getShift().getEndTime() != null)
++                .map(this::windowOf)
++                .toList();
++    }
++
++    private ShiftWindow windowOf(ShiftAssignment assignment) {
++        LocalDateTime start = LocalDateTime.of(assignment.getWorkDate(), assignment.getShift().getStartTime());
++        LocalDateTime end = LocalDateTime.of(assignment.getWorkDate(), assignment.getShift().getEndTime());
++        start = truncate(start);
++        end = truncate(end);
++        if (!end.isAfter(start)) {
++            end = end.plusDays(1);
++        }
++        return new ShiftWindow(assignment, start.minusMinutes(leadMinutes()), start, end);
++    }
++
++    private Optional<Attendance> findAttendance(Integer employeeId, ShiftWindow window) {
++        return attendanceRepository.findByEmployee_IdAndShift_IdAndWorkDate(
++                employeeId,
++                window.assignment().getShift().getId(),
++                window.assignment().getWorkDate());
++    }
++
++    private Store storeForShift(AuthenticatedUser user, Employee employee, Shift shift) {
++        if (shift == null || shift.getStore() == null) {
++            throw new BusinessException(NO_SHIFT);
++        }
++        if (user.getRoleName() == RoleName.MANAGER) {
++            Store managed = resolveManagedStore(user);
++            if (!managed.getId().equals(shift.getStore().getId())) {
++                throw new BusinessException(NO_SHIFT);
++            }
++        } else if (employee.getStore() == null || !employee.getStore().getId().equals(shift.getStore().getId())) {
++            throw new BusinessException(NO_SHIFT);
++        }
++        return storeRepository.findById(shift.getStore().getId())
++                .orElseThrow(() -> new BusinessException(NO_SHIFT));
++    }
++
++    private Store storeOf(Attendance attendance, Employee employee) {
++        Integer storeId = attendance.getStore() != null
++                ? attendance.getStore().getId()
++                : (employee.getStore() != null ? employee.getStore().getId() : null);
++        if (storeId == null) {
++            throw new BusinessException(WRONG_IP);
++        }
++        return storeRepository.findById(storeId).orElseThrow(() -> new BusinessException(WRONG_IP));
++    }
++
++    private void assertIp(Store store, String requestIp) {
++        if (store == null || !ClientIpResolver.matches(requestIp, store.getCurrentIp())) {
++            throw new BusinessException(WRONG_IP);
++        }
++    }
++
++    private int lateMinutes(LocalDateTime shiftStart, LocalDateTime checkIn) {
++        long minutes = ChronoUnit.MINUTES.between(shiftStart, checkIn);
++        if (minutes < lateThreshold()) {
++            return 0;
++        }
++        return (int) minutes;
++    }
++
++    private AttendanceStatus resolveStatus(int lateMinutes, int earlyMinutes) {
++        boolean late = lateMinutes > 0;
++        boolean early = earlyMinutes > 0;
++        if (late && early) {
++            return AttendanceStatus.LATE_AND_EARLY;
++        }
++        if (late) {
++            return AttendanceStatus.LATE;
++        }
++        if (early) {
++            return AttendanceStatus.EARLY_LEAVE;
++        }
++        return AttendanceStatus.PRESENT;
++    }
++
++    private LocalDateTime scheduledEnd(Attendance attendance) {
++        if (attendance.getWorkDate() == null
++                || attendance.getScheduledStartTime() == null
++                || attendance.getScheduledEndTime() == null) {
++            return null;
++        }
++        LocalDateTime start = truncate(LocalDateTime.of(attendance.getWorkDate(), attendance.getScheduledStartTime()));
++        LocalDateTime end = truncate(LocalDateTime.of(attendance.getWorkDate(), attendance.getScheduledEndTime()));
++        if (!end.isAfter(start)) {
++            end = end.plusDays(1);
++        }
++        return end;
++    }
++
++    private Employee resolveCheckEmployee(AuthenticatedUser user) {
++        if (user == null || (user.getRoleName() != RoleName.STAFF && user.getRoleName() != RoleName.MANAGER)) {
++            throw new BusinessException("Bạn không có quyền chấm công.");
++        }
++        if (user.getEmployeeId() == null) {
++            throw new BusinessException("Tài khoản chưa liên kết với hồ sơ nhân viên.");
++        }
++        return employeeRepository.findByIdWithStore(user.getEmployeeId())
++                .orElseThrow(() -> new BusinessException("Không tìm thấy thông tin hồ sơ nhân viên."));
++    }
++
++    private Store resolveManagedStore(AuthenticatedUser user) {
++        if (user.getEmployeeId() == null) {
++            throw new BusinessException("Tài khoản quản lý chưa được gắn hồ sơ nhân viên.");
++        }
++        return storeRepository.findByManager_Id(user.getEmployeeId())
++                .orElseThrow(() -> new BusinessException("Bạn chưa được phân công quản lý cửa hàng nào."));
++    }
++
++    private int leadMinutes() {
++        return Math.max(policy.getCheckInLeadMinutes(), 0);
++    }
++
++    private int lateThreshold() {
++        return Math.max(policy.getLateThresholdMinutes(), 0);
++    }
++
++    private LocalDateTime truncate(LocalDateTime value) {
++        return value.withSecond(0).withNano(0);
++    }
++
++    private String formatTime(LocalTime time) {
++        return time == null ? "—" : time.format(TIME_FORMATTER);
++    }
++
++    private String statusText(AttendanceStatus status) {
++        if (status == null) {
++            return "—";
++        }
++        return switch (status) {
++            case PRESENT, ON_TIME -> "Có mặt";
++            case LATE -> "Đi muộn";
++            case EARLY_LEAVE -> "Về sớm";
++            case LATE_AND_EARLY -> "Đi muộn và về sớm";
++            case ABSENT -> "Vắng";
++        };
++    }
++
++    private record ShiftWindow(ShiftAssignment assignment,
++                               LocalDateTime windowOpen,
++                               LocalDateTime shiftStart,
++                               LocalDateTime shiftEnd) {
++    }
++}
+diff --git a/src/main/java/com/example/coffee_hrm/service/impl/DashboardServiceImpl.java b/src/main/java/com/example/coffee_hrm/service/impl/DashboardServiceImpl.java
+index a5fcb73..de8ae25 100644
+--- a/src/main/java/com/example/coffee_hrm/service/impl/DashboardServiceImpl.java
++++ b/src/main/java/com/example/coffee_hrm/service/impl/DashboardServiceImpl.java
+@@ -91,9 +91,13 @@ public class DashboardServiceImpl implements DashboardService {
+         Integer employeeId = user.getEmployeeId();
+         Employee employee = employeeId == null ? null : employeeRepository.findByIdWithStore(employeeId).orElse(null);
+ 
+-        Attendance todayAttendance = employeeId == null
+-                ? null
+-                : attendanceRepository.findByEmployee_IdAndWorkDate(employeeId, VietnamTime.today()).orElse(null);
++        List<Attendance> todayRecords = employeeId == null
++                ? List.of()
++                : attendanceRepository.findByEmployee_IdAndWorkDateOrderByIdDesc(employeeId, VietnamTime.today());
++        Attendance todayAttendance = todayRecords.stream()
++                .filter(item -> item.getCheckInTime() != null && item.getCheckOutTime() == null)
++                .findFirst()
++                .orElse(todayRecords.isEmpty() ? null : todayRecords.getFirst());
+ 
+         List<StaffDashboardView.ScheduleItem> upcoming = employeeId == null
+                 ? List.of()
+diff --git a/src/main/resources/application.properties b/src/main/resources/application.properties
+index e2c8877..854a1a3 100644
+--- a/src/main/resources/application.properties
++++ b/src/main/resources/application.properties
+@@ -17,6 +17,10 @@ spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.SQLServerDialect
+ coffee-hrm.security.remember-me.key=coffee-hrm-dev-remember-me
+ coffee-hrm.security.remember-me.seconds=604800
+ 
++coffee-hrm.attendance.check-in-lead-minutes=60
++coffee-hrm.attendance.late-threshold-minutes=20
++coffee-hrm.attendance.allow-early-checkout=true
++
+ spring.thymeleaf.cache=false
+ 
+ server.servlet.session.timeout=30m
+diff --git a/src/main/resources/db/attendance-checkin.sql b/src/main/resources/db/attendance-checkin.sql
+new file mode 100644
+index 0000000..60cf994
+--- /dev/null
++++ b/src/main/resources/db/attendance-checkin.sql
+@@ -0,0 +1,146 @@
++-- Check-in / Check-out: store network IP and one attendance row per shift.
++IF COL_LENGTH(N'dbo.Stores', N'CurrentIp') IS NULL
++BEGIN
++    ALTER TABLE dbo.Stores ADD CurrentIp NVARCHAR(45) NULL;
++END;
++GO
++
++IF COL_LENGTH(N'dbo.Attendances', N'StoreId') IS NULL
++BEGIN
++    ALTER TABLE dbo.Attendances ADD StoreId INT NULL;
++END;
++GO
++
++IF COL_LENGTH(N'dbo.Attendances', N'ShiftId') IS NULL
++BEGIN
++    ALTER TABLE dbo.Attendances ADD ShiftId INT NULL;
++END;
++GO
++
++IF COL_LENGTH(N'dbo.Attendances', N'ScheduledShiftName') IS NULL
++BEGIN
++    ALTER TABLE dbo.Attendances ADD ScheduledShiftName NVARCHAR(50) NULL;
++END;
++GO
++
++IF COL_LENGTH(N'dbo.Attendances', N'ScheduledStartTime') IS NULL
++BEGIN
++    ALTER TABLE dbo.Attendances ADD ScheduledStartTime TIME NULL;
++END;
++GO
++
++IF COL_LENGTH(N'dbo.Attendances', N'ScheduledEndTime') IS NULL
++BEGIN
++    ALTER TABLE dbo.Attendances ADD ScheduledEndTime TIME NULL;
++END;
++GO
++
++IF COL_LENGTH(N'dbo.Attendances', N'CheckInIp') IS NULL
++BEGIN
++    ALTER TABLE dbo.Attendances ADD CheckInIp NVARCHAR(45) NULL;
++END;
++GO
++
++IF COL_LENGTH(N'dbo.Attendances', N'CheckOutIp') IS NULL
++BEGIN
++    ALTER TABLE dbo.Attendances ADD CheckOutIp NVARCHAR(45) NULL;
++END;
++GO
++
++IF COL_LENGTH(N'dbo.Attendances', N'WorkingMinutes') IS NULL
++BEGIN
++    ALTER TABLE dbo.Attendances ADD WorkingMinutes INT NULL;
++END;
++GO
++
++IF COL_LENGTH(N'dbo.Attendances', N'LateMinutes') IS NULL
++BEGIN
++    ALTER TABLE dbo.Attendances ADD LateMinutes INT NOT NULL
++        CONSTRAINT DF_Attendances_LateMinutes DEFAULT (0);
++END;
++GO
++
++IF COL_LENGTH(N'dbo.Attendances', N'EarlyLeaveMinutes') IS NULL
++BEGIN
++    ALTER TABLE dbo.Attendances ADD EarlyLeaveMinutes INT NOT NULL
++        CONSTRAINT DF_Attendances_EarlyLeaveMinutes DEFAULT (0);
++END;
++GO
++
++IF COL_LENGTH(N'dbo.Attendances', N'CreatedAt') IS NULL
++BEGIN
++    ALTER TABLE dbo.Attendances ADD CreatedAt DATETIME2 NOT NULL
++        CONSTRAINT DF_Attendances_CreatedAt DEFAULT (SYSUTCDATETIME());
++END;
++GO
++
++IF COL_LENGTH(N'dbo.Attendances', N'UpdatedAt') IS NULL
++BEGIN
++    ALTER TABLE dbo.Attendances ADD UpdatedAt DATETIME2 NULL;
++END;
++GO
++
++IF EXISTS (
++    SELECT 1
++    FROM sys.columns
++    WHERE object_id = OBJECT_ID(N'dbo.Attendances')
++      AND name = N'CheckInTime'
++      AND system_type_id = TYPE_ID(N'time')
++)
++BEGIN
++    ALTER TABLE dbo.Attendances ALTER COLUMN CheckInTime DATETIME2 NULL;
++END;
++GO
++
++IF EXISTS (
++    SELECT 1
++    FROM sys.columns
++    WHERE object_id = OBJECT_ID(N'dbo.Attendances')
++      AND name = N'CheckOutTime'
++      AND system_type_id = TYPE_ID(N'time')
++)
++BEGIN
++    ALTER TABLE dbo.Attendances ALTER COLUMN CheckOutTime DATETIME2 NULL;
++END;
++GO
++
++IF EXISTS (
++    SELECT 1 FROM sys.key_constraints
++    WHERE name = N'UQ_Attendances_EmpDate'
++      AND parent_object_id = OBJECT_ID(N'dbo.Attendances')
++)
++BEGIN
++    ALTER TABLE dbo.Attendances DROP CONSTRAINT UQ_Attendances_EmpDate;
++END;
++GO
++
++IF NOT EXISTS (
++    SELECT 1 FROM sys.indexes
++    WHERE name = N'UQ_Attendances_EmpShiftDate'
++      AND object_id = OBJECT_ID(N'dbo.Attendances')
++)
++BEGIN
++    CREATE UNIQUE INDEX UQ_Attendances_EmpShiftDate
++        ON dbo.Attendances (EmployeeId, ShiftId, WorkDate);
++END;
++GO
++
++IF NOT EXISTS (
++    SELECT 1 FROM sys.foreign_keys
++    WHERE name = N'FK_Attendances_Store'
++)
++BEGIN
++    ALTER TABLE dbo.Attendances
++        ADD CONSTRAINT FK_Attendances_Store FOREIGN KEY (StoreId) REFERENCES dbo.Stores (StoreId);
++END;
++GO
++
++IF NOT EXISTS (
++    SELECT 1 FROM sys.foreign_keys
++    WHERE name = N'FK_Attendances_Shift'
++)
++BEGIN
++    ALTER TABLE dbo.Attendances
++        ADD CONSTRAINT FK_Attendances_Shift FOREIGN KEY (ShiftId) REFERENCES dbo.Shifts (ShiftId);
++END;
++GO
+diff --git a/src/main/resources/static/css/AttendanceHistory.css b/src/main/resources/static/css/AttendanceHistory.css
+index cf60090..4b4bafe 100644
+--- a/src/main/resources/static/css/AttendanceHistory.css
++++ b/src/main/resources/static/css/AttendanceHistory.css
+@@ -81,7 +81,19 @@ th{font-size:12px;color:var(--ink-soft);font-weight:600;background:var(--paper-d
+ .status-late{background:#FFF8E1;color:#F57F17;}
+ .status-early{background:#FFF3E0;color:#B76E1A;}
+ .status-absent{background:#FFEBEE;color:#C62828;}
++.status-late-early{background:#F3E5F5;color:#6A1B9A;}
+ .status-unknown{background:var(--paper-dim);color:var(--ink-soft);}
++.flash-ok{padding:12px 14px;border:1px solid #C8E6C9;background:#F1F8F4;color:#2E7D32;margin-bottom:16px;border-radius:8px;}
++.clock-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:16px;}
++.secondary-btn{
++  border:1px solid var(--caramel);background:#fff;color:var(--caramel-dark);
++  padding:9px 16px;border-radius:6px;cursor:pointer;font:inherit;
++}
++.secondary-btn:hover{background:var(--paper-dim);}
++.link-btn{display:inline-block;margin-top:8px;color:var(--caramel-dark);font-weight:600;}
++.recent-list{list-style:none;padding:0;margin:8px 0 0;}
++.recent-list li{display:flex;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px solid var(--line);}
++.ip-line{margin:6px 0;color:var(--espresso-soft);}
+ @media (max-width:720px){
+   .wrap{padding:0 16px;}
+   .dash-nav .wrap{padding:14px 16px;}
+diff --git a/src/main/resources/templates/admin/AdminAttendance.html b/src/main/resources/templates/admin/AdminAttendance.html
+new file mode 100644
+index 0000000..99d2725
+--- /dev/null
++++ b/src/main/resources/templates/admin/AdminAttendance.html
+@@ -0,0 +1,151 @@
++<!DOCTYPE html>
++<html lang="vi" xmlns:th="http://www.thymeleaf.org">
++<head>
++    <meta charset="UTF-8">
++    <meta name="viewport" content="width=device-width, initial-scale=1.0">
++    <title>Lịch sử chấm công — CoffeeHRM</title>
++    <link rel="preconnect" href="https://fonts.googleapis.com">
++    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
++    <link rel="stylesheet" th:href="@{/css/AttendanceHistory.css}">
++</head>
++<body>
++<header th:replace="~{fragments/navbar :: admin('attendance')}"></header>
++
++<main class="wrap dash-main">
++    <section class="welcome">
++        <div class="eyebrow">Hệ thống — Admin</div>
++        <h1>Lịch sử chấm công</h1>
++        <p>Toàn bộ Manager và Staff. Admin không chấm công hộ cửa hàng.</p>
++    </section>
++
++    <p class="flash" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
++
++    <section class="summary">
++        <article>
++            <div class="label">Số bản ghi</div>
++            <div class="value" th:text="${history.recordCount}">0</div>
++        </article>
++        <article>
++            <div class="label">Tổng thời gian làm việc</div>
++            <div class="value" th:text="${history.totalHoursLabel}">0 giờ</div>
++        </article>
++    </section>
++
++    <section class="panel">
++        <h2>Bộ lọc</h2>
++        <p class="note">Tổng thời gian chỉ tính các ca đã check-out. Ca và giờ trên từng dòng là dữ liệu lưu lúc chấm công.</p>
++        <form class="filter-form" method="get" th:action="@{/attendance/admin}">
++            <label>Cửa hàng
++                <select name="storeId">
++                    <option value="">Tất cả</option>
++                    <option th:each="store : ${history.stores}"
++                            th:value="${store.storeId}"
++                            th:text="${store.storeName}"
++                            th:selected="${history.filterStoreId != null and history.filterStoreId.equals(store.storeId)}">
++                        Cửa hàng
++                    </option>
++                </select>
++            </label>
++            <label>Nhân viên
++                <select name="employeeId">
++                    <option value="">Tất cả</option>
++                    <option th:each="emp : ${history.employees}"
++                            th:value="${emp.employeeId}"
++                            th:text="${emp.fullName + ' (#' + emp.employeeId + ')'}"
++                            th:selected="${history.filterEmployeeId != null and history.filterEmployeeId.equals(emp.employeeId)}">
++                        Nhân viên
++                    </option>
++                </select>
++            </label>
++            <label>Ca
++                <select name="shiftId">
++                    <option value="">Tất cả</option>
++                    <option th:each="shift : ${history.shifts}"
++                            th:value="${shift.shiftId}"
++                            th:text="${shift.label}"
++                            th:selected="${history.filterShiftId != null and history.filterShiftId.equals(shift.shiftId)}">
++                        Ca
++                    </option>
++                </select>
++            </label>
++            <label>Trạng thái
++                <select name="status">
++                    <option value="">Tất cả</option>
++                    <option th:each="st : ${history.statuses}"
++                            th:value="${st.value}"
++                            th:text="${st.label}"
++                            th:selected="${history.filterStatus != null and history.filterStatus.equals(st.value)}">
++                        Trạng thái
++                    </option>
++                </select>
++            </label>
++            <label>Từ ngày
++                <input type="date" name="from" th:max="${vietnamToday}" th:value="${#temporals.format(history.fromDate, 'yyyy-MM-dd')}">
++            </label>
++            <label>Đến ngày
++                <input type="date" name="to" th:max="${vietnamToday}" th:value="${#temporals.format(history.toDate, 'yyyy-MM-dd')}">
++            </label>
++            <label>Đi muộn
++                <input type="checkbox" name="late" value="true" th:checked="${history.lateOnly}">
++            </label>
++            <label>Về sớm
++                <input type="checkbox" name="early" value="true" th:checked="${history.earlyOnly}">
++            </label>
++            <button class="primary-btn" type="submit">Xem lịch sử</button>
++        </form>
++    </section>
++
++    <section class="panel">
++        <h2>Chi tiết</h2>
++        <p class="empty" th:if="${#lists.isEmpty(history.rows)}">Không có dữ liệu chấm công trong khoảng thời gian này.</p>
++        <div class="table-wrap" th:if="${!#lists.isEmpty(history.rows)}">
++            <table>
++                <thead>
++                <tr>
++                    <th>Ngày</th>
++                    <th>Nhân viên</th>
++                    <th>Cửa hàng</th>
++                    <th>Ca</th>
++                    <th>Bắt đầu ca</th>
++                    <th>Kết thúc ca</th>
++                    <th>Check-in</th>
++                    <th>Check-out</th>
++                    <th>Thời gian làm</th>
++                    <th>Đi muộn</th>
++                    <th>Về sớm</th>
++                    <th>Còn thiếu</th>
++                    <th>IP Check-in</th>
++                    <th>IP Check-out</th>
++                    <th>Trạng thái</th>
++                </tr>
++                </thead>
++                <tbody>
++                <tr th:each="row : ${history.rows}">
++                    <td th:text="${#temporals.format(row.workDate, 'dd/MM/yyyy')}">01/09/2026</td>
++                    <td>
++                        <span th:text="${row.employeeName}">Tên</span>
++                        <span th:text="'#' + ${row.employeeId}">#1</span>
++                    </td>
++                    <td th:text="${row.storeName}">Cửa hàng</td>
++                    <td th:text="${row.shiftLabel}">Ca sáng</td>
++                    <td th:text="${row.scheduledStartLabel}">08:00</td>
++                    <td th:text="${row.scheduledEndLabel}">17:00</td>
++                    <td th:text="${row.checkInLabel}">08:00</td>
++                    <td th:text="${row.checkOutLabel}">17:00</td>
++                    <td th:text="${row.totalHoursLabel}">8 giờ</td>
++                    <td th:text="${row.lateLabel}">0 phút</td>
++                    <td th:text="${row.earlyLabel}">0 phút</td>
++                    <td th:text="${row.missingLabel}">0 phút</td>
++                    <td th:text="${row.checkInIp}">—</td>
++                    <td th:text="${row.checkOutIp}">—</td>
++                    <td>
++                        <span class="status-tag" th:classappend="${row.statusCss}" th:text="${row.statusLabel}">Có mặt</span>
++                    </td>
++                </tr>
++                </tbody>
++            </table>
++        </div>
++    </section>
++</main>
++</body>
++</html>
+diff --git a/src/main/resources/templates/fragments/navbar.html b/src/main/resources/templates/fragments/navbar.html
+index fc48a66..8e7b9ef 100644
+--- a/src/main/resources/templates/fragments/navbar.html
++++ b/src/main/resources/templates/fragments/navbar.html
+@@ -40,6 +40,8 @@
+                th:class="${active == 'stores'} ? 'active'">Quản lý cửa hàng</a>
+             <a th:href="@{/admin/employees}"
+                th:class="${active == 'employees'} ? 'active'">Quản lý nhân sự</a>
++            <a th:href="@{/attendance/admin}"
++               th:class="${active == 'attendance'} ? 'active'">Chấm công</a>
+             <a th:href="@{/admin/recruitment}"
+                th:class="${active == 'recruitment'} ? 'active'">Duyệt đề xuất tuyển nhân sự
+                 <span th:if="${pendingRecruitments != null and pendingRecruitments > 0}"
+diff --git a/src/main/resources/templates/manager/ManagerAttendance.html b/src/main/resources/templates/manager/ManagerAttendance.html
+index 9ca1a05..28b8b1e 100644
+--- a/src/main/resources/templates/manager/ManagerAttendance.html
++++ b/src/main/resources/templates/manager/ManagerAttendance.html
+@@ -3,7 +3,7 @@
+ <head>
+     <meta charset="UTF-8">
+     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+-    <title>Chấm công nhân viên — CoffeeHRM</title>
++    <title>Lịch sử chấm công — CoffeeHRM</title>
+     <link rel="preconnect" href="https://fonts.googleapis.com">
+     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+     <link rel="stylesheet" th:href="@{/css/AttendanceHistory.css}">
+@@ -14,7 +14,7 @@
+ <main class="wrap dash-main">
+     <section class="welcome">
+         <div class="eyebrow">Cửa hàng — Manager</div>
+-        <h1>Chấm công nhân viên</h1>
++        <h1>Lịch sử chấm công</h1>
+         <p>
+             <span th:text="${history.employeeName}">Manager</span>
+             <span th:if="${history.storeName != null}" th:text="'· ' + ${history.storeName}">· Cửa hàng</span>
+@@ -35,12 +35,12 @@
+     </section>
+ 
+     <section class="panel">
+-        <h2>Lọc nhân viên và thời gian</h2>
+-        <p class="note">Chỉ xem được nhân viên thuộc cửa hàng bạn đang quản lý. Ca làm việc lấy từ lịch phân ca cùng nhân viên và cùng ngày. Hệ thống chưa có cột ngày công riêng.</p>
+-        <form class="filter-form" method="get" th:action="@{/attendance/manager}">
++        <h2>Bộ lọc</h2>
++        <p class="note">Chỉ xem bản thân và nhân viên thuộc cửa hàng bạn quản lý. Giờ ca là giờ đã lưu lúc chấm công.</p>
++        <form class="filter-form" method="get" th:action="@{/attendance/manager/history}">
+             <label>Nhân viên
+                 <select name="employeeId">
+-                    <option value="">Tất cả nhân viên</option>
++                    <option value="">Tất cả</option>
+                     <option th:each="emp : ${history.employees}"
+                             th:value="${emp.employeeId}"
+                             th:text="${emp.fullName + ' (#' + emp.employeeId + ')'}"
+@@ -49,44 +49,90 @@
+                     </option>
+                 </select>
+             </label>
++            <label>Ca
++                <select name="shiftId">
++                    <option value="">Tất cả</option>
++                    <option th:each="shift : ${history.shifts}"
++                            th:value="${shift.shiftId}"
++                            th:text="${shift.label}"
++                            th:selected="${history.filterShiftId != null and history.filterShiftId.equals(shift.shiftId)}">
++                        Ca
++                    </option>
++                </select>
++            </label>
++            <label>Trạng thái
++                <select name="status">
++                    <option value="">Tất cả</option>
++                    <option th:each="st : ${history.statuses}"
++                            th:value="${st.value}"
++                            th:text="${st.label}"
++                            th:selected="${history.filterStatus != null and history.filterStatus.equals(st.value)}">
++                        Trạng thái
++                    </option>
++                </select>
++            </label>
+             <label>Từ ngày
+                 <input type="date" name="from" th:max="${vietnamToday}" th:value="${#temporals.format(history.fromDate, 'yyyy-MM-dd')}">
+             </label>
+             <label>Đến ngày
+                 <input type="date" name="to" th:max="${vietnamToday}" th:value="${#temporals.format(history.toDate, 'yyyy-MM-dd')}">
+             </label>
++            <label>Đi muộn
++                <input type="checkbox" name="late" value="true" th:checked="${history.lateOnly}">
++            </label>
++            <label>Về sớm
++                <input type="checkbox" name="early" value="true" th:checked="${history.earlyOnly}">
++            </label>
+             <button class="primary-btn" type="submit">Xem lịch sử</button>
+         </form>
++        <a class="link-btn" th:href="@{/attendance/manager}">Quay lại chấm công</a>
+     </section>
+ 
+     <section class="panel">
+-        <h2>Lịch sử chấm công</h2>
++        <h2>Chi tiết</h2>
+         <p class="empty" th:if="${#lists.isEmpty(history.rows)}">Không có dữ liệu chấm công trong khoảng thời gian này.</p>
+         <div class="table-wrap" th:if="${!#lists.isEmpty(history.rows)}">
+             <table>
+                 <thead>
+                 <tr>
+-                    <th>Nhân viên</th>
+-                    <th>Mã NV</th>
+                     <th>Ngày</th>
+-                    <th>Ca làm việc</th>
++                    <th>Nhân viên</th>
++                    <th>Cửa hàng</th>
++                    <th>Ca</th>
++                    <th>Bắt đầu ca</th>
++                    <th>Kết thúc ca</th>
+                     <th>Check-in</th>
+                     <th>Check-out</th>
+-                    <th>Giờ làm</th>
++                    <th>Thời gian làm</th>
++                    <th>Đi muộn</th>
++                    <th>Về sớm</th>
++                    <th>Còn thiếu</th>
++                    <th>IP Check-in</th>
++                    <th>IP Check-out</th>
+                     <th>Trạng thái</th>
+                 </tr>
+                 </thead>
+                 <tbody>
+                 <tr th:each="row : ${history.rows}">
+-                    <td th:text="${row.employeeName}">Tên</td>
+-                    <td th:text="${row.employeeId}">1</td>
+                     <td th:text="${#temporals.format(row.workDate, 'dd/MM/yyyy')}">01/09/2026</td>
++                    <td>
++                        <span th:text="${row.employeeName}">Tên</span>
++                        <span th:text="'#' + ${row.employeeId}">#1</span>
++                    </td>
++                    <td th:text="${row.storeName}">Cửa hàng</td>
+                     <td th:text="${row.shiftLabel}">Ca sáng</td>
++                    <td th:text="${row.scheduledStartLabel}">08:00</td>
++                    <td th:text="${row.scheduledEndLabel}">17:00</td>
+                     <td th:text="${row.checkInLabel}">08:00</td>
+                     <td th:text="${row.checkOutLabel}">17:00</td>
+                     <td th:text="${row.totalHoursLabel}">8 giờ</td>
++                    <td th:text="${row.lateLabel}">0 phút</td>
++                    <td th:text="${row.earlyLabel}">0 phút</td>
++                    <td th:text="${row.missingLabel}">0 phút</td>
++                    <td th:text="${row.checkInIp}">—</td>
++                    <td th:text="${row.checkOutIp}">—</td>
+                     <td>
+-                        <span class="status-tag" th:classappend="${row.statusCss}" th:text="${row.statusLabel}">Đúng giờ</span>
++                        <span class="status-tag" th:classappend="${row.statusCss}" th:text="${row.statusLabel}">Có mặt</span>
+                     </td>
+                 </tr>
+                 </tbody>
+diff --git a/src/main/resources/templates/manager/ManagerCheckIn.html b/src/main/resources/templates/manager/ManagerCheckIn.html
+new file mode 100644
+index 0000000..4ef7b7e
+--- /dev/null
++++ b/src/main/resources/templates/manager/ManagerCheckIn.html
+@@ -0,0 +1,71 @@
++<!DOCTYPE html>
++<html lang="vi" xmlns:th="http://www.thymeleaf.org">
++<head>
++    <meta charset="UTF-8">
++    <meta name="viewport" content="width=device-width, initial-scale=1.0">
++    <title>Chấm công — CoffeeHRM</title>
++    <link rel="preconnect" href="https://fonts.googleapis.com">
++    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
++    <link rel="stylesheet" th:href="@{/css/AttendanceHistory.css}">
++</head>
++<body>
++<header th:replace="~{fragments/navbar :: manager('attendance')}"></header>
++
++<main class="wrap dash-main">
++    <section class="welcome">
++        <div class="eyebrow">Cửa hàng — Manager</div>
++        <h1>Chấm công</h1>
++        <p th:if="${clock != null}">
++            <span th:text="${clock.employeeName}">Manager</span>
++            <span th:if="${clock.storeName != null}" th:text="'· ' + ${clock.storeName}">· Cửa hàng</span>
++        </p>
++    </section>
++
++    <p class="flash-ok" th:if="${pageMessage}" th:text="${pageMessage}">Thành công</p>
++    <p class="flash" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
++
++    <section class="panel" th:if="${clock != null}">
++        <h2>IP mạng cửa hàng</h2>
++        <p class="note">Chỉ Manager được cập nhật. Mỗi lần bấm sẽ lấy lại IP public của mạng đang kết nối và lưu đè IP cũ, kể cả khi vừa đổi Wi-Fi sang 4G.</p>
++        <p class="ip-line">IP cửa hàng đang lưu: <strong th:text="${clock.storeCurrentIp != null ? clock.storeCurrentIp : 'Chưa thiết lập'}">—</strong></p>
++        <p class="ip-line">IP mạng đang kết nối: <strong th:text="${clock.requestIp != null ? clock.requestIp : '—'}">—</strong></p>
++        <form th:action="@{/attendance/manager/ip}" method="post">
++            <button class="secondary-btn" type="submit">Cập nhật IP cửa hàng</button>
++        </form>
++    </section>
++
++    <section class="panel" th:if="${clock != null}">
++        <h2>Ca hiện tại</h2>
++        <p class="ip-line">
++            <span th:text="${clock.shiftName != null ? clock.shiftName : 'Chưa có ca phù hợp'}">Ca sáng</span>
++        </p>
++        <p class="ip-line">
++            <span th:text="${clock.scheduledStartLabel}">08:00</span>
++            —
++            <span th:text="${clock.scheduledEndLabel}">17:00</span>
++        </p>
++        <p class="note">Trạng thái: <strong th:text="${clock.statusLabel}">Chưa Check-in</strong></p>
++        <div class="clock-actions">
++            <form th:action="@{/attendance/manager/check-in}" method="post">
++                <button class="primary-btn" type="submit">Check-in</button>
++            </form>
++            <form th:action="@{/attendance/manager/check-out}" method="post">
++                <button class="secondary-btn" type="submit">Check-out</button>
++            </form>
++        </div>
++    </section>
++
++    <section class="panel" th:if="${clock != null}">
++        <h2>Lịch sử gần đây</h2>
++        <p class="empty" th:if="${#lists.isEmpty(clock.recent)}">Chưa có bản ghi chấm công.</p>
++        <ul class="recent-list" th:if="${!#lists.isEmpty(clock.recent)}">
++            <li th:each="item : ${clock.recent}">
++                <span th:text="${#temporals.format(item.workDate, 'dd/MM/yyyy')}">04/10/2026</span>
++                <span th:text="${item.timeLabel}">08:00 - 17:05</span>
++            </li>
++        </ul>
++        <a class="link-btn" th:href="@{/attendance/manager/history}">Xem lịch sử</a>
++    </section>
++</main>
++</body>
++</html>
+diff --git a/src/main/resources/templates/staff/StaffAttendance.html b/src/main/resources/templates/staff/StaffAttendance.html
+index adcd205..5055a38 100644
+--- a/src/main/resources/templates/staff/StaffAttendance.html
++++ b/src/main/resources/templates/staff/StaffAttendance.html
+@@ -37,8 +37,8 @@
+ 
+     <section class="panel">
+         <h2>Lọc theo thời gian</h2>
+-        <p class="note">Chỉ hiển thị dữ liệu chấm công của chính bạn. Hệ thống ghi nhận tổng giờ làm việc, chưa có cột ngày công riêng. Ca làm việc lấy từ lịch phân ca cùng ngày.</p>
+-        <form class="filter-form" method="get" th:action="@{/attendance/staff}">
++        <p class="note">Chỉ hiển thị dữ liệu chấm công của chính bạn. Giờ ca được lưu tại thời điểm check-in. Tổng thời gian chỉ cộng các ca đã check-out.</p>
++        <form class="filter-form" method="get" th:action="@{/attendance/staff/history}">
+             <label>Từ ngày
+                 <input type="date" name="from" th:max="${vietnamToday}" th:value="${#temporals.format(history.fromDate, 'yyyy-MM-dd')}">
+             </label>
+@@ -47,6 +47,7 @@
+             </label>
+             <button class="primary-btn" type="submit">Xem lịch sử</button>
+         </form>
++        <a class="link-btn" th:href="@{/attendance/staff}">Quay lại chấm công</a>
+     </section>
+ 
+     <section class="panel">
+@@ -56,12 +57,20 @@
+             <table>
+                 <thead>
+                 <tr>
+-                    <th>Ngày làm việc</th>
++                    <th>Ngày</th>
+                     <th>Nhân viên</th>
+-                    <th>Ca làm việc</th>
++                    <th>Cửa hàng</th>
++                    <th>Ca</th>
++                    <th>Bắt đầu ca</th>
++                    <th>Kết thúc ca</th>
+                     <th>Check-in</th>
+                     <th>Check-out</th>
+-                    <th>Tổng thời gian</th>
++                    <th>Thời gian làm</th>
++                    <th>Đi muộn</th>
++                    <th>Về sớm</th>
++                    <th>Còn thiếu</th>
++                    <th>IP Check-in</th>
++                    <th>IP Check-out</th>
+                     <th>Trạng thái</th>
+                 </tr>
+                 </thead>
+@@ -72,12 +81,20 @@
+                         <span th:text="${row.employeeName}">Tên</span>
+                         <span th:text="'#' + ${row.employeeId}">#1</span>
+                     </td>
++                    <td th:text="${row.storeName}">Cửa hàng</td>
+                     <td th:text="${row.shiftLabel}">Ca sáng</td>
++                    <td th:text="${row.scheduledStartLabel}">08:00</td>
++                    <td th:text="${row.scheduledEndLabel}">17:00</td>
+                     <td th:text="${row.checkInLabel}">08:00</td>
+                     <td th:text="${row.checkOutLabel}">17:00</td>
+                     <td th:text="${row.totalHoursLabel}">8 giờ</td>
++                    <td th:text="${row.lateLabel}">0 phút</td>
++                    <td th:text="${row.earlyLabel}">0 phút</td>
++                    <td th:text="${row.missingLabel}">0 phút</td>
++                    <td th:text="${row.checkInIp}">—</td>
++                    <td th:text="${row.checkOutIp}">—</td>
+                     <td>
+-                        <span class="status-tag" th:classappend="${row.statusCss}" th:text="${row.statusLabel}">Đúng giờ</span>
++                        <span class="status-tag" th:classappend="${row.statusCss}" th:text="${row.statusLabel}">Có mặt</span>
+                     </td>
+                 </tr>
+                 </tbody>
+diff --git a/src/main/resources/templates/staff/StaffCheckIn.html b/src/main/resources/templates/staff/StaffCheckIn.html
+new file mode 100644
+index 0000000..a85c67f
+--- /dev/null
++++ b/src/main/resources/templates/staff/StaffCheckIn.html
+@@ -0,0 +1,61 @@
++<!DOCTYPE html>
++<html lang="vi" xmlns:th="http://www.thymeleaf.org">
++<head>
++    <meta charset="UTF-8">
++    <meta name="viewport" content="width=device-width, initial-scale=1.0">
++    <title>Chấm công — CoffeeHRM</title>
++    <link rel="preconnect" href="https://fonts.googleapis.com">
++    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
++    <link rel="stylesheet" th:href="@{/css/AttendanceHistory.css}">
++</head>
++<body>
++<header th:replace="~{fragments/navbar :: staff('attendance')}"></header>
++
++<main class="wrap dash-main">
++    <section class="welcome">
++        <div class="eyebrow">Cá nhân — Staff</div>
++        <h1>Chấm công</h1>
++        <p th:if="${clock != null}">
++            <span th:text="${clock.employeeName}">Nhân viên</span>
++            <span th:if="${clock.storeName != null}" th:text="'· ' + ${clock.storeName}">· Cửa hàng</span>
++        </p>
++    </section>
++
++    <p class="flash-ok" th:if="${pageMessage}" th:text="${pageMessage}">Thành công</p>
++    <p class="flash" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
++
++    <section class="panel" th:if="${clock != null}">
++        <h2>Ca hiện tại</h2>
++        <p class="ip-line">
++            <span th:text="${clock.shiftName != null ? clock.shiftName : 'Chưa có ca phù hợp'}">Ca sáng</span>
++        </p>
++        <p class="ip-line">
++            <span th:text="${clock.scheduledStartLabel}">08:00</span>
++            —
++            <span th:text="${clock.scheduledEndLabel}">17:00</span>
++        </p>
++        <p class="note">Trạng thái: <strong th:text="${clock.statusLabel}">Chưa Check-in</strong></p>
++        <div class="clock-actions">
++            <form th:action="@{/attendance/staff/check-in}" method="post">
++                <button class="primary-btn" type="submit">Check-in</button>
++            </form>
++            <form th:action="@{/attendance/staff/check-out}" method="post">
++                <button class="secondary-btn" type="submit">Check-out</button>
++            </form>
++        </div>
++    </section>
++
++    <section class="panel" th:if="${clock != null}">
++        <h2>Lịch sử gần đây</h2>
++        <p class="empty" th:if="${#lists.isEmpty(clock.recent)}">Chưa có bản ghi chấm công.</p>
++        <ul class="recent-list" th:if="${!#lists.isEmpty(clock.recent)}">
++            <li th:each="item : ${clock.recent}">
++                <span th:text="${#temporals.format(item.workDate, 'dd/MM/yyyy')}">04/10/2026</span>
++                <span th:text="${item.timeLabel}">08:00 - 17:05</span>
++            </li>
++        </ul>
++        <a class="link-btn" th:href="@{/attendance/staff/history}">Xem lịch sử</a>
++    </section>
++</main>
++</body>
++</html>
+diff --git a/src/main/resources/templates/staff/StaffDashboard.html b/src/main/resources/templates/staff/StaffDashboard.html
+index 5ca56c5..26f2c4c 100644
+--- a/src/main/resources/templates/staff/StaffDashboard.html
++++ b/src/main/resources/templates/staff/StaffDashboard.html
+@@ -84,7 +84,7 @@
+                 <span th:text="${dashboard.todayCheckOut != null} ? ${#temporals.format(dashboard.todayCheckOut, 'HH:mm')} : 'Chưa có'">—</span>
+             </p>
+             <p style="margin-top:12px;">
+-                <a th:href="@{/attendance/staff}" style="color:var(--caramel);font-weight:600;font-size:13px;">Xem lịch sử chấm công →</a>
++                <a th:href="@{/attendance/staff/history}" style="color:var(--caramel);font-weight:600;font-size:13px;">Xem lịch sử chấm công →</a>
+             </p>
+         </article>
+     </section>
+diff --git a/src/test/java/com/example/coffee_hrm/common/web/ClientIpResolverTest.java b/src/test/java/com/example/coffee_hrm/common/web/ClientIpResolverTest.java
+new file mode 100644
+index 0000000..cf8abfd
+--- /dev/null
++++ b/src/test/java/com/example/coffee_hrm/common/web/ClientIpResolverTest.java
+@@ -0,0 +1,37 @@
++package com.example.coffee_hrm.common.web;
++
++import jakarta.servlet.http.HttpServletRequest;
++import org.junit.jupiter.api.Test;
++
++import static org.junit.jupiter.api.Assertions.assertEquals;
++import static org.junit.jupiter.api.Assertions.assertFalse;
++import static org.junit.jupiter.api.Assertions.assertTrue;
++import static org.mockito.Mockito.mock;
++import static org.mockito.Mockito.when;
++
++class ClientIpResolverTest {
++
++    @Test
++    void usesRemoteAddressAndIgnoresForwardedHeader() {
++        HttpServletRequest request = mock(HttpServletRequest.class);
++        when(request.getRemoteAddr()).thenReturn("113.0.0.1");
++        when(request.getHeader("X-Forwarded-For")).thenReturn("1.2.3.4");
++
++        assertEquals("113.0.0.1", ClientIpResolver.resolve(request));
++    }
++
++    @Test
++    void normalizesMappedIpv4() {
++        assertTrue(ClientIpResolver.matches("::ffff:113.0.0.1", "113.0.0.1"));
++        assertFalse(ClientIpResolver.matches("10.0.0.1", "113.0.0.1"));
++        assertFalse(ClientIpResolver.matches("113.0.0.1", null));
++    }
++
++    @Test
++    void treatsLoopbackAndLanAddressesAsLocal() {
++        assertTrue(ClientIpResolver.isLocalOrPrivate("::1"));
++        assertTrue(ClientIpResolver.isLocalOrPrivate("127.0.0.1"));
++        assertTrue(ClientIpResolver.isLocalOrPrivate("192.168.1.20"));
++        assertFalse(ClientIpResolver.isLocalOrPrivate("118.68.6.70"));
++    }
++}
+diff --git a/src/test/java/com/example/coffee_hrm/common/web/ConnectedNetworkIpResolverTest.java b/src/test/java/com/example/coffee_hrm/common/web/ConnectedNetworkIpResolverTest.java
+new file mode 100644
+index 0000000..a27d878
+--- /dev/null
++++ b/src/test/java/com/example/coffee_hrm/common/web/ConnectedNetworkIpResolverTest.java
+@@ -0,0 +1,58 @@
++package com.example.coffee_hrm.common.web;
++
++import jakarta.servlet.http.HttpServletRequest;
++import org.junit.jupiter.api.Test;
++
++import static org.junit.jupiter.api.Assertions.assertEquals;
++import static org.junit.jupiter.api.Assertions.assertNull;
++import static org.mockito.Mockito.mock;
++import static org.mockito.Mockito.when;
++
++class ConnectedNetworkIpResolverTest {
++
++    @Test
++    void freshLookupSavesTheNewNetworkInsteadOfTheCachedOne() {
++        SequenceResolver resolver = new SequenceResolver("118.68.6.70", "14.1.2.3");
++        HttpServletRequest request = loopbackRequest();
++
++        assertEquals("118.68.6.70", resolver.resolve(request));
++        assertEquals("118.68.6.70", resolver.resolve(request));
++        assertEquals("14.1.2.3", resolver.resolveFresh(request));
++        assertEquals(2, resolver.calls);
++    }
++
++    @Test
++    void freshLookupDoesNotFallBackToThePreviousNetwork() {
++        SequenceResolver resolver = new SequenceResolver("118.68.6.70", null);
++        HttpServletRequest request = loopbackRequest();
++
++        assertEquals("118.68.6.70", resolver.resolve(request));
++        assertNull(resolver.resolveFresh(request));
++    }
++
++    private static HttpServletRequest loopbackRequest() {
++        HttpServletRequest request = mock(HttpServletRequest.class);
++        when(request.getRemoteAddr()).thenReturn("::1");
++        return request;
++    }
++
++    private static final class SequenceResolver extends ConnectedNetworkIpResolver {
++        private final String[] values;
++        private int index;
++        private int calls;
++
++        private SequenceResolver(String... values) {
++            this.values = values;
++        }
++
++        @Override
++        protected String lookupPublicIp() {
++            calls++;
++            String value = values[Math.min(index, values.length - 1)];
++            if (index < values.length) {
++                index++;
++            }
++            return value;
++        }
++    }
++}
+diff --git a/src/test/java/com/example/coffee_hrm/service/impl/AttendanceHistoryServiceImplTest.java b/src/test/java/com/example/coffee_hrm/service/impl/AttendanceHistoryServiceImplTest.java
+index cbb53eb..afcab44 100644
+--- a/src/test/java/com/example/coffee_hrm/service/impl/AttendanceHistoryServiceImplTest.java
++++ b/src/test/java/com/example/coffee_hrm/service/impl/AttendanceHistoryServiceImplTest.java
+@@ -17,6 +17,7 @@ import com.example.coffee_hrm.entity.User;
+ import com.example.coffee_hrm.repository.AttendanceRepository;
+ import com.example.coffee_hrm.repository.EmployeeRepository;
+ import com.example.coffee_hrm.repository.ShiftAssignmentRepository;
++import com.example.coffee_hrm.repository.ShiftRepository;
+ import com.example.coffee_hrm.repository.StoreRepository;
+ import com.example.coffee_hrm.security.AuthenticatedUser;
+ import org.junit.jupiter.api.BeforeEach;
+@@ -52,6 +53,8 @@ class AttendanceHistoryServiceImplTest {
+     private EmployeeRepository employeeRepository;
+     @Mock
+     private StoreRepository storeRepository;
++    @Mock
++    private ShiftRepository shiftRepository;
+ 
+     @InjectMocks
+     private AttendanceHistoryServiceImpl attendanceHistoryService;
+diff --git a/src/test/java/com/example/coffee_hrm/service/impl/AttendanceServiceImplTest.java b/src/test/java/com/example/coffee_hrm/service/impl/AttendanceServiceImplTest.java
+new file mode 100644
+index 0000000..838583a
+--- /dev/null
++++ b/src/test/java/com/example/coffee_hrm/service/impl/AttendanceServiceImplTest.java
+@@ -0,0 +1,447 @@
++package com.example.coffee_hrm.service.impl;
++
++import com.example.coffee_hrm.common.enums.AssignmentStatus;
++import com.example.coffee_hrm.common.enums.AttendanceStatus;
++import com.example.coffee_hrm.common.enums.EmployeeStatus;
++import com.example.coffee_hrm.common.enums.RoleName;
++import com.example.coffee_hrm.common.exception.BusinessException;
++import com.example.coffee_hrm.entity.Attendance;
++import com.example.coffee_hrm.entity.Employee;
++import com.example.coffee_hrm.entity.Role;
++import com.example.coffee_hrm.entity.Shift;
++import com.example.coffee_hrm.entity.ShiftAssignment;
++import com.example.coffee_hrm.entity.Store;
++import com.example.coffee_hrm.entity.User;
++import com.example.coffee_hrm.repository.AttendanceRepository;
++import com.example.coffee_hrm.repository.EmployeeRepository;
++import com.example.coffee_hrm.repository.ShiftAssignmentRepository;
++import com.example.coffee_hrm.repository.StoreRepository;
++import com.example.coffee_hrm.security.AuthenticatedUser;
++import com.example.coffee_hrm.service.AttendancePolicyProperties;
++import org.junit.jupiter.api.BeforeEach;
++import org.junit.jupiter.api.Test;
++import org.junit.jupiter.api.extension.ExtendWith;
++import org.mockito.ArgumentCaptor;
++import org.mockito.Mock;
++import org.mockito.junit.jupiter.MockitoExtension;
++import org.springframework.dao.DataIntegrityViolationException;
++
++import java.time.LocalDate;
++import java.time.LocalDateTime;
++import java.time.LocalTime;
++import java.util.List;
++import java.util.Optional;
++
++import static org.junit.jupiter.api.Assertions.assertEquals;
++import static org.junit.jupiter.api.Assertions.assertNull;
++import static org.junit.jupiter.api.Assertions.assertThrows;
++import static org.mockito.ArgumentMatchers.any;
++import static org.mockito.ArgumentMatchers.eq;
++import static org.mockito.Mockito.never;
++import static org.mockito.Mockito.verify;
++import static org.mockito.Mockito.when;
++
++@ExtendWith(MockitoExtension.class)
++class AttendanceServiceImplTest {
++
++    private static final LocalDate WORK_DATE = LocalDate.of(2026, 10, 4);
++
++    @Mock
++    private AttendanceRepository attendanceRepository;
++    @Mock
++    private ShiftAssignmentRepository shiftAssignmentRepository;
++    @Mock
++    private EmployeeRepository employeeRepository;
++    @Mock
++    private StoreRepository storeRepository;
++
++    private AttendancePolicyProperties policy;
++    private AttendanceServiceImpl attendanceService;
++    private Store store;
++    private Employee staffEmployee;
++    private AuthenticatedUser staffUser;
++    private Shift morning;
++    private ShiftAssignment morningAssignment;
++
++    @BeforeEach
++    void setUp() {
++        policy = new AttendancePolicyProperties();
++        policy.setCheckInLeadMinutes(60);
++        policy.setLateThresholdMinutes(20);
++        policy.setAllowEarlyCheckout(true);
++        attendanceService = new AttendanceServiceImpl(
++                attendanceRepository,
++                shiftAssignmentRepository,
++                employeeRepository,
++                storeRepository,
++                policy);
++
++        store = Store.builder().id(1).storeName("Cửa hàng 1").currentIp("113.0.0.1").build();
++        staffEmployee = Employee.builder()
++                .id(20).fullName("Trần Văn Tuấn").store(store).status(EmployeeStatus.ACTIVE).build();
++        staffUser = AuthenticatedUser.from(buildUser(3, "tuanth", RoleName.STAFF, staffEmployee));
++        morning = Shift.builder()
++                .id(1).shiftName("Ca sáng").store(store)
++                .startTime(LocalTime.of(8, 0)).endTime(LocalTime.of(17, 0))
++                .build();
++        morningAssignment = ShiftAssignment.builder()
++                .id(9).employee(staffEmployee).shift(morning).workDate(WORK_DATE)
++                .status(AssignmentStatus.ASSIGNED).isPublished(true)
++                .build();
++    }
++
++    @Test
++    void checkInCreatesOneRecordWhenIpAndShiftAreValid() {
++        stubShift(List.of(morningAssignment));
++        when(attendanceRepository.findByEmployee_IdAndShift_IdAndWorkDate(20, 1, WORK_DATE))
++                .thenReturn(Optional.empty());
++        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
++        when(attendanceRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
++
++        attendanceService.checkIn(staffUser, "113.0.0.1", WORK_DATE.atTime(7, 30));
++
++        ArgumentCaptor<Attendance> captor = ArgumentCaptor.forClass(Attendance.class);
++        verify(attendanceRepository).saveAndFlush(captor.capture());
++        Attendance saved = captor.getValue();
++        assertEquals(20, saved.getEmployee().getId());
++        assertEquals(WORK_DATE, saved.getWorkDate());
++        assertEquals(LocalTime.of(8, 0), saved.getScheduledStartTime());
++        assertEquals(LocalTime.of(17, 0), saved.getScheduledEndTime());
++        assertEquals("113.0.0.1", saved.getCheckInIp());
++        assertEquals(0, saved.getLateMinutes());
++        assertEquals(AttendanceStatus.PRESENT, saved.getStatus());
++        assertNull(saved.getCheckOutTime());
++    }
++
++    @Test
++    void checkInRejectsWrongIpBeforeCreatingAttendance() {
++        stubShift(List.of(morningAssignment));
++        when(attendanceRepository.findByEmployee_IdAndShift_IdAndWorkDate(20, 1, WORK_DATE))
++                .thenReturn(Optional.empty());
++        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
++
++        BusinessException ex = assertThrows(BusinessException.class,
++                () -> attendanceService.checkIn(staffUser, "10.0.0.8", WORK_DATE.atTime(7, 30)));
++
++        assertEquals(AttendanceServiceImpl.WRONG_IP, ex.getMessage());
++        verify(attendanceRepository, never()).saveAndFlush(any());
++    }
++
++    @Test
++    void checkInRejectsWhenTooEarly() {
++        stubShift(List.of(morningAssignment));
++
++        BusinessException ex = assertThrows(BusinessException.class,
++                () -> attendanceService.checkIn(staffUser, "113.0.0.1", WORK_DATE.atTime(6, 0)));
++
++        assertEquals(AttendanceServiceImpl.TOO_EARLY, ex.getMessage());
++        verify(attendanceRepository, never()).saveAndFlush(any());
++    }
++
++    @Test
++    void checkInRejectsWhenNoShift() {
++        stubShift(List.of());
++
++        BusinessException ex = assertThrows(BusinessException.class,
++                () -> attendanceService.checkIn(staffUser, "113.0.0.1", WORK_DATE.atTime(8, 0)));
++
++        assertEquals(AttendanceServiceImpl.NO_SHIFT, ex.getMessage());
++    }
++
++    @Test
++    void checkInRejectsSecondCheckInForSameShift() {
++        stubShift(List.of(morningAssignment));
++        when(attendanceRepository.findByEmployee_IdAndShift_IdAndWorkDate(20, 1, WORK_DATE))
++                .thenReturn(Optional.of(Attendance.builder().id(5).employee(staffEmployee).build()));
++        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
++
++        BusinessException ex = assertThrows(BusinessException.class,
++                () -> attendanceService.checkIn(staffUser, "113.0.0.1", WORK_DATE.atTime(9, 0)));
++
++        assertEquals(AttendanceServiceImpl.ALREADY_IN, ex.getMessage());
++        verify(attendanceRepository, never()).saveAndFlush(any());
++    }
++
++    @Test
++    void checkInRecordsLateOnlyFromTwentyMinutes() {
++        stubShift(List.of(morningAssignment));
++        when(attendanceRepository.findByEmployee_IdAndShift_IdAndWorkDate(20, 1, WORK_DATE))
++                .thenReturn(Optional.empty());
++        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
++        when(attendanceRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
++
++        attendanceService.checkIn(staffUser, "113.0.0.1", WORK_DATE.atTime(8, 19));
++        ArgumentCaptor<Attendance> early = ArgumentCaptor.forClass(Attendance.class);
++        verify(attendanceRepository).saveAndFlush(early.capture());
++        assertEquals(0, early.getValue().getLateMinutes());
++        assertEquals(AttendanceStatus.PRESENT, early.getValue().getStatus());
++
++        attendanceService.checkIn(staffUser, "113.0.0.1", WORK_DATE.atTime(8, 20));
++        ArgumentCaptor<Attendance> late = ArgumentCaptor.forClass(Attendance.class);
++        verify(attendanceRepository, org.mockito.Mockito.times(2)).saveAndFlush(late.capture());
++        Attendance lateRecord = late.getAllValues().get(1);
++        assertEquals(20, lateRecord.getLateMinutes());
++        assertEquals(AttendanceStatus.LATE, lateRecord.getStatus());
++    }
++
++    @Test
++    void checkOutUpdatesTheSameRecordAndStoresEarlyLeave() {
++        Attendance open = openAttendance(0);
++        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
++        when(attendanceRepository.findOpenByEmployeeId(20)).thenReturn(List.of(open));
++        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
++
++        attendanceService.checkOut(staffUser, "113.0.0.1", WORK_DATE.atTime(16, 30));
++
++        assertEquals(WORK_DATE.atTime(16, 30), open.getCheckOutTime());
++        assertEquals("113.0.0.1", open.getCheckOutIp());
++        assertEquals(510, open.getWorkingMinutes());
++        assertEquals(30, open.getEarlyLeaveMinutes());
++        assertEquals(AttendanceStatus.EARLY_LEAVE, open.getStatus());
++        verify(attendanceRepository).save(open);
++        verify(attendanceRepository, never()).saveAndFlush(any());
++    }
++
++    @Test
++    void checkOutMarksLateAndEarly() {
++        Attendance open = openAttendance(30);
++        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
++        when(attendanceRepository.findOpenByEmployeeId(20)).thenReturn(List.of(open));
++        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
++
++        attendanceService.checkOut(staffUser, "113.0.0.1", WORK_DATE.atTime(16, 30));
++
++        assertEquals(AttendanceStatus.LATE_AND_EARLY, open.getStatus());
++        assertEquals(30, open.getLateMinutes());
++        assertEquals(30, open.getEarlyLeaveMinutes());
++    }
++
++    @Test
++    void checkOutCanBeBlockedByPolicy() {
++        policy.setAllowEarlyCheckout(false);
++        Attendance open = openAttendance(0);
++        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
++        when(attendanceRepository.findOpenByEmployeeId(20)).thenReturn(List.of(open));
++        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
++
++        BusinessException ex = assertThrows(BusinessException.class,
++                () -> attendanceService.checkOut(staffUser, "113.0.0.1", WORK_DATE.atTime(16, 30)));
++
++        assertEquals(AttendanceServiceImpl.EARLY_CHECKOUT_BLOCKED, ex.getMessage());
++        assertNull(open.getCheckOutTime());
++    }
++
++    @Test
++    void checkOutRejectsWrongIp() {
++        Attendance open = openAttendance(0);
++        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
++        when(attendanceRepository.findOpenByEmployeeId(20)).thenReturn(List.of(open));
++        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
++
++        BusinessException ex = assertThrows(BusinessException.class,
++                () -> attendanceService.checkOut(staffUser, "10.1.1.1", WORK_DATE.atTime(17, 0)));
++
++        assertEquals(AttendanceServiceImpl.WRONG_IP, ex.getMessage());
++        assertNull(open.getCheckOutTime());
++    }
++
++    @Test
++    void checkOutRejectsWhenAlreadyCheckedOut() {
++        Attendance closed = openAttendance(0);
++        closed.setCheckOutTime(WORK_DATE.atTime(17, 0));
++        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
++        when(attendanceRepository.findOpenByEmployeeId(20)).thenReturn(List.of());
++        stubShift(List.of(morningAssignment));
++        when(attendanceRepository.findByEmployee_IdAndShift_IdAndWorkDate(20, 1, WORK_DATE))
++                .thenReturn(Optional.of(closed));
++        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
++
++        BusinessException ex = assertThrows(BusinessException.class,
++                () -> attendanceService.checkOut(staffUser, "113.0.0.1", WORK_DATE.atTime(17, 10)));
++
++        assertEquals(AttendanceServiceImpl.ALREADY_OUT, ex.getMessage());
++    }
++
++    @Test
++    void checkOutRejectsWhenNotCheckedIn() {
++        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
++        when(attendanceRepository.findOpenByEmployeeId(20)).thenReturn(List.of());
++        stubShift(List.of(morningAssignment));
++        when(attendanceRepository.findByEmployee_IdAndShift_IdAndWorkDate(20, 1, WORK_DATE))
++                .thenReturn(Optional.empty());
++
++        BusinessException ex = assertThrows(BusinessException.class,
++                () -> attendanceService.checkOut(staffUser, "113.0.0.1", WORK_DATE.atTime(9, 0)));
++
++        assertEquals(AttendanceServiceImpl.NOT_CHECKED_IN, ex.getMessage());
++    }
++
++    @Test
++    void secondShiftOnTheSameDayCreatesAnotherAttendance() {
++        Shift afternoon = Shift.builder()
++                .id(2).shiftName("Ca chiều").store(store)
++                .startTime(LocalTime.of(14, 0)).endTime(LocalTime.of(18, 0))
++                .build();
++        ShiftAssignment afternoonAssignment = ShiftAssignment.builder()
++                .id(10).employee(staffEmployee).shift(afternoon).workDate(WORK_DATE)
++                .status(AssignmentStatus.ASSIGNED).isPublished(true)
++                .build();
++        stubShift(List.of(morningAssignment, afternoonAssignment));
++        when(attendanceRepository.findByEmployee_IdAndShift_IdAndWorkDate(20, 1, WORK_DATE))
++                .thenReturn(Optional.of(Attendance.builder().id(5).build()));
++        when(attendanceRepository.findByEmployee_IdAndShift_IdAndWorkDate(20, 2, WORK_DATE))
++                .thenReturn(Optional.empty());
++        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
++        when(attendanceRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
++
++        attendanceService.checkIn(staffUser, "113.0.0.1", WORK_DATE.atTime(13, 30));
++
++        ArgumentCaptor<Attendance> captor = ArgumentCaptor.forClass(Attendance.class);
++        verify(attendanceRepository).saveAndFlush(captor.capture());
++        assertEquals(2, captor.getValue().getShift().getId());
++        assertEquals(LocalTime.of(14, 0), captor.getValue().getScheduledStartTime());
++    }
++
++    @Test
++    void duplicateInsertIsReportedAsAlreadyCheckedIn() {
++        stubShift(List.of(morningAssignment));
++        when(attendanceRepository.findByEmployee_IdAndShift_IdAndWorkDate(20, 1, WORK_DATE))
++                .thenReturn(Optional.empty());
++        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
++        when(attendanceRepository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("duplicate"));
++
++        BusinessException ex = assertThrows(BusinessException.class,
++                () -> attendanceService.checkIn(staffUser, "113.0.0.1", WORK_DATE.atTime(8, 0)));
++
++        assertEquals(AttendanceServiceImpl.ALREADY_IN, ex.getMessage());
++    }
++
++    @Test
++    void checkOutUsesCurrentStoreIpNotTheCheckInIp() {
++        Attendance open = openAttendance(0);
++        open.setCheckInIp("113.0.0.1");
++        store.setCurrentIp("14.0.0.5");
++        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
++        when(attendanceRepository.findOpenByEmployeeId(20)).thenReturn(List.of(open));
++        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
++
++        attendanceService.checkOut(staffUser, "14.0.0.5", WORK_DATE.atTime(17, 0));
++
++        assertEquals("113.0.0.1", open.getCheckInIp());
++        assertEquals("14.0.0.5", open.getCheckOutIp());
++        assertEquals(AttendanceStatus.PRESENT, open.getStatus());
++    }
++
++    @Test
++    void staffCannotUpdateStoreIp() {
++        BusinessException ex = assertThrows(BusinessException.class,
++                () -> attendanceService.updateStoreIp(staffUser, "118.68.6.70"));
++
++        assertEquals("Bạn không có quyền cập nhật IP cửa hàng.", ex.getMessage());
++        verify(storeRepository, never()).save(any());
++    }
++
++    @Test
++    void managerUpdatesOnlyTheManagedStoreIp() {
++        Employee managerEmployee = Employee.builder().id(10).fullName("Manager A").store(store).build();
++        store.setManager(managerEmployee);
++        AuthenticatedUser manager = AuthenticatedUser.from(buildUser(2, "manager1", RoleName.MANAGER, managerEmployee));
++        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
++
++        attendanceService.updateStoreIp(manager, "::ffff:14.0.0.5");
++
++        assertEquals("14.0.0.5", store.getCurrentIp());
++        verify(storeRepository).save(store);
++    }
++
++    @Test
++    void managerUpdateReplacesTheStoredIpWhenTheNetworkChanges() {
++        Employee managerEmployee = Employee.builder().id(10).fullName("Manager A").store(store).build();
++        store.setManager(managerEmployee);
++        store.setCurrentIp("118.68.6.70");
++        AuthenticatedUser manager = AuthenticatedUser.from(buildUser(2, "manager1", RoleName.MANAGER, managerEmployee));
++        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
++
++        attendanceService.updateStoreIp(manager, "14.1.2.3");
++
++        assertEquals("14.1.2.3", store.getCurrentIp());
++    }
++
++    @Test
++    void managerUpdateDoesNotKeepLoopbackAsTheStoreIp() {
++        Employee managerEmployee = Employee.builder().id(10).fullName("Manager A").store(store).build();
++        store.setManager(managerEmployee);
++        AuthenticatedUser manager = AuthenticatedUser.from(buildUser(2, "manager1", RoleName.MANAGER, managerEmployee));
++        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
++
++        BusinessException ex = assertThrows(BusinessException.class,
++                () -> attendanceService.updateStoreIp(manager, "::1"));
++
++        assertEquals("Không xác định được địa chỉ IP.", ex.getMessage());
++        assertEquals("113.0.0.1", store.getCurrentIp());
++        verify(storeRepository, never()).save(any());
++    }
++
++    @Test
++    void endedShiftWithoutAttendanceIsMarkedAbsent() {
++        when(shiftAssignmentRepository.findPublishedAssignedOnDate(WORK_DATE, AssignmentStatus.ASSIGNED))
++                .thenReturn(List.of(morningAssignment));
++        when(attendanceRepository.findByEmployee_IdAndShift_IdAndWorkDate(20, 1, WORK_DATE))
++                .thenReturn(Optional.empty());
++        when(attendanceRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
++
++        attendanceService.markAbsences(WORK_DATE, WORK_DATE.atTime(18, 0));
++
++        ArgumentCaptor<Attendance> captor = ArgumentCaptor.forClass(Attendance.class);
++        verify(attendanceRepository).saveAndFlush(captor.capture());
++        assertEquals(AttendanceStatus.ABSENT, captor.getValue().getStatus());
++        assertEquals(LocalTime.of(8, 0), captor.getValue().getScheduledStartTime());
++        assertNull(captor.getValue().getCheckInTime());
++    }
++
++    @Test
++    void runningShiftIsNotMarkedAbsent() {
++        when(shiftAssignmentRepository.findPublishedAssignedOnDate(eq(WORK_DATE), eq(AssignmentStatus.ASSIGNED)))
++                .thenReturn(List.of(morningAssignment));
++
++        attendanceService.markAbsences(WORK_DATE, WORK_DATE.atTime(10, 0));
++
++        verify(attendanceRepository, never()).saveAndFlush(any());
++    }
++
++    private void stubShift(List<ShiftAssignment> assignments) {
++        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
++        when(shiftAssignmentRepository.findAssignmentsForAttendance(
++                eq(20), eq(WORK_DATE.minusDays(1)), eq(WORK_DATE.plusDays(1)), eq(AssignmentStatus.ASSIGNED)))
++                .thenReturn(assignments);
++    }
++
++    private Attendance openAttendance(int lateMinutes) {
++        return Attendance.builder()
++                .id(101)
++                .employee(staffEmployee)
++                .store(store)
++                .shift(morning)
++                .workDate(WORK_DATE)
++                .scheduledShiftName("Ca sáng")
++                .scheduledStartTime(LocalTime.of(8, 0))
++                .scheduledEndTime(LocalTime.of(17, 0))
++                .checkInTime(WORK_DATE.atTime(8, 0))
++                .lateMinutes(lateMinutes)
++                .earlyLeaveMinutes(0)
++                .status(lateMinutes > 0 ? AttendanceStatus.LATE : AttendanceStatus.PRESENT)
++                .build();
++    }
++
++    private User buildUser(Integer id, String username, RoleName roleName, Employee employee) {
++        Role role = Role.builder().id(1).roleName(roleName).build();
++        return User.builder()
++                .id(id)
++                .username(username)
++                .passwordHash("hash")
++                .role(role)
++                .employee(employee)
++                .isActive(true)
++                .build();
++    }
++}

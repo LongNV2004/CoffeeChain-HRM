@@ -11,7 +11,7 @@ BEGIN
         ReferenceId INT NULL,
         CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_Notifications_CreatedAt DEFAULT (SYSUTCDATETIME()),
         CONSTRAINT FK_Notifications_User FOREIGN KEY (UserId) REFERENCES dbo.Users (UserId)
-    );
+      );
 
     CREATE INDEX IX_Notifications_User_Read_CreatedAt
         ON dbo.Notifications (UserId, IsRead, CreatedAt DESC);
