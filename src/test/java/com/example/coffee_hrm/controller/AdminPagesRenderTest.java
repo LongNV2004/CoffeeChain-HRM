@@ -1,9 +1,11 @@
 package com.example.coffee_hrm.controller;
 
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
+import com.example.coffee_hrm.common.enums.RecruitmentProposalStatus;
 import com.example.coffee_hrm.common.enums.RecruitmentStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.dto.response.EmployeeResponse;
+import com.example.coffee_hrm.dto.response.RecruitmentCandidateResponse;
 import com.example.coffee_hrm.dto.response.RecruitmentRequestResponse;
 import com.example.coffee_hrm.dto.response.StoreResponse;
 import com.example.coffee_hrm.entity.Role;
@@ -126,23 +128,25 @@ class AdminPagesRenderTest {
         when(storeService.getStores(any())).thenReturn(List.of());
         when(recruitmentRequestService.listManagerOptions()).thenReturn(List.of());
         when(recruitmentRequestService.listForAdmin(any(), nullable(Integer.class), nullable(Integer.class),
-                nullable(RecruitmentStatus.class), nullable(java.time.LocalDate.class), nullable(java.time.LocalDate.class)))
+                nullable(RecruitmentProposalStatus.class), nullable(java.time.LocalDate.class), nullable(java.time.LocalDate.class)))
                 .thenReturn(List.of(RecruitmentRequestResponse.builder()
                         .id(3)
-                        .fullName("Nguyễn Văn B")
-                        .email("b@store.vn")
-                        .phone("0901234567")
+                        .title("Tuyển barista")
                         .storeName("Store A")
                         .managerName("Manager A")
-                        .status(RecruitmentStatus.PENDING)
+                        .status(RecruitmentProposalStatus.PENDING)
                         .statusLabel("Chờ duyệt")
+                        .totalCandidates(1)
+                        .pendingCount(1)
                         .createdAt(LocalDateTime.of(2026, 10, 4, 8, 0))
                         .build()));
 
         mockMvc.perform(get("/admin/recruitment").with(user(admin())))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Nguyễn Văn B")))
-                .andExpect(content().string(containsString("b@store.vn")))
+                .andExpect(content().string(containsString("Tuyển barista")))
+                .andExpect(content().string(containsString("Store A")))
+                .andExpect(content().string(containsString("Manager A")))
+                .andExpect(content().string(containsString("Chờ 1")))
                 .andExpect(content().string(containsString("badge-wait")))
                 .andExpect(content().string(containsString("/admin/recruitment/3")))
                 .andExpect(content().string(not(containsString("name=\"password\""))))
@@ -153,29 +157,51 @@ class AdminPagesRenderTest {
     void recruitmentDetailOffersApproveAndRejectWithoutPassword() throws Exception {
         when(recruitmentRequestService.getForAdmin(any(), eq(3))).thenReturn(RecruitmentRequestResponse.builder()
                 .id(3)
-                .fullName("Nguyễn Văn B")
-                .email("b@store.vn")
-                .phone("0901234567")
+                .title("Tuyển barista")
                 .storeName("Store A")
                 .managerName("Manager A")
-                .status(RecruitmentStatus.PENDING)
-                .statusLabel("Chờ duyệt")
+                .status(RecruitmentProposalStatus.PARTIALLY_PROCESSED)
+                .statusLabel("Đang xử lý")
+                .totalCandidates(2)
+                .pendingCount(1)
+                .approvedCount(1)
                 .createdAt(LocalDateTime.of(2026, 10, 4, 8, 0))
+                .candidates(List.of(
+                        RecruitmentCandidateResponse.builder()
+                                .id(9)
+                                .fullName("Nguyễn Văn B")
+                                .email("b@store.vn")
+                                .phone("0901234567")
+                                .status(RecruitmentStatus.PENDING)
+                                .statusLabel("Chờ duyệt")
+                                .build(),
+                        RecruitmentCandidateResponse.builder()
+                                .id(10)
+                                .fullName("Đã duyệt rồi")
+                                .email("done@store.vn")
+                                .phone("0900000000")
+                                .status(RecruitmentStatus.APPROVED)
+                                .statusLabel("Đã duyệt")
+                                .build()))
                 .build());
 
         mockMvc.perform(get("/admin/recruitment/3").with(user(admin())))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("/admin/recruitment/3/approve")))
-                .andExpect(content().string(containsString("/admin/recruitment/3/reject")))
+                .andExpect(content().string(containsString("Nguyễn Văn B")))
+                .andExpect(content().string(containsString("b@store.vn")))
+                .andExpect(content().string(containsString("/admin/recruitment/3/candidates/9/approve")))
+                .andExpect(content().string(containsString("/admin/recruitment/3/candidates/9/reject")))
+                .andExpect(content().string(not(containsString("/admin/recruitment/3/candidates/10/approve"))))
+                .andExpect(content().string(not(containsString("/admin/recruitment/3/candidates/10/reject"))))
                 .andExpect(content().string(containsString("name=\"rejectReason\"")))
                 .andExpect(content().string(not(containsString("name=\"password\""))));
     }
 
     @Test
     void managerCannotApproveRecruitment() throws Exception {
-        mockMvc.perform(post("/admin/recruitment/3/approve").with(user(manager())).with(csrf()))
+        mockMvc.perform(post("/admin/recruitment/3/candidates/9/approve").with(user(manager())).with(csrf()))
                 .andExpect(redirectedUrl("/dashboard/manager"));
-        verify(recruitmentRequestService, never()).approve(any(), any());
+        verify(recruitmentRequestService, never()).approveCandidate(any(), any(), any());
     }
 
     private StoreResponse storeResponse() {

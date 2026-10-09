@@ -16,6 +16,14 @@ public interface EmployeeRepository extends JpaRepository<Employee, Integer> {
 
     boolean existsByEmailIgnoreCase(String email);
 
+    @Query(value = """
+            SELECT COUNT(*)
+            FROM dbo.Employees
+            WHERE Phone IS NOT NULL
+              AND REPLACE(REPLACE(REPLACE(Phone, ' ', ''), '-', ''), '.', '') = :phone
+            """, nativeQuery = true)
+    int countByNormalizedPhone(@Param("phone") String phone);
+
     List<Employee> findByStore_IdAndStatus(Integer storeId, EmployeeStatus status);
 
     @Query("""

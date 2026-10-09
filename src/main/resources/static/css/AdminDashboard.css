@@ -106,7 +106,82 @@ th{color:var(--ink-soft);font-weight:500;}
 .stack-form input:focus,.stack-form textarea:focus,.stack-form select:focus{outline:none;border-color:var(--caramel);}
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
 .field-error{font-size:12px;color:var(--clay);}
+.req{color:var(--clay);font-weight:600;}
+.stack-form .choice-row{display:flex;flex-wrap:wrap;gap:10px 18px;}
+.stack-form .choice-row label{display:flex;align-items:center;gap:6px;width:auto;font-size:14px;color:var(--espresso);}
+.stack-form .choice-row input{width:auto;padding:0;}
+.status-pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
+.status-pills a{text-decoration:none;}
 .form-actions{display:flex;gap:10px;align-items:center;margin-top:4px;}
+.ghost-btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  border:1px solid var(--line);background:#fff;color:var(--espresso);
+  padding:9px 16px;border-radius:6px;font-size:14px;
+}
+.ghost-btn:hover{background:var(--paper-dim);}
+
+.recruit-page .welcome h1{font-size:30px;}
+.recruit-page .welcome p{font-size:14px;}
+.recruit-card{
+  max-width:960px;margin-top:20px;padding:18px 20px 16px;
+  border-radius:12px;box-shadow:0 10px 28px rgba(43,27,18,.05);
+}
+.recruit-card h2{font-size:18px;margin:8px 0 0;}
+.candidate-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;}
+.candidate-board{display:grid;gap:10px;}
+.candidate-card{
+  display:grid;grid-template-columns:1fr auto;gap:8px 16px;align-items:center;
+  border:1px solid var(--line);border-radius:10px;background:#fff;padding:12px 14px;
+}
+.candidate-card.is-editing{border-color:var(--caramel);background:var(--cream);}
+.candidate-card h3{margin:0;font-size:15px;font-weight:600;}
+.candidate-meta{margin:4px 0 0;color:var(--ink-soft);font-size:13px;}
+.candidate-actions{display:flex;gap:8px;}
+.entry-panel{
+  border:1px dashed var(--line);border-radius:12px;background:var(--cream);padding:14px;
+  display:grid;gap:12px;
+}
+.entry-panel h2{margin:0;}
+.recruit-form .draft-error,
+.recruit-form .draft-error p{margin:0;color:var(--clay);font-size:13px;}
+.recruit-counts{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 18px;}
+.recruit-summary{max-width:720px;}
+.table-scroll{overflow-x:auto;margin-top:12px;}
+.nowrap{white-space:nowrap;}
+.candidate-decide{display:grid;gap:8px;min-width:190px;}
+.candidate-decide textarea{
+  width:100%;min-height:52px;font:inherit;color:var(--espresso);
+  border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;
+}
+.badge-partial{background:#E7EEF8;color:#2C4A73;}
+.recruit-empty{margin:0;}
+.recruit-form{gap:12px;margin-top:0;}
+.recruit-store{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  background:var(--cream);border:1px solid var(--line);border-radius:8px;
+  padding:8px 12px;font-size:13px;color:var(--ink-soft);
+}
+.recruit-store strong{color:var(--espresso);font-weight:600;font-size:14px;}
+.recruit-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;}
+.recruit-form input,.recruit-form textarea{background:var(--paper);padding:8px 11px;}
+.recruit-form input:focus,.recruit-form textarea:focus{background:#fff;}
+.recruit-form textarea{resize:vertical;min-height:64px;}
+.gender-field{border:0;margin:0;padding:0;min-width:0;}
+.gender-field legend{font-size:13px;color:var(--ink-soft);padding:0;margin-bottom:6px;}
+.gender-pills{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:240px;}
+.recruit-form .gender-pills label{display:block;position:relative;margin:0;}
+.recruit-form .gender-pills input{
+  position:absolute;opacity:0;width:1px;height:1px;padding:0;margin:0;pointer-events:none;
+}
+.gender-pills span{
+  display:block;text-align:center;border:1px solid var(--line);border-radius:8px;
+  background:#fff;color:var(--espresso);padding:8px 12px;font-size:14px;cursor:pointer;
+}
+.gender-pills label:hover span{border-color:var(--caramel);}
+.gender-pills input:checked + span{
+  background:var(--caramel);border-color:var(--caramel);color:#fff;font-weight:600;
+}
+.gender-pills input:focus-visible + span{outline:2px solid var(--caramel);outline-offset:2px;}
 .filter-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;align-items:end;margin-top:16px;}
 .filter-grid label{display:grid;gap:6px;font-size:13px;color:var(--ink-soft);}
 .filter-grid input,.filter-grid select{
@@ -129,5 +204,7 @@ td form{margin:0;}
 @media (max-width:900px){
   .wrap,.dash-nav .wrap,.dash-main{padding-left:22px;padding-right:22px;}
   .dash-nav nav{display:none;}
-  .stat-grid,.action-grid,.split,.two-col,.filter-grid{grid-template-columns:1fr;}
+  .stat-grid,.action-grid,.split,.two-col,.filter-grid,.recruit-grid{grid-template-columns:1fr;}
+  .gender-pills{max-width:none;}
+  .candidate-card{grid-template-columns:1fr;}
 }

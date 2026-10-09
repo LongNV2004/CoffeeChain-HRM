@@ -1,5 +1,6 @@
 package com.example.coffee_hrm.controller;
 
+import com.example.coffee_hrm.common.enums.AvailabilityDuration;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.dto.request.SubmitWorkAvailabilityRequest;
 import com.example.coffee_hrm.dto.response.WeeklyAvailabilityView;
@@ -36,6 +37,20 @@ public class StaffAvailabilityController {
         return "staff/StaffAvailability";
     }
 
+    @PostMapping("/preview")
+    public String previewAvailability(@ModelAttribute("availabilityForm") SubmitWorkAvailabilityRequest availabilityForm,
+                                      @AuthenticationPrincipal AuthenticatedUser user,
+                                      Model model) {
+        populatePage(user, model);
+        model.addAttribute("availabilityForm", availabilityForm);
+        try {
+            model.addAttribute("availabilityPreview", staffAvailabilityService.previewRegistration(availabilityForm, user));
+        } catch (BusinessException ex) {
+            model.addAttribute("availabilityError", ex.getMessage());
+        }
+        return "staff/StaffAvailability";
+    }
+
     @PostMapping
     public String submitAvailability(@ModelAttribute("availabilityForm") SubmitWorkAvailabilityRequest availabilityForm,
                                      @AuthenticationPrincipal AuthenticatedUser user,
@@ -44,7 +59,9 @@ public class StaffAvailabilityController {
         try {
             int count = staffAvailabilityService.submitNextWeekAvailability(availabilityForm, user);
             redirectAttributes.addFlashAttribute("successMessage",
-                    "Đã gửi " + count + " đề xuất lịch rảnh cho tuần kế tiếp. Manager cửa hàng đã được thông báo.");
+                    "Đã gửi đăng ký " + count
+                            + " slot lịch làm việc định kỳ. Manager cửa hàng đã được thông báo. "
+                            + "Đăng ký đang chờ bị trùng sẽ được thay; lịch đã duyệt không bị đổi.");
             return "redirect:/availability";
         } catch (BusinessException ex) {
             populatePage(user, model);
@@ -57,14 +74,16 @@ public class StaffAvailabilityController {
     private void populatePage(AuthenticatedUser user, Model model) {
         model.addAttribute("displayName", user.getDisplayName());
         model.addAttribute("storeName", user.getStoreName());
+        model.addAttribute("durationOptions", AvailabilityDuration.values());
         try {
-            model.addAttribute("availabilityGrid", staffAvailabilityService.getNextWeekAvailabilityGrid(user));
-            model.addAttribute("availabilities", staffAvailabilityService.listMyNextWeekAvailabilities(user));
+            WeeklyAvailabilityView grid = staffAvailabilityService.getNextWeekAvailabilityGrid(user);
+            model.addAttribute("availabilityGrid", grid);
+            model.addAttribute("registrations", grid.getRegistrations() != null ? grid.getRegistrations() : List.of());
             model.addAttribute("registrationBlockMessage", staffAvailabilityService.registrationBlockedMessage(user));
             model.addAttribute("pageError", null);
         } catch (BusinessException ex) {
             model.addAttribute("availabilityGrid", null);
-            model.addAttribute("availabilities", List.of());
+            model.addAttribute("registrations", List.of());
             model.addAttribute("registrationBlockMessage", null);
             model.addAttribute("pageError", ex.getMessage());
         }

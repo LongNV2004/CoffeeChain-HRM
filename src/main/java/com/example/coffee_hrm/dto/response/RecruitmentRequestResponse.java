@@ -1,12 +1,14 @@
 package com.example.coffee_hrm.dto.response;
 
-import com.example.coffee_hrm.common.enums.RecruitmentStatus;
+import com.example.coffee_hrm.common.enums.RecruitmentProposalStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Getter
 @NoArgsConstructor
@@ -15,18 +17,19 @@ import java.time.LocalDateTime;
 public class RecruitmentRequestResponse {
 
     private Integer id;
+    private String title;
+    private String note;
     private Integer storeId;
     private String storeName;
     private Integer managerId;
     private String managerName;
-    private String fullName;
-    private String email;
-    private String phone;
-    private String address;
-    private RecruitmentStatus status;
+    private RecruitmentProposalStatus status;
     private String statusLabel;
-    private String rejectReason;
     private LocalDateTime createdAt;
-    private LocalDateTime reviewedAt;
-    private Integer createdEmployeeId;
+    private int totalCandidates;
+    private int pendingCount;
+    private int approvedCount;
+    private int rejectedCount;
+    @Builder.Default
+    private List<RecruitmentCandidateResponse> candidates = new ArrayList<>();
 }

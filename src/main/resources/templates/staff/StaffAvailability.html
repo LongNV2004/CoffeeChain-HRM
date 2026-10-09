@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Đăng ký lịch rảnh — CoffeeHRM</title>
+    <title>Đăng kí lịch làm việc — CoffeeHRM</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/StaffDashboard.css}">
@@ -15,7 +15,7 @@
 <main class="wrap dash-main">
     <section class="welcome">
         <div class="eyebrow">Cá nhân — Staff</div>
-        <h1>Đăng ký lịch rảnh</h1>
+        <h1>Đăng kí lịch làm việc</h1>
         <p>
             <span th:text="${displayName}">Staff</span>
             <span th:if="${storeName}"> · <span th:text="${storeName}">Store</span></span>
@@ -27,19 +27,17 @@
     <p class="flash error" th:if="${pageError}" th:text="${pageError}">Error</p>
 
     <section class="panel" th:if="${availabilityGrid != null}">
-        <h2>Tuần làm việc kế tiếp</h2>
+        <h2>Khung giờ lặp theo tuần</h2>
         <p class="flash error" th:if="${registrationBlockMessage}" th:text="${registrationBlockMessage}">
             Bạn chưa có chứng chỉ nên không thể đăng ký ca làm việc.
         </p>
         <p th:if="${registrationBlockMessage == null}">
-            Tick các ô ngày/ca bạn có thể làm tại cửa hàng hiện tại.
-            Chỉ áp dụng cho <strong th:text="${availabilityGrid.formattedWeekRange}">tuần kế tiếp</strong>.
-            Không đăng ký tuần hiện tại hoặc tuần đã qua.
+            Chọn các thứ và ca bạn có thể làm. Lịch bắt đầu từ thứ Hai tuần kế tiếp theo giờ Việt Nam
+            và lặp lại đúng những thứ đã chọn cho đến hết thời hạn.
+            Không áp dụng trước ngày bắt đầu hoặc sau ngày kết thúc.
         </p>
         <p th:if="${registrationBlockMessage != null}">
-            Bạn vẫn xem được các ngày/ca của
-            <strong th:text="${availabilityGrid.formattedWeekRange}">tuần kế tiếp</strong>,
-            nhưng chưa thể chọn hay gửi lịch rảnh.
+            Bạn vẫn xem được các ca của cửa hàng, nhưng chưa thể gửi đăng ký.
         </p>
         <p class="muted" th:if="${#lists.isEmpty(availabilityGrid.shiftRows)}">
             Cửa hàng chưa có ca làm việc. Liên hệ Manager để tạo ca trước.
@@ -51,6 +49,16 @@
                th:if="${availabilityError != null and availabilityError != registrationBlockMessage}"
                th:text="${availabilityError}">Error</p>
 
+            <label class="duration-field">
+                Thời hạn áp dụng
+                <select th:field="*{durationCode}" th:disabled="${registrationBlockMessage != null}">
+                    <option value="">-- Chọn thời hạn --</option>
+                    <option th:each="opt : ${durationOptions}"
+                            th:value="${opt.code}"
+                            th:text="${opt.label}">1 tuần</option>
+                </select>
+            </label>
+
             <div class="availability-grid-wrap">
                 <table class="availability-grid">
                     <thead>
@@ -58,7 +66,7 @@
                         <th class="shift-col">Ca làm việc</th>
                         <th th:each="day : ${availabilityGrid.days}">
                             <div class="day-name" th:text="${day.dayOfWeekName}">Thứ 2</div>
-                            <div class="day-date" th:text="${day.formattedDate}">01/01</div>
+                            <div class="day-date" th:text="${day.formattedDate}">Mỗi tuần</div>
                         </th>
                     </tr>
                     </thead>
@@ -76,7 +84,7 @@
                                        th:disabled="${registrationBlockMessage != null}">
                                 <span class="slot-box" aria-hidden="true"></span>
                                 <span class="sr-only"
-                                      th:text="'Chọn ' + ${row.shiftName} + ' ngày ' + ${#temporals.format(cell.date, 'dd/MM/yyyy')}">
+                                      th:text="'Chọn ' + ${row.shiftName} + ' ' + ${cell.dayOfWeekName}">
                                     Chọn ca
                                 </span>
                             </label>
@@ -87,33 +95,73 @@
             </div>
 
             <div class="form-actions" th:if="${registrationBlockMessage == null}">
-                <button class="primary-btn" type="submit">Submit Availability</button>
-                <p class="muted">Sau khi gửi, Manager duyệt từng đề xuất. Đề xuất được duyệt sẽ tự vào lịch làm việc tuần kế tiếp. Gửi lại sẽ thay toàn bộ đề xuất của tuần này và đưa về trạng thái chờ duyệt.</p>
+                <div class="action-row">
+                    <button class="secondary-btn" type="submit" th:formaction="@{/availability/preview}">Xem trước</button>
+                    <button class="primary-btn" type="submit">Gửi đăng ký</button>
+                </div>
+                <p class="muted">
+                    Gửi đăng ký để Manager phê duyệt. Chỉ lịch đã duyệt mới được dùng khi phân ca.
+                    Đăng ký không tạo ca làm việc và không ghi đè ca đã phân.
+                    Nếu trùng đăng ký đang chờ, bản chờ đó được thay. Lịch đã duyệt không bị đổi âm thầm.
+                </p>
             </div>
         </form>
     </section>
 
-    <section class="panel">
-        <h2>Đề xuất đã gửi (tuần kế tiếp)</h2>
-        <p class="empty" th:if="${#lists.isEmpty(availabilities)}">Chưa có đề xuất nào cho tuần kế tiếp.</p>
-        <table th:if="${!#lists.isEmpty(availabilities)}">
+    <section class="panel" th:if="${availabilityPreview != null}">
+        <h2>Xem trước lịch định kỳ</h2>
+        <p>
+            <strong th:text="${availabilityPreview.durationLabel}">1 tháng</strong>
+            · Hiệu lực
+            <strong th:text="${availabilityPreview.formattedPeriod}">12/10/2026 – 11/11/2026</strong>
+            ·
+            <span th:text="${availabilityPreview.occurrenceCount}">0</span> ngày áp dụng
+        </p>
+        <p class="muted" th:if="${availabilityPreview.replacementNote != null}" th:text="${availabilityPreview.replacementNote}">
+            Sẽ thay đăng ký đang chờ.
+        </p>
+        <table class="preview-table">
             <thead>
             <tr>
-                <th>Ngày</th>
-                <th>Ca</th>
-                <th>Giờ</th>
+                <th>Tuần</th>
+                <th>Ngày được áp dụng</th>
+                <th>Ghi chú</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="week : ${availabilityPreview.weeks}">
+                <td th:text="${week.formattedRange}">12/10/2026 – 18/10/2026</td>
+                <td>
+                    <span th:if="${#lists.isEmpty(week.includedSlots)}">—</span>
+                    <span th:each="slot, iter : ${week.includedSlots}">
+                        <span th:text="${slot}">Thứ 2 12/10 · Ca sáng</span><span th:if="${!iter.last}"><br></span>
+                    </span>
+                </td>
+                <td th:text="${week.note}">Tuần giao tháng</td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section class="panel">
+        <h2>Đăng ký của tôi</h2>
+        <p class="empty" th:if="${#lists.isEmpty(registrations)}">Chưa có đăng ký còn hiệu lực hoặc đang chờ duyệt.</p>
+        <table th:if="${!#lists.isEmpty(registrations)}">
+            <thead>
+            <tr>
+                <th>Thời hạn</th>
+                <th>Hiệu lực</th>
+                <th>Slot đã chọn</th>
+                <th>Lịch dự kiến</th>
                 <th>Trạng thái</th>
             </tr>
             </thead>
             <tbody>
-            <tr th:each="item : ${availabilities}">
-                <td th:text="${#temporals.format(item.workDate, 'dd/MM/yyyy')}">01/01/2026</td>
-                <td th:text="${item.shiftName}">Ca sáng</td>
-                <td>
-                    <span th:text="${#temporals.format(item.shiftStartTime, 'HH:mm')}">08:00</span>
-                    –
-                    <span th:text="${#temporals.format(item.shiftEndTime, 'HH:mm')}">12:00</span>
-                </td>
+            <tr th:each="item : ${registrations}">
+                <td th:text="${item.durationLabel}">1 tháng</td>
+                <td th:text="${item.formattedPeriod}">12/10/2026 – 11/11/2026</td>
+                <td th:text="${item.slotsByDay}">Thứ 2: Ca sáng</td>
+                <td th:text="${item.projectionSummary}">26 ngày</td>
                 <td>
                     <span class="status-badge" th:classappend="${item.statusKey}" th:text="${item.statusLabel}">Chờ duyệt</span>
                 </td>

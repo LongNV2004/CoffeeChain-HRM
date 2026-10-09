@@ -68,6 +68,22 @@
   position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;
 }
 .form-actions{display:grid;gap:8px;margin-top:18px;}
+.action-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.secondary-btn{
+  border:1px solid var(--line);background:#fff;color:var(--espresso);
+  padding:9px 16px;border-radius:6px;cursor:pointer;font:inherit;
+}
+.secondary-btn:hover{border-color:var(--caramel);color:var(--caramel-dark);}
+.duration-field{display:grid;gap:6px;max-width:280px;margin-top:12px;font-size:13px;color:var(--ink-soft);}
+.duration-field select{
+  font:inherit;color:var(--espresso);border:1px solid var(--line);background:#fff;
+  padding:8px 10px;border-radius:6px;
+}
+.preview-table{width:100%;border-collapse:collapse;margin-top:12px;}
+.preview-table th,.preview-table td{
+  border-bottom:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top;font-size:13px;
+}
+.preview-table th{background:var(--paper-dim);}
 .proposal-cell{text-align:left;vertical-align:top;}
 .empty-slot{margin:0;color:var(--ink-soft);text-align:center;}
 .proposal-list{list-style:none;margin:0;padding:0;display:grid;gap:4px;}

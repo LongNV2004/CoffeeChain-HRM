@@ -8,6 +8,7 @@ import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.AssignShiftRequest;
 import com.example.coffee_hrm.dto.request.CreateShiftChangeRequestDto;
+import com.example.coffee_hrm.dto.response.WeeklyScheduleView;
 import com.example.coffee_hrm.entity.*;
 import com.example.coffee_hrm.repository.*;
 import com.example.coffee_hrm.security.AuthenticatedUser;
@@ -43,6 +44,8 @@ class ScheduleServiceImplTest {
     private EmployeeRepository employeeRepository;
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private WorkAvailabilityRepository workAvailabilityRepository;
 
     @InjectMocks
     private ScheduleServiceImpl scheduleService;
@@ -396,6 +399,70 @@ class ScheduleServiceImplTest {
         sa.prePersist();
         assertTrue(sa.getIsPublished());
         assertNotNull(sa.getPublishedAt());
+    }
+
+    @Test
+    void weeklyScheduleAppliesApprovedRegistrationAsShift() {
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        when(shiftRepository.findByStore_IdOrderByStartTimeAsc(1)).thenReturn(List.of(shiftMorning));
+        LocalDate monday = LocalDate.of(2026, 10, 12);
+        WorkAvailability covering = WorkAvailability.builder()
+                .id(1)
+                .employee(empTuan)
+                .shift(shiftMorning)
+                .dayOfWeek(1)
+                .validFrom(monday)
+                .validTo(LocalDate.of(2026, 11, 11))
+                .status(ApprovalStatus.APPROVED)
+                .build();
+        WorkAvailability notYetStarted = WorkAvailability.builder()
+                .id(2)
+                .employee(empThu)
+                .shift(shiftMorning)
+                .dayOfWeek(1)
+                .validFrom(LocalDate.of(2026, 11, 16))
+                .validTo(LocalDate.of(2026, 12, 16))
+                .status(ApprovalStatus.APPROVED)
+                .build();
+        when(workAvailabilityRepository.findApprovedCovering(eq(1), eq(monday), eq(monday.plusDays(6)), eq(ApprovalStatus.APPROVED)))
+                .thenReturn(List.of(covering, notYetStarted));
+
+        WeeklyScheduleView view = scheduleService.getWeeklyScheduleForManager(managerUser, LocalDate.of(2026, 10, 14));
+
+        WeeklyScheduleView.AssignmentItem mondayShift = view.getShiftRows().getFirst().getDayCells().getFirst().getAssignments().getFirst();
+        assertEquals("Trần Văn Tuấn", mondayShift.getEmployeeName());
+        assertTrue(mondayShift.isAppliedFromRegistration());
+        assertFalse(mondayShift.isCanCancel());
+        assertNull(view.getShiftRows().getFirst().getDayCells().getFirst().getAvailableEmployeesLabel());
+        assertTrue(view.getShiftRows().getFirst().getDayCells().get(1).getAssignments().isEmpty());
+        verify(shiftAssignmentRepository, never()).save(any());
+    }
+
+    @Test
+    void staffScheduleShowsApprovedRegistrationInFutureWeek() {
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(empTuan));
+        when(shiftRepository.findByStore_IdOrderByStartTimeAsc(1)).thenReturn(List.of(shiftMorning));
+        LocalDate monday = LocalDate.of(2026, 10, 12);
+        WorkAvailability covering = WorkAvailability.builder()
+                .id(1)
+                .employee(empTuan)
+                .shift(shiftMorning)
+                .dayOfWeek(1)
+                .validFrom(monday)
+                .validTo(LocalDate.of(2026, 11, 11))
+                .status(ApprovalStatus.APPROVED)
+                .build();
+        when(workAvailabilityRepository.findApprovedCovering(eq(1), eq(monday), eq(monday.plusDays(6)), eq(ApprovalStatus.APPROVED)))
+                .thenReturn(List.of(covering));
+
+        WeeklyScheduleView view = scheduleService.getWeeklyScheduleForStaff(staffUser, LocalDate.of(2026, 10, 14));
+
+        WeeklyScheduleView.AssignmentItem mondayShift = view.getShiftRows().getFirst().getDayCells().getFirst().getAssignments().getFirst();
+        assertEquals("Trần Văn Tuấn", mondayShift.getEmployeeName());
+        assertTrue(mondayShift.isCurrentStaff());
+        assertTrue(mondayShift.isAppliedFromRegistration());
+        assertFalse(mondayShift.isCanRequestChange());
+        assertTrue(view.getShiftRows().getFirst().getDayCells().get(1).getAssignments().isEmpty());
     }
 
     private User buildUser(Integer id, String username, RoleName roleName, Employee employee) {

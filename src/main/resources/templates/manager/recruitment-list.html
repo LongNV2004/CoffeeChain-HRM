@@ -14,7 +14,7 @@
     <section class="welcome">
         <div class="eyebrow">Cửa hàng — Manager</div>
         <h1>Đề xuất tuyển nhân sự</h1>
-        <p>Gửi thông tin nhân viên mới để Admin duyệt. Tài khoản chỉ được tạo sau khi Admin chấp thuận.</p>
+        <p>Theo dõi trạng thái các đề xuất đã gửi. Tài khoản chỉ được tạo khi Admin duyệt từng nhân viên.</p>
     </section>
 
     <p class="flash success" th:if="${successMessage}" th:text="${successMessage}"></p>
@@ -24,41 +24,60 @@
         <div class="panel-head">
             <div>
                 <h2>Đề xuất của bạn</h2>
-                <p>Chỉ hiển thị các yêu cầu do bạn tạo.</p>
+                <p>Chỉ hiển thị các yêu cầu do bạn tạo. Chọn trạng thái tổng quan để lọc.</p>
+                <div class="status-pills">
+                    <a class="badge" th:href="@{/manager/recruitment}"
+                       th:classappend="${selectedStatus == null} ? ' badge-manager'">Tất cả</a>
+                    <a class="badge badge-wait" th:href="@{/manager/recruitment(status='PENDING')}"
+                       th:classappend="${selectedStatus != null and selectedStatus.name() == 'PENDING'} ? ' badge-manager'">
+                        Chờ duyệt (<span th:text="${pendingCount}">0</span>)
+                    </a>
+                    <a class="badge badge-partial" th:href="@{/manager/recruitment(status='PARTIALLY_PROCESSED')}"
+                       th:classappend="${selectedStatus != null and selectedStatus.name() == 'PARTIALLY_PROCESSED'} ? ' badge-manager'">
+                        Đang xử lý (<span th:text="${partialCount}">0</span>)
+                    </a>
+                    <a class="badge badge-ok" th:href="@{/manager/recruitment(status='COMPLETED')}"
+                       th:classappend="${selectedStatus != null and selectedStatus.name() == 'COMPLETED'} ? ' badge-manager'">
+                        Đã xử lý (<span th:text="${completedCount}">0</span>)
+                    </a>
+                </div>
             </div>
             <a class="primary-btn" th:href="@{/manager/recruitment/create}">Tạo đề xuất</a>
         </div>
-        <table>
-            <thead>
-            <tr>
-                <th>Nhân viên</th>
-                <th>Email</th>
-                <th>Điện thoại</th>
-                <th>Cửa hàng</th>
-                <th>Trạng thái</th>
-                <th>Ngày gửi</th>
-                <th></th>
-            </tr>
-            </thead>
-            <tbody>
-            <tr th:if="${#lists.isEmpty(requests)}">
-                <td colspan="7" class="empty">Bạn chưa gửi đề xuất tuyển nhân sự.</td>
-            </tr>
-            <tr th:each="request : ${requests}">
-                <td th:text="${request.fullName}">Nguyễn Văn A</td>
-                <td th:text="${request.email}">a@shop.vn</td>
-                <td th:text="${request.phone}">0901234567</td>
-                <td th:text="${request.storeName}">Store</td>
-                <td>
-                    <span class="badge"
-                          th:classappend="${request.status.name() == 'APPROVED'} ? ' badge-ok' : (${request.status.name() == 'REJECTED'} ? ' badge-off' : ' badge-wait')"
-                          th:text="${request.statusLabel}">Chờ duyệt</span>
-                </td>
-                <td th:text="${request.createdAt != null} ? ${#temporals.format(request.createdAt, 'dd/MM/yyyy HH:mm')} : ''">01/01/2026</td>
-                <td><a class="row-link" th:href="@{/manager/recruitment/{id}(id=${request.id})}">Chi tiết</a></td>
-            </tr>
-            </tbody>
-        </table>
+        <div class="table-scroll">
+            <table>
+                <thead>
+                <tr>
+                    <th>Tên đề xuất</th>
+                    <th>Cửa hàng</th>
+                    <th>Nhân viên</th>
+                    <th>Trạng thái</th>
+                    <th>Ngày gửi</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:if="${#lists.isEmpty(requests)}">
+                    <td colspan="6" class="empty" th:text="${selectedStatus == null} ? 'Bạn chưa gửi đề xuất tuyển nhân sự.' : 'Không có đề xuất ở trạng thái này.'">Bạn chưa gửi đề xuất tuyển nhân sự.</td>
+                </tr>
+                <tr th:each="request : ${requests}">
+                    <td th:text="${request.title}">Tuyển barista</td>
+                    <td th:text="${request.storeName}">Store</td>
+                    <td>
+                        <strong th:text="${request.totalCandidates}">0</strong>
+                        <div class="muted" th:text="'Chờ ' + ${request.pendingCount} + ' · Duyệt ' + ${request.approvedCount} + ' · Từ chối ' + ${request.rejectedCount}">Chờ 0</div>
+                    </td>
+                    <td>
+                        <span class="badge"
+                              th:classappend="${request.status.name() == 'COMPLETED'} ? ' badge-ok' : (${request.status.name() == 'PARTIALLY_PROCESSED'} ? ' badge-partial' : ' badge-wait')"
+                              th:text="${request.statusLabel}">Chờ duyệt</span>
+                    </td>
+                    <td th:text="${request.createdAt != null} ? ${#temporals.format(request.createdAt, 'dd/MM/yyyy HH:mm')} : ''">01/01/2026</td>
+                    <td><a class="row-link" th:href="@{/manager/recruitment/{id}(id=${request.id})}">Chi tiết</a></td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
     </section>
 </main>
 </body>

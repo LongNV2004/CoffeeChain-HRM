@@ -14,7 +14,7 @@
     <section class="welcome">
         <div class="eyebrow">Trụ sở — Admin</div>
         <h1>Đề xuất tuyển nhân sự</h1>
-        <p>Duyệt để tạo tài khoản Staff và gửi mật khẩu tạm thời qua email, hoặc từ chối đề xuất.</p>
+        <p>Mỗi đề xuất có thể gồm nhiều nhân viên. Mở chi tiết để duyệt hoặc từ chối từng người.</p>
     </section>
 
     <p class="flash success" th:if="${successMessage}" th:text="${successMessage}"></p>
@@ -44,7 +44,7 @@
                 </select>
             </label>
             <label>
-                Trạng thái
+                Trạng thái đề xuất
                 <select name="status">
                     <option value="">Tất cả trạng thái</option>
                     <option th:each="item : ${statuses}"
@@ -67,39 +67,42 @@
             </div>
         </form>
 
-        <table>
-            <thead>
-            <tr>
-                <th>Nhân viên</th>
-                <th>Email</th>
-                <th>Điện thoại</th>
-                <th>Cửa hàng</th>
-                <th>Manager</th>
-                <th>Trạng thái</th>
-                <th>Ngày gửi</th>
-                <th></th>
-            </tr>
-            </thead>
-            <tbody>
-            <tr th:if="${#lists.isEmpty(requests)}">
-                <td colspan="8" class="empty">Chưa có đề xuất tuyển nhân sự.</td>
-            </tr>
-            <tr th:each="request : ${requests}">
-                <td th:text="${request.fullName}">Nguyễn Văn A</td>
-                <td th:text="${request.email}">a@shop.vn</td>
-                <td th:text="${request.phone}">0901234567</td>
-                <td th:text="${request.storeName}">Store</td>
-                <td th:text="${request.managerName}">Manager</td>
-                <td>
-                    <span class="badge"
-                          th:classappend="${request.status.name() == 'APPROVED'} ? ' badge-ok' : (${request.status.name() == 'REJECTED'} ? ' badge-off' : ' badge-wait')"
-                          th:text="${request.statusLabel}">Chờ duyệt</span>
-                </td>
-                <td th:text="${request.createdAt != null} ? ${#temporals.format(request.createdAt, 'dd/MM/yyyy HH:mm')} : ''">01/01/2026</td>
-                <td><a class="row-link" th:href="@{/admin/recruitment/{id}(id=${request.id})}">Chi tiết</a></td>
-            </tr>
-            </tbody>
-        </table>
+        <div class="table-scroll">
+            <table>
+                <thead>
+                <tr>
+                    <th>Tên đề xuất</th>
+                    <th>Manager</th>
+                    <th>Cơ sở</th>
+                    <th>Ngày gửi</th>
+                    <th>Nhân viên</th>
+                    <th>Trạng thái</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:if="${#lists.isEmpty(requests)}">
+                    <td colspan="7" class="empty">Chưa có đề xuất tuyển nhân sự.</td>
+                </tr>
+                <tr th:each="request : ${requests}">
+                    <td th:text="${request.title}">Tuyển barista</td>
+                    <td th:text="${request.managerName}">Manager</td>
+                    <td th:text="${request.storeName}">Store</td>
+                    <td th:text="${request.createdAt != null} ? ${#temporals.format(request.createdAt, 'dd/MM/yyyy HH:mm')} : ''">01/01/2026</td>
+                    <td>
+                        <strong th:text="${request.totalCandidates}">0</strong>
+                        <div class="muted" th:text="'Chờ ' + ${request.pendingCount} + ' · Duyệt ' + ${request.approvedCount} + ' · Từ chối ' + ${request.rejectedCount}">Chờ 0</div>
+                    </td>
+                    <td>
+                        <span class="badge"
+                              th:classappend="${request.status.name() == 'COMPLETED'} ? ' badge-ok' : (${request.status.name() == 'PARTIALLY_PROCESSED'} ? ' badge-partial' : ' badge-wait')"
+                              th:text="${request.statusLabel}">Chờ duyệt</span>
+                    </td>
+                    <td><a class="row-link" th:href="@{/admin/recruitment/{id}(id=${request.id})}">Chi tiết</a></td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
     </section>
 </main>
 </body>

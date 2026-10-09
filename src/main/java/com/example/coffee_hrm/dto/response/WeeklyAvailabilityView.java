@@ -22,10 +22,15 @@ public class WeeklyAvailabilityView {
     private LocalDate weekStartDate;
     private LocalDate weekEndDate;
     private int selectedCount;
+    private boolean patternMode;
     private List<DayHeader> days;
     private List<ShiftRow> shiftRows;
+    private List<RegistrationGroup> registrations;
 
     public String getFormattedWeekRange() {
+        if (patternMode) {
+            return "Lặp theo thứ trong tuần, trong thời hạn của từng đăng ký";
+        }
         if (weekStartDate == null || weekEndDate == null) {
             return "";
         }
@@ -68,6 +73,7 @@ public class WeeklyAvailabilityView {
         private LocalDate date;
         private Integer shiftId;
         private String slotKey;
+        private String dayOfWeekName;
         private boolean selected;
         private List<StaffProposal> proposals;
     }
@@ -81,6 +87,28 @@ public class WeeklyAvailabilityView {
         private Integer availabilityId;
         private Integer employeeId;
         private String employeeName;
+        private String statusKey;
+        private String statusLabel;
+        private boolean pending;
+        private String detail;
+        private String certificationLabel;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class RegistrationGroup {
+        private String registrationKey;
+        private Integer availabilityId;
+        private Integer employeeId;
+        private String employeeName;
+        private String certificationLabel;
+        private String durationLabel;
+        private String formattedPeriod;
+        private String slotsByDay;
+        private String projectionSummary;
         private String statusKey;
         private String statusLabel;
         private boolean pending;
