@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lịch rảnh nhân viên — CoffeeHRM</title>
+    <title>Đăng kí lịch làm việc — CoffeeHRM</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/ManagerDashboard.css}">
@@ -15,7 +15,7 @@
 <main class="wrap dash-main">
     <section class="welcome">
         <div class="eyebrow">Cửa hàng — Manager</div>
-        <h1>Đề xuất lịch rảnh của STAFF</h1>
+        <h1>Đăng kí lịch làm việc của nhân viên</h1>
         <p th:if="${displayName}" th:text="${displayName}">Manager</p>
     </section>
 
@@ -27,13 +27,13 @@
         <div class="panel-head">
             <div>
                 <h2 th:text="${availabilityGrid.storeName}">Store</h2>
-                <p th:text="${availabilityGrid.formattedWeekRange}">Tuần kế tiếp</p>
+                <p th:text="${availabilityGrid.formattedWeekRange}">Lặp theo thứ</p>
             </div>
             <div class="bulk-actions">
                 <form th:action="@{/availability/manager/approve-all}" method="post">
                     <button class="bulk-btn approve" type="submit"
                             th:disabled="${pendingCount == 0}"
-                            onclick="return confirm('Duyệt toàn bộ đề xuất đang chờ và xếp thẳng vào lịch làm việc?');">
+                            onclick="return confirm('Duyệt toàn bộ đăng ký đang chờ? Các slot sẽ được xếp vào lịch làm việc tương lai và nhân viên sẽ nhận thông báo.');">
                         Duyệt tất cả
                         <span th:if="${pendingCount > 0}" th:text="'(' + ${pendingCount} + ')'">(0)</span>
                     </button>
@@ -41,26 +41,23 @@
                 <form th:action="@{/availability/manager/reject-all}" method="post">
                     <button class="bulk-btn reject" type="submit"
                             th:disabled="${pendingCount == 0}"
-                            onclick="return confirm('Không duyệt toàn bộ đề xuất đang chờ? Các slot này sẽ không được xếp vào lịch.');">
+                            onclick="return confirm('Từ chối toàn bộ đăng ký đang chờ? Nhân viên sẽ nhận thông báo và các slot này không được xếp vào lịch.');">
                         Không duyệt tất cả
                     </button>
                 </form>
-                <a class="primary-btn"
-                   th:href="@{/schedule/manager(date=${availabilityGrid.weekStartDate})}">
-                    Mở lịch làm việc →
-                </a>
+                <a class="primary-btn" th:href="@{/schedule/manager}">Mở lịch làm việc →</a>
             </div>
         </div>
         <p>
-            Một nút duyệt xếp toàn bộ đề xuất đang chờ vào đúng ngày và ca trên lịch làm việc.
-            Không duyệt thì các đề xuất đang chờ bị từ chối và không được xếp ca.
-            Nhân viên chưa đăng ký hoặc bị từ chối vẫn có thể được xếp bằng Phân ca trên Lịch làm việc.
+            Duyệt để xếp các slot đã đăng ký vào lịch làm việc tương lai, đúng ca và đúng thứ trong thời hạn.
+            Nhân viên xem lại các ca đó trên Lịch làm việc và nhận thông báo khi được duyệt hoặc từ chối.
+            Ca đã phân trùng đúng slot được giữ nguyên.
         </p>
         <p class="muted" th:if="${#lists.isEmpty(availabilityGrid.shiftRows)}">
             Cửa hàng chưa có ca làm việc.
         </p>
         <p class="muted" th:if="${availabilityGrid.selectedCount == 0}">
-            Chưa có nhân viên nào đăng ký lịch rảnh cho tuần kế tiếp.
+            Chưa có đăng ký lịch làm việc còn hiệu lực hoặc đang chờ duyệt.
         </p>
 
         <div class="availability-grid-wrap" th:if="${!#lists.isEmpty(availabilityGrid.shiftRows)}">
@@ -70,7 +67,7 @@
                     <th class="shift-col">Ca làm việc</th>
                     <th th:each="day : ${availabilityGrid.days}">
                         <div class="day-name" th:text="${day.dayOfWeekName}">Thứ 2</div>
-                        <div class="day-date" th:text="${day.formattedDate}">01/01</div>
+                        <div class="day-date" th:text="${day.formattedDate}">Mỗi tuần</div>
                     </th>
                 </tr>
                 </thead>
@@ -86,6 +83,8 @@
                             <li th:each="p : ${cell.proposals}">
                                 <div class="proposal-item">
                                     <span th:text="${p.employeeName}">Nhân viên</span>
+                                    <span class="muted" th:if="${p.certificationLabel != null}" th:text="${p.certificationLabel}">Đã chứng nhận</span>
+                                    <span class="muted" th:text="${p.detail}">1 tháng</span>
                                     <span class="status-badge"
                                           th:classappend="${p.statusKey}"
                                           th:text="${p.statusLabel}">Chờ duyệt</span>
@@ -100,30 +99,48 @@
     </section>
 
     <section class="panel">
-        <h2>Danh sách đề xuất chi tiết</h2>
-        <p class="empty" th:if="${#lists.isEmpty(availabilities)}">Chưa có đề xuất.</p>
-        <table th:if="${!#lists.isEmpty(availabilities)}">
+        <h2>Danh sách đăng ký</h2>
+        <p class="empty" th:if="${#lists.isEmpty(registrations)}">Chưa có đăng ký.</p>
+        <table th:if="${!#lists.isEmpty(registrations)}">
             <thead>
             <tr>
                 <th>Nhân viên</th>
-                <th>Ngày</th>
-                <th>Ca</th>
-                <th>Giờ</th>
+                <th>Chứng chỉ</th>
+                <th>Slot theo ngày</th>
+                <th>Thời hạn</th>
+                <th>Lịch dự kiến</th>
                 <th>Trạng thái</th>
+                <th></th>
             </tr>
             </thead>
             <tbody>
-            <tr th:each="item : ${availabilities}">
+            <tr th:each="item : ${registrations}">
                 <td th:text="${item.employeeName}">Staff</td>
-                <td th:text="${#temporals.format(item.workDate, 'dd/MM/yyyy')}">01/01/2026</td>
-                <td th:text="${item.shiftName}">Ca sáng</td>
+                <td th:text="${item.certificationLabel != null ? item.certificationLabel : '—'}">Đã chứng nhận</td>
+                <td th:text="${item.slotsByDay}">Thứ 2: Ca sáng</td>
                 <td>
-                    <span th:text="${#temporals.format(item.shiftStartTime, 'HH:mm')}">08:00</span>
-                    –
-                    <span th:text="${#temporals.format(item.shiftEndTime, 'HH:mm')}">12:00</span>
+                    <div th:text="${item.durationLabel}">1 tháng</div>
+                    <div class="muted" th:text="${item.formattedPeriod}">12/10/2026 – 11/11/2026</div>
                 </td>
+                <td th:text="${item.projectionSummary}">26 ngày</td>
                 <td>
                     <span class="status-badge" th:classappend="${item.statusKey}" th:text="${item.statusLabel}">Chờ duyệt</span>
+                </td>
+                <td>
+                    <div class="proposal-actions" th:if="${item.pending}">
+                        <form th:action="@{/availability/manager/review}" method="post">
+                            <input type="hidden" name="registrationKey" th:if="${item.registrationKey != null}" th:value="${item.registrationKey}">
+                            <input type="hidden" name="availabilityId" th:if="${item.registrationKey == null}" th:value="${item.availabilityId}">
+                            <input type="hidden" name="approved" value="true">
+                            <button class="mini-btn approve" type="submit">Duyệt</button>
+                        </form>
+                        <form th:action="@{/availability/manager/review}" method="post">
+                            <input type="hidden" name="registrationKey" th:if="${item.registrationKey != null}" th:value="${item.registrationKey}">
+                            <input type="hidden" name="availabilityId" th:if="${item.registrationKey == null}" th:value="${item.availabilityId}">
+                            <input type="hidden" name="approved" value="false">
+                            <button class="mini-btn reject" type="submit">Từ chối</button>
+                        </form>
+                    </div>
                 </td>
             </tr>
             </tbody>

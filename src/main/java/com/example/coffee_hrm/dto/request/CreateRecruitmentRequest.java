@@ -1,8 +1,8 @@
 package com.example.coffee_hrm.dto.request;
 
-import jakarta.validation.constraints.Email;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -10,7 +10,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.util.Locale;
+import java.util.ArrayList;
+import java.util.List;
 
 @Getter
 @Setter
@@ -19,43 +20,32 @@ import java.util.Locale;
 @Builder
 public class CreateRecruitmentRequest {
 
-    @NotBlank(message = "Vui lòng nhập họ và tên")
-    @Size(max = 100, message = "Họ và tên tối đa 100 ký tự")
-    private String fullName;
+    @NotBlank(message = "Vui lòng nhập tên đề xuất")
+    @Size(max = 150, message = "Tên đề xuất tối đa 150 ký tự")
+    private String title;
 
-    @NotBlank(message = "Vui lòng nhập email")
-    @Email(message = "Email không đúng định dạng")
-    @Size(max = 100, message = "Email tối đa 100 ký tự")
-    private String email;
+    @Size(max = 500, message = "Ghi chú tối đa 500 ký tự")
+    private String note;
 
-    @NotBlank(message = "Vui lòng nhập số điện thoại")
-    @Pattern(regexp = "^[0-9]{9,15}$", message = "Số điện thoại gồm 9 đến 15 chữ số")
-    private String phone;
+    @Builder.Default
+    @NotEmpty(message = "Vui lòng thêm ít nhất một nhân viên vào danh sách")
+    @Size(max = 30, message = "Mỗi đề xuất chứa tối đa 30 nhân viên")
+    @Valid
+    private List<RecruitmentCandidateRequest> candidates = new ArrayList<>();
 
-    @Size(max = 255, message = "Địa chỉ tối đa 255 ký tự")
-    private String address;
-
-    public void setFullName(String fullName) {
-        this.fullName = fullName == null ? null : fullName.trim();
-    }
-
-    public void setEmail(String email) {
-        this.email = email == null ? null : email.trim().toLowerCase(Locale.ROOT);
-    }
-
-    public void setPhone(String phone) {
-        if (phone == null) {
-            this.phone = null;
+    public void setTitle(String title) {
+        if (title == null || title.isBlank()) {
+            this.title = null;
             return;
         }
-        this.phone = phone.replaceAll("[\\s-]", "");
+        this.title = title.trim();
     }
 
-    public void setAddress(String address) {
-        if (address == null || address.isBlank()) {
-            this.address = null;
+    public void setNote(String note) {
+        if (note == null || note.isBlank()) {
+            this.note = null;
             return;
         }
-        this.address = address.trim();
+        this.note = note.trim();
     }
 }

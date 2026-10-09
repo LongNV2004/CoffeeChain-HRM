@@ -45,21 +45,24 @@ public class AdminEmployeeController {
     private final StoreService storeService;
     private final EmployeeService employeeService;
 
-    // UC 6 - Admin quản lý nhân sự theo cửa hàng: chọn cửa hàng
     @GetMapping("/employees")
-    public String chooseStore(@RequestParam(required = false) Integer storeId,
-                              @AuthenticationPrincipal AuthenticatedUser user,
-                              Model model,
-                              RedirectAttributes redirectAttributes) {
-        if (storeId != null) {
-            redirectAttributes.addAttribute("storeId", storeId);
-            return STORE_EMPLOYEES_REDIRECT;
-        }
-        model.addAttribute("stores", storeService.getStores(user));
+    public String viewAllEmployees(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            Model model
+    ) {
+        model.addAttribute(
+                "employees",
+                employeeService.getAllEmployees(user)
+        );
+
+        model.addAttribute(
+                "stores",
+                storeService.getStores(user)
+        );
+
         return STORE_EMPLOYEES_VIEW;
     }
 
-    // UC 6 - Admin xem nhân sự của một cửa hàng
     @GetMapping("/stores/{storeId}/employees")
     public String viewStoreEmployees(@PathVariable Integer storeId,
                                      @AuthenticationPrincipal AuthenticatedUser user,
@@ -76,7 +79,6 @@ public class AdminEmployeeController {
         return STORE_EMPLOYEES_VIEW;
     }
 
-    // UC 6.1 - Admin phân quyền MANAGER / STAFF cho nhân viên của cửa hàng
     @PostMapping("/stores/{storeId}/employees/{employeeId}/role")
     public String changeEmployeeRole(@PathVariable Integer storeId,
                                      @PathVariable Integer employeeId,

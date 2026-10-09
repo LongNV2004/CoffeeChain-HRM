@@ -23,6 +23,13 @@ public class WorkAvailabilityResponse {
     private LocalTime shiftStartTime;
     private LocalTime shiftEndTime;
     private LocalDate workDate;
+    private Integer dayOfWeek;
+    private String dayOfWeekName;
+    private LocalDate validFrom;
+    private LocalDate validTo;
+    private String durationLabel;
+    private String formattedPeriod;
+    private String registrationKey;
     private String note;
     private LocalDateTime createdAt;
     private String statusKey;

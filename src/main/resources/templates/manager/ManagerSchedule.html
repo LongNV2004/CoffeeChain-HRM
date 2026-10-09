@@ -80,7 +80,8 @@
                             <div>
                                 <div class="emp-name" th:text="${assign.employeeName}">Nguyễn Văn A</div>
                             </div>
-                            <form th:action="@{/schedule/manager/cancel/{id}(id=${assign.assignmentId})}"
+                            <form th:if="${assign.canCancel}"
+                                  th:action="@{/schedule/manager/cancel/{id}(id=${assign.assignmentId})}"
                                   method="post" style="display:inline;">
                                 <input type="hidden" name="currentWeek" th:value="${schedule.weekStartDate}">
                                 <button type="submit" class="del-btn" title="Hủy phân ca"

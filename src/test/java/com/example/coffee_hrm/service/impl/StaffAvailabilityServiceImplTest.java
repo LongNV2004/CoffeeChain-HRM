@@ -3,6 +3,7 @@ package com.example.coffee_hrm.service.impl;
 import com.example.coffee_hrm.common.enums.ApprovalStatus;
 import com.example.coffee_hrm.common.enums.CertificationStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
+import com.example.coffee_hrm.common.enums.NotificationType;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.time.VietnamTime;
@@ -22,6 +23,7 @@ import com.example.coffee_hrm.repository.WorkAvailabilityRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.NotificationService;
 import com.example.coffee_hrm.service.ScheduleService;
+import com.example.coffee_hrm.service.support.AvailabilityCoverage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,6 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -182,7 +185,7 @@ class StaffAvailabilityServiceImplTest {
         WorkAvailability second = pendingAvailability();
         second.setId(6);
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
-        when(workAvailabilityRepository.findByStoreAndDateRange(eq(1), any(LocalDate.class), any(LocalDate.class)))
+        when(workAvailabilityRepository.findVisibleByStore(eq(1), any(LocalDate.class), eq(ApprovalStatus.PENDING)))
                 .thenReturn(List.of(first, second));
         when(workAvailabilityRepository.findByIdWithDetails(5)).thenReturn(Optional.of(first));
         when(workAvailabilityRepository.findByIdWithDetails(6)).thenReturn(Optional.of(second));
@@ -202,7 +205,7 @@ class StaffAvailabilityServiceImplTest {
         alreadyApproved.setId(6);
         alreadyApproved.setStatus(ApprovalStatus.APPROVED);
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
-        when(workAvailabilityRepository.findByStoreAndDateRange(eq(1), any(LocalDate.class), any(LocalDate.class)))
+        when(workAvailabilityRepository.findVisibleByStore(eq(1), any(LocalDate.class), eq(ApprovalStatus.PENDING)))
                 .thenReturn(List.of(pending, alreadyApproved));
 
         String message = service.reviewAllNextWeekAvailabilities(false, managerUser);
@@ -220,7 +223,7 @@ class StaffAvailabilityServiceImplTest {
         WorkAvailability second = pendingAvailability();
         second.setId(6);
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
-        when(workAvailabilityRepository.findByStoreAndDateRange(eq(1), any(LocalDate.class), any(LocalDate.class)))
+        when(workAvailabilityRepository.findVisibleByStore(eq(1), any(LocalDate.class), eq(ApprovalStatus.PENDING)))
                 .thenReturn(List.of(first, second));
         when(workAvailabilityRepository.findByIdWithDetails(5)).thenReturn(Optional.of(first));
         when(workAvailabilityRepository.findByIdWithDetails(6)).thenReturn(Optional.of(second));
@@ -287,7 +290,8 @@ class StaffAvailabilityServiceImplTest {
         int count = service.submitNextWeekAvailability(nextWeekRequest(), staffUser);
 
         assertEquals(1, count);
-        verify(workAvailabilityRepository).deleteByEmployeeAndDateRange(eq(20), any(LocalDate.class), any(LocalDate.class));
+        verify(workAvailabilityRepository, never()).deleteByEmployeeAndDateRange(any(), any(), any());
+        verify(workAvailabilityRepository, never()).deleteByIds(any());
         verify(workAvailabilityRepository).saveAll(any());
     }
 
@@ -309,9 +313,137 @@ class StaffAvailabilityServiceImplTest {
     }
 
     @Test
+    void submitRecurringPatternDoesNotCreateShift() {
+        AuthenticatedUser staffUser = AuthenticatedUser.from(buildUser(3, "staff1", RoleName.STAFF, staff));
+        when(employeeRepository.findByIdWithStoreAndManager(20)).thenReturn(Optional.of(staff));
+        when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shift));
+
+        service.submitNextWeekAvailability(nextWeekRequest(), staffUser);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<WorkAvailability>> captor = ArgumentCaptor.forClass(List.class);
+        verify(workAvailabilityRepository).saveAll(captor.capture());
+        WorkAvailability saved = captor.getValue().getFirst();
+        LocalDate nextMonday = VietnamTime.today().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).plusWeeks(1);
+        assertEquals(1, saved.getDayOfWeek());
+        assertEquals(nextMonday, saved.getValidFrom());
+        assertEquals(nextMonday.plusDays(6), saved.getValidTo());
+        assertEquals(ApprovalStatus.PENDING, saved.getStatus());
+        assertEquals("W1", saved.getDurationCode());
+        verify(scheduleService, never()).assignShiftFromApprovedAvailability(any(), any());
+    }
+
+    @Test
+    void submitRejectsOverlapWithApprovedPattern() {
+        AuthenticatedUser staffUser = AuthenticatedUser.from(buildUser(3, "staff1", RoleName.STAFF, staff));
+        LocalDate nextMonday = VietnamTime.today().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).plusWeeks(1);
+        WorkAvailability approved = pendingAvailability();
+        approved.setDayOfWeek(1);
+        approved.setWorkDate(null);
+        approved.setValidFrom(nextMonday);
+        approved.setValidTo(nextMonday.plusMonths(1).minusDays(1));
+        approved.setStatus(ApprovalStatus.APPROVED);
+        when(employeeRepository.findByIdWithStoreAndManager(20)).thenReturn(Optional.of(staff));
+        when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shift));
+        when(workAvailabilityRepository.findVisibleByEmployee(eq(20), any(LocalDate.class), eq(ApprovalStatus.PENDING)))
+                .thenReturn(List.of(approved));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.submitNextWeekAvailability(monthRequest(), staffUser));
+
+        assertTrue(ex.getMessage().contains("đã được duyệt"));
+        verify(workAvailabilityRepository, never()).saveAll(any());
+        verify(workAvailabilityRepository, never()).deleteByIds(any());
+        assertEquals(ApprovalStatus.APPROVED, approved.getStatus());
+    }
+
+    @Test
+    void submitReplacesOverlappingPendingOnly() {
+        AuthenticatedUser staffUser = AuthenticatedUser.from(buildUser(3, "staff1", RoleName.STAFF, staff));
+        LocalDate nextMonday = VietnamTime.today().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).plusWeeks(1);
+        WorkAvailability pending = pendingAvailability();
+        pending.setDayOfWeek(1);
+        pending.setWorkDate(null);
+        pending.setValidFrom(nextMonday);
+        pending.setValidTo(nextMonday.plusDays(6));
+        when(employeeRepository.findByIdWithStoreAndManager(20)).thenReturn(Optional.of(staff));
+        when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shift));
+        when(workAvailabilityRepository.findVisibleByEmployee(eq(20), any(LocalDate.class), eq(ApprovalStatus.PENDING)))
+                .thenReturn(List.of(pending));
+
+        int count = service.submitNextWeekAvailability(nextWeekRequest(), staffUser);
+
+        assertEquals(1, count);
+        verify(workAvailabilityRepository).deleteByIds(List.of(5));
+        verify(workAvailabilityRepository).saveAll(any());
+    }
+
+    @Test
+    void approveRecurringRegistrationCreatesFutureShiftsAndNotifiesStaff() {
+        WorkAvailability availability = pendingAvailability();
+        availability.setDayOfWeek(1);
+        availability.setWorkDate(null);
+        availability.setDurationCode("M1");
+        availability.setRegistrationKey("batch-1");
+        LocalDate validFrom = LocalDate.of(2026, 10, 12);
+        LocalDate validTo = LocalDate.of(2026, 11, 11);
+        availability.setValidFrom(validFrom);
+        availability.setValidTo(validTo);
+        User staffAccount = buildUser(3, "staff1", RoleName.STAFF, staff);
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        when(workAvailabilityRepository.findByIdWithDetails(5)).thenReturn(Optional.of(availability));
+        when(workAvailabilityRepository.findByRegistrationKey("batch-1")).thenReturn(List.of(availability));
+        when(userRepository.findByEmployee_Id(20)).thenReturn(Optional.of(staffAccount));
+
+        service.reviewAvailability(5, true, managerUser);
+
+        List<LocalDate> expectedDates = AvailabilityCoverage.occurrences(1, validFrom, validTo).stream()
+                .filter(date -> !date.isBefore(VietnamTime.today()))
+                .toList();
+        assertEquals(ApprovalStatus.APPROVED, availability.getStatus());
+        verify(scheduleService, times(expectedDates.size()))
+                .assignShiftFromApprovedAvailability(any(), eq(managerUser));
+        verify(workAvailabilityRepository).saveAll(List.of(availability));
+        verify(notificationService).notifyUsers(
+                eq(List.of(staffAccount)),
+                eq("Lịch làm việc đã được duyệt"),
+                anyString(),
+                eq(NotificationType.WORK_AVAILABILITY_APPROVED),
+                eq("WORK_AVAILABILITY"),
+                eq(20));
+    }
+
+    @Test
+    void rejectRegistrationNotifiesStaff() {
+        WorkAvailability availability = pendingAvailability();
+        availability.setDayOfWeek(1);
+        availability.setWorkDate(null);
+        availability.setDurationCode("W1");
+        availability.setRegistrationKey("batch-1");
+        availability.setValidFrom(LocalDate.of(2026, 10, 12));
+        availability.setValidTo(LocalDate.of(2026, 10, 18));
+        User staffAccount = buildUser(3, "staff1", RoleName.STAFF, staff);
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        when(workAvailabilityRepository.findByRegistrationKey("batch-1")).thenReturn(List.of(availability));
+        when(userRepository.findByEmployee_Id(20)).thenReturn(Optional.of(staffAccount));
+
+        service.reviewRegistration("batch-1", false, managerUser);
+
+        assertEquals(ApprovalStatus.REJECTED, availability.getStatus());
+        verify(scheduleService, never()).assignShiftFromApprovedAvailability(any(), any());
+        verify(notificationService).notifyUsers(
+                eq(List.of(staffAccount)),
+                eq("Lịch làm việc bị từ chối"),
+                anyString(),
+                eq(NotificationType.WORK_AVAILABILITY_REJECTED),
+                eq("WORK_AVAILABILITY"),
+                eq(20));
+    }
+
+    @Test
     void reviewAllThrowsWhenNothingPending() {
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
-        when(workAvailabilityRepository.findByStoreAndDateRange(eq(1), any(LocalDate.class), any(LocalDate.class)))
+        when(workAvailabilityRepository.findVisibleByStore(eq(1), any(LocalDate.class), eq(ApprovalStatus.PENDING)))
                 .thenReturn(List.of());
 
         BusinessException ex = assertThrows(BusinessException.class,
@@ -322,11 +454,16 @@ class StaffAvailabilityServiceImplTest {
     }
 
     private SubmitWorkAvailabilityRequest nextWeekRequest() {
-        LocalDate nextMonday = VietnamTime.today()
-                .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-                .plusWeeks(1);
         return SubmitWorkAvailabilityRequest.builder()
-                .selectedSlots(List.of("1:" + nextMonday))
+                .durationCode("W1")
+                .selectedSlots(List.of("1:1"))
+                .build();
+    }
+
+    private SubmitWorkAvailabilityRequest monthRequest() {
+        return SubmitWorkAvailabilityRequest.builder()
+                .durationCode("M1")
+                .selectedSlots(List.of("1:1"))
                 .build();
     }
 

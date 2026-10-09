@@ -68,7 +68,8 @@
                                         onclick="openChangeModal(this.getAttribute('data-assignment-id'), this.getAttribute('data-shift-title'))">
                                     ⇄ Đổi ca này
                                 </button>
-                                <span style="font-size:12px;color:var(--ink-soft);" th:if="${!assign.canRequestChange}">
+                                <span style="font-size:12px;color:var(--ink-soft);"
+                                      th:if="${!assign.canRequestChange and !assign.appliedFromRegistration}">
                                     Ca làm việc đã qua
                                 </span>
                             </div>

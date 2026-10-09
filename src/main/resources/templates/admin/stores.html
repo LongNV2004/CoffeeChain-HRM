@@ -228,7 +228,7 @@
     <div class="store-dialog-head">
         <div>
             <h2 id="employeeModalTitle">Thêm nhân viên mới</h2>
-            <p>Thông tin nhân sự và phân công chi nhánh</p>
+            <p id="employeeModalSubtitle">Thông tin nhân sự và phân công chi nhánh</p>
         </div>
 
         <button type="button"
@@ -245,48 +245,43 @@
 
         <form id="employeeForm" class="stack-form employee-form">
 
-            <label>
-                Họ và tên nhân viên *
-                <input name="fullName"
-                       type="text"
-                       maxlength="100"
-                       autocomplete="name"
-                       required>
-            </label>
-
-            <div class="employee-form-grid">
-                <label>
-                    Số điện thoại *
-                    <input name="phone"
-                           type="tel"
-                           maxlength="15"
-                           autocomplete="tel"
-                           required>
-                </label>
+            <!-- Chỉ hiện khi THÊM nhân viên -->
+            <div id="employeePersonalSection">
 
                 <label>
-                    Email *
-                    <input name="email"
-                           type="email"
+                    Họ và tên nhân viên *
+                    <input name="fullName"
+                           type="text"
                            maxlength="100"
-                           autocomplete="email"
+                           autocomplete="name"
                            required>
                 </label>
-            </div>
 
-            <label>
-                Địa chỉ
-                <input name="address"
-                       type="text"
-                       maxlength="255">
-            </label>
+                <div class="employee-form-grid">
+                    <label>
+                        Số điện thoại *
+                        <input name="phone"
+                               type="tel"
+                               maxlength="15"
+                               autocomplete="tel"
+                               required>
+                    </label>
 
-            <div class="employee-form-grid">
+                    <label>
+                        Email *
+                        <input name="email"
+                               type="email"
+                               maxlength="100"
+                               autocomplete="email"
+                               required>
+                    </label>
+                </div>
+
                 <label>
-                    Chi nhánh làm việc *
-                    <select id="employeeStoreSelect"
-                            name="storeId"
-                            required></select>
+                    Địa chỉ
+                    <input name="address"
+                           type="text"
+                           maxlength="255">
                 </label>
 
                 <label>
@@ -295,7 +290,16 @@
                            type="date"
                            required>
                 </label>
+
             </div>
+
+            <!-- Thêm và sửa đều dùng -->
+            <label>
+                Chi nhánh làm việc *
+                <select id="employeeStoreSelect"
+                        name="storeId"
+                        required></select>
+            </label>
 
             <fieldset class="employee-role-fieldset">
                 <legend>Chức vụ *</legend>
@@ -318,6 +322,7 @@
                 </div>
             </fieldset>
 
+            <!-- Chỉ hiện khi SỬA -->
             <div id="employeeStatusSection" hidden>
                 <label>
                     Trạng thái
@@ -329,13 +334,16 @@
                 </label>
             </div>
 
+            <!-- Giữ ngầm để backend dùng, JS sau sẽ không cho hiện -->
             <div id="employeeTerminationSection" hidden>
                 <label>
                     Ngày nghỉ việc
-                    <input name="terminationDate" type="date">
+                    <input name="terminationDate"
+                           type="date">
                 </label>
             </div>
 
+            <!-- Chỉ dùng khi THÊM nhân viên -->
             <div id="employeeAccountSection"
                  class="employee-account-section">
 
@@ -368,6 +376,7 @@
             </div>
 
             <div class="employee-form-actions">
+
                 <button type="button"
                         class="store-btn store-btn--secondary"
                         data-close-employee>
@@ -376,8 +385,9 @@
 
                 <button type="submit"
                         class="store-btn store-btn--primary">
-                    Lưu nhân viên
+                    Lưu thay đổi
                 </button>
+
             </div>
 
         </form>

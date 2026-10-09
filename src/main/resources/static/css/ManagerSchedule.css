@@ -149,6 +149,7 @@ a{color:inherit;text-decoration:none;}
   transition:all 0.15s;
 }
 .quick-add-btn:hover{border-color:var(--caramel);color:var(--caramel-dark);background:var(--cream);}
+.available-hint{margin:6px 0 0;font-size:11px;line-height:1.35;color:#3F6B45;}
 
 /* Pending requests panel */
 .panel{background:#fff;border:1px solid var(--line);border-radius:8px;padding:24px;margin-bottom:32px;}

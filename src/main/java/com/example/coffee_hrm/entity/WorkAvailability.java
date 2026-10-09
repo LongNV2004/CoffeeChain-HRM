@@ -9,8 +9,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "WorkAvailabilities",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"EmployeeId", "ShiftId", "WorkDate"}))
+@Table(name = "WorkAvailabilities")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -34,8 +33,25 @@ public class WorkAvailability {
     @JoinColumn(name = "ShiftId", nullable = false)
     private Shift shift;
 
-    @Column(name = "WorkDate", nullable = false)
+    /** Ngày cụ thể của đăng ký cũ. Bản định kỳ để trống và dùng thứ + thời hạn. */
+    @Column(name = "WorkDate")
     private LocalDate workDate;
+
+    /** 1 = thứ Hai … 7 = Chủ nhật. Null với bản ghi theo từng ngày trước đây. */
+    @Column(name = "DayOfWeek")
+    private Integer dayOfWeek;
+
+    @Column(name = "ValidFrom")
+    private LocalDate validFrom;
+
+    @Column(name = "ValidTo")
+    private LocalDate validTo;
+
+    @Column(name = "DurationCode", length = 20)
+    private String durationCode;
+
+    @Column(name = "RegistrationKey", length = 36)
+    private String registrationKey;
 
     @Column(name = "Note", length = 255)
     private String note;

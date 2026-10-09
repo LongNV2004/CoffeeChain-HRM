@@ -347,7 +347,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         return shiftAssignmentRepository.findAssignmentsForAttendance(
                         employeeId, day.minusDays(1), day.plusDays(1), AssignmentStatus.ASSIGNED)
                 .stream()
-                .filter(assignment -> Boolean.TRUE.equals(assignment.getIsPublished()))
+                .filter(assignment -> assignment.getIsPublished() == null || Boolean.TRUE.equals(assignment.getIsPublished()))
                 .filter(assignment -> assignment.getShift() != null
                         && assignment.getShift().getStartTime() != null
                         && assignment.getShift().getEndTime() != null)
