@@ -388,6 +388,20 @@ class ScheduleServiceImplTest {
     }
 
     @Test
+    void shiftAssignmentDefaultsToPublished() {
+        ShiftAssignment sa = ShiftAssignment.builder()
+                .employee(empTuan)
+                .shift(shiftMorning)
+                .workDate(VietnamTime.today())
+                .build();
+        assertTrue(sa.getIsPublished());
+
+        sa.prePersist();
+        assertTrue(sa.getIsPublished());
+        assertNotNull(sa.getPublishedAt());
+    }
+
+    @Test
     void weeklyScheduleAppliesApprovedRegistrationAsShift() {
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
         when(shiftRepository.findByStore_IdOrderByStartTimeAsc(1)).thenReturn(List.of(shiftMorning));

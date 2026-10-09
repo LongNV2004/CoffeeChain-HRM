@@ -49,10 +49,20 @@ public class ShiftAssignment {
 
     @Column(name = "IsPublished", nullable = false)
     @Builder.Default
-    private Boolean isPublished = false;
+    private Boolean isPublished = true;
 
     @Column(name = "PublishedAt")
     private LocalDateTime publishedAt;
+
+    @PrePersist
+    public void prePersist() {
+        if (isPublished == null) {
+            isPublished = true;
+        }
+        if (publishedAt == null && Boolean.TRUE.equals(isPublished)) {
+            publishedAt = com.example.coffee_hrm.common.time.VietnamTime.now();
+        }
+    }
 
     @Builder.Default
     @OneToMany(mappedBy = "assignment", fetch = FetchType.LAZY)
