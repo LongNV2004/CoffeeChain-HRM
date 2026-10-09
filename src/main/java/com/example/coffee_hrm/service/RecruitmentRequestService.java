@@ -1,6 +1,6 @@
 package com.example.coffee_hrm.service;
 
-import com.example.coffee_hrm.common.enums.RecruitmentStatus;
+import com.example.coffee_hrm.common.enums.RecruitmentProposalStatus;
 import com.example.coffee_hrm.dto.request.CreateRecruitmentRequest;
 import com.example.coffee_hrm.dto.response.RecruitmentManagerOption;
 import com.example.coffee_hrm.dto.response.RecruitmentRequestResponse;
@@ -22,7 +22,7 @@ public interface RecruitmentRequestService {
     List<RecruitmentRequestResponse> listForAdmin(AuthenticatedUser actor,
                                                    Integer storeId,
                                                    Integer managerId,
-                                                   RecruitmentStatus status,
+                                                   RecruitmentProposalStatus status,
                                                    LocalDate createdFrom,
                                                    LocalDate createdTo);
 
@@ -30,9 +30,9 @@ public interface RecruitmentRequestService {
 
     List<RecruitmentManagerOption> listManagerOptions();
 
-    void approve(AuthenticatedUser actor, Integer id);
+    String approveCandidate(AuthenticatedUser actor, Integer requestId, Integer candidateId);
 
-    void reject(AuthenticatedUser actor, Integer id, String rejectReason);
+    String rejectCandidate(AuthenticatedUser actor, Integer requestId, Integer candidateId, String rejectReason);
 
     int countPendingRequests();
 }

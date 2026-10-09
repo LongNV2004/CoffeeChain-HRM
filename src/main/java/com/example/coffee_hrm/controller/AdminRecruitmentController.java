@@ -1,6 +1,6 @@
 package com.example.coffee_hrm.controller;
 
-import com.example.coffee_hrm.common.enums.RecruitmentStatus;
+import com.example.coffee_hrm.common.enums.RecruitmentProposalStatus;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.RecruitmentRequestService;
@@ -33,7 +33,7 @@ public class AdminRecruitmentController {
     @GetMapping
     public String list(@RequestParam(required = false) Integer storeId,
                        @RequestParam(required = false) Integer managerId,
-                       @RequestParam(required = false) RecruitmentStatus status,
+                       @RequestParam(required = false) RecruitmentProposalStatus status,
                        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate createdFrom,
                        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate createdTo,
                        @AuthenticationPrincipal AuthenticatedUser user,
@@ -47,7 +47,7 @@ public class AdminRecruitmentController {
         }
         model.addAttribute("stores", storeService.getStores(user));
         model.addAttribute("managers", recruitmentRequestService.listManagerOptions());
-        model.addAttribute("statuses", RecruitmentStatus.values());
+        model.addAttribute("statuses", RecruitmentProposalStatus.values());
         model.addAttribute("storeId", storeId);
         model.addAttribute("managerId", managerId);
         model.addAttribute("selectedStatus", status);
@@ -70,28 +70,30 @@ public class AdminRecruitmentController {
         return "admin/recruitment-detail";
     }
 
-    @PostMapping("/{id}/approve")
+    @PostMapping("/{id}/candidates/{candidateId}/approve")
     public String approve(@PathVariable Integer id,
+                          @PathVariable Integer candidateId,
                           @AuthenticationPrincipal AuthenticatedUser user,
                           RedirectAttributes redirectAttributes) {
         try {
-            recruitmentRequestService.approve(user, id);
+            String fullName = recruitmentRequestService.approveCandidate(user, id, candidateId);
             redirectAttributes.addFlashAttribute("successMessage",
-                    "Đã duyệt đề xuất, tạo tài khoản Staff và gửi mật khẩu tạm thời qua email.");
+                    "Đã duyệt " + fullName + ", tạo tài khoản Staff và gửi mật khẩu tạm thời qua email.");
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
         }
         return "redirect:/admin/recruitment/" + id;
     }
 
-    @PostMapping("/{id}/reject")
+    @PostMapping("/{id}/candidates/{candidateId}/reject")
     public String reject(@PathVariable Integer id,
+                         @PathVariable Integer candidateId,
                          @RequestParam(required = false) String rejectReason,
                          @AuthenticationPrincipal AuthenticatedUser user,
                          RedirectAttributes redirectAttributes) {
         try {
-            recruitmentRequestService.reject(user, id, rejectReason);
-            redirectAttributes.addFlashAttribute("successMessage", "Đã từ chối đề xuất tuyển nhân sự.");
+            String fullName = recruitmentRequestService.rejectCandidate(user, id, candidateId, rejectReason);
+            redirectAttributes.addFlashAttribute("successMessage", "Đã từ chối nhân viên " + fullName + ".");
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
         }

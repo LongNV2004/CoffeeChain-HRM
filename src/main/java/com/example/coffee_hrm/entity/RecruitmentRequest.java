@@ -1,6 +1,7 @@
 package com.example.coffee_hrm.entity;
 
-import com.example.coffee_hrm.common.enums.RecruitmentStatus;
+import com.example.coffee_hrm.common.enums.RecruitmentProposalStatus;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -9,15 +10,21 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.ToString;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "RecruitmentRequests")
@@ -26,6 +33,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@ToString(exclude = {"store", "requestedBy", "candidates"})
 public class RecruitmentRequest {
 
     @Id
@@ -41,37 +49,23 @@ public class RecruitmentRequest {
     @JoinColumn(name = "RequestedByEmployeeId", nullable = false)
     private Employee requestedBy;
 
-    @Column(name = "FullName", nullable = false, length = 100)
-    private String fullName;
+    @Column(name = "Title", nullable = false, length = 150)
+    private String title;
 
-    @Column(name = "Email", nullable = false, length = 100)
-    private String email;
-
-    @Column(name = "Phone", nullable = false, length = 15)
-    private String phone;
-
-    @Column(name = "Address", length = 255)
-    private String address;
+    @Column(name = "Note", length = 500)
+    private String note;
 
     @Column(name = "Status", nullable = false, length = 20)
     @Builder.Default
-    private RecruitmentStatus status = RecruitmentStatus.PENDING;
-
-    @Column(name = "RejectReason", length = 500)
-    private String rejectReason;
-
-    @Column(name = "ReviewedAt")
-    private LocalDateTime reviewedAt;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "ReviewedByUserId")
-    private User reviewedBy;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "CreatedEmployeeId")
-    private Employee createdEmployee;
+    private RecruitmentProposalStatus status = RecruitmentProposalStatus.PENDING;
 
     @CreationTimestamp
     @Column(name = "CreatedAt", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @Builder.Default
+    @BatchSize(size = 32)
+    @OneToMany(mappedBy = "request", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("sortOrder ASC, id ASC")
+    private List<RecruitmentCandidate> candidates = new ArrayList<>();
 }

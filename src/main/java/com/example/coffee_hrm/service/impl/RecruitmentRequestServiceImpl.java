@@ -2,21 +2,27 @@ package com.example.coffee_hrm.service.impl;
 
 import com.example.coffee_hrm.common.enums.CertificationStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
+import com.example.coffee_hrm.common.enums.Gender;
 import com.example.coffee_hrm.common.enums.NotificationType;
+import com.example.coffee_hrm.common.enums.RecruitmentProposalStatus;
 import com.example.coffee_hrm.common.enums.RecruitmentStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.security.TemporaryPasswordGenerator;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.CreateRecruitmentRequest;
+import com.example.coffee_hrm.dto.request.RecruitmentCandidateRequest;
+import com.example.coffee_hrm.dto.response.RecruitmentCandidateResponse;
 import com.example.coffee_hrm.dto.response.RecruitmentManagerOption;
 import com.example.coffee_hrm.dto.response.RecruitmentRequestResponse;
 import com.example.coffee_hrm.entity.Employee;
+import com.example.coffee_hrm.entity.RecruitmentCandidate;
 import com.example.coffee_hrm.entity.RecruitmentRequest;
 import com.example.coffee_hrm.entity.Role;
 import com.example.coffee_hrm.entity.Store;
 import com.example.coffee_hrm.entity.User;
 import com.example.coffee_hrm.repository.EmployeeRepository;
+import com.example.coffee_hrm.repository.RecruitmentCandidateRepository;
 import com.example.coffee_hrm.repository.RecruitmentRequestRepository;
 import com.example.coffee_hrm.repository.RoleRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
@@ -34,7 +40,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 @Slf4j
@@ -45,10 +58,16 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
     static final String EMAIL_EXISTS = "Email đã tồn tại trong hệ thống.";
     static final String EMAIL_PENDING = "Email này đang được dùng trong một đề xuất tuyển nhân sự đang chờ duyệt.";
     static final String EMAIL_INVALID = "Email không đúng định dạng.";
+    static final String PHONE_EXISTS = "Số điện thoại đã tồn tại trong hệ thống.";
+    static final String PHONE_PENDING = "Số điện thoại này đang được dùng trong một đề xuất tuyển nhân sự đang chờ duyệt.";
+    static final String ALREADY_APPROVED = "Nhân viên này đã được duyệt. Không tạo thêm tài khoản.";
+    private static final int MAX_CANDIDATES = 30;
+    private static final LocalDate EARLIEST_BIRTH_DATE = LocalDate.of(1900, 1, 1);
     private static final String RECRUITMENT_REF = "RECRUITMENT_REQUEST";
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
 
     private final RecruitmentRequestRepository recruitmentRequestRepository;
+    private final RecruitmentCandidateRepository recruitmentCandidateRepository;
     private final EmployeeRepository employeeRepository;
     private final UserRepository userRepository;
     private final StoreRepository storeRepository;
@@ -64,37 +83,53 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
         Store store = requireManagedStore(actor);
         Employee manager = employeeRepository.findById(actor.getEmployeeId())
                 .orElseThrow(() -> new BusinessException("Không tìm thấy hồ sơ nhân viên của Manager."));
-        String email = normalizeEmail(request.getEmail());
-        String phone = normalizePhone(request.getPhone());
-        String fullName = requireFullName(request.getFullName());
-        String address = normalizeAddress(request.getAddress());
-        assertEmailAvailable(email);
+        String title = requireTitle(request.getTitle());
+        String note = normalizeNote(request.getNote());
+        List<NormalizedCandidate> people = normalizeCandidates(request.getCandidates());
+
+        RecruitmentRequest proposal = RecruitmentRequest.builder()
+                .store(store)
+                .requestedBy(manager)
+                .title(title)
+                .note(note)
+                .status(RecruitmentProposalStatus.PENDING)
+                .candidates(new ArrayList<>())
+                .build();
+        int sortOrder = 1;
+        for (NormalizedCandidate person : people) {
+            RecruitmentCandidate candidate = RecruitmentCandidate.builder()
+                    .sortOrder(sortOrder++)
+                    .fullName(person.fullName())
+                    .dateOfBirth(person.dateOfBirth())
+                    .gender(person.gender())
+                    .email(person.email())
+                    .phone(person.phone())
+                    .address(person.address())
+                    .status(RecruitmentStatus.PENDING)
+                    .build();
+            candidate.setRequest(proposal);
+            proposal.getCandidates().add(candidate);
+        }
 
         RecruitmentRequest saved;
         try {
-            saved = recruitmentRequestRepository.save(RecruitmentRequest.builder()
-                    .store(store)
-                    .requestedBy(manager)
-                    .fullName(fullName)
-                    .email(email)
-                    .phone(phone)
-                    .address(address)
-                    .status(RecruitmentStatus.PENDING)
-                    .build());
+            saved = recruitmentRequestRepository.save(proposal);
         } catch (DataIntegrityViolationException ex) {
-            log.error("Không lưu được đề xuất tuyển nhân sự vì email {} bị trùng", email, ex);
-            throw new BusinessException(EMAIL_EXISTS);
+            log.error("Không lưu được đề xuất tuyển nhân sự vì email hoặc số điện thoại bị trùng", ex);
+            throw new BusinessException("Email hoặc số điện thoại bị trùng với một đề xuất đang chờ duyệt.");
         }
 
         String managerName = manager.getFullName() != null ? manager.getFullName() : actor.getDisplayName();
         notificationService.notifyUsers(
                 userRepository.findActiveByRoleName(RoleName.ADMIN),
                 "Đề xuất tuyển nhân sự mới",
-                "Manager " + managerName + " đã gửi đề xuất tuyển nhân sự mới cho cửa hàng " + store.getStoreName() + ".",
+                "Manager " + managerName + " đã gửi đề xuất \"" + saved.getTitle() + "\" ("
+                        + saved.getCandidates().size() + " nhân viên) cho cửa hàng " + store.getStoreName() + ".",
                 NotificationType.RECRUITMENT_REQUEST_CREATED,
                 RECRUITMENT_REF,
                 saved.getId());
-        log.info("Manager {} đã tạo đề xuất tuyển nhân sự {}", manager.getId(), saved.getId());
+        log.info("Manager {} đã tạo đề xuất tuyển nhân sự {} với {} nhân viên",
+                manager.getId(), saved.getId(), saved.getCandidates().size());
         return toResponse(saved);
     }
 
@@ -102,7 +137,7 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
     @Transactional(readOnly = true)
     public List<RecruitmentRequestResponse> listMine(AuthenticatedUser actor) {
         requireManager(actor);
-        return recruitmentRequestRepository.findMine(actor.getEmployeeId()).stream()
+        return prepareList(recruitmentRequestRepository.findMine(actor.getEmployeeId())).stream()
                 .map(this::toResponse)
                 .toList();
     }
@@ -129,7 +164,7 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
     public List<RecruitmentRequestResponse> listForAdmin(AuthenticatedUser actor,
                                                           Integer storeId,
                                                           Integer managerId,
-                                                          RecruitmentStatus status,
+                                                          RecruitmentProposalStatus status,
                                                           LocalDate createdFrom,
                                                           LocalDate createdTo) {
         requireAdmin(actor);
@@ -138,7 +173,7 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
         }
         LocalDateTime from = createdFrom == null ? null : createdFrom.atStartOfDay();
         LocalDateTime toExclusive = createdTo == null ? null : createdTo.plusDays(1).atStartOfDay();
-        return recruitmentRequestRepository.search(storeId, managerId, status, from, toExclusive).stream()
+        return prepareList(recruitmentRequestRepository.search(storeId, managerId, status, from, toExclusive)).stream()
                 .map(this::toResponse)
                 .toList();
     }
@@ -165,10 +200,12 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
 
     @Override
     @Transactional
-    public void approve(AuthenticatedUser actor, Integer id) {
+    public String approveCandidate(AuthenticatedUser actor, Integer requestId, Integer candidateId) {
         requireAdmin(actor);
-        RecruitmentRequest request = requirePending(id);
-        if (emailTaken(request.getEmail())) {
+        LockedProposal locked = lockProposal(requestId);
+        RecruitmentCandidate candidate = requireCandidate(locked.candidates(), candidateId);
+        requirePendingCandidate(candidate, true);
+        if (emailTaken(candidate.getEmail())) {
             throw new BusinessException(EMAIL_EXISTS + " Không thể tạo tài khoản.");
         }
 
@@ -177,80 +214,124 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
         User account;
         try {
             employee = employeeRepository.save(Employee.builder()
-                    .fullName(request.getFullName())
-                    .phone(request.getPhone())
-                    .email(request.getEmail())
-                    .address(request.getAddress())
-                    .store(request.getStore())
+                    .fullName(candidate.getFullName())
+                    .phone(candidate.getPhone())
+                    .email(candidate.getEmail())
+                    .address(candidate.getAddress())
+                    .store(locked.request().getStore())
                     .status(EmployeeStatus.ACTIVE)
                     .certificationStatus(CertificationStatus.NOTCERTIFIED)
                     .hasCertificate(false)
                     .hireDate(VietnamTime.today())
                     .build());
             account = userRepository.save(User.builder()
-                    .username(request.getEmail())
+                    .username(candidate.getEmail())
                     .passwordHash(passwordEncoder.encode(temporaryPassword))
                     .role(requireStaffRole())
                     .employee(employee)
                     .isActive(true)
                     .build());
-            request.setStatus(RecruitmentStatus.APPROVED);
-            request.setReviewedAt(VietnamTime.now());
-            request.setReviewedBy(requireUser(actor.getUserId()));
-            request.setCreatedEmployee(employee);
-            request.setRejectReason(null);
-            recruitmentRequestRepository.save(request);
+            candidate.setStatus(RecruitmentStatus.APPROVED);
+            candidate.setReviewedAt(VietnamTime.now());
+            candidate.setReviewedBy(requireUser(actor.getUserId()));
+            candidate.setCreatedEmployee(employee);
+            candidate.setRejectReason(null);
+            refreshProposalStatus(locked.request(), locked.candidates());
+            recruitmentRequestRepository.save(locked.request());
         } catch (DataIntegrityViolationException ex) {
-            log.error("Không tạo được tài khoản cho đề xuất {} vì email bị trùng", id, ex);
+            log.error("Không tạo được tài khoản cho nhân viên {} trong đề xuất {} vì email bị trùng",
+                    candidateId, requestId, ex);
             throw new BusinessException(EMAIL_EXISTS + " Không thể tạo tài khoản.");
         }
 
         notifyManager(
-                request,
+                locked.request(),
                 "Đề xuất tuyển nhân sự đã được duyệt",
-                "Đề xuất tuyển nhân sự " + request.getFullName() + " đã được Admin duyệt.",
+                "Nhân viên " + candidate.getFullName() + " trong đề xuất \"" + locked.request().getTitle()
+                        + "\" đã được Admin duyệt.",
                 NotificationType.RECRUITMENT_REQUEST_APPROVED);
 
-        // Gửi email trong cùng transaction: nếu SMTP lỗi thì rollback, không tạo tài khoản mà không giao được mật khẩu.
         accountMailService.sendTemporaryPassword(
-                request.getEmail(),
-                request.getFullName(),
+                candidate.getEmail(),
+                candidate.getFullName(),
                 account.getUsername(),
                 temporaryPassword);
-        log.info("Admin {} đã duyệt đề xuất {} và tạo nhân viên {}", actor.getUserId(), id, employee.getId());
+        log.info("Admin {} đã duyệt nhân viên {} trong đề xuất {} và tạo nhân viên {}",
+                actor.getUserId(), candidateId, requestId, employee.getId());
+        return candidate.getFullName();
     }
 
     @Override
     @Transactional
-    public void reject(AuthenticatedUser actor, Integer id, String rejectReason) {
+    public String rejectCandidate(AuthenticatedUser actor, Integer requestId, Integer candidateId, String rejectReason) {
         requireAdmin(actor);
-        RecruitmentRequest request = requirePending(id);
-        String reason = normalizeRejectReason(rejectReason);
-        request.setStatus(RecruitmentStatus.REJECTED);
-        request.setRejectReason(reason);
-        request.setReviewedAt(VietnamTime.now());
-        request.setReviewedBy(requireUser(actor.getUserId()));
-        recruitmentRequestRepository.save(request);
+        LockedProposal locked = lockProposal(requestId);
+        RecruitmentCandidate candidate = requireCandidate(locked.candidates(), candidateId);
+        requirePendingCandidate(candidate, false);
+        candidate.setStatus(RecruitmentStatus.REJECTED);
+        candidate.setRejectReason(normalizeRejectReason(rejectReason));
+        candidate.setReviewedAt(VietnamTime.now());
+        candidate.setReviewedBy(requireUser(actor.getUserId()));
+        refreshProposalStatus(locked.request(), locked.candidates());
+        recruitmentRequestRepository.save(locked.request());
         notifyManager(
-                request,
+                locked.request(),
                 "Đề xuất tuyển nhân sự bị từ chối",
-                "Đề xuất tuyển nhân sự " + request.getFullName() + " đã bị từ chối.",
+                "Nhân viên " + candidate.getFullName() + " trong đề xuất \"" + locked.request().getTitle()
+                        + "\" đã bị từ chối.",
                 NotificationType.RECRUITMENT_REQUEST_REJECTED);
-        log.info("Admin {} đã từ chối đề xuất {}", actor.getUserId(), id);
+        log.info("Admin {} đã từ chối nhân viên {} trong đề xuất {}", actor.getUserId(), candidateId, requestId);
+        return candidate.getFullName();
     }
 
     @Override
     @Transactional(readOnly = true)
     public int countPendingRequests() {
-        return recruitmentRequestRepository.countByStatus(RecruitmentStatus.PENDING);
+        return recruitmentRequestRepository.countByStatusIn(List.of(
+                RecruitmentProposalStatus.PENDING,
+                RecruitmentProposalStatus.PARTIALLY_PROCESSED));
     }
 
-    private RecruitmentRequest requirePending(Integer id) {
-        RecruitmentRequest request = requireRequest(id);
-        if (request.getStatus() != RecruitmentStatus.PENDING) {
-            throw new BusinessException("Chỉ có thể xử lý đề xuất đang chờ duyệt.");
+    private LockedProposal lockProposal(Integer requestId) {
+        RecruitmentRequest request = recruitmentRequestRepository.lockById(requestId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy đề xuất tuyển nhân sự."));
+        List<RecruitmentCandidate> candidates = new ArrayList<>(recruitmentCandidateRepository.lockByRequestId(requestId));
+        candidates.sort(candidateOrder());
+        return new LockedProposal(request, candidates);
+    }
+
+    private RecruitmentCandidate requireCandidate(List<RecruitmentCandidate> candidates, Integer candidateId) {
+        return candidates.stream()
+                .filter(candidate -> candidateId.equals(candidate.getId()))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException("Không tìm thấy nhân viên trong đề xuất này."));
+    }
+
+    private void requirePendingCandidate(RecruitmentCandidate candidate, boolean approving) {
+        if (candidate.getCreatedEmployee() != null || candidate.getStatus() == RecruitmentStatus.APPROVED) {
+            throw new BusinessException(approving
+                    ? ALREADY_APPROVED
+                    : "Nhân viên này đã được duyệt.");
         }
-        return request;
+        if (candidate.getStatus() == RecruitmentStatus.REJECTED) {
+            throw new BusinessException("Nhân viên này đã bị từ chối.");
+        }
+        if (candidate.getStatus() != RecruitmentStatus.PENDING) {
+            throw new BusinessException("Chỉ có thể xử lý nhân viên đang chờ duyệt.");
+        }
+    }
+
+    private void refreshProposalStatus(RecruitmentRequest request, List<RecruitmentCandidate> candidates) {
+        long pending = candidates.stream()
+                .filter(candidate -> candidate.getStatus() == RecruitmentStatus.PENDING)
+                .count();
+        if (pending == candidates.size()) {
+            request.setStatus(RecruitmentProposalStatus.PENDING);
+        } else if (pending == 0) {
+            request.setStatus(RecruitmentProposalStatus.COMPLETED);
+        } else {
+            request.setStatus(RecruitmentProposalStatus.PARTIALLY_PROCESSED);
+        }
     }
 
     private RecruitmentRequest requireRequest(Integer id) {
@@ -258,12 +339,59 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
                 .orElseThrow(() -> new BusinessException("Không tìm thấy đề xuất tuyển nhân sự."));
     }
 
+    private List<NormalizedCandidate> normalizeCandidates(List<RecruitmentCandidateRequest> candidates) {
+        if (candidates == null || candidates.isEmpty()) {
+            throw new BusinessException("Vui lòng thêm ít nhất một nhân viên vào danh sách.");
+        }
+        if (candidates.size() > MAX_CANDIDATES) {
+            throw new BusinessException("Mỗi đề xuất chứa tối đa 30 nhân viên.");
+        }
+        List<NormalizedCandidate> normalized = new ArrayList<>();
+        for (RecruitmentCandidateRequest candidate : candidates) {
+            normalized.add(new NormalizedCandidate(
+                    requireFullName(candidate.getFullName()),
+                    requireDateOfBirth(candidate.getDateOfBirth()),
+                    candidate.getGender(),
+                    normalizeEmail(candidate.getEmail()),
+                    normalizePhone(candidate.getPhone()),
+                    normalizeAddress(candidate.getAddress())));
+        }
+        assertUniqueInProposal(normalized);
+        for (NormalizedCandidate candidate : normalized) {
+            assertEmailAvailable(candidate.email());
+            assertPhoneAvailable(candidate.phone());
+        }
+        return normalized;
+    }
+
+    private void assertUniqueInProposal(List<NormalizedCandidate> candidates) {
+        Set<String> emails = new HashSet<>();
+        Set<String> phones = new HashSet<>();
+        for (NormalizedCandidate candidate : candidates) {
+            if (!emails.add(candidate.email())) {
+                throw new BusinessException("Email " + candidate.email() + " bị trùng trong danh sách nhân viên.");
+            }
+            if (!phones.add(candidate.phone())) {
+                throw new BusinessException("Số điện thoại " + candidate.phone() + " bị trùng trong danh sách nhân viên.");
+            }
+        }
+    }
+
     private void assertEmailAvailable(String email) {
         if (emailTaken(email)) {
-            throw new BusinessException(EMAIL_EXISTS);
+            throw new BusinessException(EMAIL_EXISTS + " (" + email + ")");
         }
-        if (recruitmentRequestRepository.existsByEmailIgnoreCaseAndStatus(email, RecruitmentStatus.PENDING)) {
-            throw new BusinessException(EMAIL_PENDING);
+        if (recruitmentCandidateRepository.existsByEmailIgnoreCaseAndStatus(email, RecruitmentStatus.PENDING)) {
+            throw new BusinessException(EMAIL_PENDING + " (" + email + ")");
+        }
+    }
+
+    private void assertPhoneAvailable(String phone) {
+        if (employeeRepository.countByNormalizedPhone(phone) > 0) {
+            throw new BusinessException(PHONE_EXISTS + " (" + phone + ")");
+        }
+        if (recruitmentCandidateRepository.existsByPhoneAndStatus(phone, RecruitmentStatus.PENDING)) {
+            throw new BusinessException(PHONE_PENDING + " (" + phone + ")");
         }
     }
 
@@ -276,7 +404,7 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
         if (email == null || email.isBlank()) {
             throw new BusinessException("Vui lòng nhập email.");
         }
-        String normalized = email.trim().toLowerCase();
+        String normalized = email.trim().toLowerCase(Locale.ROOT);
         if (normalized.length() > 100 || !EMAIL_PATTERN.matcher(normalized).matches()) {
             throw new BusinessException(EMAIL_INVALID);
         }
@@ -287,7 +415,7 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
         if (phone == null || phone.isBlank()) {
             throw new BusinessException("Vui lòng nhập số điện thoại.");
         }
-        String normalized = phone.replaceAll("[\\s-]", "");
+        String normalized = phone.replaceAll("[\\s.\\-]", "");
         if (!normalized.matches("^[0-9]{9,15}$")) {
             throw new BusinessException("Số điện thoại gồm 9 đến 15 chữ số.");
         }
@@ -303,6 +431,42 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
             throw new BusinessException("Họ và tên tối đa 100 ký tự.");
         }
         return normalized;
+    }
+
+    private String requireTitle(String title) {
+        if (title == null || title.isBlank()) {
+            throw new BusinessException("Vui lòng nhập tên đề xuất.");
+        }
+        String normalized = title.trim();
+        if (normalized.length() > 150) {
+            throw new BusinessException("Tên đề xuất tối đa 150 ký tự.");
+        }
+        return normalized;
+    }
+
+    private String normalizeNote(String note) {
+        if (note == null || note.isBlank()) {
+            return null;
+        }
+        String normalized = note.trim();
+        if (normalized.length() > 500) {
+            throw new BusinessException("Ghi chú tối đa 500 ký tự.");
+        }
+        return normalized;
+    }
+
+    private LocalDate requireDateOfBirth(LocalDate dateOfBirth) {
+        if (dateOfBirth == null) {
+            throw new BusinessException("Vui lòng chọn ngày sinh.");
+        }
+        LocalDate today = VietnamTime.today();
+        if (!dateOfBirth.isBefore(today)) {
+            throw new BusinessException("Ngày sinh phải là ngày trong quá khứ.");
+        }
+        if (dateOfBirth.isBefore(EARLIEST_BIRTH_DATE)) {
+            throw new BusinessException("Ngày sinh không hợp lệ.");
+        }
+        return dateOfBirth;
     }
 
     private String normalizeAddress(String address) {
@@ -367,27 +531,87 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
                 .orElseThrow(() -> new BusinessException("Không tìm thấy tài khoản người dùng."));
     }
 
+    private List<RecruitmentRequest> prepareList(List<RecruitmentRequest> requests) {
+        Map<Integer, RecruitmentRequest> unique = new LinkedHashMap<>();
+        for (RecruitmentRequest request : requests) {
+            unique.putIfAbsent(request.getId(), request);
+        }
+        return unique.values().stream()
+                .sorted(Comparator.comparing(RecruitmentRequest::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(RecruitmentRequest::getId, Comparator.reverseOrder()))
+                .toList();
+    }
+
+    private Comparator<RecruitmentCandidate> candidateOrder() {
+        return Comparator.comparing(RecruitmentCandidate::getSortOrder, Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(RecruitmentCandidate::getId, Comparator.nullsLast(Comparator.naturalOrder()));
+    }
+
     private RecruitmentRequestResponse toResponse(RecruitmentRequest request) {
         Store store = request.getStore();
         Employee manager = request.getRequestedBy();
-        Employee createdEmployee = request.getCreatedEmployee();
-        RecruitmentStatus status = request.getStatus();
+        List<RecruitmentCandidate> people = request.getCandidates() == null
+                ? List.of()
+                : request.getCandidates().stream().sorted(candidateOrder()).toList();
+        int pending = 0;
+        int approved = 0;
+        int rejected = 0;
+        List<RecruitmentCandidateResponse> candidates = new ArrayList<>();
+        for (RecruitmentCandidate candidate : people) {
+            RecruitmentStatus status = candidate.getStatus() == null ? RecruitmentStatus.PENDING : candidate.getStatus();
+            if (status == RecruitmentStatus.APPROVED) {
+                approved++;
+            } else if (status == RecruitmentStatus.REJECTED) {
+                rejected++;
+            } else {
+                pending++;
+            }
+            Employee createdEmployee = candidate.getCreatedEmployee();
+            candidates.add(RecruitmentCandidateResponse.builder()
+                    .id(candidate.getId())
+                    .fullName(candidate.getFullName())
+                    .dateOfBirth(candidate.getDateOfBirth())
+                    .gender(candidate.getGender())
+                    .genderLabel(candidate.getGender() != null ? candidate.getGender().getLabel() : null)
+                    .email(candidate.getEmail())
+                    .phone(candidate.getPhone())
+                    .address(candidate.getAddress())
+                    .status(status)
+                    .statusLabel(status.getLabel())
+                    .rejectReason(candidate.getRejectReason())
+                    .reviewedAt(candidate.getReviewedAt())
+                    .createdEmployeeId(createdEmployee != null ? createdEmployee.getId() : null)
+                    .build());
+        }
+        RecruitmentProposalStatus status = request.getStatus();
         return RecruitmentRequestResponse.builder()
                 .id(request.getId())
+                .title(request.getTitle())
+                .note(request.getNote())
                 .storeId(store != null ? store.getId() : null)
                 .storeName(store != null ? store.getStoreName() : null)
                 .managerId(manager != null ? manager.getId() : null)
                 .managerName(manager != null ? manager.getFullName() : null)
-                .fullName(request.getFullName())
-                .email(request.getEmail())
-                .phone(request.getPhone())
-                .address(request.getAddress())
                 .status(status)
                 .statusLabel(status != null ? status.getLabel() : null)
-                .rejectReason(request.getRejectReason())
                 .createdAt(request.getCreatedAt())
-                .reviewedAt(request.getReviewedAt())
-                .createdEmployeeId(createdEmployee != null ? createdEmployee.getId() : null)
+                .totalCandidates(candidates.size())
+                .pendingCount(pending)
+                .approvedCount(approved)
+                .rejectedCount(rejected)
+                .candidates(candidates)
                 .build();
+    }
+
+    private record NormalizedCandidate(
+            String fullName,
+            LocalDate dateOfBirth,
+            Gender gender,
+            String email,
+            String phone,
+            String address) {
+    }
+
+    private record LockedProposal(RecruitmentRequest request, List<RecruitmentCandidate> candidates) {
     }
 }

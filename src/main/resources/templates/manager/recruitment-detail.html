@@ -13,35 +13,71 @@
 <main class="wrap dash-main">
     <section class="welcome">
         <div class="eyebrow">Cửa hàng — Manager</div>
-        <h1 th:text="${request.fullName}">Nhân viên</h1>
-        <p>Đề xuất này đang chờ Admin quyết định. Bạn không thể tự duyệt hoặc tạo tài khoản.</p>
+        <h1 th:text="${request.title}">Đề xuất</h1>
+        <p th:if="${request.status.name() == 'PENDING'}">Đề xuất đang chờ Admin xử lý từng nhân viên. Bạn không thể tự duyệt hoặc tạo tài khoản.</p>
+        <p th:if="${request.status.name() == 'PARTIALLY_PROCESSED'}">Admin đã xử lý một phần danh sách. Nhân viên còn chờ duyệt chưa có tài khoản.</p>
+        <p th:if="${request.status.name() == 'COMPLETED'}">Tất cả nhân viên trong đề xuất đã được duyệt hoặc từ chối.</p>
     </section>
 
-    <section class="panel" style="max-width:720px;">
-        <dl class="info-list">
+    <section class="panel">
+        <dl class="info-list recruit-summary">
             <div><dt>Cửa hàng</dt><dd th:text="${request.storeName}">Store</dd></div>
-            <div><dt>Email</dt><dd th:text="${request.email}">a@shop.vn</dd></div>
-            <div><dt>Số điện thoại</dt><dd th:text="${request.phone}">0901</dd></div>
-            <div><dt>Địa chỉ</dt><dd th:text="${request.address != null ? request.address : '—'}">—</dd></div>
+            <div><dt>Ngày gửi</dt><dd th:text="${request.createdAt != null} ? ${#temporals.format(request.createdAt, 'dd/MM/yyyy HH:mm')} : '—'">—</dd></div>
             <div>
-                <dt>Trạng thái</dt>
+                <dt>Trạng thái đề xuất</dt>
                 <dd>
                     <span class="badge"
-                          th:classappend="${request.status.name() == 'APPROVED'} ? ' badge-ok' : (${request.status.name() == 'REJECTED'} ? ' badge-off' : ' badge-wait')"
+                          th:classappend="${request.status.name() == 'COMPLETED'} ? ' badge-ok' : (${request.status.name() == 'PARTIALLY_PROCESSED'} ? ' badge-partial' : ' badge-wait')"
                           th:text="${request.statusLabel}">Chờ duyệt</span>
                 </dd>
             </div>
-            <div><dt>Ngày gửi</dt><dd th:text="${request.createdAt != null} ? ${#temporals.format(request.createdAt, 'dd/MM/yyyy HH:mm')} : '—'">—</dd></div>
-            <div th:if="${request.reviewedAt != null}">
-                <dt>Ngày xử lý</dt>
-                <dd th:text="${#temporals.format(request.reviewedAt, 'dd/MM/yyyy HH:mm')}">—</dd>
-            </div>
-            <div th:if="${request.status.name() == 'REJECTED'}">
-                <dt>Lý do từ chối</dt>
-                <dd th:text="${request.rejectReason != null ? request.rejectReason : 'Không có lý do từ chối.'}">Lý do</dd>
-            </div>
+            <div th:if="${request.note != null}"><dt>Ghi chú</dt><dd th:text="${request.note}">Ghi chú</dd></div>
         </dl>
-        <p class="muted" th:if="${request.status.name() == 'APPROVED'}">Admin đã duyệt. Tài khoản Staff được tạo và mật khẩu tạm thời đã gửi qua email. Mật khẩu không hiển thị trên hệ thống.</p>
+        <div class="recruit-counts">
+            <span class="badge">Tổng <strong th:text="${request.totalCandidates}">0</strong></span>
+            <span class="badge badge-wait">Chờ duyệt <strong th:text="${request.pendingCount}">0</strong></span>
+            <span class="badge badge-ok">Đã duyệt <strong th:text="${request.approvedCount}">0</strong></span>
+            <span class="badge badge-off">Từ chối <strong th:text="${request.rejectedCount}">0</strong></span>
+        </div>
+
+        <h2>Nhân viên trong đề xuất</h2>
+        <div class="table-scroll">
+            <table>
+                <thead>
+                <tr>
+                    <th>Họ và tên</th>
+                    <th>Ngày sinh</th>
+                    <th>Giới tính</th>
+                    <th>Email</th>
+                    <th>Điện thoại</th>
+                    <th>Địa chỉ</th>
+                    <th>Trạng thái</th>
+                    <th>Lý do từ chối</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:if="${request.candidates == null or #lists.isEmpty(request.candidates)}">
+                    <td colspan="8" class="empty">Đề xuất chưa có nhân viên.</td>
+                </tr>
+                <tr th:each="candidate : ${request.candidates}">
+                    <td th:text="${candidate.fullName}">Nguyễn Văn A</td>
+                    <td th:text="${candidate.dateOfBirth != null} ? ${#temporals.format(candidate.dateOfBirth, 'dd/MM/yyyy')} : '—'">—</td>
+                    <td th:text="${candidate.genderLabel != null ? candidate.genderLabel : '—'}">—</td>
+                    <td th:text="${candidate.email}">a@shop.vn</td>
+                    <td th:text="${candidate.phone}">0901</td>
+                    <td th:text="${candidate.address != null ? candidate.address : '—'}">—</td>
+                    <td>
+                        <span class="badge"
+                              th:classappend="${candidate.status.name() == 'APPROVED'} ? ' badge-ok' : (${candidate.status.name() == 'REJECTED'} ? ' badge-off' : ' badge-wait')"
+                              th:text="${candidate.statusLabel}">Chờ duyệt</span>
+                        <div class="muted" th:if="${candidate.reviewedAt != null}" th:text="${#temporals.format(candidate.reviewedAt, 'dd/MM/yyyy HH:mm')}"></div>
+                    </td>
+                    <td th:text="${candidate.status.name() == 'REJECTED'} ? (${candidate.rejectReason != null ? candidate.rejectReason : 'Không có lý do từ chối.'}) : '—'">—</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="muted">Mật khẩu tạm thời không hiển thị trên hệ thống. Admin gửi mật khẩu qua email khi duyệt từng nhân viên.</p>
         <p class="muted"><a class="back-link" th:href="@{/manager/recruitment}">Quay lại danh sách</a></p>
     </section>
 </main>

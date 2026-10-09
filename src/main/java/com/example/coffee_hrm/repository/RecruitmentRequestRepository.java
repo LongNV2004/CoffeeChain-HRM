@@ -1,29 +1,33 @@
 package com.example.coffee_hrm.repository;
 
-import com.example.coffee_hrm.common.enums.RecruitmentStatus;
+import com.example.coffee_hrm.common.enums.RecruitmentProposalStatus;
 import com.example.coffee_hrm.entity.RecruitmentRequest;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 @Repository
 public interface RecruitmentRequestRepository extends JpaRepository<RecruitmentRequest, Integer> {
 
-    boolean existsByEmailIgnoreCaseAndStatus(String email, RecruitmentStatus status);
+    int countByStatusIn(Collection<RecruitmentProposalStatus> statuses);
 
-    int countByStatus(RecruitmentStatus status);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM RecruitmentRequest r WHERE r.id = :id")
+    Optional<RecruitmentRequest> lockById(@Param("id") Integer id);
 
     @Query("""
             SELECT r FROM RecruitmentRequest r
             JOIN FETCH r.store s
             JOIN FETCH r.requestedBy manager
             WHERE manager.id = :managerId
-            ORDER BY r.createdAt DESC, r.id DESC
             """)
     List<RecruitmentRequest> findMine(@Param("managerId") Integer managerId);
 
@@ -31,8 +35,6 @@ public interface RecruitmentRequestRepository extends JpaRepository<RecruitmentR
             SELECT r FROM RecruitmentRequest r
             JOIN FETCH r.store s
             JOIN FETCH r.requestedBy manager
-            LEFT JOIN FETCH r.reviewedBy
-            LEFT JOIN FETCH r.createdEmployee
             WHERE r.id = :id
             """)
     Optional<RecruitmentRequest> findDetailById(@Param("id") Integer id);
@@ -46,11 +48,10 @@ public interface RecruitmentRequestRepository extends JpaRepository<RecruitmentR
               AND (:status IS NULL OR r.status = :status)
               AND (:createdFrom IS NULL OR r.createdAt >= :createdFrom)
               AND (:createdToExclusive IS NULL OR r.createdAt < :createdToExclusive)
-            ORDER BY r.createdAt DESC, r.id DESC
             """)
     List<RecruitmentRequest> search(@Param("storeId") Integer storeId,
                                     @Param("managerId") Integer managerId,
-                                    @Param("status") RecruitmentStatus status,
+                                    @Param("status") RecruitmentProposalStatus status,
                                     @Param("createdFrom") LocalDateTime createdFrom,
                                     @Param("createdToExclusive") LocalDateTime createdToExclusive);
 }
