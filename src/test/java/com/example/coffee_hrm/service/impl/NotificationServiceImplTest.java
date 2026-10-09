@@ -92,6 +92,60 @@ class NotificationServiceImplTest {
     }
 
     @Test
+    void approvedAvailabilityNotificationOpensStaffSchedule() {
+        User staff = User.builder()
+                .id(8)
+                .username("staff")
+                .passwordHash("hash")
+                .role(Role.builder().id(3).roleName(RoleName.STAFF).build())
+                .isActive(true)
+                .build();
+        when(notificationRepository.findByRecipient_IdOrderByCreatedAtDesc(8)).thenReturn(List.of(
+                Notification.builder()
+                        .id(16)
+                        .recipient(staff)
+                        .title("Lịch làm việc đã được duyệt")
+                        .message("Quản lý đã duyệt lịch làm việc.")
+                        .type(NotificationType.WORK_AVAILABILITY_APPROVED)
+                        .isRead(false)
+                        .referenceType("WORK_AVAILABILITY")
+                        .referenceId(20)
+                        .createdAt(LocalDateTime.now())
+                        .build()));
+
+        var items = notificationService.listMine(AuthenticatedUser.from(staff));
+
+        assertEquals("/schedule/staff", items.getFirst().getActionUrl());
+    }
+
+    @Test
+    void rejectedAvailabilityNotificationOpensStaffRegistration() {
+        User staff = User.builder()
+                .id(8)
+                .username("staff")
+                .passwordHash("hash")
+                .role(Role.builder().id(3).roleName(RoleName.STAFF).build())
+                .isActive(true)
+                .build();
+        when(notificationRepository.findByRecipient_IdOrderByCreatedAtDesc(8)).thenReturn(List.of(
+                Notification.builder()
+                        .id(17)
+                        .recipient(staff)
+                        .title("Lịch làm việc bị từ chối")
+                        .message("Quản lý đã từ chối đăng ký.")
+                        .type(NotificationType.WORK_AVAILABILITY_REJECTED)
+                        .isRead(false)
+                        .referenceType("WORK_AVAILABILITY")
+                        .referenceId(20)
+                        .createdAt(LocalDateTime.now())
+                        .build()));
+
+        var items = notificationService.listMine(AuthenticatedUser.from(staff));
+
+        assertEquals("/availability", items.getFirst().getActionUrl());
+    }
+
+    @Test
     void trainingEnrollmentNotificationOpensStaffClassDetail() {
         User staff = User.builder()
                 .id(8)

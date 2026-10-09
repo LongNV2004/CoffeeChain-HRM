@@ -199,7 +199,7 @@
                 <div class="coffee-group-children">
                     <a th:href="@{/attendance/manager}" th:classappend="${active == 'attendance'} ? ' is-active'">Chấm công</a>
                     <a th:href="@{/schedule/manager}" th:classappend="${active == 'schedule'} ? ' is-active'">Lịch làm việc</a>
-                    <a th:href="@{/availability/manager}" th:classappend="${active == 'availability'} ? ' is-active'">Lịch rảnh nhân viên</a>
+                    <a th:href="@{/availability/manager}" th:classappend="${active == 'availability'} ? ' is-active'">Đăng kí lịch làm việc</a>
                     <a th:href="@{/dashboard/manager#leave}" th:classappend="${active == 'leave'} ? ' is-active'">Quản lý nghỉ phép</a>
                 </div>
             </div>
@@ -246,7 +246,7 @@
                 </button>
                 <div class="coffee-group-children">
                     <a th:href="@{/schedule/staff}" th:classappend="${active == 'schedule'} ? ' is-active'">Lịch làm việc &amp; Đổi ca</a>
-                    <a th:href="@{/availability}" th:classappend="${active == 'availability'} ? ' is-active'">Đăng ký lịch rảnh</a>
+                    <a th:href="@{/availability}" th:classappend="${active == 'availability'} ? ' is-active'">Đăng kí lịch làm việc</a>
                     <a th:href="@{/dashboard/staff#shift-change}" th:classappend="${active == 'shift-change'} ? ' is-active'">Yêu cầu đổi ca</a>
                     <a th:href="@{/schedule/staff#requests-history}" th:classappend="${active == 'requests-history'} ? ' is-active'">Lịch sử yêu cầu đổi ca</a>
                 </div>

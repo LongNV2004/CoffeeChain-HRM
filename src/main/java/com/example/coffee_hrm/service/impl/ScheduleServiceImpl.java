@@ -12,6 +12,7 @@ import com.example.coffee_hrm.entity.*;
 import com.example.coffee_hrm.repository.*;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.ScheduleService;
+import com.example.coffee_hrm.service.support.AvailabilityCoverage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,6 +42,7 @@ public class ScheduleServiceImpl implements ScheduleService {
     private final ShiftChangeRequestRepository shiftChangeRequestRepository;
     private final EmployeeRepository employeeRepository;
     private final UserRepository userRepository;
+    private final WorkAvailabilityRepository workAvailabilityRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -466,6 +468,8 @@ public class ScheduleServiceImpl implements ScheduleService {
             }
         }
 
+        appendApprovedRegistrations(store, dayHeaders, assignmentMap, currentEmpId);
+
         List<WeeklyScheduleView.ShiftRow> shiftRows = new ArrayList<>();
         for (Shift shift : shifts) {
             List<WeeklyScheduleView.DayCell> cells = new ArrayList<>();
@@ -612,6 +616,61 @@ public class ScheduleServiceImpl implements ScheduleService {
     private LocalDate resolveMonday(LocalDate input) {
         LocalDate date = input != null ? input : VietnamTime.today();
         return date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+    }
+
+    /**
+     * Đưa đăng ký đã duyệt vào đúng ca và đúng ngày của tuần đang xem.
+     * Nhân viên đã có phân ca ở slot đó không bị thêm lần nữa.
+     */
+    private void appendApprovedRegistrations(Store store,
+                                             List<WeeklyScheduleView.DayHeader> dayHeaders,
+                                             Map<String, List<WeeklyScheduleView.AssignmentItem>> assignmentMap,
+                                             Integer currentEmpId) {
+        if (dayHeaders == null || dayHeaders.isEmpty()) {
+            return;
+        }
+        LocalDate monday = dayHeaders.getFirst().getDate();
+        LocalDate sunday = dayHeaders.getLast().getDate();
+        List<WorkAvailability> approved = workAvailabilityRepository.findApprovedCovering(
+                store.getId(), monday, sunday, ApprovalStatus.APPROVED);
+        if (approved == null) {
+            return;
+        }
+        for (WorkAvailability availability : approved) {
+            if (availability.getShift() == null || availability.getEmployee() == null) {
+                continue;
+            }
+            if (availability.getStatus() != null && availability.getStatus() != ApprovalStatus.APPROVED) {
+                continue;
+            }
+            for (WeeklyScheduleView.DayHeader dh : dayHeaders) {
+                if (!AvailabilityCoverage.appliesOn(availability, dh.getDate())) {
+                    continue;
+                }
+                String key = availability.getShift().getId() + "_" + dh.getDate();
+                List<WeeklyScheduleView.AssignmentItem> items = assignmentMap.computeIfAbsent(key, ignored -> new ArrayList<>());
+                Integer employeeId = availability.getEmployee().getId();
+                boolean alreadyListed = items.stream().anyMatch(item -> Objects.equals(item.getEmployeeId(), employeeId));
+                if (alreadyListed) {
+                    items.stream()
+                            .filter(item -> Objects.equals(item.getEmployeeId(), employeeId))
+                            .forEach(item -> item.setCanCancel(false));
+                    continue;
+                }
+                boolean isCurrentStaff = currentEmpId != null && Objects.equals(currentEmpId, employeeId);
+                items.add(WeeklyScheduleView.AssignmentItem.builder()
+                        .employeeId(employeeId)
+                        .employeeName(availability.getEmployee().getFullName())
+                        .employeePhone(availability.getEmployee().getPhone())
+                        .status(AssignmentStatus.ASSIGNED.getDbValue())
+                        .isPublished(true)
+                        .isCurrentStaff(isCurrentStaff)
+                        .canCancel(false)
+                        .canRequestChange(false)
+                        .appliedFromRegistration(true)
+                        .build());
+            }
+        }
     }
 
     private boolean isShiftStillUpcoming(LocalDate workDate, LocalTime startTime) {

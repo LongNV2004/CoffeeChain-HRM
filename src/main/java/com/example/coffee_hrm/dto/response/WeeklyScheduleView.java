@@ -76,6 +76,8 @@ public class WeeklyScheduleView {
         private LocalDate date;
         private Integer shiftId;
         private List<AssignmentItem> assignments;
+        /** Giữ để tương thích mẫu cũ. Lịch đã duyệt được đưa vào {@link #assignments}. */
+        private String availableEmployeesLabel;
     }
 
     @Getter
@@ -93,6 +95,8 @@ public class WeeklyScheduleView {
         private boolean isCurrentStaff;
         private boolean canCancel;
         private boolean canRequestChange;
+        /** Ca bung từ đăng ký đã duyệt, chưa có bản ghi phân ca riêng. */
+        private boolean appliedFromRegistration;
     }
 
     @Getter
