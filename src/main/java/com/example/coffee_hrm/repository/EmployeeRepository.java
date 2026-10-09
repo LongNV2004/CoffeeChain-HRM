@@ -55,13 +55,26 @@ public interface EmployeeRepository extends JpaRepository<Employee, Integer> {
             WHERE e.id = :id
             """)
     Optional<Employee> findByIdWithStoreAndManager(@Param("id") Integer id);
-
+    @Query("""
+        SELECT e FROM Employee e
+        JOIN FETCH e.store s
+        LEFT JOIN FETCH s.manager
+        LEFT JOIN FETCH e.user u
+        LEFT JOIN FETCH u.role
+        ORDER BY
+            CASE WHEN e.status = :terminatedStatus THEN 1 ELSE 0 END,
+            e.fullName ASC
+        """)
+    List<Employee> findAllForAdmin(
+            @Param("terminatedStatus") EmployeeStatus terminatedStatus
+    );
     @Query("""
             SELECT e.store.id AS storeId, COUNT(e) AS headcount
             FROM Employee e
             WHERE e.status <> :excludedStatus
             GROUP BY e.store.id
             """)
+
     List<StoreHeadcount> countHeadcountByStore(@Param("excludedStatus") EmployeeStatus excludedStatus);
 
     interface StoreHeadcount {
