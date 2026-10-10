@@ -2,6 +2,7 @@ package com.example.coffee_hrm.service;
 
 import com.example.coffee_hrm.dto.request.SubmitWorkAvailabilityRequest;
 import com.example.coffee_hrm.dto.response.AvailabilityPreview;
+import com.example.coffee_hrm.dto.response.SlotLimitUpdateResult;
 import com.example.coffee_hrm.dto.response.WeeklyAvailabilityView;
 import com.example.coffee_hrm.dto.response.WorkAvailabilityResponse;
 import com.example.coffee_hrm.security.AuthenticatedUser;
@@ -51,4 +52,14 @@ public interface StaffAvailabilityService {
      * @return thông báo kết quả cho Manager
      */
     String reviewAllNextWeekAvailabilities(boolean approved, AuthenticatedUser manager);
+
+    /**
+     * Cập nhật số nhân viên tối đa của một ca trong một thứ.
+     * Giới hạn giữ nguyên cho các tuần và tháng sau cho đến khi Manager đổi.
+     * Không đổi trạng thái các đăng ký đã có.
+     */
+    SlotLimitUpdateResult updateSlotLimit(Integer shiftId,
+                                           Integer dayOfWeek,
+                                           String maxEmployees,
+                                           AuthenticatedUser manager);
 }

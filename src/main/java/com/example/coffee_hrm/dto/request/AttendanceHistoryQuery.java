@@ -19,4 +19,5 @@ public class AttendanceHistoryQuery {
     private final AttendanceStatus status;
     private final boolean lateOnly;
     private final boolean earlyOnly;
+    private final AttendanceHistoryKind kind;
 }

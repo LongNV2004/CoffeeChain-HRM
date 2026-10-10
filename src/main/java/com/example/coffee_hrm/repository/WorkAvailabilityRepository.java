@@ -129,4 +129,44 @@ public interface WorkAvailabilityRepository extends JpaRepository<WorkAvailabili
             WHERE wa.id IN :ids
             """)
     int deleteByIds(@Param("ids") Collection<Integer> ids);
+
+    /**
+     * Đăng ký còn chiếm chỗ của một ca: chờ duyệt, hoặc đã duyệt và còn hiệu lực.
+     * Bản từ chối không nằm trong {@code statuses}.
+     */
+    @Query("""
+            SELECT wa FROM WorkAvailability wa
+            JOIN FETCH wa.employee e
+            JOIN FETCH wa.shift s
+            WHERE s.id = :shiftId
+              AND wa.status IN :statuses
+              AND (
+                    wa.status = :pending
+                    OR (wa.dayOfWeek IS NOT NULL AND (wa.validTo IS NULL OR wa.validTo >= :today))
+                    OR (wa.dayOfWeek IS NULL AND wa.workDate IS NOT NULL AND wa.workDate >= :today)
+                  )
+            """)
+    List<WorkAvailability> findCapacityCandidatesByShift(
+            @Param("shiftId") Integer shiftId,
+            @Param("today") LocalDate today,
+            @Param("pending") ApprovalStatus pending,
+            @Param("statuses") Collection<ApprovalStatus> statuses);
+
+    @Query("""
+            SELECT wa FROM WorkAvailability wa
+            JOIN FETCH wa.employee e
+            JOIN FETCH wa.shift s
+            WHERE e.store.id = :storeId
+              AND wa.status IN :statuses
+              AND (
+                    wa.status = :pending
+                    OR (wa.dayOfWeek IS NOT NULL AND (wa.validTo IS NULL OR wa.validTo >= :today))
+                    OR (wa.dayOfWeek IS NULL AND wa.workDate IS NOT NULL AND wa.workDate >= :today)
+                  )
+            """)
+    List<WorkAvailability> findCapacityCandidatesByStore(
+            @Param("storeId") Integer storeId,
+            @Param("today") LocalDate today,
+            @Param("pending") ApprovalStatus pending,
+            @Param("statuses") Collection<ApprovalStatus> statuses);
 }

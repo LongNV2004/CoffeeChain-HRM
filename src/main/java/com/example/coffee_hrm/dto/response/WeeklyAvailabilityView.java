@@ -73,9 +73,21 @@ public class WeeklyAvailabilityView {
         private LocalDate date;
         private Integer shiftId;
         private String slotKey;
+        private int dayOfWeek;
         private String dayOfWeekName;
         private boolean selected;
         private List<StaffProposal> proposals;
+        private Integer maxEmployees;
+        private int approvedCount;
+        private int pendingCount;
+        private int remaining;
+        private String remainingText;
+        private boolean configured;
+        private boolean overCapacity;
+        private boolean registrationClosed;
+        private String slotStatusKey;
+        private String slotStatusLabel;
+        private String registrationHint;
     }
 
     @Getter
