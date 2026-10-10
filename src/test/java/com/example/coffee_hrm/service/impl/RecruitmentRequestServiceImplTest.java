@@ -11,6 +11,7 @@ import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.security.TemporaryPasswordGenerator;
 import com.example.coffee_hrm.dto.request.CreateRecruitmentRequest;
 import com.example.coffee_hrm.dto.request.RecruitmentCandidateRequest;
+import com.example.coffee_hrm.dto.response.CandidateRejectionResult;
 import com.example.coffee_hrm.entity.Employee;
 import com.example.coffee_hrm.entity.RecruitmentCandidate;
 import com.example.coffee_hrm.entity.RecruitmentRequest;
@@ -279,6 +280,7 @@ class RecruitmentRequestServiceImplTest {
         verify(passwordEncoder).encode(rawPassword.capture());
         verify(accountMailService).sendTemporaryPassword(
                 eq("an@shop.vn"), eq("An Nguyễn"), eq("an@shop.vn"), eq(rawPassword.getValue()));
+        verify(accountMailService, never()).sendRecruitmentRejection(any(), any(), any());
 
         Employee employee = employeeCaptor.getValue();
         User account = userCaptor.getValue();
@@ -339,6 +341,7 @@ class RecruitmentRequestServiceImplTest {
         assertEquals(RecruitmentProposalStatus.COMPLETED, request.getStatus());
         verify(employeeRepository, times(1)).save(any());
         verify(accountMailService).sendTemporaryPassword(eq("binh@shop.vn"), eq("Bình Trần"), eq("binh@shop.vn"), any());
+        verify(accountMailService, never()).sendRecruitmentRejection(any(), any(), any());
     }
 
     @Test
@@ -378,6 +381,7 @@ class RecruitmentRequestServiceImplTest {
 
         assertTrue(ex.getMessage().contains("chưa tạo tài khoản"));
         assertFalse(ex.getMessage().toLowerCase().contains("thành công"));
+        verify(accountMailService, never()).sendRecruitmentRejection(any(), any(), any());
     }
 
     @Test
@@ -386,9 +390,12 @@ class RecruitmentRequestServiceImplTest {
         lock(request);
         when(userRepository.findById(1)).thenReturn(Optional.of(adminUser));
         when(userRepository.findByEmployee_Id(9)).thenReturn(Optional.of(managerUser));
+        when(accountMailService.sendRecruitmentRejection("an@shop.vn", "An Nguyễn", "Chưa đủ hồ sơ")).thenReturn(true);
 
-        service.rejectCandidate(admin, 7, 11, "  Chưa đủ hồ sơ  ");
+        CandidateRejectionResult result = service.rejectCandidate(admin, 7, 11, "  Chưa đủ hồ sơ  ");
 
+        assertEquals("An Nguyễn", result.fullName());
+        assertTrue(result.noticeEmailSent());
         assertEquals(RecruitmentStatus.REJECTED, request.getCandidates().get(0).getStatus());
         assertEquals("Chưa đủ hồ sơ", request.getCandidates().get(0).getRejectReason());
         assertNull(request.getCandidates().get(0).getCreatedEmployee());
@@ -397,7 +404,10 @@ class RecruitmentRequestServiceImplTest {
         assertEquals(RecruitmentProposalStatus.PARTIALLY_PROCESSED, request.getStatus());
         verify(employeeRepository, never()).save(any());
         verify(userRepository, never()).save(any());
-        verifyNoInteractions(accountMailService, passwordEncoder);
+        verify(accountMailService, times(1)).sendRecruitmentRejection("an@shop.vn", "An Nguyễn", "Chưa đủ hồ sơ");
+        verify(accountMailService, never()).sendRecruitmentRejection(eq("binh@shop.vn"), any(), any());
+        verify(accountMailService, never()).sendTemporaryPassword(any(), any(), any(), any());
+        verifyNoInteractions(passwordEncoder);
         verify(notificationService).notifyUsers(
                 anyList(),
                 eq("Đề xuất tuyển nhân sự bị từ chối"),
@@ -405,6 +415,76 @@ class RecruitmentRequestServiceImplTest {
                 eq(NotificationType.RECRUITMENT_REQUEST_REJECTED),
                 eq("RECRUITMENT_REQUEST"),
                 eq(7));
+    }
+
+    @Test
+    void viewingPendingProposalDoesNotSendRejectionEmail() {
+        RecruitmentRequest request = pendingRequest();
+        when(recruitmentRequestRepository.findDetailById(7)).thenReturn(Optional.of(request));
+        when(recruitmentRequestRepository.search(null, null, RecruitmentProposalStatus.PENDING, null, null))
+                .thenReturn(List.of(request));
+
+        service.getForAdmin(admin, 7);
+        service.listForAdmin(admin, null, null, RecruitmentProposalStatus.PENDING, null, null);
+
+        verifyNoInteractions(accountMailService);
+    }
+
+    @Test
+    void rejectingAgainDoesNotSendAnotherEmail() {
+        RecruitmentRequest request = pendingRequest();
+        lock(request);
+        when(userRepository.findById(1)).thenReturn(Optional.of(adminUser));
+        when(userRepository.findByEmployee_Id(9)).thenReturn(Optional.of(managerUser));
+        when(accountMailService.sendRecruitmentRejection("an@shop.vn", "An Nguyễn", "Chưa đủ hồ sơ")).thenReturn(true);
+
+        service.rejectCandidate(admin, 7, 11, "Chưa đủ hồ sơ");
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.rejectCandidate(admin, 7, 11, "Lý do khác"));
+
+        assertEquals("Nhân viên này đã bị từ chối.", ex.getMessage());
+        assertEquals(RecruitmentStatus.REJECTED, request.getCandidates().get(0).getStatus());
+        assertEquals("Chưa đủ hồ sơ", request.getCandidates().get(0).getRejectReason());
+        assertEquals(RecruitmentStatus.PENDING, request.getCandidates().get(1).getStatus());
+        verify(accountMailService, times(1)).sendRecruitmentRejection("an@shop.vn", "An Nguyễn", "Chưa đủ hồ sơ");
+    }
+
+    @Test
+    void rejectionStaysSavedWhenNoticeEmailFails() {
+        RecruitmentRequest request = pendingRequest();
+        lock(request);
+        when(userRepository.findById(1)).thenReturn(Optional.of(adminUser));
+        when(userRepository.findByEmployee_Id(9)).thenReturn(Optional.of(managerUser));
+        doThrow(new RuntimeException("SMTP down"))
+                .when(accountMailService).sendRecruitmentRejection(any(), any(), any());
+
+        CandidateRejectionResult result = service.rejectCandidate(admin, 7, 11, null);
+
+        assertEquals("An Nguyễn", result.fullName());
+        assertFalse(result.noticeEmailSent());
+        assertEquals(RecruitmentStatus.REJECTED, request.getCandidates().get(0).getStatus());
+        assertEquals(RecruitmentStatus.PENDING, request.getCandidates().get(1).getStatus());
+        verify(recruitmentRequestRepository).save(request);
+        verify(recruitmentRequestRepository).flush();
+    }
+
+    @Test
+    void invalidCandidateEmailDoesNotUndoRejection() {
+        RecruitmentRequest request = pendingRequest();
+        request.getCandidates().get(0).setEmail("khong-hop-le");
+        lock(request);
+        when(userRepository.findById(1)).thenReturn(Optional.of(adminUser));
+        when(userRepository.findByEmployee_Id(9)).thenReturn(Optional.of(managerUser));
+        when(accountMailService.sendRecruitmentRejection("khong-hop-le", "An Nguyễn", null)).thenReturn(false);
+
+        CandidateRejectionResult result = service.rejectCandidate(admin, 7, 11, " ");
+
+        assertFalse(result.noticeEmailSent());
+        assertEquals(RecruitmentStatus.REJECTED, request.getCandidates().get(0).getStatus());
+        assertNull(request.getCandidates().get(0).getRejectReason());
+        assertEquals(RecruitmentStatus.PENDING, request.getCandidates().get(1).getStatus());
+        verify(accountMailService).sendRecruitmentRejection("khong-hop-le", "An Nguyễn", null);
+        verify(accountMailService, never()).sendRecruitmentRejection(eq("binh@shop.vn"), any(), any());
     }
 
     private void stubAvailable(String email, String phone) {

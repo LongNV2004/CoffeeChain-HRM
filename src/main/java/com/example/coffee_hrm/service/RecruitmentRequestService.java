@@ -2,6 +2,7 @@ package com.example.coffee_hrm.service;
 
 import com.example.coffee_hrm.common.enums.RecruitmentProposalStatus;
 import com.example.coffee_hrm.dto.request.CreateRecruitmentRequest;
+import com.example.coffee_hrm.dto.response.CandidateRejectionResult;
 import com.example.coffee_hrm.dto.response.RecruitmentManagerOption;
 import com.example.coffee_hrm.dto.response.RecruitmentRequestResponse;
 import com.example.coffee_hrm.security.AuthenticatedUser;
@@ -32,7 +33,7 @@ public interface RecruitmentRequestService {
 
     String approveCandidate(AuthenticatedUser actor, Integer requestId, Integer candidateId);
 
-    String rejectCandidate(AuthenticatedUser actor, Integer requestId, Integer candidateId, String rejectReason);
+    CandidateRejectionResult rejectCandidate(AuthenticatedUser actor, Integer requestId, Integer candidateId, String rejectReason);
 
     int countPendingRequests();
 }

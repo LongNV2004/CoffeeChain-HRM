@@ -2,6 +2,7 @@ package com.example.coffee_hrm.controller;
 
 import com.example.coffee_hrm.common.enums.RecruitmentProposalStatus;
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.dto.response.CandidateRejectionResult;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.RecruitmentRequestService;
 import com.example.coffee_hrm.service.StoreService;
@@ -92,8 +93,15 @@ public class AdminRecruitmentController {
                          @AuthenticationPrincipal AuthenticatedUser user,
                          RedirectAttributes redirectAttributes) {
         try {
-            String fullName = recruitmentRequestService.rejectCandidate(user, id, candidateId, rejectReason);
-            redirectAttributes.addFlashAttribute("successMessage", "Đã từ chối nhân viên " + fullName + ".");
+            CandidateRejectionResult result = recruitmentRequestService.rejectCandidate(user, id, candidateId, rejectReason);
+            if (result.noticeEmailSent()) {
+                redirectAttributes.addFlashAttribute("successMessage",
+                        "Đã từ chối nhân viên " + result.fullName() + " và gửi email thông báo không trúng tuyển.");
+            } else {
+                redirectAttributes.addFlashAttribute("successMessage",
+                        "Đã từ chối nhân viên " + result.fullName()
+                                + ". Trạng thái từ chối đã được lưu, nhưng chưa gửi được email thông báo không trúng tuyển.");
+            }
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
         }

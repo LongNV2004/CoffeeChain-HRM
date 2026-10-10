@@ -11,9 +11,14 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import java.util.regex.Pattern;
+
 @Slf4j
 @Service
 public class AccountMailServiceImpl implements AccountMailService {
+
+    static final String REJECTION_SUBJECT = "Thông báo kết quả tuyển dụng – CoffeeHRM";
+    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
 
     private final ObjectProvider<JavaMailSender> mailSenders;
     private final String fromAddress;
@@ -57,6 +62,40 @@ public class AccountMailServiceImpl implements AccountMailService {
         }
     }
 
+    @Override
+    public boolean sendRecruitmentRejection(String toEmail, String candidateName, String rejectReason) {
+        String recipient = normalizeRecipient(toEmail);
+        if (recipient == null) {
+            log.error("Không gửi email thông báo không trúng tuyển cho {}: địa chỉ email thiếu hoặc không hợp lệ [{}]",
+                    displayName(candidateName), toEmail);
+            return false;
+        }
+        JavaMailSender mailSender = mailSenders.getIfAvailable();
+        if (mailSender == null) {
+            log.error("Không gửi được email thông báo không trúng tuyển tới {}: chưa cấu hình spring.mail.host", recipient);
+            return false;
+        }
+        String from = resolveFrom();
+        if (from == null) {
+            log.error("Không gửi được email thông báo không trúng tuyển tới {}: thiếu địa chỉ người gửi", recipient);
+            return false;
+        }
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+            helper.setFrom(from);
+            helper.setTo(recipient);
+            helper.setSubject(REJECTION_SUBJECT);
+            helper.setText(buildRejectionBody(candidateName, rejectReason));
+            mailSender.send(message);
+            log.info("Đã gửi email thông báo không trúng tuyển tới {}", recipient);
+            return true;
+        } catch (MessagingException | RuntimeException ex) {
+            log.error("Gửi email thông báo không trúng tuyển thất bại tới {}", recipient, ex);
+            return false;
+        }
+    }
+
     private String resolveFrom() {
         if (fromAddress != null && !fromAddress.isBlank()) {
             return fromAddress.trim();
@@ -88,6 +127,39 @@ public class AccountMailServiceImpl implements AccountMailService {
                 Trân trọng,
                 CoffeeHRM
                 """.formatted(employeeName, loginEmail, temporaryPassword, loginUrl);
+    }
+
+    private String normalizeRecipient(String toEmail) {
+        if (toEmail == null || toEmail.isBlank()) {
+            return null;
+        }
+        String recipient = toEmail.trim();
+        if (recipient.length() > 100 || !EMAIL_PATTERN.matcher(recipient).matches()) {
+            return null;
+        }
+        return recipient;
+    }
+
+    private String displayName(String candidateName) {
+        if (candidateName == null || candidateName.isBlank()) {
+            return "ứng viên";
+        }
+        return candidateName.trim();
+    }
+
+    private String buildRejectionBody(String candidateName, String rejectReason) {
+        String name = candidateName == null || candidateName.isBlank() ? "bạn" : candidateName.trim();
+        StringBuilder body = new StringBuilder();
+        body.append("Kính gửi ").append(name).append(",\n\n");
+        body.append("Cảm ơn bạn đã quan tâm và dành thời gian tham gia quy trình tuyển dụng tại CoffeeHRM.\n\n");
+        body.append("Sau khi xem xét thông tin ứng tuyển, chúng tôi rất tiếc phải thông báo rằng bạn chưa phù hợp với yêu cầu tuyển dụng trong đợt này.\n");
+        if (rejectReason != null && !rejectReason.isBlank()) {
+            body.append('\n').append("Lý do: ").append(rejectReason.trim()).append('\n');
+        }
+        body.append("\nChúng tôi chân thành cảm ơn sự quan tâm của bạn và chúc bạn sớm tìm được cơ hội nghề nghiệp phù hợp.\n\n");
+        body.append("Trân trọng,\n");
+        body.append("Bộ phận Tuyển dụng – CoffeeHRM\n");
+        return body.toString();
     }
 
     private BusinessException mailFailure() {

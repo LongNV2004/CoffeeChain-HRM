@@ -12,6 +12,7 @@ import com.example.coffee_hrm.common.security.TemporaryPasswordGenerator;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.CreateRecruitmentRequest;
 import com.example.coffee_hrm.dto.request.RecruitmentCandidateRequest;
+import com.example.coffee_hrm.dto.response.CandidateRejectionResult;
 import com.example.coffee_hrm.dto.response.RecruitmentCandidateResponse;
 import com.example.coffee_hrm.dto.response.RecruitmentManagerOption;
 import com.example.coffee_hrm.dto.response.RecruitmentRequestResponse;
@@ -263,7 +264,7 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
 
     @Override
     @Transactional
-    public String rejectCandidate(AuthenticatedUser actor, Integer requestId, Integer candidateId, String rejectReason) {
+    public CandidateRejectionResult rejectCandidate(AuthenticatedUser actor, Integer requestId, Integer candidateId, String rejectReason) {
         requireAdmin(actor);
         LockedProposal locked = lockProposal(requestId);
         RecruitmentCandidate candidate = requireCandidate(locked.candidates(), candidateId);
@@ -274,14 +275,34 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
         candidate.setReviewedBy(requireUser(actor.getUserId()));
         refreshProposalStatus(locked.request(), locked.candidates());
         recruitmentRequestRepository.save(locked.request());
+        recruitmentRequestRepository.flush();
         notifyManager(
                 locked.request(),
                 "Đề xuất tuyển nhân sự bị từ chối",
                 "Nhân viên " + candidate.getFullName() + " trong đề xuất \"" + locked.request().getTitle()
                         + "\" đã bị từ chối.",
                 NotificationType.RECRUITMENT_REQUEST_REJECTED);
+        boolean noticeEmailSent = sendRejectionNotice(candidate);
         log.info("Admin {} đã từ chối nhân viên {} trong đề xuất {}", actor.getUserId(), candidateId, requestId);
-        return candidate.getFullName();
+        return new CandidateRejectionResult(candidate.getFullName(), noticeEmailSent);
+    }
+
+    private boolean sendRejectionNotice(RecruitmentCandidate candidate) {
+        try {
+            boolean sent = accountMailService.sendRecruitmentRejection(
+                    candidate.getEmail(),
+                    candidate.getFullName(),
+                    candidate.getRejectReason());
+            if (!sent) {
+                log.error("Đã lưu từ chối ứng viên {} nhưng không gửi được email thông báo không trúng tuyển tới {}",
+                        candidate.getId(), candidate.getEmail());
+            }
+            return sent;
+        } catch (RuntimeException ex) {
+            log.error("Gửi email thông báo không trúng tuyển thất bại tới {} sau khi đã lưu trạng thái từ chối của ứng viên {}",
+                    candidate.getEmail(), candidate.getId(), ex);
+            return false;
+        }
     }
 
     @Override
