@@ -1,6 +1,7 @@
 package com.example.coffee_hrm.controller;
 
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.dto.response.SlotLimitUpdateResult;
 import com.example.coffee_hrm.dto.response.WeeklyAvailabilityView;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.StaffAvailabilityService;
@@ -43,6 +44,39 @@ public class ManagerAvailabilityController {
             model.addAttribute("pageError", ex.getMessage());
         }
         return "manager/ManagerAvailability";
+    }
+
+    @GetMapping("/limits")
+    public String slotLimitsPage(@AuthenticationPrincipal AuthenticatedUser user, Model model) {
+        model.addAttribute("displayName", user.getDisplayName());
+        try {
+            model.addAttribute("availabilityGrid", staffAvailabilityService.getStoreNextWeekAvailabilityGrid(user));
+            model.addAttribute("pageError", null);
+        } catch (BusinessException ex) {
+            model.addAttribute("availabilityGrid", null);
+            model.addAttribute("pageError", ex.getMessage());
+        }
+        return "manager/ManagerSlotLimits";
+    }
+
+    @PostMapping("/limits")
+    public String updateLimit(@RequestParam Integer shiftId,
+                              @RequestParam Integer dayOfWeek,
+                              @RequestParam(required = false) String maxEmployees,
+                              @AuthenticationPrincipal AuthenticatedUser user,
+                              RedirectAttributes redirectAttributes) {
+        try {
+            SlotLimitUpdateResult result = staffAvailabilityService.updateSlotLimit(
+                    shiftId, dayOfWeek, maxEmployees, user);
+            if (result.isWarning()) {
+                redirectAttributes.addFlashAttribute("warningMessage", result.getMessage());
+            } else {
+                redirectAttributes.addFlashAttribute("successMessage", result.getMessage());
+            }
+        } catch (BusinessException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
+        }
+        return "redirect:/availability/manager/limits";
     }
 
     @PostMapping("/review")
