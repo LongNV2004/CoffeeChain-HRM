@@ -5,6 +5,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
@@ -18,4 +21,7 @@ public class StoreResponse {
     private Boolean isActive;
     private long employeeCount;
     private String managerName;
+    private BigDecimal latitude;
+    private BigDecimal longitude;
+    private LocalDateTime locationUpdatedAt;
 }

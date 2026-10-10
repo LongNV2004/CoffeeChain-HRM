@@ -22,6 +22,7 @@ public class AttendanceHistoryView {
     private final String filterStatus;
     private final boolean lateOnly;
     private final boolean earlyOnly;
+    private final String filterKind;
     private final List<EmployeeOption> employees;
     private final List<StoreOption> stores;
     private final List<ShiftOption> shifts;
@@ -75,10 +76,11 @@ public class AttendanceHistoryView {
         private final String lateLabel;
         private final String earlyLabel;
         private final String missingLabel;
-        private final String checkInIp;
-        private final String checkOutIp;
+        private final String checkInLocation;
+        private final String checkOutLocation;
         private final String statusLabel;
         private final String statusCss;
         private final String shiftLabel;
+        private final String kindLabel;
     }
 }

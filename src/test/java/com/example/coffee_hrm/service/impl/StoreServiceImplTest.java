@@ -22,10 +22,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -170,6 +173,66 @@ class StoreServiceImplTest {
         verify(storeRepository, never()).save(any());
     }
 
+    @Test
+    void adminSavesValidStoreCoordinates() {
+        StoreResponse result = storeService.updateStore(admin, 1,
+                request("Store A", "A", 12, true, "21.028511", "105.854167"));
+
+        assertEquals(0, new BigDecimal("21.028511").compareTo(store.getLatitude()));
+        assertEquals(0, new BigDecimal("105.854167").compareTo(store.getLongitude()));
+        assertNotNull(store.getLocationUpdatedAt());
+        assertEquals(0, store.getLatitude().compareTo(result.getLatitude()));
+    }
+
+    @Test
+    void invalidStoreCoordinatesAreRejected() {
+        store.setLatitude(new BigDecimal("10.5"));
+        store.setLongitude(new BigDecimal("106.5"));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> storeService.updateStore(admin, 1, request("Store A", "A", 12, true, "91", "106.5")));
+
+        assertEquals(StoreServiceImpl.INVALID_COORDINATES, ex.getMessage());
+        assertEquals(0, new BigDecimal("10.5").compareTo(store.getLatitude()));
+    }
+
+    @Test
+    void blankCoordinatesKeepTheStoredLocation() {
+        store.setLatitude(new BigDecimal("10.5"));
+        store.setLongitude(new BigDecimal("106.5"));
+
+        storeService.updateStore(admin, 1, request("Store B", "A", 12, true, "  ", null));
+
+        assertEquals(0, new BigDecimal("10.5").compareTo(store.getLatitude()));
+        assertNull(store.getLocationUpdatedAt());
+    }
+
+    @Test
+    void sameCoordinatesDoNotRefreshTheUpdateTime() {
+        LocalDateTime updatedAt = LocalDateTime.of(2026, 10, 1, 8, 0);
+        store.setLatitude(new BigDecimal("21.028511"));
+        store.setLongitude(new BigDecimal("105.854167"));
+        store.setLocationUpdatedAt(updatedAt);
+
+        storeService.updateStore(admin, 1, request("Store A", "A", 12, true, "21.028511", "105.854167"));
+
+        assertEquals(updatedAt, store.getLocationUpdatedAt());
+    }
+
+    @Test
+    void managerAndStaffCannotChangeStoreCoordinates() {
+        store.setLatitude(new BigDecimal("10.5"));
+        store.setLongitude(new BigDecimal("106.5"));
+        for (RoleName role : new RoleName[]{RoleName.MANAGER, RoleName.STAFF}) {
+            BusinessException ex = assertThrows(BusinessException.class,
+                    () -> storeService.updateStore(actor(role), 1,
+                            request("Store A", "A", 12, true, "21.028511", "105.854167")));
+            assertEquals(StoreServiceImpl.ACCESS_DENIED, ex.getMessage());
+        }
+        assertEquals(0, new BigDecimal("10.5").compareTo(store.getLatitude()));
+        verify(storeRepository, never()).findByIdWithManager(any());
+    }
+
     private CreateStoreRequest createRequest(String storeName, String address, Integer totalLeaveDays, Boolean isActive) {
         return CreateStoreRequest.builder()
                 .storeName(storeName)
@@ -180,11 +243,18 @@ class StoreServiceImplTest {
     }
 
     private UpdateStoreRequest request(String storeName, String address, int totalLeaveDays, boolean isActive) {
+        return request(storeName, address, totalLeaveDays, isActive, null, null);
+    }
+
+    private UpdateStoreRequest request(String storeName, String address, int totalLeaveDays, boolean isActive,
+                                      String latitude, String longitude) {
         return UpdateStoreRequest.builder()
                 .storeName(storeName)
                 .address(address)
                 .totalLeaveDays(totalLeaveDays)
                 .isActive(isActive)
+                .latitude(latitude)
+                .longitude(longitude)
                 .build();
     }
 

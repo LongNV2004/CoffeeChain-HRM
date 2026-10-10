@@ -67,11 +67,17 @@ public class Attendance {
     @Column(name = "ScheduledEndTime")
     private LocalTime scheduledEndTime;
 
-    @Column(name = "CheckInIp", length = 45)
-    private String checkInIp;
+    @Column(name = "CheckInLatitude", precision = 10, scale = 7)
+    private BigDecimal checkInLatitude;
 
-    @Column(name = "CheckOutIp", length = 45)
-    private String checkOutIp;
+    @Column(name = "CheckInLongitude", precision = 10, scale = 7)
+    private BigDecimal checkInLongitude;
+
+    @Column(name = "CheckOutLatitude", precision = 10, scale = 7)
+    private BigDecimal checkOutLatitude;
+
+    @Column(name = "CheckOutLongitude", precision = 10, scale = 7)
+    private BigDecimal checkOutLongitude;
 
     @Column(name = "WorkingMinutes")
     private Integer workingMinutes;

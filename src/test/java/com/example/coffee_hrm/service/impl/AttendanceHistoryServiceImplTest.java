@@ -1,11 +1,13 @@
 package com.example.coffee_hrm.service.impl;
 
+import com.example.coffee_hrm.common.enums.AttendanceHistoryKind;
 import com.example.coffee_hrm.common.enums.AssignmentStatus;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.common.enums.AttendanceStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.dto.request.AttendanceHistoryQuery;
 import com.example.coffee_hrm.dto.response.AttendanceHistoryView;
 import com.example.coffee_hrm.entity.Attendance;
 import com.example.coffee_hrm.entity.Employee;
@@ -13,12 +15,15 @@ import com.example.coffee_hrm.entity.Role;
 import com.example.coffee_hrm.entity.Shift;
 import com.example.coffee_hrm.entity.ShiftAssignment;
 import com.example.coffee_hrm.entity.Store;
+import com.example.coffee_hrm.entity.TrainingAttendance;
+import com.example.coffee_hrm.entity.TrainingClass;
 import com.example.coffee_hrm.entity.User;
 import com.example.coffee_hrm.repository.AttendanceRepository;
 import com.example.coffee_hrm.repository.EmployeeRepository;
 import com.example.coffee_hrm.repository.ShiftAssignmentRepository;
 import com.example.coffee_hrm.repository.ShiftRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
+import com.example.coffee_hrm.repository.TrainingAttendanceRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -55,6 +60,8 @@ class AttendanceHistoryServiceImplTest {
     private StoreRepository storeRepository;
     @Mock
     private ShiftRepository shiftRepository;
+    @Mock
+    private TrainingAttendanceRepository trainingAttendanceRepository;
 
     @InjectMocks
     private AttendanceHistoryServiceImpl attendanceHistoryService;
@@ -194,6 +201,62 @@ class AttendanceHistoryServiceImplTest {
                 staffUser, VietnamTime.today().minusDays(1), VietnamTime.today().minusDays(5)));
 
         verify(attendanceRepository, never()).findHistoryByEmployee(any(), any(), any());
+    }
+
+    @Test
+    void staffTrainingFilterShowsOnlyOwnTrainingRows() {
+        LocalDate day = VietnamTime.today().minusDays(1);
+        TrainingClass trainingClass = TrainingClass.builder().id(4).className("Pha chế").build();
+        TrainingAttendance training = TrainingAttendance.builder()
+                .id(15)
+                .employee(staffEmployee)
+                .trainingClass(trainingClass)
+                .workDate(day)
+                .className("Pha chế")
+                .scheduledStartTime(LocalTime.of(8, 0))
+                .scheduledEndTime(LocalTime.of(12, 0))
+                .checkInTime(day.atTime(8, 0))
+                .checkOutTime(day.atTime(11, 0))
+                .workingMinutes(180)
+                .lateMinutes(0)
+                .earlyLeaveMinutes(60)
+                .status(AttendanceStatus.EARLY_LEAVE)
+                .build();
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
+        when(trainingAttendanceRepository.findHistoryByEmployee(20, day, day)).thenReturn(List.of(training));
+
+        AttendanceHistoryView view = attendanceHistoryService.getStaffHistory(staffUser, AttendanceHistoryQuery.builder()
+                .fromDate(day)
+                .toDate(day)
+                .kind(AttendanceHistoryKind.TRAINING)
+                .build());
+
+        assertEquals(1, view.getRecordCount());
+        assertEquals("training", view.getFilterKind());
+        assertEquals("Chấm công đào tạo", view.getRows().getFirst().getKindLabel());
+        assertEquals("Pha chế (08:00–12:00)", view.getRows().getFirst().getShiftLabel());
+        verify(trainingAttendanceRepository).findHistoryByEmployee(20, day, day);
+        verify(attendanceRepository, never()).findHistoryByEmployee(any(), any(), any());
+    }
+
+    @Test
+    void managerCannotViewTrainingHistoryOfAnotherStore() {
+        Employee outsider = Employee.builder()
+                .id(99).fullName("Người khác").store(otherStore).status(EmployeeStatus.ACTIVE).build();
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        when(employeeRepository.findByIdWithStore(99)).thenReturn(Optional.of(outsider));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> attendanceHistoryService.getManagerHistory(managerUser, AttendanceHistoryQuery.builder()
+                        .employeeId(99)
+                        .fromDate(VietnamTime.today().minusDays(2))
+                        .toDate(VietnamTime.today().minusDays(1))
+                        .kind(AttendanceHistoryKind.TRAINING)
+                        .build()));
+
+        assertTrue(ex.getMessage().contains("không thuộc cửa hàng"));
+        verify(trainingAttendanceRepository, never()).findHistoryByEmployee(any(), any(), any());
+        verify(attendanceRepository, never()).findHistoryByStoreAndEmployee(any(), any(), any(), any());
     }
 
     private User buildUser(Integer id, String username, RoleName roleName, Employee employee) {

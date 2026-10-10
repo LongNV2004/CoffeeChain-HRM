@@ -5,6 +5,8 @@ import com.example.coffee_hrm.common.enums.AttendanceStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.common.geo.GeoDistance;
+import com.example.coffee_hrm.dto.request.AttendanceLocation;
 import com.example.coffee_hrm.entity.Attendance;
 import com.example.coffee_hrm.entity.Employee;
 import com.example.coffee_hrm.entity.Role;
@@ -26,6 +28,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -45,6 +48,8 @@ import static org.mockito.Mockito.when;
 class AttendanceServiceImplTest {
 
     private static final LocalDate WORK_DATE = LocalDate.of(2026, 10, 4);
+    private static final BigDecimal LAT = new BigDecimal("21.0285110");
+    private static final BigDecimal LNG = new BigDecimal("105.8541670");
 
     @Mock
     private AttendanceRepository attendanceRepository;
@@ -69,6 +74,7 @@ class AttendanceServiceImplTest {
         policy.setCheckInLeadMinutes(60);
         policy.setLateThresholdMinutes(20);
         policy.setAllowEarlyCheckout(true);
+        policy.setRadiusMeters(200);
         attendanceService = new AttendanceServiceImpl(
                 attendanceRepository,
                 shiftAssignmentRepository,
@@ -76,7 +82,7 @@ class AttendanceServiceImplTest {
                 storeRepository,
                 policy);
 
-        store = Store.builder().id(1).storeName("Cửa hàng 1").currentIp("113.0.0.1").build();
+        store = Store.builder().id(1).storeName("Cửa hàng 1").latitude(LAT).longitude(LNG).build();
         staffEmployee = Employee.builder()
                 .id(20).fullName("Trần Văn Tuấn").store(store).status(EmployeeStatus.ACTIVE).build();
         staffUser = AuthenticatedUser.from(buildUser(3, "tuanth", RoleName.STAFF, staffEmployee));
@@ -91,14 +97,14 @@ class AttendanceServiceImplTest {
     }
 
     @Test
-    void checkInCreatesOneRecordWhenIpAndShiftAreValid() {
+    void checkInInsideRadiusCreatesOneRecord() {
         stubShift(List.of(morningAssignment));
         when(attendanceRepository.findByEmployee_IdAndShift_IdAndWorkDate(20, 1, WORK_DATE))
                 .thenReturn(Optional.empty());
         when(storeRepository.findById(1)).thenReturn(Optional.of(store));
         when(attendanceRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        attendanceService.checkIn(staffUser, "113.0.0.1", WORK_DATE.atTime(7, 30));
+        attendanceService.checkIn(staffUser, here(10), WORK_DATE.atTime(7, 30));
 
         ArgumentCaptor<Attendance> captor = ArgumentCaptor.forClass(Attendance.class);
         verify(attendanceRepository).saveAndFlush(captor.capture());
@@ -107,23 +113,80 @@ class AttendanceServiceImplTest {
         assertEquals(WORK_DATE, saved.getWorkDate());
         assertEquals(LocalTime.of(8, 0), saved.getScheduledStartTime());
         assertEquals(LocalTime.of(17, 0), saved.getScheduledEndTime());
-        assertEquals("113.0.0.1", saved.getCheckInIp());
+        assertEquals(LAT, saved.getCheckInLatitude());
+        assertEquals(LNG, saved.getCheckInLongitude());
         assertEquals(0, saved.getLateMinutes());
         assertEquals(AttendanceStatus.PRESENT, saved.getStatus());
         assertNull(saved.getCheckOutTime());
     }
 
     @Test
-    void checkInRejectsWrongIpBeforeCreatingAttendance() {
+    void checkInOnTheRadiusBoundaryWithAccuracyOfFiftyMetersIsAccepted() {
+        stubShift(List.of(morningAssignment));
+        when(attendanceRepository.findByEmployee_IdAndShift_IdAndWorkDate(20, 1, WORK_DATE))
+                .thenReturn(Optional.empty());
+        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
+        when(attendanceRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        attendanceService.checkIn(staffUser, north(200, 50), WORK_DATE.atTime(7, 0));
+
+        verify(attendanceRepository).saveAndFlush(any());
+    }
+
+    @Test
+    void checkInRejectsAPointBeyondTheRadiusWithoutSaving() {
         stubShift(List.of(morningAssignment));
         when(attendanceRepository.findByEmployee_IdAndShift_IdAndWorkDate(20, 1, WORK_DATE))
                 .thenReturn(Optional.empty());
         when(storeRepository.findById(1)).thenReturn(Optional.of(store));
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> attendanceService.checkIn(staffUser, "10.0.0.8", WORK_DATE.atTime(7, 30)));
+                () -> attendanceService.checkIn(staffUser, north(201, 10), WORK_DATE.atTime(7, 30)));
 
-        assertEquals(AttendanceServiceImpl.WRONG_IP, ex.getMessage());
+        assertEquals(AttendanceServiceImpl.OUTSIDE_RADIUS, ex.getMessage());
+        verify(attendanceRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void checkInAcceptsANearbyPointWhenTheGpsAccuracyCircleIsCoarse() {
+        stubShift(List.of(morningAssignment));
+        when(attendanceRepository.findByEmployee_IdAndShift_IdAndWorkDate(20, 1, WORK_DATE))
+                .thenReturn(Optional.empty());
+        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
+        when(attendanceRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        attendanceService.checkIn(staffUser, here(107), WORK_DATE.atTime(7, 30));
+
+        verify(attendanceRepository).saveAndFlush(any());
+    }
+
+    @Test
+    void checkInRejectsMissingDeviceCoordinates() {
+        stubShift(List.of(morningAssignment));
+        when(attendanceRepository.findByEmployee_IdAndShift_IdAndWorkDate(20, 1, WORK_DATE))
+                .thenReturn(Optional.empty());
+        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> attendanceService.checkIn(staffUser, new AttendanceLocation(null, null, 10.0), WORK_DATE.atTime(7, 30)));
+
+        assertEquals(AttendanceServiceImpl.LOCATION_UNKNOWN, ex.getMessage());
+        verify(attendanceRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void checkInRejectsWhenTheStoreHasNoCoordinates() {
+        store.setLatitude(null);
+        store.setLongitude(null);
+        stubShift(List.of(morningAssignment));
+        when(attendanceRepository.findByEmployee_IdAndShift_IdAndWorkDate(20, 1, WORK_DATE))
+                .thenReturn(Optional.empty());
+        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> attendanceService.checkIn(staffUser, here(10), WORK_DATE.atTime(7, 30)));
+
+        assertEquals(AttendanceServiceImpl.STORE_LOCATION_MISSING, ex.getMessage());
         verify(attendanceRepository, never()).saveAndFlush(any());
     }
 
@@ -132,7 +195,7 @@ class AttendanceServiceImplTest {
         stubShift(List.of(morningAssignment));
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> attendanceService.checkIn(staffUser, "113.0.0.1", WORK_DATE.atTime(6, 0)));
+                () -> attendanceService.checkIn(staffUser, here(10), WORK_DATE.atTime(6, 0)));
 
         assertEquals(AttendanceServiceImpl.TOO_EARLY, ex.getMessage());
         verify(attendanceRepository, never()).saveAndFlush(any());
@@ -143,9 +206,10 @@ class AttendanceServiceImplTest {
         stubShift(List.of());
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> attendanceService.checkIn(staffUser, "113.0.0.1", WORK_DATE.atTime(8, 0)));
+                () -> attendanceService.checkIn(staffUser, here(10), WORK_DATE.atTime(8, 0)));
 
         assertEquals(AttendanceServiceImpl.NO_SHIFT, ex.getMessage());
+        verify(storeRepository, never()).findById(any());
     }
 
     @Test
@@ -153,10 +217,9 @@ class AttendanceServiceImplTest {
         stubShift(List.of(morningAssignment));
         when(attendanceRepository.findByEmployee_IdAndShift_IdAndWorkDate(20, 1, WORK_DATE))
                 .thenReturn(Optional.of(Attendance.builder().id(5).employee(staffEmployee).build()));
-        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> attendanceService.checkIn(staffUser, "113.0.0.1", WORK_DATE.atTime(9, 0)));
+                () -> attendanceService.checkIn(staffUser, here(10), WORK_DATE.atTime(9, 0)));
 
         assertEquals(AttendanceServiceImpl.ALREADY_IN, ex.getMessage());
         verify(attendanceRepository, never()).saveAndFlush(any());
@@ -170,13 +233,13 @@ class AttendanceServiceImplTest {
         when(storeRepository.findById(1)).thenReturn(Optional.of(store));
         when(attendanceRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        attendanceService.checkIn(staffUser, "113.0.0.1", WORK_DATE.atTime(8, 19));
+        attendanceService.checkIn(staffUser, here(10), WORK_DATE.atTime(8, 19));
         ArgumentCaptor<Attendance> early = ArgumentCaptor.forClass(Attendance.class);
         verify(attendanceRepository).saveAndFlush(early.capture());
         assertEquals(0, early.getValue().getLateMinutes());
         assertEquals(AttendanceStatus.PRESENT, early.getValue().getStatus());
 
-        attendanceService.checkIn(staffUser, "113.0.0.1", WORK_DATE.atTime(8, 20));
+        attendanceService.checkIn(staffUser, here(10), WORK_DATE.atTime(8, 20));
         ArgumentCaptor<Attendance> late = ArgumentCaptor.forClass(Attendance.class);
         verify(attendanceRepository, org.mockito.Mockito.times(2)).saveAndFlush(late.capture());
         Attendance lateRecord = late.getAllValues().get(1);
@@ -191,15 +254,30 @@ class AttendanceServiceImplTest {
         when(attendanceRepository.findOpenByEmployeeId(20)).thenReturn(List.of(open));
         when(storeRepository.findById(1)).thenReturn(Optional.of(store));
 
-        attendanceService.checkOut(staffUser, "113.0.0.1", WORK_DATE.atTime(16, 30));
+        attendanceService.checkOut(staffUser, here(10), WORK_DATE.atTime(16, 30));
 
         assertEquals(WORK_DATE.atTime(16, 30), open.getCheckOutTime());
-        assertEquals("113.0.0.1", open.getCheckOutIp());
+        assertEquals(LAT, open.getCheckOutLatitude());
+        assertEquals(LNG, open.getCheckOutLongitude());
         assertEquals(510, open.getWorkingMinutes());
         assertEquals(30, open.getEarlyLeaveMinutes());
         assertEquals(AttendanceStatus.EARLY_LEAVE, open.getStatus());
         verify(attendanceRepository).save(open);
         verify(attendanceRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void checkOutOnTimeHasNoEarlyLeave() {
+        Attendance open = openAttendance(0);
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
+        when(attendanceRepository.findOpenByEmployeeId(20)).thenReturn(List.of(open));
+        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
+
+        attendanceService.checkOut(staffUser, here(10), WORK_DATE.atTime(17, 0));
+
+        assertEquals(540, open.getWorkingMinutes());
+        assertEquals(0, open.getEarlyLeaveMinutes());
+        assertEquals(AttendanceStatus.PRESENT, open.getStatus());
     }
 
     @Test
@@ -209,7 +287,7 @@ class AttendanceServiceImplTest {
         when(attendanceRepository.findOpenByEmployeeId(20)).thenReturn(List.of(open));
         when(storeRepository.findById(1)).thenReturn(Optional.of(store));
 
-        attendanceService.checkOut(staffUser, "113.0.0.1", WORK_DATE.atTime(16, 30));
+        attendanceService.checkOut(staffUser, here(10), WORK_DATE.atTime(16, 30));
 
         assertEquals(AttendanceStatus.LATE_AND_EARLY, open.getStatus());
         assertEquals(30, open.getLateMinutes());
@@ -225,24 +303,46 @@ class AttendanceServiceImplTest {
         when(storeRepository.findById(1)).thenReturn(Optional.of(store));
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> attendanceService.checkOut(staffUser, "113.0.0.1", WORK_DATE.atTime(16, 30)));
+                () -> attendanceService.checkOut(staffUser, here(10), WORK_DATE.atTime(16, 30)));
 
         assertEquals(AttendanceServiceImpl.EARLY_CHECKOUT_BLOCKED, ex.getMessage());
         assertNull(open.getCheckOutTime());
     }
 
     @Test
-    void checkOutRejectsWrongIp() {
+    void checkOutOutsideRadiusDoesNotSetCheckOutTime() {
         Attendance open = openAttendance(0);
+        open.setCheckInLatitude(LAT);
+        open.setCheckInLongitude(LNG);
         when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
         when(attendanceRepository.findOpenByEmployeeId(20)).thenReturn(List.of(open));
         when(storeRepository.findById(1)).thenReturn(Optional.of(store));
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> attendanceService.checkOut(staffUser, "10.1.1.1", WORK_DATE.atTime(17, 0)));
+                () -> attendanceService.checkOut(staffUser, north(201, 10), WORK_DATE.atTime(16, 30)));
 
-        assertEquals(AttendanceServiceImpl.WRONG_IP, ex.getMessage());
+        assertEquals(AttendanceServiceImpl.OUTSIDE_RADIUS, ex.getMessage());
         assertNull(open.getCheckOutTime());
+        assertEquals(LAT, open.getCheckInLatitude());
+        verify(attendanceRepository, never()).save(any());
+    }
+
+    @Test
+    void checkOutUsesTheLatestStoreCoordinates() {
+        Attendance open = openAttendance(0);
+        open.setCheckInLatitude(LAT);
+        open.setCheckInLongitude(LNG);
+        placeStoreNorth(500);
+        AttendanceLocation atNewStore = new AttendanceLocation(store.getLatitude(), store.getLongitude(), 10.0);
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
+        when(attendanceRepository.findOpenByEmployeeId(20)).thenReturn(List.of(open));
+        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
+
+        attendanceService.checkOut(staffUser, atNewStore, WORK_DATE.atTime(17, 0));
+
+        assertEquals(LAT, open.getCheckInLatitude());
+        assertEquals(store.getLatitude(), open.getCheckOutLatitude());
+        assertEquals(WORK_DATE.atTime(17, 0), open.getCheckOutTime());
     }
 
     @Test
@@ -254,10 +354,9 @@ class AttendanceServiceImplTest {
         stubShift(List.of(morningAssignment));
         when(attendanceRepository.findByEmployee_IdAndShift_IdAndWorkDate(20, 1, WORK_DATE))
                 .thenReturn(Optional.of(closed));
-        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> attendanceService.checkOut(staffUser, "113.0.0.1", WORK_DATE.atTime(17, 10)));
+                () -> attendanceService.checkOut(staffUser, here(10), WORK_DATE.atTime(17, 10)));
 
         assertEquals(AttendanceServiceImpl.ALREADY_OUT, ex.getMessage());
     }
@@ -271,7 +370,7 @@ class AttendanceServiceImplTest {
                 .thenReturn(Optional.empty());
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> attendanceService.checkOut(staffUser, "113.0.0.1", WORK_DATE.atTime(9, 0)));
+                () -> attendanceService.checkOut(staffUser, here(10), WORK_DATE.atTime(9, 0)));
 
         assertEquals(AttendanceServiceImpl.NOT_CHECKED_IN, ex.getMessage());
     }
@@ -294,7 +393,7 @@ class AttendanceServiceImplTest {
         when(storeRepository.findById(1)).thenReturn(Optional.of(store));
         when(attendanceRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        attendanceService.checkIn(staffUser, "113.0.0.1", WORK_DATE.atTime(13, 30));
+        attendanceService.checkIn(staffUser, here(10), WORK_DATE.atTime(13, 30));
 
         ArgumentCaptor<Attendance> captor = ArgumentCaptor.forClass(Attendance.class);
         verify(attendanceRepository).saveAndFlush(captor.capture());
@@ -311,75 +410,106 @@ class AttendanceServiceImplTest {
         when(attendanceRepository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("duplicate"));
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> attendanceService.checkIn(staffUser, "113.0.0.1", WORK_DATE.atTime(8, 0)));
+                () -> attendanceService.checkIn(staffUser, here(10), WORK_DATE.atTime(8, 0)));
 
         assertEquals(AttendanceServiceImpl.ALREADY_IN, ex.getMessage());
     }
 
     @Test
-    void checkOutUsesCurrentStoreIpNotTheCheckInIp() {
-        Attendance open = openAttendance(0);
-        open.setCheckInIp("113.0.0.1");
-        store.setCurrentIp("14.0.0.5");
-        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
-        when(attendanceRepository.findOpenByEmployeeId(20)).thenReturn(List.of(open));
+    void managerChecksInWithoutAShiftAndWithoutLateMinutes() {
+        Employee managerEmployee = newManagerEmployee();
+        AuthenticatedUser manager = managerUser(managerEmployee);
+        when(employeeRepository.findByIdWithStore(10)).thenReturn(Optional.of(managerEmployee));
+        when(attendanceRepository.findOpenByEmployeeId(10)).thenReturn(List.of());
+        when(attendanceRepository.findByEmployee_IdAndWorkDateOrderByIdDesc(10, WORK_DATE)).thenReturn(List.of());
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
+        when(attendanceRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        attendanceService.checkIn(manager, here(10), WORK_DATE.atTime(3, 15));
+
+        ArgumentCaptor<Attendance> captor = ArgumentCaptor.forClass(Attendance.class);
+        verify(attendanceRepository).saveAndFlush(captor.capture());
+        Attendance saved = captor.getValue();
+        assertNull(saved.getShift());
+        assertNull(saved.getScheduledStartTime());
+        assertNull(saved.getScheduledEndTime());
+        assertEquals(0, saved.getLateMinutes());
+        assertEquals(0, saved.getEarlyLeaveMinutes());
+        assertEquals(AttendanceStatus.PRESENT, saved.getStatus());
+        assertEquals(WORK_DATE, saved.getWorkDate());
+        verify(shiftAssignmentRepository, never()).findAssignmentsForAttendance(any(), any(), any(), any());
+    }
+
+    @Test
+    void managerCannotCheckInTwiceOnTheSameDay() {
+        Employee managerEmployee = newManagerEmployee();
+        AuthenticatedUser manager = managerUser(managerEmployee);
+        Attendance closed = managerAttendance(WORK_DATE, WORK_DATE.atTime(8, 0), WORK_DATE.atTime(17, 0));
+        when(employeeRepository.findByIdWithStore(10)).thenReturn(Optional.of(managerEmployee));
+        when(attendanceRepository.findOpenByEmployeeId(10)).thenReturn(List.of());
+        when(attendanceRepository.findByEmployee_IdAndWorkDateOrderByIdDesc(10, WORK_DATE)).thenReturn(List.of(closed));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> attendanceService.checkIn(manager, here(10), WORK_DATE.atTime(18, 0)));
+
+        assertEquals(AttendanceServiceImpl.MANAGER_ALREADY_IN, ex.getMessage());
+        verify(attendanceRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void managerCheckoutAfterMidnightUpdatesTheOpenRecord() {
+        Employee managerEmployee = newManagerEmployee();
+        AuthenticatedUser manager = managerUser(managerEmployee);
+        Attendance open = managerAttendance(WORK_DATE.minusDays(1), WORK_DATE.minusDays(1).atTime(22, 0), null);
+        when(employeeRepository.findByIdWithStore(10)).thenReturn(Optional.of(managerEmployee));
+        when(attendanceRepository.findOpenByEmployeeId(10)).thenReturn(List.of(open));
         when(storeRepository.findById(1)).thenReturn(Optional.of(store));
 
-        attendanceService.checkOut(staffUser, "14.0.0.5", WORK_DATE.atTime(17, 0));
+        BusinessException blocked = assertThrows(BusinessException.class,
+                () -> attendanceService.checkIn(manager, here(10), WORK_DATE.atTime(1, 0)));
+        assertEquals(AttendanceServiceImpl.MANAGER_OPEN_RECORD, blocked.getMessage());
 
-        assertEquals("113.0.0.1", open.getCheckInIp());
-        assertEquals("14.0.0.5", open.getCheckOutIp());
+        attendanceService.checkOut(manager, here(10), WORK_DATE.atTime(1, 0));
+
+        assertEquals(WORK_DATE.atTime(1, 0), open.getCheckOutTime());
+        assertEquals(180, open.getWorkingMinutes());
+        assertEquals(0, open.getEarlyLeaveMinutes());
         assertEquals(AttendanceStatus.PRESENT, open.getStatus());
+        verify(attendanceRepository, never()).saveAndFlush(any());
     }
 
     @Test
-    void staffCannotUpdateStoreIp() {
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> attendanceService.updateStoreIp(staffUser, "118.68.6.70"));
-
-        assertEquals("Bạn không có quyền cập nhật IP cửa hàng.", ex.getMessage());
-        verify(storeRepository, never()).save(any());
-    }
-
-    @Test
-    void managerUpdatesOnlyTheManagedStoreIp() {
-        Employee managerEmployee = Employee.builder().id(10).fullName("Manager A").store(store).build();
-        store.setManager(managerEmployee);
-        AuthenticatedUser manager = AuthenticatedUser.from(buildUser(2, "manager1", RoleName.MANAGER, managerEmployee));
-        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
-
-        attendanceService.updateStoreIp(manager, "::ffff:14.0.0.5");
-
-        assertEquals("14.0.0.5", store.getCurrentIp());
-        verify(storeRepository).save(store);
-    }
-
-    @Test
-    void managerUpdateReplacesTheStoredIpWhenTheNetworkChanges() {
-        Employee managerEmployee = Employee.builder().id(10).fullName("Manager A").store(store).build();
-        store.setManager(managerEmployee);
-        store.setCurrentIp("118.68.6.70");
-        AuthenticatedUser manager = AuthenticatedUser.from(buildUser(2, "manager1", RoleName.MANAGER, managerEmployee));
-        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
-
-        attendanceService.updateStoreIp(manager, "14.1.2.3");
-
-        assertEquals("14.1.2.3", store.getCurrentIp());
-    }
-
-    @Test
-    void managerUpdateDoesNotKeepLoopbackAsTheStoreIp() {
-        Employee managerEmployee = Employee.builder().id(10).fullName("Manager A").store(store).build();
-        store.setManager(managerEmployee);
-        AuthenticatedUser manager = AuthenticatedUser.from(buildUser(2, "manager1", RoleName.MANAGER, managerEmployee));
-        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+    void managerSecondCheckoutIsRejected() {
+        Employee managerEmployee = newManagerEmployee();
+        AuthenticatedUser manager = managerUser(managerEmployee);
+        Attendance closed = managerAttendance(WORK_DATE, WORK_DATE.atTime(8, 0), WORK_DATE.atTime(12, 0));
+        when(employeeRepository.findByIdWithStore(10)).thenReturn(Optional.of(managerEmployee));
+        when(attendanceRepository.findOpenByEmployeeId(10)).thenReturn(List.of());
+        when(attendanceRepository.findByEmployee_IdAndWorkDateOrderByIdDesc(10, WORK_DATE)).thenReturn(List.of(closed));
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> attendanceService.updateStoreIp(manager, "::1"));
+                () -> attendanceService.checkOut(manager, here(10), WORK_DATE.atTime(13, 0)));
 
-        assertEquals("Không xác định được địa chỉ IP.", ex.getMessage());
-        assertEquals("113.0.0.1", store.getCurrentIp());
-        verify(storeRepository, never()).save(any());
+        assertEquals(AttendanceServiceImpl.MANAGER_ALREADY_OUT, ex.getMessage());
+        assertEquals(WORK_DATE.atTime(12, 0), closed.getCheckOutTime());
+    }
+
+    @Test
+    void simultaneousManagerInsertIsRejectedAsAlreadyCheckedIn() {
+        Employee managerEmployee = newManagerEmployee();
+        AuthenticatedUser manager = managerUser(managerEmployee);
+        when(employeeRepository.findByIdWithStore(10)).thenReturn(Optional.of(managerEmployee));
+        when(attendanceRepository.findOpenByEmployeeId(10)).thenReturn(List.of());
+        when(attendanceRepository.findByEmployee_IdAndWorkDateOrderByIdDesc(10, WORK_DATE)).thenReturn(List.of());
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
+        when(attendanceRepository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("duplicate"));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> attendanceService.checkIn(manager, here(10), WORK_DATE.atTime(9, 0)));
+
+        assertEquals(AttendanceServiceImpl.MANAGER_ALREADY_IN, ex.getMessage());
     }
 
     @Test
@@ -431,6 +561,46 @@ class AttendanceServiceImplTest {
                 .earlyLeaveMinutes(0)
                 .status(lateMinutes > 0 ? AttendanceStatus.LATE : AttendanceStatus.PRESENT)
                 .build();
+    }
+
+    private Attendance managerAttendance(LocalDate workDate, LocalDateTime checkIn, LocalDateTime checkOut) {
+        Employee managerEmployee = Employee.builder().id(10).fullName("Manager A").store(store).build();
+        return Attendance.builder()
+                .id(202)
+                .employee(managerEmployee)
+                .store(store)
+                .workDate(workDate)
+                .checkInTime(checkIn)
+                .checkOutTime(checkOut)
+                .lateMinutes(0)
+                .earlyLeaveMinutes(0)
+                .status(AttendanceStatus.PRESENT)
+                .build();
+    }
+
+    private Employee newManagerEmployee() {
+        Employee managerEmployee = Employee.builder().id(10).fullName("Manager A").store(store).build();
+        store.setManager(managerEmployee);
+        return managerEmployee;
+    }
+
+    private AuthenticatedUser managerUser(Employee managerEmployee) {
+        return AuthenticatedUser.from(buildUser(2, "manager1", RoleName.MANAGER, managerEmployee));
+    }
+
+    private AttendanceLocation here(double accuracyMeters) {
+        return new AttendanceLocation(LAT, LNG, accuracyMeters);
+    }
+
+    private AttendanceLocation north(double meters, double accuracyMeters) {
+        double delta = Math.toDegrees(meters / GeoDistance.EARTH_RADIUS_METERS);
+        return new AttendanceLocation(BigDecimal.valueOf(LAT.doubleValue() + delta), LNG, accuracyMeters);
+    }
+
+    private void placeStoreNorth(double meters) {
+        double delta = Math.toDegrees(meters / GeoDistance.EARTH_RADIUS_METERS);
+        store.setLatitude(BigDecimal.valueOf(LAT.doubleValue() + delta));
+        store.setLongitude(LNG);
     }
 
     private User buildUser(Integer id, String username, RoleName roleName, Employee employee) {

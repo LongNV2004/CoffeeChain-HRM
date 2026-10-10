@@ -20,4 +20,6 @@ public class AttendancePolicyProperties {
      * false: không cho Check-out trước giờ kết thúc ca.
      */
     private boolean allowEarlyCheckout = true;
+
+    private int radiusMeters = 200;
 }

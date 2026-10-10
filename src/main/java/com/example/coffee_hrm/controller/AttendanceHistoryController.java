@@ -1,5 +1,6 @@
 package com.example.coffee_hrm.controller;
 
+import com.example.coffee_hrm.common.enums.AttendanceHistoryKind;
 import com.example.coffee_hrm.common.enums.AttendanceStatus;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.time.VietnamTime;
@@ -34,10 +35,15 @@ public class AttendanceHistoryController {
                                @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
                                @RequestParam(value = "to", required = false)
                                @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+                               @RequestParam(value = "kind", required = false) String kind,
                                @AuthenticationPrincipal AuthenticatedUser user,
                                Model model) {
-        AttendanceHistoryQuery query = AttendanceHistoryQuery.builder().fromDate(from).toDate(to).build();
         try {
+            AttendanceHistoryQuery query = AttendanceHistoryQuery.builder()
+                    .fromDate(from)
+                    .toDate(to)
+                    .kind(AttendanceHistoryKind.parse(kind))
+                    .build();
             model.addAttribute("history", attendanceHistoryService.getStaffHistory(user, query));
             model.addAttribute("pageError", null);
         } catch (BusinessException ex) {
@@ -58,11 +64,12 @@ public class AttendanceHistoryController {
                                  @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
                                  @RequestParam(value = "to", required = false)
                                  @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+                                 @RequestParam(value = "kind", required = false) String kind,
                                  @AuthenticationPrincipal AuthenticatedUser user,
                                  Model model) {
         try {
             model.addAttribute("history", attendanceHistoryService.getManagerHistory(user, historyQuery(
-                    from, to, employeeId, null, shiftId, status, late, early)));
+                    from, to, employeeId, null, shiftId, status, late, early, kind)));
             model.addAttribute("pageError", null);
         } catch (BusinessException ex) {
             model.addAttribute("history", emptyHistory(user, from, to, employeeId, null));
@@ -83,11 +90,12 @@ public class AttendanceHistoryController {
                                @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
                                @RequestParam(value = "to", required = false)
                                @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+                               @RequestParam(value = "kind", required = false) String kind,
                                @AuthenticationPrincipal AuthenticatedUser user,
                                Model model) {
         try {
             model.addAttribute("history", attendanceHistoryService.getAdminHistory(user, historyQuery(
-                    from, to, employeeId, storeId, shiftId, status, late, early)));
+                    from, to, employeeId, storeId, shiftId, status, late, early, kind)));
             model.addAttribute("pageError", null);
         } catch (BusinessException ex) {
             model.addAttribute("history", emptyHistory(user, from, to, employeeId, storeId));
@@ -103,7 +111,8 @@ public class AttendanceHistoryController {
                                                 Integer shiftId,
                                                 String status,
                                                 Boolean late,
-                                                Boolean early) {
+                                                Boolean early,
+                                                String kind) {
         return AttendanceHistoryQuery.builder()
                 .fromDate(from)
                 .toDate(to)
@@ -113,6 +122,7 @@ public class AttendanceHistoryController {
                 .status(parseStatus(status))
                 .lateOnly(Boolean.TRUE.equals(late))
                 .earlyOnly(Boolean.TRUE.equals(early))
+                .kind(AttendanceHistoryKind.parse(kind))
                 .build();
     }
 

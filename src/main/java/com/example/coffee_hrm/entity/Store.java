@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -43,8 +44,14 @@ public class Store {
     @Builder.Default
     private Boolean isActive = true;
 
-    @Column(name = "CurrentIp", length = 45)
-    private String currentIp;
+    @Column(name = "Latitude", precision = 10, scale = 7)
+    private BigDecimal latitude;
+
+    @Column(name = "Longitude", precision = 10, scale = 7)
+    private BigDecimal longitude;
+
+    @Column(name = "LocationUpdatedAt")
+    private LocalDateTime locationUpdatedAt;
 
     @CreationTimestamp
     @Column(name = "CreatedAt", nullable = false, updatable = false)

@@ -94,6 +94,21 @@ th{font-size:12px;color:var(--ink-soft);font-weight:600;background:var(--paper-d
 .recent-list{list-style:none;padding:0;margin:8px 0 0;}
 .recent-list li{display:flex;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px solid var(--line);}
 .ip-line{margin:6px 0;color:var(--espresso-soft);}
+.gps-dialog{
+  position:fixed;right:24px;bottom:24px;z-index:300;
+  width:min(320px,calc(100vw - 32px));
+  background:#fff;border:1px solid var(--line);border-radius:12px;
+  box-shadow:0 12px 40px rgba(43,27,18,.16);padding:16px 18px;
+}
+.gps-dialog[hidden]{display:none;}
+.gps-dialog-title{margin:0 0 8px;font-family:'Fraunces',serif;font-size:18px;}
+.gps-dialog-body{margin:0;white-space:pre-line;color:var(--espresso-soft);font-size:14px;}
+.gps-dialog-close{margin-top:14px;}
+.choice-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:8px;}
+.choice-card{display:block;background:#fff;border:1px solid var(--line);border-radius:8px;padding:18px 20px;}
+.choice-card:hover{border-color:var(--caramel);}
+.choice-card h2{font-size:22px;margin-bottom:6px;}
+.choice-card p{margin:0;color:var(--ink-soft);}
 @media (max-width:720px){
   .wrap{padding:0 16px;}
   .dash-nav .wrap{padding:14px 16px;}

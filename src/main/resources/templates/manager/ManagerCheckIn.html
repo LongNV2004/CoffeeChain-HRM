@@ -25,31 +25,22 @@
     <p class="flash" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
 
     <section class="panel" th:if="${clock != null}">
-        <h2>IP mạng cửa hàng</h2>
-        <p class="note">Chỉ Manager được cập nhật. Mỗi lần bấm sẽ lấy lại IP public của mạng đang kết nối và lưu đè IP cũ, kể cả khi vừa đổi Wi-Fi sang 4G.</p>
-        <p class="ip-line">IP cửa hàng đang lưu: <strong th:text="${clock.storeCurrentIp != null ? clock.storeCurrentIp : 'Chưa thiết lập'}">—</strong></p>
-        <p class="ip-line">IP mạng đang kết nối: <strong th:text="${clock.requestIp != null ? clock.requestIp : '—'}">—</strong></p>
-        <form th:action="@{/attendance/manager/ip}" method="post">
-            <button class="secondary-btn" type="submit">Cập nhật IP cửa hàng</button>
-        </form>
-    </section>
-
-    <section class="panel" th:if="${clock != null}">
-        <h2>Ca hiện tại</h2>
-        <p class="ip-line">
-            <span th:text="${clock.shiftName != null ? clock.shiftName : 'Chưa có ca phù hợp'}">Ca sáng</span>
-        </p>
-        <p class="ip-line">
-            <span th:text="${clock.scheduledStartLabel}">08:00</span>
-            —
-            <span th:text="${clock.scheduledEndLabel}">17:00</span>
-        </p>
+        <h2>Chấm công trong ngày</h2>
+        <p class="note">Manager được Check-in một lần mỗi ngày, không cần ca làm việc. Check-out cập nhật đúng bản ghi đang mở.</p>
         <p class="note">Trạng thái: <strong th:text="${clock.statusLabel}">Chưa Check-in</strong></p>
         <div class="clock-actions">
-            <form th:action="@{/attendance/manager/check-in}" method="post">
+            <form class="gps-form" th:action="@{/attendance/manager/check-in}" method="post">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <input type="hidden" name="latitude">
+                <input type="hidden" name="longitude">
+                <input type="hidden" name="accuracy">
                 <button class="primary-btn" type="submit">Check-in</button>
             </form>
-            <form th:action="@{/attendance/manager/check-out}" method="post">
+            <form class="gps-form" th:action="@{/attendance/manager/check-out}" method="post">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <input type="hidden" name="latitude">
+                <input type="hidden" name="longitude">
+                <input type="hidden" name="accuracy">
                 <button class="secondary-btn" type="submit">Check-out</button>
             </form>
         </div>
@@ -67,5 +58,6 @@
         <a class="link-btn" th:href="@{/attendance/manager/history}">Xem lịch sử</a>
     </section>
 </main>
+<script th:src="@{/js/attendance-gps.js(v=4)}"></script>
 </body>
 </html>

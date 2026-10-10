@@ -37,4 +37,8 @@ public class UpdateStoreRequest {
 
     @Valid
     private List<StoreOperatingHourRequest> operatingHours;
+
+    private String latitude;
+
+    private String longitude;
 }

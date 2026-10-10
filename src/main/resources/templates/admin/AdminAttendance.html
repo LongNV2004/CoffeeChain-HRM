@@ -35,6 +35,13 @@
         <h2>Bộ lọc</h2>
         <p class="note">Tổng thời gian chỉ tính các ca đã check-out. Ca và giờ trên từng dòng là dữ liệu lưu lúc chấm công.</p>
         <form class="filter-form" method="get" th:action="@{/attendance/admin}">
+            <label>Loại
+                <select name="kind">
+                    <option value="all" th:selected="${history.filterKind == null or history.filterKind == 'all'}">Tất cả chấm công</option>
+                    <option value="shift" th:selected="${history.filterKind == 'shift'}">Chấm công ca làm</option>
+                    <option value="training" th:selected="${history.filterKind == 'training'}">Chấm công đào tạo</option>
+                </select>
+            </label>
             <label>Cửa hàng
                 <select name="storeId">
                     <option value="">Tất cả</option>
@@ -105,6 +112,7 @@
                     <th>Ngày</th>
                     <th>Nhân viên</th>
                     <th>Cửa hàng</th>
+                    <th>Loại</th>
                     <th>Ca</th>
                     <th>Bắt đầu ca</th>
                     <th>Kết thúc ca</th>
@@ -114,8 +122,8 @@
                     <th>Đi muộn</th>
                     <th>Về sớm</th>
                     <th>Còn thiếu</th>
-                    <th>IP Check-in</th>
-                    <th>IP Check-out</th>
+                    <th>Vị trí Check-in</th>
+                    <th>Vị trí Check-out</th>
                     <th>Trạng thái</th>
                 </tr>
                 </thead>
@@ -127,6 +135,7 @@
                         <span th:text="'#' + ${row.employeeId}">#1</span>
                     </td>
                     <td th:text="${row.storeName}">Cửa hàng</td>
+                    <td th:text="${row.kindLabel}">Chấm công ca làm</td>
                     <td th:text="${row.shiftLabel}">Ca sáng</td>
                     <td th:text="${row.scheduledStartLabel}">08:00</td>
                     <td th:text="${row.scheduledEndLabel}">17:00</td>
@@ -136,8 +145,8 @@
                     <td th:text="${row.lateLabel}">0 phút</td>
                     <td th:text="${row.earlyLabel}">0 phút</td>
                     <td th:text="${row.missingLabel}">0 phút</td>
-                    <td th:text="${row.checkInIp}">—</td>
-                    <td th:text="${row.checkOutIp}">—</td>
+                    <td th:text="${row.checkInLocation}">—</td>
+                    <td th:text="${row.checkOutLocation}">—</td>
                     <td>
                         <span class="status-tag" th:classappend="${row.statusCss}" th:text="${row.statusLabel}">Có mặt</span>
                     </td>

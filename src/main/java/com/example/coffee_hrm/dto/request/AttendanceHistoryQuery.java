@@ -1,5 +1,6 @@
 package com.example.coffee_hrm.dto.request;
 
+import com.example.coffee_hrm.common.enums.AttendanceHistoryKind;
 import com.example.coffee_hrm.common.enums.AttendanceStatus;
 import lombok.Builder;
 import lombok.Getter;

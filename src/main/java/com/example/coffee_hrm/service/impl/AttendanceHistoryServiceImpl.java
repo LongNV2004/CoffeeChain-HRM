@@ -1,6 +1,7 @@
 package com.example.coffee_hrm.service.impl;
 
 import com.example.coffee_hrm.common.enums.AssignmentStatus;
+import com.example.coffee_hrm.common.enums.AttendanceHistoryKind;
 import com.example.coffee_hrm.common.enums.AttendanceStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
@@ -13,11 +14,13 @@ import com.example.coffee_hrm.entity.Employee;
 import com.example.coffee_hrm.entity.Shift;
 import com.example.coffee_hrm.entity.ShiftAssignment;
 import com.example.coffee_hrm.entity.Store;
+import com.example.coffee_hrm.entity.TrainingAttendance;
 import com.example.coffee_hrm.repository.AttendanceRepository;
 import com.example.coffee_hrm.repository.EmployeeRepository;
 import com.example.coffee_hrm.repository.ShiftAssignmentRepository;
 import com.example.coffee_hrm.repository.ShiftRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
+import com.example.coffee_hrm.repository.TrainingAttendanceRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.AttendanceHistoryService;
 import lombok.RequiredArgsConstructor;
@@ -51,6 +54,7 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
     private final EmployeeRepository employeeRepository;
     private final StoreRepository storeRepository;
     private final ShiftRepository shiftRepository;
+    private final TrainingAttendanceRepository trainingAttendanceRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -67,14 +71,22 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
         Employee employee = resolveStaffEmployee(user);
         AttendanceHistoryQuery safeQuery = query == null ? AttendanceHistoryQuery.builder().build() : query;
         LocalDate[] range = resolveRange(safeQuery.getFromDate(), safeQuery.getToDate());
-        List<Attendance> records = applyFilters(attendanceRepository.findHistoryByEmployee(
-                employee.getId(), range[0], range[1]), safeQuery);
-        Map<String, String> shifts = shiftLabels(shiftAssignmentRepository.findWeeklyAssignmentsForEmployee(
-                employee.getId(), range[0], range[1], AssignmentStatus.ASSIGNED));
+        List<Attendance> records = includeShift(safeQuery)
+                ? applyFilters(attendanceRepository.findHistoryByEmployee(
+                employee.getId(), range[0], range[1]), safeQuery)
+                : List.of();
+        Map<String, String> shifts = includeShift(safeQuery)
+                ? shiftLabels(shiftAssignmentRepository.findWeeklyAssignmentsForEmployee(
+                employee.getId(), range[0], range[1], AssignmentStatus.ASSIGNED))
+                : Map.of();
+        List<TrainingAttendance> training = includeTraining(safeQuery)
+                ? applyTrainingFilters(trainingAttendanceRepository.findHistoryByEmployee(
+                employee.getId(), range[0], range[1]), safeQuery)
+                : List.of();
 
         return buildView(employee.getId(), employee.getFullName(), storeName(employee.getStore()),
                 range[0], range[1], null, null, null, safeQuery,
-                List.of(), List.of(), List.of(), records, shifts);
+                List.of(), List.of(), List.of(), records, training, shifts);
     }
 
     @Override
@@ -105,12 +117,25 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
         }
         LocalDate[] range = resolveRange(safeQuery.getFromDate(), safeQuery.getToDate());
         List<AttendanceHistoryView.EmployeeOption> employees = loadStoreEmployees(store.getId());
-        List<Attendance> records = employeeId == null
-                ? attendanceRepository.findHistoryByStore(store.getId(), range[0], range[1])
-                : attendanceRepository.findHistoryByStoreAndEmployee(store.getId(), employeeId, range[0], range[1]);
-        records = applyFilters(records, safeQuery);
-        Map<String, String> shifts = shiftLabels(shiftAssignmentRepository.findWeeklyAssignmentsForStore(
-                store.getId(), range[0], range[1], AssignmentStatus.ASSIGNED));
+        List<Attendance> records = List.of();
+        if (includeShift(safeQuery)) {
+            records = employeeId == null
+                    ? attendanceRepository.findHistoryByStore(store.getId(), range[0], range[1])
+                    : attendanceRepository.findHistoryByStoreAndEmployee(store.getId(), employeeId, range[0], range[1]);
+            records = applyFilters(records, safeQuery);
+        }
+        Map<String, String> shifts = includeShift(safeQuery)
+                ? shiftLabels(shiftAssignmentRepository.findWeeklyAssignmentsForStore(
+                store.getId(), range[0], range[1], AssignmentStatus.ASSIGNED))
+                : Map.of();
+        List<TrainingAttendance> training = List.of();
+        if (includeTraining(safeQuery)) {
+            training = employeeId == null
+                    ? trainingAttendanceRepository.findHistoryForManager(
+                    store.getId(), user.getEmployeeId(), range[0], range[1])
+                    : trainingAttendanceRepository.findHistoryByEmployee(employeeId, range[0], range[1]);
+            training = applyTrainingFilters(training, safeQuery);
+        }
         List<AttendanceHistoryView.ShiftOption> shiftOptions = shiftRepository == null
                 ? List.of()
                 : shiftRepository.findByStore_IdOrderByStartTimeAsc(store.getId()).stream()
@@ -119,7 +144,7 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
 
         return buildView(null, user.getDisplayName(), store.getStoreName(),
                 range[0], range[1], store.getId(), employeeId, null, safeQuery,
-                employees, List.of(), shiftOptions, records, shifts);
+                employees, List.of(), shiftOptions, records, training, shifts);
     }
 
     @Override
@@ -133,18 +158,37 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
         if (safeQuery.getStoreId() != null && safeQuery.getEmployeeId() != null) {
             assertEmployeeInStore(safeQuery.getEmployeeId(), safeQuery.getStoreId());
         }
-        List<Attendance> records = applyFilters(
-                attendanceRepository.findHistoryBetween(range[0], range[1]), safeQuery);
-        if (safeQuery.getStoreId() != null) {
-            records = records.stream()
-                    .filter(attendance -> belongsToStore(attendance, safeQuery.getStoreId()))
-                    .toList();
+        List<Attendance> records = List.of();
+        if (includeShift(safeQuery)) {
+            records = applyFilters(
+                    attendanceRepository.findHistoryBetween(range[0], range[1]), safeQuery);
+            if (safeQuery.getStoreId() != null) {
+                records = records.stream()
+                        .filter(attendance -> belongsToStore(attendance, safeQuery.getStoreId()))
+                        .toList();
+            }
+            if (safeQuery.getEmployeeId() != null) {
+                records = records.stream()
+                        .filter(attendance -> attendance.getEmployee() != null
+                                && Objects.equals(attendance.getEmployee().getId(), safeQuery.getEmployeeId()))
+                        .toList();
+            }
         }
-        if (safeQuery.getEmployeeId() != null) {
-            records = records.stream()
-                    .filter(attendance -> attendance.getEmployee() != null
-                            && Objects.equals(attendance.getEmployee().getId(), safeQuery.getEmployeeId()))
-                    .toList();
+        List<TrainingAttendance> training = List.of();
+        if (includeTraining(safeQuery)) {
+            training = applyTrainingFilters(
+                    trainingAttendanceRepository.findHistoryBetween(range[0], range[1]), safeQuery);
+            if (safeQuery.getStoreId() != null) {
+                training = training.stream()
+                        .filter(row -> trainingBelongsToStore(row, safeQuery.getStoreId()))
+                        .toList();
+            }
+            if (safeQuery.getEmployeeId() != null) {
+                training = training.stream()
+                        .filter(row -> row.getEmployee() != null
+                                && Objects.equals(row.getEmployee().getId(), safeQuery.getEmployeeId()))
+                        .toList();
+            }
         }
         List<AttendanceHistoryView.StoreOption> stores = storeRepository.findAllWithManager().stream()
                 .map(store -> AttendanceHistoryView.StoreOption.builder()
@@ -164,7 +208,7 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
         return buildView(null, user.getDisplayName(), null,
                 range[0], range[1], safeQuery.getStoreId(), safeQuery.getEmployeeId(),
                 safeQuery.getStoreId(), safeQuery,
-                employees, stores, shiftOptions, records, Map.of());
+                employees, stores, shiftOptions, records, training, Map.of());
     }
 
     private AttendanceHistoryView buildView(Integer employeeId,
@@ -180,6 +224,7 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
                                             List<AttendanceHistoryView.StoreOption> stores,
                                             List<AttendanceHistoryView.ShiftOption> shiftOptions,
                                             List<Attendance> records,
+                                            List<TrainingAttendance> trainingRecords,
                                             Map<String, String> shifts) {
         List<AttendanceHistoryView.AttendanceRow> rows = new ArrayList<>();
         BigDecimal totalHours = BigDecimal.ZERO;
@@ -212,12 +257,27 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
                     .lateLabel(formatMinuteValue(attendance.getLateMinutes()))
                     .earlyLabel(completed ? formatMinuteValue(attendance.getEarlyLeaveMinutes()) : "—")
                     .missingLabel(missingLabel(attendance))
-                    .checkInIp(blankToDash(attendance.getCheckInIp()))
-                    .checkOutIp(blankToDash(attendance.getCheckOutIp()))
+                    .checkInLocation(formatCoordinates(attendance.getCheckInLatitude(), attendance.getCheckInLongitude()))
+                    .checkOutLocation(formatCoordinates(attendance.getCheckOutLatitude(), attendance.getCheckOutLongitude()))
                     .statusLabel(statusLabel(attendance.getStatus()))
                     .statusCss(statusCss(attendance.getStatus()))
                     .shiftLabel(snapshotShiftLabel(attendance, shifts.getOrDefault(shiftKey, "Chưa phân ca")))
+                    .kindLabel("Chấm công ca làm")
                     .build());
+        }
+        boolean hasTraining = trainingRecords != null && !trainingRecords.isEmpty();
+        if (hasTraining) {
+            for (TrainingAttendance training : trainingRecords) {
+                rows.add(trainingRow(training));
+                if (training.getCheckOutTime() != null && training.getWorkingMinutes() != null) {
+                    minuteTotal += training.getWorkingMinutes();
+                    hasMinuteTotal = true;
+                }
+            }
+            rows.sort(Comparator
+                    .comparing(AttendanceHistoryView.AttendanceRow::getWorkDate, Comparator.nullsLast(Comparator.reverseOrder()))
+                    .thenComparing(AttendanceHistoryView.AttendanceRow::getEmployeeName, Comparator.nullsLast(String::compareToIgnoreCase))
+                    .thenComparing(AttendanceHistoryView.AttendanceRow::getAttendanceId, Comparator.nullsLast(Comparator.reverseOrder())));
         }
 
         String totalLabel = hasMinuteTotal
@@ -235,6 +295,7 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
                 .filterStatus(query != null && query.getStatus() != null ? query.getStatus().getDbValue() : null)
                 .lateOnly(query != null && query.isLateOnly())
                 .earlyOnly(query != null && query.isEarlyOnly())
+                .filterKind(kindValue(query))
                 .employees(employees)
                 .stores(stores)
                 .shifts(shiftOptions)
@@ -244,6 +305,108 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
                 .totalHours(totalHours)
                 .totalHoursLabel(totalLabel)
                 .build();
+    }
+
+    private boolean includeShift(AttendanceHistoryQuery query) {
+        return query == null || query.getKind() == null || query.getKind() != AttendanceHistoryKind.TRAINING;
+    }
+
+    private boolean includeTraining(AttendanceHistoryQuery query) {
+        if (query != null && query.getShiftId() != null) {
+            return false;
+        }
+        return query == null || query.getKind() == null || query.getKind() != AttendanceHistoryKind.SHIFT;
+    }
+
+    private String kindValue(AttendanceHistoryQuery query) {
+        if (query == null || query.getKind() == null || query.getKind() == AttendanceHistoryKind.ALL) {
+            return "all";
+        }
+        return query.getKind() == AttendanceHistoryKind.SHIFT ? "shift" : "training";
+    }
+
+    private AttendanceHistoryView.AttendanceRow trainingRow(TrainingAttendance training) {
+        Employee employee = training.getEmployee();
+        boolean completed = training.getCheckOutTime() != null;
+        String rowStore = training.getStore() != null
+                ? training.getStore().getStoreName()
+                : storeName(employee.getStore());
+        return AttendanceHistoryView.AttendanceRow.builder()
+                .attendanceId(training.getId())
+                .employeeId(employee.getId())
+                .employeeName(employee.getFullName())
+                .workDate(training.getWorkDate())
+                .storeName(rowStore != null ? rowStore : "—")
+                .scheduledStartLabel(formatTime(training.getScheduledStartTime()))
+                .scheduledEndLabel(formatTime(training.getScheduledEndTime()))
+                .checkInLabel(formatClock(training.getWorkDate(), training.getCheckInTime()))
+                .checkOutLabel(formatClock(training.getWorkDate(), training.getCheckOutTime()))
+                .totalHoursLabel(completed && training.getWorkingMinutes() != null
+                        ? formatMinutes(training.getWorkingMinutes())
+                        : "—")
+                .lateLabel(formatMinuteValue(training.getLateMinutes()))
+                .earlyLabel(completed ? formatMinuteValue(training.getEarlyLeaveMinutes()) : "—")
+                .missingLabel(completed ? formatMinuteValue(training.getEarlyLeaveMinutes()) : "—")
+                .checkInLocation(formatCoordinates(training.getCheckInLatitude(), training.getCheckInLongitude()))
+                .checkOutLocation(formatCoordinates(training.getCheckOutLatitude(), training.getCheckOutLongitude()))
+                .statusLabel(statusLabel(training.getStatus()))
+                .statusCss(statusCss(training.getStatus()))
+                .shiftLabel(trainingShiftLabel(training))
+                .kindLabel("Chấm công đào tạo")
+                .build();
+    }
+
+    private String trainingShiftLabel(TrainingAttendance training) {
+        String name = training.getClassName() != null && !training.getClassName().isBlank()
+                ? training.getClassName()
+                : "Đào tạo";
+        if (training.getScheduledStartTime() == null || training.getScheduledEndTime() == null) {
+            return name;
+        }
+        return name
+                + " ("
+                + training.getScheduledStartTime().format(TIME_FORMATTER)
+                + "–"
+                + training.getScheduledEndTime().format(TIME_FORMATTER)
+                + ")";
+    }
+
+    private List<TrainingAttendance> applyTrainingFilters(List<TrainingAttendance> records, AttendanceHistoryQuery query) {
+        if (query == null || (query.getStatus() == null && !query.isLateOnly() && !query.isEarlyOnly())) {
+            return records;
+        }
+        return records.stream().filter(row -> trainingMatches(row, query)).toList();
+    }
+
+    private boolean trainingMatches(TrainingAttendance row, AttendanceHistoryQuery query) {
+        if (query.getStatus() != null && row.getStatus() != query.getStatus()) {
+            return false;
+        }
+        if (query.isLateOnly() && !isLateStatus(row.getStatus(), row.getLateMinutes())) {
+            return false;
+        }
+        return !query.isEarlyOnly() || isEarlyStatus(row.getStatus(), row.getEarlyLeaveMinutes());
+    }
+
+    private boolean isLateStatus(AttendanceStatus status, Integer lateMinutes) {
+        return status == AttendanceStatus.LATE
+                || status == AttendanceStatus.LATE_AND_EARLY
+                || (lateMinutes != null && lateMinutes > 0);
+    }
+
+    private boolean isEarlyStatus(AttendanceStatus status, Integer earlyMinutes) {
+        return status == AttendanceStatus.EARLY_LEAVE
+                || status == AttendanceStatus.LATE_AND_EARLY
+                || (earlyMinutes != null && earlyMinutes > 0);
+    }
+
+    private boolean trainingBelongsToStore(TrainingAttendance row, Integer storeId) {
+        if (row.getStore() != null && Objects.equals(row.getStore().getId(), storeId)) {
+            return true;
+        }
+        return row.getEmployee() != null
+                && row.getEmployee().getStore() != null
+                && Objects.equals(row.getEmployee().getStore().getId(), storeId);
     }
 
     private List<Attendance> applyFilters(List<Attendance> records, AttendanceHistoryQuery query) {
@@ -519,8 +682,13 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
         return hours.stripTrailingZeros().toPlainString() + " giờ";
     }
 
-    private String blankToDash(String value) {
-        return value == null || value.isBlank() ? "—" : value;
+    private String formatCoordinates(BigDecimal latitude, BigDecimal longitude) {
+        if (latitude == null || longitude == null) {
+            return "—";
+        }
+        return latitude.stripTrailingZeros().toPlainString()
+                + ", "
+                + longitude.stripTrailingZeros().toPlainString();
     }
 
     private String statusLabel(AttendanceStatus status) {

@@ -3,6 +3,8 @@ package com.example.coffee_hrm.service.impl;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.common.geo.GeoDistance;
+import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.CreateStoreRequest;
 import com.example.coffee_hrm.dto.request.UpdateStoreRequest;
 import com.example.coffee_hrm.dto.response.StoreResponse;
@@ -17,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -31,6 +34,7 @@ public class StoreServiceImpl implements StoreService {
     static final String STORE_NAME_EXISTS = "Tên cửa hàng đã tồn tại";
     static final String STORE_NAME_REQUIRED = "Vui lòng nhập tên cửa hàng";
     static final String ADDRESS_REQUIRED = "Vui lòng nhập địa chỉ";
+    static final String INVALID_COORDINATES = "Tọa độ cửa hàng không hợp lệ.";
 
     /** Nhân viên đã nghỉ việc không còn được tính là thành viên của cửa hàng. */
     private static final EmployeeStatus FORMER_EMPLOYEE_STATUS = EmployeeStatus.TERMINATED;
@@ -91,7 +95,39 @@ public class StoreServiceImpl implements StoreService {
         store.setAddress(request.getAddress().trim());
         store.setTotalLeaveDays(request.getTotalLeaveDays());
         store.setIsActive(request.getIsActive());
+        applyLocation(store, request.getLatitude(), request.getLongitude());
         return toStoreResponse(store, countMembers(storeId));
+    }
+
+    private void applyLocation(Store store, String latitudeText, String longitudeText) {
+        BigDecimal latitude = parseCoordinate(latitudeText);
+        BigDecimal longitude = parseCoordinate(longitudeText);
+        if (latitude == null && longitude == null) {
+            return;
+        }
+        if (!GeoDistance.isValidLatitude(latitude) || !GeoDistance.isValidLongitude(longitude)) {
+            throw new BusinessException(INVALID_COORDINATES);
+        }
+        boolean changed = store.getLatitude() == null
+                || store.getLongitude() == null
+                || store.getLatitude().compareTo(latitude) != 0
+                || store.getLongitude().compareTo(longitude) != 0;
+        store.setLatitude(latitude);
+        store.setLongitude(longitude);
+        if (changed) {
+            store.setLocationUpdatedAt(VietnamTime.now());
+        }
+    }
+
+    private BigDecimal parseCoordinate(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return new BigDecimal(raw.trim());
+        } catch (NumberFormatException ex) {
+            throw new BusinessException(INVALID_COORDINATES);
+        }
     }
 
     private long countMembers(Integer storeId) {
@@ -126,6 +162,9 @@ public class StoreServiceImpl implements StoreService {
                 .isActive(store.getIsActive())
                 .employeeCount(employeeCount)
                 .managerName(manager != null ? manager.getFullName() : null)
+                .latitude(store.getLatitude())
+                .longitude(store.getLongitude())
+                .locationUpdatedAt(store.getLocationUpdatedAt())
                 .build();
     }
 }

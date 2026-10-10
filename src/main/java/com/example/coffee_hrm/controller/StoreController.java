@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Controller
@@ -101,6 +102,8 @@ public class StoreController {
                     .address(store.getAddress())
                     .totalLeaveDays(store.getTotalLeaveDays())
                     .isActive(store.getIsActive())
+                    .latitude(plainCoordinate(store.getLatitude()))
+                    .longitude(plainCoordinate(store.getLongitude()))
                     .build());
             return STORE_EDIT_VIEW;
         } catch (BusinessException ex) {
@@ -129,13 +132,28 @@ public class StoreController {
         }
         try {
             StoreResponse updated = storeService.updateStore(user, storeId, storeForm);
-            redirectAttributes.addFlashAttribute("successMessage",
-                    "Đã cập nhật thông tin cửa hàng " + updated.getStoreName() + ".");
+            redirectAttributes.addFlashAttribute("successMessage", storeUpdatedMessage(updated));
             return STORE_LIST_REDIRECT;
         } catch (BusinessException ex) {
             model.addAttribute("errorMessage", ex.getMessage());
             return STORE_EDIT_VIEW;
         }
+    }
+
+    private String storeUpdatedMessage(StoreResponse updated) {
+        String message = "Đã cập nhật thông tin cửa hàng " + updated.getStoreName() + ".";
+        if (updated.getLatitude() != null && updated.getLongitude() != null) {
+            message += " Vị trí chấm công: "
+                    + updated.getLatitude().stripTrailingZeros().toPlainString()
+                    + ", "
+                    + updated.getLongitude().stripTrailingZeros().toPlainString()
+                    + ".";
+        }
+        return message;
+    }
+
+    private String plainCoordinate(BigDecimal value) {
+        return value == null ? null : value.stripTrailingZeros().toPlainString();
     }
 
     @ExceptionHandler(DataAccessException.class)

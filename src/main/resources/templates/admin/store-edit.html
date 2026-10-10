@@ -52,6 +52,19 @@
                     </label>
                 </div>
 
+                <label>Vĩ độ (latitude)
+                    <input type="text" th:field="*{latitude}" inputmode="decimal" maxlength="20" placeholder="Ví dụ: 21.028511">
+                </label>
+
+                <label>Kinh độ (longitude)
+                    <input type="text" th:field="*{longitude}" inputmode="decimal" maxlength="20" placeholder="Ví dụ: 105.854167">
+                </label>
+                <p class="muted" th:if="${store.locationUpdatedAt != null}">
+                    Vị trí cập nhật lúc
+                    <span th:text="${#temporals.format(store.locationUpdatedAt, 'dd/MM/yyyy HH:mm')}">01/01/2026 08:00</span>
+                </p>
+                <p class="muted" th:if="${store.locationUpdatedAt == null}">Cửa hàng chưa được thiết lập vị trí chấm công.</p>
+
                 <div class="form-actions">
                     <button type="submit" class="primary-btn">Lưu thay đổi</button>
                     <a class="logout-btn" th:href="@{/admin/stores}">Hủy</a>

@@ -36,10 +36,18 @@
         </p>
         <p class="note">Trạng thái: <strong th:text="${clock.statusLabel}">Chưa Check-in</strong></p>
         <div class="clock-actions">
-            <form th:action="@{/attendance/staff/check-in}" method="post">
+            <form class="gps-form" th:action="@{/attendance/staff/check-in}" method="post">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <input type="hidden" name="latitude">
+                <input type="hidden" name="longitude">
+                <input type="hidden" name="accuracy">
                 <button class="primary-btn" type="submit">Check-in</button>
             </form>
-            <form th:action="@{/attendance/staff/check-out}" method="post">
+            <form class="gps-form" th:action="@{/attendance/staff/check-out}" method="post">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <input type="hidden" name="latitude">
+                <input type="hidden" name="longitude">
+                <input type="hidden" name="accuracy">
                 <button class="secondary-btn" type="submit">Check-out</button>
             </form>
         </div>
@@ -57,5 +65,6 @@
         <a class="link-btn" th:href="@{/attendance/staff/history}">Xem lịch sử</a>
     </section>
 </main>
+<script th:src="@{/js/attendance-gps.js(v=4)}"></script>
 </body>
 </html>

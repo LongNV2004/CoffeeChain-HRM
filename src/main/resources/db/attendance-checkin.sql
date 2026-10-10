@@ -1,10 +1,4 @@
--- Check-in / Check-out: store network IP and one attendance row per shift.
-IF COL_LENGTH(N'dbo.Stores', N'CurrentIp') IS NULL
-BEGIN
-    ALTER TABLE dbo.Stores ADD CurrentIp NVARCHAR(45) NULL;
-END;
-GO
-
+-- Check-in / Check-out: one attendance row per shift.
 IF COL_LENGTH(N'dbo.Attendances', N'StoreId') IS NULL
 BEGIN
     ALTER TABLE dbo.Attendances ADD StoreId INT NULL;
@@ -32,18 +26,6 @@ GO
 IF COL_LENGTH(N'dbo.Attendances', N'ScheduledEndTime') IS NULL
 BEGIN
     ALTER TABLE dbo.Attendances ADD ScheduledEndTime TIME NULL;
-END;
-GO
-
-IF COL_LENGTH(N'dbo.Attendances', N'CheckInIp') IS NULL
-BEGIN
-    ALTER TABLE dbo.Attendances ADD CheckInIp NVARCHAR(45) NULL;
-END;
-GO
-
-IF COL_LENGTH(N'dbo.Attendances', N'CheckOutIp') IS NULL
-BEGIN
-    ALTER TABLE dbo.Attendances ADD CheckOutIp NVARCHAR(45) NULL;
 END;
 GO
 
