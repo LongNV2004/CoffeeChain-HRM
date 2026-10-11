@@ -61,7 +61,8 @@ public class StaffAvailabilityController {
             redirectAttributes.addFlashAttribute("successMessage",
                     "Đã gửi đăng ký " + count
                             + " slot lịch làm việc định kỳ. Manager cửa hàng đã được thông báo. "
-                            + "Đăng ký đang chờ bị trùng sẽ được thay; lịch đã duyệt không bị đổi.");
+                            + "Đăng ký đang chờ bị trùng sẽ được thay; lịch đã duyệt không bị đổi. "
+                            + "Số chỗ còn lại trên các slot đã được cập nhật.");
             return "redirect:/availability";
         } catch (BusinessException ex) {
             populatePage(user, model);

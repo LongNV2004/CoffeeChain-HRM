@@ -43,7 +43,8 @@ public class SecurityConfig {
 
     @Bean
     public CoffeeRememberMeServices rememberMeServices() {
-        CoffeeRememberMeServices services = new CoffeeRememberMeServices(rememberMeKey, userDetailsService);
+        CoffeeRememberMeServices services =
+                new CoffeeRememberMeServices(rememberMeKey, userDetailsService);
         services.setParameter("rememberMe");
         services.setCookieName("coffee-hrm-remember-me");
         services.setTokenValiditySeconds(rememberMeSeconds);
@@ -53,43 +54,83 @@ public class SecurityConfig {
     @Bean
     public AccessDeniedHandler accessDeniedHandler() {
         return (request, response, accessDeniedException) -> {
-            String dashboard = roleBasedRedirector.resolve(SecurityContextHolder.getContext().getAuthentication());
+            String dashboard =
+                    roleBasedRedirector.resolve(SecurityContextHolder.getContext().getAuthentication());
             String target = dashboard != null ? dashboard : "/login";
             response.sendRedirect(request.getContextPath() + target);
         };
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http,
-                                                   CoffeeRememberMeServices rememberMeServices,
-                                                   SecurityContextRepository securityContextRepository,
-                                                   AccessDeniedHandler accessDeniedHandler) throws Exception {
-        http
-                .securityContext(context -> context.securityContextRepository(securityContextRepository))
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            CoffeeRememberMeServices rememberMeServices,
+            SecurityContextRepository securityContextRepository,
+            AccessDeniedHandler accessDeniedHandler)
+            throws Exception {
+
+        http.securityContext(context -> context.securityContextRepository(securityContextRepository))
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
-                .rememberMe(remember -> remember
-                        .rememberMeServices(rememberMeServices)
-                        .key(rememberMeKey))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/coffee", "/login", "/logout", "/css/**", "/js/**", "/images/**", "/favicon.ico", "/error")
-                        .permitAll()
-                        .requestMatchers("/dashboard/admin", "/admin", "/admin/**", "/admin/training", "/admin/training/**",
-                                "/attendance/admin", "/attendance/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/training/staff", "/training/staff/**").hasRole("STAFF")
-                        .requestMatchers("/dashboard/manager", "/manager/**", "/training", "/training/**",
-                                "/schedule/manager", "/schedule/manager/**",
-                                "/availability/manager", "/availability/manager/**",
-                                "/attendance/manager", "/attendance/manager/**").hasRole("MANAGER")
-                        .requestMatchers("/dashboard/staff", "/schedule/staff", "/schedule/staff/**",
-                                "/availability", "/availability/**",
-                                "/attendance/staff", "/attendance/staff/**").hasRole("STAFF")
-                        .anyRequest().authenticated())
-                .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint((request, response, authException) ->
-                                response.sendRedirect(request.getContextPath() + "/login"))
-                        .accessDeniedHandler(accessDeniedHandler));
+                .rememberMe(
+                        remember -> remember.rememberMeServices(rememberMeServices).key(rememberMeKey))
+                .authorizeHttpRequests(
+                        auth ->
+                                auth.requestMatchers(
+                                                "/",
+                                                "/coffee",
+                                                "/login",
+                                                "/logout",
+                                                "/css/**",
+                                                "/js/**",
+                                                "/images/**",
+                                                "/favicon.ico",
+                                                "/error")
+                                        .permitAll()
+                                        .requestMatchers(
+                                                "/dashboard/admin",
+                                                "/admin",
+                                                "/admin/**",
+                                                "/admin/training",
+                                                "/admin/training/**",
+                                                "/attendance/admin",
+                                                "/attendance/admin/**")
+                                        .hasRole("ADMIN")
+                                        .requestMatchers("/training/staff", "/training/staff/**")
+                                        .hasRole("STAFF")
+                                        .requestMatchers(
+                                                "/dashboard/manager",
+                                                "/manager/**",
+                                                "/training",
+                                                "/training/**",
+                                                "/schedule/manager",
+                                                "/schedule/manager/**",
+                                                "/availability/manager",
+                                                "/availability/manager/**",
+                                                "/attendance/manager",
+                                                "/attendance/manager/**")
+                                        .hasRole("MANAGER")
+                                        .requestMatchers(
+                                                "/staff/leave",
+                                                "/staff/leave/**",
+                                                "/dashboard/staff",
+                                                "/schedule/staff",
+                                                "/schedule/staff/**",
+                                                "/availability",
+                                                "/availability/**",
+                                                "/attendance/staff",
+                                                "/attendance/staff/**")
+                                        .hasRole("STAFF")
+                                        .anyRequest()
+                                        .authenticated())
+                .exceptionHandling(
+                        ex ->
+                                ex.authenticationEntryPoint(
+                                                (request, response, authException) ->
+                                                        response.sendRedirect(request.getContextPath() + "/login"))
+                                        .accessDeniedHandler(accessDeniedHandler));
+
         return http.build();
     }
 }

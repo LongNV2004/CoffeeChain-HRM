@@ -20,6 +20,7 @@
     </section>
 
     <p class="flash success" th:if="${successMessage}" th:text="${successMessage}">OK</p>
+    <p class="flash warning" th:if="${warningMessage}" th:text="${warningMessage}">Cảnh báo</p>
     <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}">Error</p>
     <p class="flash error" th:if="${pageError}" th:text="${pageError}">Error</p>
 
@@ -45,6 +46,7 @@
                         Không duyệt tất cả
                     </button>
                 </form>
+                <a class="secondary-btn" th:href="@{/availability/manager/limits}">Cấu hình số lượng ca</a>
                 <a class="primary-btn" th:href="@{/schedule/manager}">Mở lịch làm việc →</a>
             </div>
         </div>
@@ -52,6 +54,7 @@
             Duyệt để xếp các slot đã đăng ký vào lịch làm việc tương lai, đúng ca và đúng thứ trong thời hạn.
             Nhân viên xem lại các ca đó trên Lịch làm việc và nhận thông báo khi được duyệt hoặc từ chối.
             Ca đã phân trùng đúng slot được giữ nguyên.
+            Số lượng nhân viên tối đa của từng ca được cấu hình ở màn hình riêng.
         </p>
         <p class="muted" th:if="${#lists.isEmpty(availabilityGrid.shiftRows)}">
             Cửa hàng chưa có ca làm việc.
@@ -78,7 +81,10 @@
                         <div class="shift-hours" th:text="${row.formattedTime}">08:00 – 12:00</div>
                     </td>
                     <td th:each="cell : ${row.dayCells}" class="slot-cell proposal-cell">
-                        <p class="empty-slot" th:if="${#lists.isEmpty(cell.proposals)}">—</p>
+                        <div class="slot-meta">
+                            <span class="status-badge" th:classappend="${cell.slotStatusKey}" th:text="${cell.slotStatusLabel}">Còn chỗ</span>
+                        </div>
+                        <p class="muted" th:if="${#lists.isEmpty(cell.proposals)}">Chưa có đăng ký</p>
                         <ul class="proposal-list" th:if="${!#lists.isEmpty(cell.proposals)}">
                             <li th:each="p : ${cell.proposals}">
                                 <div class="proposal-item">

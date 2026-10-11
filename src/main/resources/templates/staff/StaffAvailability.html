@@ -32,7 +32,9 @@
             Bạn chưa có chứng chỉ nên không thể đăng ký ca làm việc.
         </p>
         <p th:if="${registrationBlockMessage == null}">
-            Chọn các thứ và ca bạn có thể làm. Lịch bắt đầu từ thứ Hai tuần kế tiếp theo giờ Việt Nam
+            Chọn các thứ và ca bạn có thể làm. Mỗi ô chỉ hiện số lượng tối đa, số chỗ còn lại
+            và trạng thái slot. Chỗ đã đủ người hoặc chưa được cấu hình không chọn được.
+            Lịch bắt đầu từ thứ Hai tuần kế tiếp theo giờ Việt Nam
             và lặp lại đúng những thứ đã chọn cho đến hết thời hạn.
             Không áp dụng trước ngày bắt đầu hoặc sau ngày kết thúc.
         </p>
@@ -77,11 +79,16 @@
                             <div class="shift-hours" th:text="${row.formattedTime}">08:00 – 12:00</div>
                         </td>
                         <td th:each="cell : ${row.dayCells}" class="slot-cell">
-                            <label class="slot-check">
+                            <div class="slot-meta">
+                                <span>Tối đa: <strong th:text="${cell.configured ? cell.maxEmployees : '—'}">—</strong></span>
+                                <span>Còn lại: <strong th:text="${cell.remainingText}">—</strong></span>
+                                <span class="status-badge" th:classappend="${cell.slotStatusKey}" th:text="${cell.slotStatusLabel}">Còn chỗ</span>
+                            </div>
+                            <label class="slot-check" th:classappend="${cell.registrationClosed} ? 'is-disabled' : ''">
                                 <input type="checkbox"
                                        th:field="*{selectedSlots}"
                                        th:value="${cell.slotKey}"
-                                       th:disabled="${registrationBlockMessage != null}">
+                                       th:disabled="${registrationBlockMessage != null or cell.registrationClosed}">
                                 <span class="slot-box" aria-hidden="true"></span>
                                 <span class="sr-only"
                                       th:text="'Chọn ' + ${row.shiftName} + ' ' + ${cell.dayOfWeekName}">
