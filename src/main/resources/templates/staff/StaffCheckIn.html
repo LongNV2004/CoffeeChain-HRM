@@ -29,6 +29,7 @@
         <p class="ip-line">
             <span th:text="${clock.shiftName != null ? clock.shiftName : 'Chưa có ca phù hợp'}">Ca sáng</span>
         </p>
+        <p class="ip-line" th:if="${clock.workDateLabel != null}" th:text="${clock.workDateLabel}">10/10/2026</p>
         <p class="ip-line">
             <span th:text="${clock.scheduledStartLabel}">08:00</span>
             —

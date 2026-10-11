@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Báo cáo chấm công cửa hàng — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/AttendanceHistory.css}">
+</head>
+<body>
+<header th:replace="~{fragments/navbar :: admin('reports')}"></header>
+
+<main class="wrap dash-main">
+    <section class="welcome">
+        <div class="eyebrow">Admin</div>
+        <h1>Báo cáo chấm công cửa hàng</h1>
+        <p>Danh sách gồm cả cửa hàng chưa gửi báo cáo. Bấm xem báo cáo để mở số liệu và lịch từng ngày.</p>
+    </section>
+
+    <p class="flash-ok" th:if="${success}" th:text="${success}">Đã cập nhật</p>
+    <p class="flash" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
+
+    <section class="summary" th:if="${pageError == null}">
+        <article>
+            <div class="label">Tổng số cửa hàng</div>
+            <div class="value" th:text="${report.totalStores}">0</div>
+        </article>
+        <article>
+            <div class="label">Đã gửi</div>
+            <div class="value" th:text="${report.submittedStores}">0</div>
+        </article>
+        <article>
+            <div class="label">Chưa gửi</div>
+            <div class="value" th:text="${report.unsentStores}">0</div>
+        </article>
+        <article>
+            <div class="label">Cần cập nhật</div>
+            <div class="value" th:text="${report.staleStores}">0</div>
+        </article>
+    </section>
+    <p class="note">Cần cập nhật nghĩa là bản ghi chấm công của cửa hàng có thời điểm tạo hoặc sửa sau lần gửi gần nhất.</p>
+
+    <section class="panel">
+        <h2>Bộ lọc</h2>
+        <form class="filter-form" method="get" th:action="@{/attendance/admin/reports}">
+            <label>Tháng
+                <select name="month">
+                    <option th:each="m : ${#numbers.sequence(1, 12)}"
+                            th:value="${m}"
+                            th:text="'Tháng ' + ${m}"
+                            th:selected="${report.month == m}">Tháng</option>
+                </select>
+            </label>
+            <label>Năm
+                <select name="year">
+                    <option th:each="y : ${years}"
+                            th:value="${y}"
+                            th:text="${y}"
+                            th:selected="${report.year == y}">2026</option>
+                </select>
+            </label>
+            <label>Cửa hàng
+                <select name="storeId">
+                    <option value="">Tất cả</option>
+                    <option th:each="store : ${report.stores}"
+                            th:value="${store.storeId}"
+                            th:text="${store.storeId + ' — ' + store.storeName}"
+                            th:selected="${report.filterStoreId != null and report.filterStoreId.equals(store.storeId)}">Cửa hàng</option>
+                </select>
+            </label>
+            <label>Trạng thái
+                <select name="status">
+                    <option value="all" th:selected="${report.filterStatus == 'all'}">Tất cả</option>
+                    <option value="submitted" th:selected="${report.filterStatus == 'submitted'}">Đã gửi</option>
+                    <option value="unsent" th:selected="${report.filterStatus == 'unsent'}">Chưa gửi</option>
+                </select>
+            </label>
+            <button class="primary-btn" type="submit">Tìm kiếm</button>
+        </form>
+    </section>
+
+    <section class="panel">
+        <h2>Danh sách cửa hàng</h2>
+        <p class="empty" th:if="${report.rows.isEmpty()}">Không có cửa hàng phù hợp bộ lọc.</p>
+        <div class="table-wrap" th:if="${!report.rows.isEmpty()}">
+            <table>
+                <thead>
+                <tr>
+                    <th>STT</th>
+                    <th>Mã cửa hàng</th>
+                    <th>Tên cửa hàng</th>
+                    <th>Người quản lý</th>
+                    <th>Kỳ báo cáo</th>
+                    <th>Trạng thái báo cáo</th>
+                    <th>Người gửi</th>
+                    <th>Thời điểm gửi gần nhất</th>
+                    <th>Phiên bản</th>
+                    <th>Thao tác</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="row : ${report.rows}">
+                    <td th:text="${row.order}">1</td>
+                    <td th:text="${row.storeId}">1</td>
+                    <td th:text="${row.storeName}">Cửa hàng</td>
+                    <td th:text="${row.managerName == null or #strings.isEmpty(row.managerName) ? '—' : row.managerName}">—</td>
+                    <td th:text="${row.periodLabel}">10/2026</td>
+                    <td th:text="${row.statusLabel}">Chưa gửi</td>
+                    <td th:text="${row.senderName == null or #strings.isEmpty(row.senderName) ? '—' : row.senderName}">—</td>
+                    <td th:text="${row.submittedAt == null ? '—' : #temporals.format(row.submittedAt, 'dd/MM/yyyy HH:mm')}">—</td>
+                    <td th:text="${row.versionNumber == null ? '—' : row.versionNumber}">—</td>
+                    <td>
+                        <a th:if="${row.reportId != null}"
+                           th:href="@{/attendance/admin/reports/{id}(id=${row.reportId})}">Xem báo cáo</a>
+                        <span th:if="${row.reportId == null}">—</span>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+</body>
+</html>

@@ -7,6 +7,7 @@ import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.geo.GeoDistance;
 import com.example.coffee_hrm.dto.request.AttendanceLocation;
+import com.example.coffee_hrm.dto.response.AttendanceClockView;
 import com.example.coffee_hrm.entity.Attendance;
 import com.example.coffee_hrm.entity.Employee;
 import com.example.coffee_hrm.entity.Role;
@@ -537,6 +538,30 @@ class AttendanceServiceImplTest {
         attendanceService.markAbsences(WORK_DATE, WORK_DATE.atTime(10, 0));
 
         verify(attendanceRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void staffClockShowsShiftWorkDate() {
+        Attendance open = Attendance.builder()
+                .id(4)
+                .employee(staffEmployee)
+                .workDate(LocalDate.of(2026, 10, 10))
+                .scheduledShiftName("Ca Tối")
+                .scheduledStartTime(LocalTime.of(17, 0))
+                .scheduledEndTime(LocalTime.of(22, 0))
+                .status(AttendanceStatus.PRESENT)
+                .checkInTime(LocalDateTime.of(2026, 10, 10, 17, 5))
+                .build();
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
+        when(attendanceRepository.findOpenByEmployeeId(20)).thenReturn(List.of(open));
+        when(attendanceRepository.findRecentByEmployee(eq(20), any())).thenReturn(List.of());
+
+        AttendanceClockView clock = attendanceService.getClock(staffUser);
+
+        assertEquals("Ca Tối", clock.getShiftName());
+        assertEquals("10/10/2026", clock.getWorkDateLabel());
+        assertEquals("17:00", clock.getScheduledStartLabel());
+        assertEquals("22:00", clock.getScheduledEndLabel());
     }
 
     private void stubShift(List<ShiftAssignment> assignments) {

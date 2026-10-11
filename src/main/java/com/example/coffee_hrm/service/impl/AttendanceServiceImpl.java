@@ -55,6 +55,7 @@ public class AttendanceServiceImpl implements AttendanceService {
     static final String MANAGER_OPEN_RECORD = "Bạn chưa Check-out bản ghi chấm công đang mở.";
 
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final double DISTANCE_TOLERANCE_METERS = 0.01;
 
     private final AttendanceRepository attendanceRepository;
@@ -300,6 +301,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         Store displayStore = managedStore != null ? managedStore : employee.getStore();
 
         String shiftName = null;
+        String workDateLabel = null;
         String startLabel = "—";
         String endLabel = "—";
         String statusLabel = manager ? "Chưa Check-in" : NO_SHIFT;
@@ -310,6 +312,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             if (!openRecords.isEmpty()) {
                 Attendance open = openRecords.getFirst();
                 shiftName = open.getScheduledShiftName();
+                workDateLabel = formatDate(open.getWorkDate());
                 startLabel = formatTime(open.getScheduledStartTime());
                 endLabel = formatTime(open.getScheduledEndTime());
                 statusLabel = statusText(open.getStatus());
@@ -319,6 +322,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 if (current.isPresent()) {
                     ShiftWindow window = current.get();
                     shiftName = window.assignment().getShift().getShiftName();
+                    workDateLabel = formatDate(window.assignment().getWorkDate());
                     startLabel = formatTime(window.assignment().getShift().getStartTime());
                     endLabel = formatTime(window.assignment().getShift().getEndTime());
                     Optional<Attendance> existing = findAttendance(employee.getId(), window);
@@ -332,6 +336,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                     if (upcoming.isPresent()) {
                         Shift shift = upcoming.get().assignment().getShift();
                         shiftName = shift.getShiftName();
+                        workDateLabel = formatDate(upcoming.get().assignment().getWorkDate());
                         startLabel = formatTime(shift.getStartTime());
                         endLabel = formatTime(shift.getEndTime());
                         statusLabel = TOO_EARLY;
@@ -350,6 +355,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .employeeName(employee.getFullName())
                 .storeName(displayStore != null ? displayStore.getStoreName() : null)
                 .shiftName(shiftName)
+                .workDateLabel(workDateLabel)
                 .scheduledStartLabel(startLabel)
                 .scheduledEndLabel(endLabel)
                 .statusLabel(statusLabel)
@@ -568,6 +574,10 @@ public class AttendanceServiceImpl implements AttendanceService {
 
     private String formatTime(LocalTime time) {
         return time == null ? "—" : time.format(TIME_FORMATTER);
+    }
+
+    private String formatDate(LocalDate date) {
+        return date == null ? null : date.format(DATE_FORMATTER);
     }
 
     private String statusText(AttendanceStatus status) {
