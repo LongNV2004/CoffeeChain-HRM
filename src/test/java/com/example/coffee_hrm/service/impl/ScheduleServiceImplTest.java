@@ -46,6 +46,8 @@ class ScheduleServiceImplTest {
     private UserRepository userRepository;
     @Mock
     private WorkAvailabilityRepository workAvailabilityRepository;
+    @Mock
+    private LeaveRequestRepository leaveRequestRepository;
 
     @InjectMocks
     private ScheduleServiceImpl scheduleService;
@@ -82,8 +84,7 @@ class ScheduleServiceImplTest {
     void assignShiftSuccess() {
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
         when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shiftMorning));
-        when(employeeRepository.findById(20)).thenReturn(Optional.of(empTuan));
-        LocalDate workDate = VietnamTime.today().plusDays(1);
+        when(employeeRepository.lockByIdForLeaveRequest(20)).thenReturn(Optional.of(empTuan));        LocalDate workDate = VietnamTime.today().plusDays(1);
         when(shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus(
                 20, 1, workDate, AssignmentStatus.ASSIGNED)).thenReturn(false);
         when(shiftAssignmentRepository.findByEmployee_IdAndWorkDateAndStatus(
@@ -112,8 +113,7 @@ class ScheduleServiceImplTest {
     void assignShiftRejectsPastStart() {
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
         when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shiftMorning));
-        when(employeeRepository.findById(20)).thenReturn(Optional.of(empTuan));
-
+        when(employeeRepository.lockByIdForLeaveRequest(20)).thenReturn(Optional.of(empTuan));
         AssignShiftRequest request = AssignShiftRequest.builder()
                 .shiftId(1)
                 .employeeId(20)
@@ -130,8 +130,7 @@ class ScheduleServiceImplTest {
     void assignShiftRejectsDuplicate() {
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
         when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shiftMorning));
-        when(employeeRepository.findById(20)).thenReturn(Optional.of(empTuan));
-        LocalDate workDate = VietnamTime.today().plusDays(1);
+        when(employeeRepository.lockByIdForLeaveRequest(20)).thenReturn(Optional.of(empTuan));        LocalDate workDate = VietnamTime.today().plusDays(1);
         when(shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus(
                 20, 1, workDate, AssignmentStatus.ASSIGNED)).thenReturn(true);
 
@@ -150,8 +149,7 @@ class ScheduleServiceImplTest {
     void assignShiftFromApprovedAvailabilitySkipsDuplicate() {
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
         when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shiftMorning));
-        when(employeeRepository.findById(20)).thenReturn(Optional.of(empTuan));
-        LocalDate workDate = VietnamTime.today().plusDays(1);
+        when(employeeRepository.lockByIdForLeaveRequest(20)).thenReturn(Optional.of(empTuan));        LocalDate workDate = VietnamTime.today().plusDays(1);
         when(shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus(
                 20, 1, workDate, AssignmentStatus.ASSIGNED)).thenReturn(true);
 
@@ -170,8 +168,7 @@ class ScheduleServiceImplTest {
     void assignShiftFromApprovedAvailabilityRejectsOverlap() {
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
         when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shiftMorning));
-        when(employeeRepository.findById(20)).thenReturn(Optional.of(empTuan));
-        LocalDate workDate = VietnamTime.today().plusDays(1);
+        when(employeeRepository.lockByIdForLeaveRequest(20)).thenReturn(Optional.of(empTuan));        LocalDate workDate = VietnamTime.today().plusDays(1);
         when(shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus(
                 20, 1, workDate, AssignmentStatus.ASSIGNED)).thenReturn(false);
 
@@ -255,7 +252,8 @@ class ScheduleServiceImplTest {
                 .build();
 
         when(shiftChangeRequestRepository.findByIdWithDetails(5)).thenReturn(Optional.of(pendingSwap));
-
+        when(employeeRepository.lockByIdForLeaveRequest(20)).thenReturn(Optional.of(empTuan));
+        when(employeeRepository.lockByIdForLeaveRequest(30)).thenReturn(Optional.of(empThu));
         scheduleService.resolveShiftChange(5, true, null, managerUser);
 
         assertEquals(ApprovalStatus.APPROVED, pendingSwap.getStatus());
@@ -298,6 +296,7 @@ class ScheduleServiceImplTest {
 
         // When manager provides replacement employee (empThu ID: 30)
         when(employeeRepository.findById(30)).thenReturn(Optional.of(empThu));
+        when(employeeRepository.lockByIdForLeaveRequest(30)).thenReturn(Optional.of(empThu));
         scheduleService.resolveShiftChange(6, true, 30, managerUser);
 
         assertEquals(ApprovalStatus.APPROVED, pending.getStatus());

@@ -76,6 +76,35 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
             """)
     Optional<ShiftAssignment> findByIdWithDetails(@Param("id") Integer id);
 
+    boolean existsByEmployee_IdAndShift_IdAndWorkDate(
+            Integer employeeId, Integer shiftId, LocalDate workDate);
+
+    boolean existsByReplacesAssignment_Id(Integer originalAssignmentId);
+
+    Optional<ShiftAssignment> findByReplacesAssignment_Id(Integer originalAssignmentId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT sa FROM ShiftAssignment sa WHERE sa.id = :id")
+    Optional<ShiftAssignment> lockForReplacement(@Param("id") Integer id);
+
+    @Query("""
+            SELECT sa FROM ShiftAssignment sa
+            JOIN FETCH sa.shift s JOIN FETCH sa.employee e
+            JOIN FETCH sa.cancelledByLeaveRequest lr
+            WHERE s.store.id = :storeId
+              AND (:leaveRequestId IS NULL OR lr.id = :leaveRequestId)
+            ORDER BY sa.workDate, s.startTime, sa.id
+            """)
+    List<ShiftAssignment> findLeaveCancelledForStore(
+            @Param("storeId") Integer storeId,
+            @Param("leaveRequestId") Integer leaveRequestId);
+
+    @Query("""
+            SELECT sa FROM ShiftAssignment sa JOIN FETCH sa.employee e
+            WHERE sa.replacesAssignment.id IN :ids
+            """)
+    List<ShiftAssignment> findReplacementsForOriginalIds(@Param("ids") List<Integer> originalIds);
+
     boolean existsByEmployee_IdAndShift_IdAndWorkDateAndStatus(
             Integer employeeId, Integer shiftId, LocalDate workDate, AssignmentStatus status);
 

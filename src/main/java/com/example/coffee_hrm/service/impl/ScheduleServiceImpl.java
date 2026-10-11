@@ -123,6 +123,11 @@ public class ScheduleServiceImpl implements ScheduleService {
         if (!Objects.equals(assignment.getShift().getStore().getId(), store.getId())) {
             throw new BusinessException("Bạn không có quyền quản lý ca làm việc của cửa hàng này.");
         }
+        // Never delete cancelled historical leave assignments; replacement assignments may be deleted
+        // normally, which automatically reopens their original slot (no link remains).
+        if (assignment.getCancelledByLeaveRequest() != null) {
+            throw new BusinessException("Không thể xóa ca đã hủy do đơn nghỉ được duyệt.");
+        }
         shiftAssignmentRepository.delete(assignment);
     }
 

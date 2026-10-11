@@ -87,12 +87,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     async function summary() {
         try {
-            const data = await get(`${api}/summary`);
+            const [data, records, oldGaps] = await Promise.all([
+                get(`${api}/summary`), get(`${api}/replacements`), get(`${api}/gaps`)
+            ]);
             ids('mlPendingCount').textContent = data.pending;
             ids('mlApprovedCount').textContent = data.approved;
             ids('mlRejectedCount').textContent = data.rejected;
-            ids('mlGapCount').textContent = data.gaps;
-            ids('mlGapButtonCount').textContent = data.gaps;
+            const tracked = new Set(records.map(r => r.assignmentId));
+            const unresolved = records.filter(r => r.upcoming && ['OPEN', 'DEFERRED'].includes(r.status)).length;
+            const oldUntracked = oldGaps.filter(g => g.upcoming && !tracked.has(g.assignmentId)).length;
+            const pendingGaps = unresolved + oldUntracked;
+            ids('mlGapCount').textContent = pendingGaps;
+            ids('mlGapButtonCount').textContent = pendingGaps;
         } catch (error) { toast(error.message, true); }
     }
     function syncFilterButtons() {
@@ -284,6 +290,60 @@ document.addEventListener('DOMContentLoaded', () => {
             if (detail) renderDetail(detail);
         }
     }
+    const stage4Css = document.createElement('style');
+    stage4Css.textContent = `
+        .ml-phase4-confirm {padding:9px 14px;margin-top:9px;border:0;border-radius:8px;
+            background:#916038;color:white;cursor:pointer;font:600 12px 'Be Vietnam Pro',Arial,sans-serif}
+        .ml-phase4-defer {padding:9px 14px;margin:12px 0;border:1px solid #d8c6b2;
+            border-radius:8px;background:#fff;color:#5a4033;cursor:pointer;
+            font:600 12px 'Be Vietnam Pro',Arial,sans-serif}
+        .ml-phase4-confirm:disabled,.ml-phase4-defer:disabled {opacity:.5;cursor:wait}
+    `;
+    document.head.append(stage4Css);
+
+    async function postReplacement(url, json = null) {
+        return get(url, {
+            method: 'POST',
+            headers: {
+                [root.dataset.csrfHeader || 'X-CSRF-TOKEN']: root.dataset.csrf,
+                ...(json === null ? {} : { 'Content-Type': 'application/json' })
+            },
+            ...(json === null ? {} : { body: JSON.stringify(json) })
+        });
+    }
+    async function confirmReplacement(gap, candidate, button) {
+        if (busy) return;
+        if (!window.confirm(`Phân công ${candidate.employeeName} thay ${gap.absentEmployeeName} vào ${date(gap.workDate)} · ${gap.shiftName}?`)) return;
+        busy = true;
+        button.disabled = true;
+        try {
+            await postReplacement(`${api}/replacements/${encodeURIComponent(gap.assignmentId)}/confirm`, {
+                leaveRequestId: gap.leaveRequestId,
+                employeeId: candidate.employeeId
+            });
+            toast(`Đã phân công ${candidate.employeeName} vào ca ${gap.shiftName} ngày ${date(gap.workDate)}.`);
+            await Promise.all([summary(), loadList()]);
+            await openSuggestions(gap.leaveRequestId);
+        } catch (error) {
+            toast(error.message, true);
+            button.disabled = false;
+        } finally { busy = false; }
+    }
+    async function deferReplacement(gap, button) {
+        if (busy) return;
+        busy = true;
+        button.disabled = true;
+        try {
+            const params = new URLSearchParams({ leaveRequestId: String(gap.leaveRequestId) });
+            await postReplacement(`${api}/replacements/${encodeURIComponent(gap.assignmentId)}/defer?${params}`);
+            toast('Đã lưu để Manager xử lý sau.');
+            await summary();
+            await openSuggestions(gap.leaveRequestId);
+        } catch (error) {
+            toast(error.message, true);
+            button.disabled = false;
+        } finally { busy = false; }
+    }
     async function openSuggestions(requestId = null) {
         const version = ++gapVersion;
         gapList.replaceChildren(el('p', 'Đang tải các ca cần bố trí...', 'ml-muted'));
@@ -291,17 +351,35 @@ document.addEventListener('DOMContentLoaded', () => {
         open(suggestionsOverlay);
         try {
             const params = requestId == null ? '' : `?${new URLSearchParams({ leaveRequestId: String(requestId) })}`;
-            const gaps = await get(`${api}/gaps${params}`);
+            const [records, oldGaps] = await Promise.all([
+                get(`${api}/replacements${params}`), get(`${api}/gaps${params}`)
+            ]);
             if (version !== gapVersion) return;
+            const tracked = new Set(records.map(r => r.assignmentId));
+            // Preserve Phase 3 read-only suggestions for already-approved requests predating the new table.
+            const legacy = oldGaps.filter(g => !tracked.has(g.assignmentId))
+                .map(g => ({ ...g, status: 'LEGACY' }));
+            const gaps = requestId == null
+                ? [...records.filter(g => g.status === 'OPEN' || g.status === 'DEFERRED'), ...legacy]
+                : [...records, ...legacy];
             gapList.replaceChildren();
-            if (!gaps.length) gapList.append(el('p', 'Không có ca nào cần đề xuất trong phạm vi này.', 'ml-muted'));
+            if (!gaps.length) {
+                gapList.append(el('p', requestId == null
+                    ? 'Không có ca đang thiếu người. Đơn duyệt trước khi bổ sung theo dõi cần đối soát riêng.'
+                    : 'Chưa có ca được ghi nhận cho đơn này. Nếu đây là đơn cũ, cần đối soát ca đã hủy trước khi xác nhận.', 'ml-muted'));
+            }
             for (const gap of gaps) {
                 const button = el('button', '', 'ml-gap-button');
                 button.type = 'button';
                 const left = el('span');
                 left.append(el('strong', `${date(gap.workDate)} · ${gap.shiftName}`));
                 left.append(el('div', `${gap.absentEmployeeName} · ${time(gap.startTime)}–${time(gap.endTime)}`));
-                button.append(left, el('span', gap.upcoming ? 'Xem gợi ý →' : 'Ca đã qua'));
+                const text = gap.status === 'LEGACY' ? 'Ca cũ · Xem gợi ý'
+                    : gap.status === 'FILLED'
+                    ? `Đã bố trí: ${gap.replacementEmployeeName || '—'}`
+                    : gap.status === 'SUPERSEDED' ? 'Người thay đã nghỉ tiếp'
+                        : gap.upcoming ? (gap.status === 'DEFERRED' ? 'Xử lý sau →' : 'Chọn người →') : 'Ca đã qua';
+                button.append(left, el('span', text));
                 button.addEventListener('click', () => {
                     gapList.querySelectorAll('.ml-gap-button').forEach(b => b.classList.remove('is-active'));
                     button.classList.add('is-active');
@@ -309,7 +387,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 gapList.append(button);
             }
-            if (gaps.length) gapList.querySelector('.ml-gap-button')?.click();
+            const active = gaps.findIndex(g => g.upcoming && (g.status === 'OPEN' || g.status === 'DEFERRED' || g.status === 'LEGACY'));
+            const first = gapList.querySelectorAll('.ml-gap-button')[active >= 0 ? active : 0];
+            first?.click();
         } catch (error) {
             if (version === gapVersion) gapList.replaceChildren(el('p', error.message, 'ml-banner'));
         }
@@ -317,15 +397,31 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadCandidates(gap) {
         const version = ++gapVersion;
         candidatePanel.replaceChildren(el('p', 'Đang tìm nhân viên phù hợp...', 'ml-muted'));
+        if (gap.status === 'FILLED') {
+            candidatePanel.replaceChildren(el('p', `Ca này đã giao cho ${gap.replacementEmployeeName || 'nhân viên thay thế'}.`, 'ml-muted'));
+            return;
+        }
+        if (gap.status === 'SUPERSEDED') {
+            candidatePanel.replaceChildren(el('p', 'Người thay cũng đã được duyệt nghỉ. Hệ thống theo dõi ca thiếu ở đơn nghỉ tiếp theo, không tính hai ca hổng.', 'ml-muted'));
+            return;
+        }
+        if (!gap.upcoming) {
+            candidatePanel.replaceChildren(el('p', 'Ca đã bắt đầu/đã qua. Không thể phân công thay.', 'ml-banner'));
+            return;
+        }
         try {
             const params = new URLSearchParams({ leaveRequestId: String(gap.leaveRequestId) });
             const data = await get(`${api}/gaps/${encodeURIComponent(gap.assignmentId)}/suggestions?${params}`);
             if (version !== gapVersion) return;
             candidatePanel.replaceChildren();
-            candidatePanel.append(el('h3', `Gợi ý cho ${data.gap.shiftName} · ${date(data.gap.workDate)}`));
-            if (!data.gap.upcoming) {
-                candidatePanel.append(el('p', 'Ca đã bắt đầu/đã qua. Không đề xuất người thay.', 'ml-banner'));
-                return;
+            candidatePanel.append(el('h3', `Gợi ý cho ${gap.shiftName} · ${date(gap.workDate)}`));
+            if (gap.status === 'LEGACY') {
+                candidatePanel.append(el('p', 'Ca của đơn cũ: có thể xem gợi ý nhưng cần đối soát nguồn ca hủy trước khi xác nhận.', 'ml-banner'));
+            } else {
+                const deferButton = el('button', 'Để trống, xử lý sau', 'ml-phase4-defer');
+                deferButton.type = 'button';
+                deferButton.addEventListener('click', () => deferReplacement(gap, deferButton));
+                candidatePanel.append(deferButton);
             }
             const candidates = data.candidates || [];
             if (candidates.length === 0) {
@@ -342,12 +438,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     const card = el('article', '', 'ml-candidate');
                     const header = el('div', '', 'ml-candidate-head');
                     header.append(el('strong', candidate.employeeName));
-                    const badge = el('span', tier === 1 ? 'Đã đăng ký rảnh' : 'Có thể nhận ca', 'ml-pill');
-                    header.append(badge);
+                    header.append(el('span', tier === 1 ? 'Đã đăng ký rảnh' : 'Có thể nhận ca', 'ml-pill'));
                     card.append(header);
                     const details = [`${candidate.assignedShiftsThisWeek} ca đã phân công trong tuần`];
                     if (candidate.sameRole) details.push('Cùng vai trò');
                     card.append(el('p', details.join(' · ')));
+                    if (gap.status !== 'LEGACY') {
+                        const confirmButton = el('button', 'Xác nhận phân ca', 'ml-phase4-confirm');
+                        confirmButton.type = 'button';
+                        confirmButton.addEventListener('click', () => confirmReplacement(gap, candidate, confirmButton));
+                        card.append(confirmButton);
+                    }
                     candidatePanel.append(card);
                 });
             }
@@ -391,3 +492,4 @@ document.addEventListener('DOMContentLoaded', () => {
     summary();
     loadList();
 });
+

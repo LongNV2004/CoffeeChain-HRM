@@ -14,6 +14,11 @@ import com.example.coffee_hrm.entity.LeaveBalance;
 import com.example.coffee_hrm.entity.LeaveRequest;
 import com.example.coffee_hrm.entity.ShiftAssignment;
 import com.example.coffee_hrm.entity.ShiftChangeRequest;
+import com.example.coffee_hrm.entity.Shift;
+import com.example.coffee_hrm.entity.ShiftSlotLimit;
+import com.example.coffee_hrm.entity.WorkAvailability;
+import com.example.coffee_hrm.common.enums.EmployeeStatus;
+import com.example.coffee_hrm.service.support.AvailabilityCoverage;
 import com.example.coffee_hrm.entity.Store;
 import com.example.coffee_hrm.entity.User;
 import com.example.coffee_hrm.repository.EmployeeRepository;
@@ -27,6 +32,9 @@ import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.ManagerLeaveService;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +62,8 @@ public class ManagerLeaveServiceImpl implements ManagerLeaveService {
     private final LeaveBalanceRepository leaveBalanceRepository;
     private final ShiftAssignmentRepository shiftAssignmentRepository;
     private final ShiftChangeRequestRepository shiftChangeRequestRepository;
+    private final com.example.coffee_hrm.repository.ShiftSlotLimitRepository slotLimitRepository;
+    private final com.example.coffee_hrm.repository.WorkAvailabilityRepository workAvailabilityRepository;
 
     @Override
     public ManagerLeavePage list(int page, ApprovalStatus status, AuthenticatedUser manager) {
@@ -174,6 +184,8 @@ public class ManagerLeaveServiceImpl implements ManagerLeaveService {
             shiftChangeRequestRepository.saveAll(related);
             for (ShiftAssignment assignment : assignments) {
                 assignment.setStatus(AssignmentStatus.CANCELLED);
+                // Explicit provenance, so manual CANCELLED assignments do not become leave gaps.
+                assignment.setCancelledByLeaveRequest(request);
             }
             shiftAssignmentRepository.saveAll(assignments);
         }
@@ -285,4 +297,159 @@ public class ManagerLeaveServiceImpl implements ManagerLeaveService {
                 request.getResolvedDate(), request.getRejectReason(),
                 request.getApprovedBy() == null ? null : request.getApprovedBy().getUsername());
     }
+
+    /** Mọi dữ liệu theo dõi nằm ở ShiftAssignments, không cần bảng trung gian. */
+    public record ReplacementView(Integer leaveRequestId, Integer assignmentId, Integer shiftId,
+                                  LocalDate workDate, String shiftName, java.time.LocalTime startTime,
+                                  java.time.LocalTime endTime, String absentEmployeeName, String status,
+                                  Integer replacementEmployeeId, String replacementEmployeeName,
+                                  boolean upcoming) { }
+
+    public List<ReplacementView> listReplacements(Integer leaveRequestId, AuthenticatedUser manager) {
+        Store store = requireManagedStore(manager);
+        List<ShiftAssignment> originals = shiftAssignmentRepository.findLeaveCancelledForStore(store.getId(), leaveRequestId);
+        if (originals.isEmpty()) return List.of();
+        List<Integer> ids = originals.stream().map(ShiftAssignment::getId).toList();
+        Map<Integer, ShiftAssignment> replacements = new HashMap<>();
+        for (ShiftAssignment shift : shiftAssignmentRepository.findReplacementsForOriginalIds(ids)) {
+            replacements.put(shift.getReplacesAssignment().getId(), shift);
+        }
+        return originals.stream().map(o -> toReplacementView(o, replacements.get(o.getId()))).toList();
+    }
+
+    @Transactional
+    public ReplacementView deferReplacement(Integer leaveRequestId, Integer assignmentId,
+                                            AuthenticatedUser manager) {
+        ShiftAssignment original = requireReplaceable(leaveRequestId, assignmentId, requireManagedStore(manager));
+        original.setReplacementDeferred(true);
+        shiftAssignmentRepository.saveAndFlush(original);
+        return toReplacementView(original, null);
+    }
+
+    @Transactional
+    public ReplacementView confirmReplacement(Integer leaveRequestId, Integer assignmentId,
+                                              Integer employeeId, AuthenticatedUser manager) {
+        Store store = requireManagedStore(manager);
+        ShiftAssignment original = requireReplaceable(leaveRequestId, assignmentId, store);
+        if (employeeId == null) throw new BusinessException("Vui lòng chọn nhân viên thay ca.");
+        Shift shift = original.getShift();
+        LocalDate date = original.getWorkDate();
+        if (VietnamTime.isBeforeNow(date, shift.getStartTime())) {
+            throw new BusinessException("Ca đã bắt đầu/đã qua, không thể phân công.");
+        }
+        // Staff registration uses the same limit lock, protecting the last slot.
+        ShiftSlotLimit limit = slotLimitRepository.lockByShiftAndDay(shift.getId(), date.getDayOfWeek().getValue())
+                .orElseThrow(() -> new BusinessException("Ca chưa cấu hình giới hạn nhân viên."));
+        Employee staff = employeeRepository.lockByIdForLeaveRequest(employeeId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy nhân viên thay ca."));
+        if (staff.getStatus() != EmployeeStatus.ACTIVE || staff.getStore() == null
+                || !Objects.equals(staff.getStore().getId(), store.getId())) {
+            throw new BusinessException("Nhân viên thay ca phải ACTIVE và cùng cửa hàng.");
+        }
+        if (Objects.equals(staff.getId(), original.getEmployee().getId())) {
+            throw new BusinessException("Không được chọn nhân viên đang xin nghỉ.");
+        }
+        if (leaveRequestRepository.existsByEmployee_IdAndStatusAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
+                employeeId, ApprovalStatus.APPROVED, date, date)) {
+            throw new BusinessException("Nhân viên đã được duyệt nghỉ ngày này.");
+        }
+        for (ShiftAssignment assigned : shiftAssignmentRepository.findByEmployee_IdAndWorkDateAndStatus(
+                employeeId, date, AssignmentStatus.ASSIGNED)) {
+            if (overlap(shift, assigned.getShift())) {
+                throw new BusinessException("Nhân viên đã có ca trùng giờ.");
+            }
+        }
+        // UNIQUE(EmployeeId, ShiftId, WorkDate) also covers historical CANCELLED rows.
+        if (shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDate(employeeId, shift.getId(), date)) {
+            throw new BusinessException("Nhân viên đã có bản ghi ca này trong ngày, kể cả ca đã hủy.");
+        }
+        List<WorkAvailability> covering = workAvailabilityRepository.findApprovedCovering(
+                store.getId(), date, date, ApprovalStatus.APPROVED);
+        for (WorkAvailability wa : covering) {
+            if (Objects.equals(wa.getEmployee().getId(), employeeId)
+                    && AvailabilityCoverage.appliesOn(wa, date)
+                    && !Objects.equals(wa.getShift().getId(), shift.getId())
+                    && overlap(shift, wa.getShift())) {
+                throw new BusinessException("Nhân viên đã đăng ký rảnh được duyệt ở ca khác trùng giờ.");
+            }
+        }
+        ensureWithinLimit(store.getId(), shift, date, employeeId, limit.getMaxEmployees());
+        User reviewer = userRepository.findById(manager.getUserId())
+                .orElseThrow(() -> new BusinessException("Không tìm thấy Manager."));
+        ShiftAssignment replacement = shiftAssignmentRepository.saveAndFlush(ShiftAssignment.builder()
+                .shift(shift).employee(staff).workDate(date).status(AssignmentStatus.ASSIGNED)
+                .isPublished(true).publishedAt(VietnamTime.now())
+                .replacesAssignment(original).replacementConfirmedBy(reviewer).build());
+        return toReplacementView(original, replacement);
+    }
+
+    private ShiftAssignment requireReplaceable(Integer leaveId, Integer assignmentId, Store store) {
+        if (leaveId == null || assignmentId == null) {
+            throw new BusinessException("Thiếu mã đơn nghỉ hoặc ca cần thay.");
+        }
+        ShiftAssignment original = shiftAssignmentRepository.lockForReplacement(assignmentId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy ca cần thay."));
+        LeaveRequest leave = original.getCancelledByLeaveRequest();
+        if (leave == null || !Objects.equals(leave.getId(), leaveId)
+                || leave.getStatus() != ApprovalStatus.APPROVED
+                || original.getStatus() != AssignmentStatus.CANCELLED
+                || !Objects.equals(leave.getEmployee().getId(), original.getEmployee().getId())
+                || !Objects.equals(original.getShift().getStore().getId(), store.getId())
+                || original.getWorkDate().isBefore(leave.getStartDate())
+                || original.getWorkDate().isAfter(leave.getEndDate())) {
+            throw new BusinessException("Ca không thuộc đơn nghỉ đã duyệt của cửa hàng này.");
+        }
+        if (shiftAssignmentRepository.existsByReplacesAssignment_Id(assignmentId)) {
+            throw new BusinessException("Ca đã có người thay; không thể xác nhận lần nữa.");
+        }
+        return original;
+    }
+
+    private ReplacementView toReplacementView(ShiftAssignment original, ShiftAssignment replacement) {
+        Shift s = original.getShift();
+        String status = replacement == null
+                ? (Boolean.TRUE.equals(original.getReplacementDeferred()) ? "DEFERRED" : "OPEN")
+                : (replacement.getStatus() == AssignmentStatus.ASSIGNED ? "FILLED" : "SUPERSEDED");
+        return new ReplacementView(original.getCancelledByLeaveRequest().getId(), original.getId(), s.getId(),
+                original.getWorkDate(), s.getShiftName(), s.getStartTime(), s.getEndTime(),
+                original.getEmployee().getFullName(), status,
+                replacement == null ? null : replacement.getEmployee().getId(),
+                replacement == null ? null : replacement.getEmployee().getFullName(),
+                !VietnamTime.isBeforeNow(original.getWorkDate(), s.getStartTime()));
+    }
+
+    private void ensureWithinLimit(Integer storeId, Shift shift, LocalDate date, Integer candidateId, Integer maximum) {
+        if (maximum == null || maximum < 1) {
+            throw new BusinessException("Giới hạn số nhân viên của ca không hợp lệ.");
+        }
+        Set<Integer> occupied = new HashSet<>();
+        for (ShiftAssignment sa : shiftAssignmentRepository.findWeeklyAssignmentsForStore(
+                storeId, date, date, AssignmentStatus.ASSIGNED)) {
+            if (Objects.equals(sa.getShift().getId(), shift.getId()) && activeAndNotOnLeave(sa.getEmployee(), date)) {
+                occupied.add(sa.getEmployee().getId());
+            }
+        }
+        List<WorkAvailability> registrations = workAvailabilityRepository.findCapacityCandidatesByShift(
+                shift.getId(), VietnamTime.today(), ApprovalStatus.PENDING,
+                List.of(ApprovalStatus.PENDING, ApprovalStatus.APPROVED));
+        for (WorkAvailability wa : registrations) {
+            if (AvailabilityCoverage.appliesOn(wa, date) && activeAndNotOnLeave(wa.getEmployee(), date)) {
+                occupied.add(wa.getEmployee().getId());
+            }
+        }
+        if (!occupied.contains(candidateId) && occupied.size() >= maximum) {
+            throw new BusinessException("Ca đã đủ số nhân viên theo cấu hình.");
+        }
+    }
+
+    private boolean activeAndNotOnLeave(Employee emp, LocalDate date) {
+        return emp != null && emp.getStatus() == EmployeeStatus.ACTIVE
+                && !leaveRequestRepository.existsByEmployee_IdAndStatusAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
+                emp.getId(), ApprovalStatus.APPROVED, date, date);
+    }
+
+    private boolean overlap(Shift a, Shift b) {
+        return a.getStartTime().isBefore(b.getEndTime()) && a.getEndTime().isAfter(b.getStartTime());
+    }
+
 }
