@@ -88,7 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const lines = [
                 `Số ngày phép dự kiến: ${data.requestedWorkDays} ngày.`,
                 ...(data.requestedWorkDays === 0
-                    ? ['Chưa có ca được phân trong khoảng này. Bạn vẫn có thể gửi đơn.']
+                    ? ['Chưa có ca được phân trong khoảng này.']
                     : [])
             ];            data.years.forEach(year => {
                 lines.push(`Năm ${year.year}: xin ${year.requestedDays} ngày · định mức ${year.totalDays} · đã dùng ${year.usedDays} · đang chờ ${year.pendingDays} · khả dụng ${year.availableDays} ngày.`);

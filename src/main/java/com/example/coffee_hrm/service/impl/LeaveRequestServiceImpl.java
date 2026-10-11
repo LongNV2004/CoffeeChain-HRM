@@ -117,6 +117,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         if (endDate.isBefore(startDate)) {
             throw new BusinessException("Ngày kết thúc phải từ ngày bắt đầu trở đi.");
         }
+
         Integer employeeId = employee.getId();
         Integer storeId = employee.getStore().getId();
         if (leaveRequestRepository
@@ -127,6 +128,10 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         List<LocalDate> assignedDates = shiftAssignmentRepository.findAssignedWorkDatesForLeave(
                 employeeId, storeId, startDate, endDate, AssignmentStatus.ASSIGNED)
                 .stream().distinct().toList();
+        if (assignedDates.isEmpty()) {
+            throw new BusinessException(
+                    "Khoảng thời gian này chưa có ca được phân, không thể gửi đơn xin nghỉ.");
+        }
         Map<Integer, Long> requestedByYear = assignedDates.stream()
                 .collect(Collectors.groupingBy(LocalDate::getYear, TreeMap::new, Collectors.counting()));
         LocalDate yearStart = LocalDate.of(startDate.getYear(), 1, 1);
