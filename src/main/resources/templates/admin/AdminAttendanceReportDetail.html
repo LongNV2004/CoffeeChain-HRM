@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chi tiết báo cáo chấm công — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/AttendanceHistory.css}">
+</head>
+<body>
+<header th:replace="~{fragments/navbar :: admin('reports')}"></header>
+
+<main class="wrap dash-main">
+    <section class="welcome">
+        <div class="eyebrow">Admin</div>
+        <h1>Chi tiết báo cáo chấm công</h1>
+        <p><a th:href="@{/attendance/admin/reports}">Quay lại danh sách</a></p>
+    </section>
+
+    <p class="flash" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
+
+    <section class="panel" th:if="${detail != null}">
+        <h2 th:text="${detail.storeId + ' — ' + detail.storeName}">Cửa hàng</h2>
+        <p class="note">
+            Kỳ <span th:text="${detail.periodLabel}">10/2026</span>
+            · Người quản lý <span th:text="${detail.managerName == null or #strings.isEmpty(detail.managerName) ? '—' : detail.managerName}">—</span>
+        </p>
+        <div class="table-wrap">
+            <table>
+                <tbody>
+                <tr>
+                    <th>Người lập</th>
+                    <td th:text="${detail.authorName == null or #strings.isEmpty(detail.authorName) ? '—' : detail.authorName}">—</td>
+                </tr>
+                <tr>
+                    <th>Người gửi</th>
+                    <td th:text="${detail.submitted ? detail.senderName : '—'}">—</td>
+                </tr>
+                <tr>
+                    <th>Thời điểm gửi</th>
+                    <td th:text="${detail.submittedAt == null ? '—' : #temporals.format(detail.submittedAt, 'dd/MM/yyyy HH:mm')}">—</td>
+                </tr>
+                <tr>
+                    <th>Phiên bản hiện hành</th>
+                    <td th:text="${detail.versionNumber == null ? '—' : detail.versionNumber}">—</td>
+                </tr>
+                <tr>
+                    <th>Trạng thái</th>
+                    <td th:text="${detail.submitted ? (detail.stale ? 'Đã gửi, có thay đổi cần gửi lại' : 'Đã gửi') : 'Chưa gửi'}">Chưa gửi</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="note" th:if="${detail.stale}">Dữ liệu chấm công đã thay đổi sau lần gửi. Quản lý có thể gửi lại.</p>
+    </section>
+
+    <section class="panel" th:if="${detail != null}">
+        <h2>A. Thông tin tổng quan</h2>
+        <p class="note" th:text="${'Báo cáo tháng ' + detail.periodLabel}">Báo cáo tháng 10/2026</p>
+        <section class="summary">
+            <article>
+                <div class="label">Tổng số nhân viên</div>
+                <div class="value" th:text="${detail.live.employeeCount}">0</div>
+            </article>
+            <article>
+                <div class="label">Tổng ngày công</div>
+                <div class="value" th:text="${detail.live.workDayCount}">0</div>
+            </article>
+            <article>
+                <div class="label">Tổng lượt vi phạm</div>
+                <div class="value" th:text="${detail.live.violationCount}">0</div>
+            </article>
+            <article>
+                <div class="label">Thiếu chấm công</div>
+                <div class="value" th:text="${detail.live.missingCount}">0</div>
+            </article>
+        </section>
+        <p class="note">Ngày công là số ngày có bản ghi ca làm và không phải vắng. Tổng ngày công cộng ngày công của từng nhân viên. Lượt vi phạm gồm đi muộn và về sớm. Thiếu chấm công là bản ghi ca làm có trạng thái vắng. Ngày không có bản ghi không được tính là thiếu chấm công.</p>
+    </section>
+
+    <section class="panel" th:if="${detail != null}">
+        <h2>B. Bảng tổng hợp chấm công theo nhân viên</h2>
+        <p class="note">Đây là phần Admin cần xem. Bấm xem chi tiết để mở lịch từng ngày trong tháng của nhân viên đó.</p>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>Nhân viên</th>
+                    <th>Ngày công</th>
+                    <th>Đi muộn</th>
+                    <th>Về sớm</th>
+                    <th>Thiếu chấm công</th>
+                    <th>Thao tác</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:if="${detail.employees.isEmpty()}">
+                    <td colspan="6">Không có nhân viên thuộc cửa hàng.</td>
+                </tr>
+                <tr th:each="employee : ${detail.employees}">
+                    <td>
+                        <span th:text="${employee.fullName}">Tên</span>
+                        <div class="note" th:text="${'Mã ' + employee.employeeId}">Mã</div>
+                    </td>
+                    <td th:text="${employee.attendedDays}">0</td>
+                    <td th:text="${employee.lateRecords}">0</td>
+                    <td th:text="${employee.earlyRecords}">0</td>
+                    <td th:text="${employee.absentRecords}">0</td>
+                    <td>
+                        <a th:href="@{|/attendance/admin/reports/${detail.reportId}?employeeId=${employee.employeeId}#lich-ngay|}">Xem chi tiết</a>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel" id="lich-ngay" th:if="${detail != null and detail.selectedEmployeeId != null}">
+        <h2 th:text="${'Lịch ngày của ' + detail.selectedEmployeeName}">Lịch ngày</h2>
+        <p class="note" th:text="${'Các bản ghi ca làm trong tháng ' + detail.periodLabel + '. Ngày không có bản ghi không hiện ở đây.'}">Tháng</p>
+        <p class="empty" th:if="${detail.days.isEmpty()}">Không có bản ghi chấm công ca làm trong tháng này.</p>
+        <div class="table-wrap" th:if="${!detail.days.isEmpty()}">
+            <table>
+                <thead>
+                <tr>
+                    <th>Ngày</th>
+                    <th>Ca</th>
+                    <th>Giờ ca</th>
+                    <th>Check-in</th>
+                    <th>Check-out</th>
+                    <th>Đi muộn</th>
+                    <th>Về sớm</th>
+                    <th>Trạng thái</th>
+                    <th>Ghi chú</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="day : ${detail.days}">
+                    <td th:text="${#temporals.format(day.workDate, 'dd/MM/yyyy')}">01/10/2026</td>
+                    <td th:text="${day.shiftLabel == null or #strings.isEmpty(day.shiftLabel) ? '—' : day.shiftLabel}">Ca sáng</td>
+                    <td>
+                        <span th:text="${day.scheduledStart == null ? '—' : #temporals.format(day.scheduledStart, 'HH:mm')}">08:00</span>
+                        —
+                        <span th:text="${day.scheduledEnd == null ? '—' : #temporals.format(day.scheduledEnd, 'HH:mm')}">12:00</span>
+                    </td>
+                    <td th:text="${day.checkIn == null ? '—' : #temporals.format(day.checkIn, 'HH:mm')}">—</td>
+                    <td th:text="${day.checkOut == null ? '—' : #temporals.format(day.checkOut, 'HH:mm')}">—</td>
+                    <td th:text="${day.lateMinutes + ' phút'}">0 phút</td>
+                    <td th:text="${day.earlyMinutes + ' phút'}">0 phút</td>
+                    <td th:text="${day.statusLabel == null or #strings.isEmpty(day.statusLabel) ? '—' : day.statusLabel}">Có mặt</td>
+                    <td th:text="${day.note == null or #strings.isEmpty(day.note) ? '—' : day.note}">—</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel" th:if="${detail != null and !detail.versions.isEmpty()}">
+        <h2>Các lần gửi</h2>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>Phiên bản</th>
+                    <th>Người gửi</th>
+                    <th>Thời điểm gửi</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="version : ${detail.versions}">
+                    <td th:text="${version.versionNumber}">1</td>
+                    <td th:text="${version.senderName == null or #strings.isEmpty(version.senderName) ? '—' : version.senderName}">—</td>
+                    <td th:text="${#temporals.format(version.submittedAt, 'dd/MM/yyyy HH:mm')}">01/10/2026 08:00</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+</body>
+</html>

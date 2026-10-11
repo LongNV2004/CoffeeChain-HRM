@@ -29,6 +29,7 @@ public class AttendanceController {
     }
 
     @PostMapping("/staff/check-in")
+
     @PreAuthorize("hasRole('STAFF')")
     public String staffCheckIn(@AuthenticationPrincipal AuthenticatedUser user,
                                @RequestParam(required = false) String latitude,

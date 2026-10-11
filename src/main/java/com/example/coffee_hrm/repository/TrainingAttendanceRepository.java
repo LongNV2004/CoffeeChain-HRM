@@ -101,4 +101,42 @@ public interface TrainingAttendanceRepository extends JpaRepository<TrainingAtte
             """)
     List<TrainingAttendance> findHistoryBetween(@Param("fromDate") LocalDate fromDate,
                                                 @Param("toDate") LocalDate toDate);
+
+    @Query("""
+            SELECT t FROM TrainingAttendance t
+            JOIN FETCH t.employee e
+            JOIN FETCH e.store
+            LEFT JOIN FETCH e.user u
+            LEFT JOIN FETCH u.role
+            LEFT JOIN FETCH t.store
+            LEFT JOIN FETCH t.trainingClass c
+            LEFT JOIN FETCH c.trainer trainer
+            LEFT JOIN FETCH trainer.employee
+            WHERE t.store.id = :storeId
+              AND e.store.id = :storeId
+              AND t.workDate >= :fromDate
+              AND t.workDate <= :toDate
+            ORDER BY t.workDate ASC, e.fullName ASC, t.id ASC
+            """)
+    List<TrainingAttendance> findForMonthlyReport(@Param("storeId") Integer storeId,
+                                                  @Param("fromDate") LocalDate fromDate,
+                                                  @Param("toDate") LocalDate toDate);
+
+    @Query("""
+            SELECT t.store.id AS storeId,
+                   MAX(COALESCE(t.updatedAt, t.createdAt)) AS changedAt
+            FROM TrainingAttendance t
+            WHERE t.store.id = t.employee.store.id
+              AND t.workDate >= :fromDate
+              AND t.workDate <= :toDate
+            GROUP BY t.store.id
+            """)
+    List<StoreReportChange> findMonthlyReportChanges(@Param("fromDate") LocalDate fromDate,
+                                                     @Param("toDate") LocalDate toDate);
+
+    interface StoreReportChange {
+        Integer getStoreId();
+
+        java.time.LocalDateTime getChangedAt();
+    }
 }

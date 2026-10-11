@@ -13,6 +13,7 @@ public class AttendanceClockView {
     private final String employeeName;
     private final String storeName;
     private final String shiftName;
+    private final String workDateLabel;
     private final String scheduledStartLabel;
     private final String scheduledEndLabel;
     private final String statusLabel;

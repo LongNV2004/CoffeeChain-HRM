@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Báo cáo chấm công tháng — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/AttendanceHistory.css}">
+</head>
+<body>
+<header th:replace="~{fragments/navbar :: manager('attendance-report')}"></header>
+
+<main class="wrap dash-main">
+    <section class="welcome">
+        <div class="eyebrow">Cửa hàng — Manager</div>
+        <h1>Báo cáo chấm công tháng</h1>
+        <p>Gửi báo cáo chấm công của đúng cửa hàng bạn quản lý cho Admin.</p>
+    </section>
+
+    <p class="flash-ok" th:if="${success}" th:text="${success}">Đã gửi</p>
+    <p class="flash" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
+
+    <section class="panel">
+        <h2>Thông tin báo cáo</h2>
+        <div class="table-wrap">
+            <table>
+                <tbody>
+                <tr>
+                    <th>Cửa hàng</th>
+                    <td th:text="${report.storeId + ' — ' + report.storeName}">1 — Cửa hàng</td>
+                </tr>
+                <tr>
+                    <th>Mã cửa hàng</th>
+                    <td th:text="${report.storeId}">1</td>
+                </tr>
+                <tr>
+                    <th>Người lập báo cáo</th>
+                    <td th:text="${report.authorName}">Manager</td>
+                </tr>
+                <tr>
+                    <th>Kỳ báo cáo</th>
+                    <td th:text="${report.periodLabel}">10/2026</td>
+                </tr>
+                <tr>
+                    <th>Thời điểm tạo báo cáo gần nhất</th>
+                    <td th:text="${report.lastGeneratedAt == null ? '—' : #temporals.format(report.lastGeneratedAt, 'dd/MM/yyyy HH:mm')}">—</td>
+                </tr>
+                <tr>
+                    <th>Trạng thái</th>
+                    <td><span class="status-tag" th:text="${report.statusLabel}">Chưa tạo</span></td>
+                </tr>
+                <tr>
+                    <th>Lần gửi gần nhất</th>
+                    <td>
+                        <span th:text="${report.versionNumber == null ? '—' : 'Phiên bản ' + report.versionNumber}">—</span>
+                        <span th:if="${report.lastSubmittedAt != null}"
+                              th:text="${' · ' + #temporals.format(report.lastSubmittedAt, 'dd/MM/yyyy HH:mm')}"></span>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>Chọn kỳ báo cáo</h2>
+        <form class="filter-form" method="get" th:action="@{/attendance/manager/reports}">
+            <label>Tháng
+                <select name="month">
+                    <option th:each="m : ${#numbers.sequence(1, 12)}"
+                            th:value="${m}"
+                            th:text="'Tháng ' + ${m}"
+                            th:selected="${report.month == m}">Tháng</option>
+                </select>
+            </label>
+            <label>Năm
+                <select name="year">
+                    <option th:each="y : ${years}"
+                            th:value="${y}"
+                            th:text="${y}"
+                            th:selected="${report.year == y}">2026</option>
+                </select>
+            </label>
+            <button class="secondary-btn" type="submit">Xem kỳ này</button>
+        </form>
+        <div class="clock-actions">
+            <form method="post" th:action="@{/attendance/manager/reports/submit}">
+                <input type="hidden" name="year" th:value="${report.year}">
+                <input type="hidden" name="month" th:value="${report.month}">
+                <button class="primary-btn" type="submit"
+                        th:text="${report.submitted} ? 'Gửi lại báo cáo' : 'Gửi báo cáo lên Admin'">Gửi báo cáo lên Admin</button>
+            </form>
+            <a class="secondary-btn" th:if="${pageError == null}"
+               th:href="@{/attendance/manager/reports/detail(year=${report.year}, month=${report.month})}">Xem chi tiết báo cáo</a>
+        </div>
+        <p class="note">Gửi báo cáo lưu thời điểm gửi và phiên bản mới. Admin xem số liệu trên hệ thống. Dữ liệu chấm công gốc không bị sửa.</p>
+    </section>
+</main>
+</body>
+</html>

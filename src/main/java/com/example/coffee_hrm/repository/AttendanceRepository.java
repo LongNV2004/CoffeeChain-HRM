@@ -86,4 +86,40 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Integer>
                                                    @Param("employeeId") Integer employeeId,
                                                    @Param("fromDate") LocalDate fromDate,
                                                    @Param("toDate") LocalDate toDate);
+
+    @Query("""
+            SELECT a FROM Attendance a
+            JOIN FETCH a.employee e
+            JOIN FETCH e.store
+            LEFT JOIN FETCH e.user u
+            LEFT JOIN FETCH u.role
+            LEFT JOIN FETCH a.shift
+            LEFT JOIN FETCH a.store
+            WHERE a.store.id = :storeId
+              AND e.store.id = :storeId
+              AND a.workDate >= :fromDate
+              AND a.workDate <= :toDate
+            ORDER BY a.workDate ASC, e.fullName ASC, a.id ASC
+            """)
+    List<Attendance> findForMonthlyReport(@Param("storeId") Integer storeId,
+                                          @Param("fromDate") LocalDate fromDate,
+                                          @Param("toDate") LocalDate toDate);
+
+    @Query("""
+            SELECT a.store.id AS storeId,
+                   MAX(COALESCE(a.updatedAt, a.createdAt)) AS changedAt
+            FROM Attendance a
+            WHERE a.store.id = a.employee.store.id
+              AND a.workDate >= :fromDate
+              AND a.workDate <= :toDate
+            GROUP BY a.store.id
+            """)
+    List<StoreReportChange> findMonthlyReportChanges(@Param("fromDate") LocalDate fromDate,
+                                                     @Param("toDate") LocalDate toDate);
+
+    interface StoreReportChange {
+        Integer getStoreId();
+
+        java.time.LocalDateTime getChangedAt();
+    }
 }
