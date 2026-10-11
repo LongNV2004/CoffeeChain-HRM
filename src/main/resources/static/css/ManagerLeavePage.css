@@ -1,0 +1,79 @@
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap');
+:root{--ml-paper:#f8f4ed;--ml-espresso:#2f1c11;--ml-text:#4b3428;--ml-muted:#826f60;--ml-line:#e8dacc;--ml-accent:#a46a3f;--ml-light:#fff;--ml-green:#337e50;--ml-red:#b14738}
+*{box-sizing:border-box}
+body.leave-workspace-body,body.manager-dashboard{background:var(--ml-paper);color:var(--ml-espresso);font-family:'Be Vietnam Pro',Arial,sans-serif}
+body.leave-workspace-body button,body.manager-dashboard button{font-family:inherit}
+.ml-page{padding:29px 12px 70px;max-width:none!important}
+.ml-page h1,.ml-page h2,.manager-dashboard .welcome h1,.manager-dashboard .action-card h2,.manager-dashboard .store-banner h2{font-family:'Be Vietnam Pro',Arial,sans-serif;color:var(--ml-espresso)}
+.ml-breadcrumb{display:flex;align-items:center;gap:10px;color:var(--ml-muted);font-size:12px;margin-bottom:20px}
+.ml-breadcrumb a{color:var(--ml-accent);text-decoration:none}
+.ml-titlebar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:16px 0 22px}
+.ml-titlebar h1{font-size:30px;line-height:1.35;margin:4px 0 6px}
+.ml-titlebar p{margin:0;color:var(--ml-muted);font-size:13px}
+.ml-titlebar .ml-eyebrow{color:var(--ml-accent);font-size:11px;font-weight:700;letter-spacing:1.3px}
+.ml-btn{border:1px solid transparent;border-radius:9px;padding:10px 15px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+.ml-btn:disabled{opacity:.52;cursor:not-allowed}
+.ml-btn-primary{color:#fff;background:var(--ml-accent)}.ml-btn-primary:hover{background:#8b5330}
+.ml-btn-outline{color:var(--ml-espresso);background:#fff;border-color:var(--ml-line)}.ml-btn-outline:hover{background:#fcf6ed}
+.ml-btn-approve{background:var(--ml-green);color:#fff}.ml-btn-danger{background:var(--ml-red);color:#fff}
+.ml-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:20px}
+.ml-stat{display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;border:1px solid var(--ml-line);border-radius:11px;background:#fff;padding:18px;cursor:pointer;color:var(--ml-text)}
+.ml-stat:hover,.ml-stat.is-active{border-color:#c58f63;box-shadow:0 2px 9px rgba(64,36,18,.06)}
+.ml-stat span{font-size:12px;font-weight:600}.ml-stat strong{font:700 27px/1.3 'Be Vietnam Pro',Arial,sans-serif;color:var(--ml-espresso)}.ml-stat small{color:var(--ml-muted);font-size:11px}
+.ml-panel{border:1px solid var(--ml-line);border-radius:12px;background:#fff;overflow:hidden}
+.ml-panel-head{padding:22px 24px 10px}.ml-panel-head h2{font-size:21px;margin:0 0 3px}.ml-panel-head p{margin:0;color:var(--ml-muted);font-size:12px}
+.ml-filters{padding:12px 24px 20px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.ml-search{display:flex;align-items:center;gap:8px;border:1px solid var(--ml-line);border-radius:8px;padding:0 11px;color:var(--ml-muted);width:min(100%,370px)}
+.ml-search svg{fill:none;stroke:currentColor;stroke-width:1.5}.ml-search input{border:0;outline:0;width:100%;font:inherit;font-size:12px;padding:11px 2px;background:transparent;color:var(--ml-text)}
+.ml-filter-label{font-size:12px;display:flex;align-items:center;gap:12px;color:var(--ml-muted)}.ml-filter-label select{font:inherit;color:var(--ml-text);border:1px solid var(--ml-line);border-radius:8px;padding:9px;background:#fff}
+.ml-table-wrap{overflow-x:auto}.ml-table{width:100%;border-collapse:collapse;text-align:left;font-size:12px}.ml-table th{background:#f8f4ef;color:var(--ml-muted);font-size:11px;text-transform:uppercase;letter-spacing:.3px;font-weight:600}
+.ml-table td,.ml-table th{padding:14px 17px;border-bottom:1px solid #efe5d9}.ml-table td{color:var(--ml-text)}.ml-table .ml-person{font-weight:700;color:var(--ml-espresso)}.ml-table td.ml-reason{max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ml-pill{display:inline-flex;padding:5px 10px;border-radius:100px;font-size:11px;font-weight:600;white-space:nowrap;background:#eee5da;color:#715647}
+.ml-pill[data-status='PENDING']{background:#fff1d8;color:#8a5b15}.ml-pill[data-status='APPROVED']{background:#e7f4ea;color:#2d7847}.ml-pill[data-status='REJECTED']{background:#fce6e4;color:#aa4233}
+.ml-inline{font:inherit;color:var(--ml-accent);font-weight:700;border:0;background:transparent;cursor:pointer;padding:5px 0}.ml-inline:hover{text-decoration:none;color:var(--ml-espresso)}
+.ml-pagination{padding:15px 24px;display:flex;justify-content:space-between;align-items:center;gap:10px;color:var(--ml-muted);font-size:12px}.ml-pagination>div{display:flex;align-items:center;gap:12px}
+.ml-empty{padding:25px!important;text-align:center;color:var(--ml-muted)!important}
+.ml-overlay{display:none;position:fixed;inset:0;z-index:1500;background:rgba(30,17,11,.55);padding:18px;align-items:center;justify-content:center}
+.ml-overlay.is-open{display:flex}.ml-modal{width:min(100%,640px);max-height:calc(100dvh - 36px);overflow:auto;background:#fff;border-radius:15px;box-shadow:0 18px 60px rgba(0,0,0,.25)}
+.ml-modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:15px;background:#392217;color:#fff;padding:21px 25px}
+.ml-modal-head h2{margin:3px 0 0;color:#fff;font:700 20px/1.4 'Be Vietnam Pro',Arial,sans-serif}.ml-modal-head p{margin:0;color:#debfa2;letter-spacing:1px;font-size:10px;font-weight:700}
+.ml-x{font-size:25px;line-height:1;background:#ffffff24;color:#fff;border:0;border-radius:7px;height:34px;width:34px;cursor:pointer}
+.ml-modal-body{padding:21px 25px}.ml-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.ml-field{border-bottom:1px solid var(--ml-line);padding-bottom:10px}.ml-field.full{grid-column:1/-1}.ml-field small{display:block;font-size:11px;color:var(--ml-muted);margin-bottom:5px}.ml-field strong,.ml-field p{font-size:13px;color:var(--ml-text);margin:0;overflow-wrap:anywhere;white-space:pre-wrap}
+.ml-section-label{margin:20px 0 8px;font-size:13px;font-weight:700}.ml-detail-box{border:1px solid var(--ml-line);border-radius:9px;padding:12px;background:#fbf8f4;font-size:12px;color:var(--ml-text)}.ml-detail-box ul{margin:8px 0 0;padding-left:21px;display:grid;gap:6px}
+.ml-modal-actions{display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap;padding:15px 25px 22px;border-top:1px solid var(--ml-line)}.ml-reject{padding:15px 25px 22px;border-top:1px solid var(--ml-line)}.ml-reject label{display:block;font-size:12px;font-weight:700;margin-bottom:9px}.ml-reject label span{color:var(--ml-red)}.ml-reject textarea{font:inherit;font-size:12px;width:100%;border:1px solid var(--ml-line);border-radius:8px;padding:12px;resize:vertical}.ml-reject>div{display:flex;justify-content:flex-end;gap:10px;margin-top:10px}
+.ml-banner{padding:10px 12px;border-radius:8px;font-size:12px;margin-top:14px;background:#fce8e4;color:#a53d32}
+.ml-side-overlay{justify-content:flex-end;padding:0}.ml-drawer{display:flex;flex-direction:column;width:min(100%,590px);height:100%;background:#fff;box-shadow:-12px 0 45px rgba(0,0,0,.19)}
+.ml-drawer-content{flex:1;min-height:0;overflow:auto;padding:18px 23px}.ml-gap-list{display:grid;gap:8px;padding-bottom:18px;border-bottom:1px solid var(--ml-line)}
+.ml-gap-button{display:flex;align-items:center;justify-content:space-between;width:100%;gap:12px;padding:12px;text-align:left;background:#fbf8f4;border:1px solid var(--ml-line);border-radius:9px;cursor:pointer;color:var(--ml-text);font:inherit;font-size:12px}
+.ml-gap-button:hover,.ml-gap-button.is-active{border-color:#bf8c65;background:#f8eee4}.ml-gap-button span{font-size:11px;color:var(--ml-muted)}
+.ml-candidate-panel{padding-top:20px}.ml-candidate-panel h3{font:700 18px 'Be Vietnam Pro',Arial,sans-serif;margin:0 0 8px}.ml-muted{font-size:12px;color:var(--ml-muted);line-height:1.7}
+.ml-priority-title{font-size:12px;font-weight:700;margin:20px 0 9px;color:var(--ml-espresso)}.ml-candidate{border:1px solid var(--ml-line);border-radius:10px;margin-bottom:9px;padding:13px;background:#fff}.ml-candidate-head{display:flex;justify-content:space-between;gap:10px;align-items:center}.ml-candidate strong{font-size:13px}.ml-candidate p{font-size:11px;color:var(--ml-muted);margin:6px 0 0}
+.ml-drawer-footer{border-top:1px solid var(--ml-line);padding:16px 23px;display:flex;align-items:center;gap:14px;justify-content:space-between}.ml-drawer-footer p{font-size:11px;color:var(--ml-muted);margin:0;max-width:330px}
+.ml-toast{position:fixed;right:24px;bottom:20px;background:#ecf8f0;color:#326d47;border:1px solid #b5d2be;border-radius:9px;padding:13px 18px;z-index:2000;max-width:480px;font-size:12px;box-shadow:0 5px 22px #00000010}.ml-toast.is-error{background:#fdf0ec;color:#a23d32;border-color:#e7c0b7}
+body.manager-dashboard .action-card h2,body.manager-dashboard .action-card h2 a,body.manager-dashboard .action-card h2 button{color:var(--ml-espresso)!important;text-decoration:none!important;font-weight:700}
+body.manager-dashboard .stat-card .label a,body.manager-dashboard .stat-card .label button{color:var(--ml-accent)!important;text-decoration:none!important;font-weight:600}
+body.manager-dashboard .action-card h2 a:hover,body.manager-dashboard .action-card h2 button:hover{text-decoration:none!important;color:var(--ml-accent)!important}
+@media(max-width:920px){.ml-stats{grid-template-columns:repeat(2,1fr)}.ml-titlebar{align-items:flex-start}.ml-titlebar h1{font-size:26px}}
+@media(max-width:600px){.ml-page{padding:18px 4px 50px}.ml-titlebar{flex-direction:column}.ml-stats{gap:8px}.ml-stat{padding:12px}.ml-panel-head,.ml-filters,.ml-pagination{padding-left:14px;padding-right:14px}.ml-filters{flex-direction:column;align-items:stretch}.ml-search{width:100%}.ml-detail-grid{grid-template-columns:1fr}.ml-field.full{grid-column:auto}.ml-modal-head,.ml-modal-body,.ml-modal-actions{padding-left:16px;padding-right:16px}.ml-drawer-footer{flex-direction:column;align-items:stretch}}
+
+body.manager-dashboard .ml-dashboard-link{color:var(--ml-espresso)!important;text-decoration:none!important;font:inherit}
+body.manager-dashboard .ml-dashboard-link:hover{color:var(--ml-accent)!important}
+
+/* Consistent font on the leave page, its modal/drawer, and Manager Dashboard cards. */
+body.leave-workspace-body .ml-page,
+body.leave-workspace-body .ml-overlay,
+body.leave-workspace-body .ml-overlay button,
+body.leave-workspace-body .ml-overlay textarea,
+body.leave-workspace-body .ml-page button,
+body.leave-workspace-body .ml-page input,
+body.leave-workspace-body .ml-page select,
+body.manager-dashboard main.wrap,
+body.manager-dashboard main.wrap button,
+body.manager-dashboard main.wrap a,
+body.manager-dashboard .stat-card .value {
+    font-family:'Be Vietnam Pro',Arial,sans-serif;
+}
+body.manager-dashboard .stat-card .value{font-size:27px;line-height:1.35;font-weight:700}
+body.manager-dashboard .welcome h1{font-size:30px;line-height:1.35}
+body.manager-dashboard .action-card h2,body.manager-dashboard .store-banner h2{font-size:19px;line-height:1.4}
+.ml-detail-box .ml-muted{margin:8px 0 0;line-height:1.6}

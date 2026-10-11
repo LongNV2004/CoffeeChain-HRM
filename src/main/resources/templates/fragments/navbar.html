@@ -201,7 +201,7 @@
                     <a th:href="@{/schedule/manager}" th:classappend="${active == 'schedule'} ? ' is-active'">Lịch làm việc</a>
                     <a th:href="@{/availability/manager}" th:classappend="${active == 'availability'} ? ' is-active'">Đăng kí lịch làm việc</a>
                     <a th:href="@{/availability/manager/limits}" th:classappend="${active == 'slot-limits'} ? ' is-active'">Cấu hình số lượng ca</a>
-                    <a th:href="@{/dashboard/manager#leave}" th:classappend="${active == 'leave'} ? ' is-active'">Quản lý nghỉ phép</a>
+                    <a th:href="@{/manager/leaves}" th:classappend="${active == 'leave'} ? ' is-active'">Quản lý nghỉ phép</a>
                 </div>
             </div>
             <div class="coffee-menu-group" th:classappend="${active == 'recruitment' or active == 'training'} ? ' is-open'">

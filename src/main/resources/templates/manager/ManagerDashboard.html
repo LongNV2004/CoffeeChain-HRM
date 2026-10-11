@@ -7,9 +7,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/ManagerDashboard.css}">
-    <link rel="stylesheet" th:href="@{/css/ManagerLeave.css}">
+    <link rel="stylesheet" th:href="@{/css/ManagerLeavePage.css}">
 </head>
-<body>
+<body class="manager-dashboard">
 <header th:replace="~{fragments/navbar :: manager('dashboard')}"></header>
 <main class="wrap dash-main">
     <section class="welcome">
@@ -38,19 +38,18 @@
         </article>
         <article class="stat-card" id="schedule">
             <div class="label">
-                <a th:href="@{/schedule/manager}" style="text-decoration:underline;">Ca làm hôm nay →</a>
-            </div>
+                <a th:href="@{/schedule/manager}">Ca làm hôm nay </a>            </div>
             <div class="value" th:text="${dashboard.todayShiftCount}">0</div>
         </article>
         <article class="stat-card" id="leave">
             <div class="label">
-                <button type="button" class="leave-text-button" data-open-manager-leave>Đơn nghỉ phép chờ duyệt →</button>
+                <a class="ml-dashboard-link" th:href="@{/manager/leaves(status='PENDING')}">Đơn nghỉ phép chờ duyệt</a>
             </div>
             <div class="value" th:text="${dashboard.pendingLeaveCount}">0</div>
         </article>
         <article class="stat-card">
             <div class="label">
-                <a th:href="@{/schedule/manager#shift-change-requests}" style="text-decoration:underline;">Yêu cầu đổi ca chờ duyệt →</a>
+                <a th:href="@{/schedule/manager#shift-change-requests}">Yêu cầu đổi ca chờ duyệt </a>
             </div>
             <div class="value" th:text="${dashboard.pendingShiftChangeCount}">0</div>
         </article>
@@ -59,19 +58,18 @@
     <section class="action-grid">
         <article class="action-card" id="attendance">
             <h2>
-                <a th:href="@{/attendance/manager}" style="color:var(--caramel-dark);">Chấm công →</a>
+                <a th:href="@{/attendance/manager}">Chấm công </a>
             </h2>
             <p>Xem lịch sử giờ vào/ra của nhân viên thuộc cửa hàng bạn quản lý.</p>
         </article>
         <article class="action-card">
             <h2>
-                <a th:href="@{/schedule/manager}" style="color:var(--caramel-dark);">Lịch làm việc →</a>
-            </h2>
+                <a th:href="@{/schedule/manager}">Lịch làm việc </a>            </h2>
             <p>Phân công ca và phê duyệt đổi ca cho nhân viên.</p>
         </article>
         <article class="action-card">
             <h2>
-                <button type="button" class="leave-text-button" data-open-manager-leave>Quản lý nghỉ phép →</button>
+                <a class="ml-dashboard-link" th:href="@{/manager/leaves}">Quản lý nghỉ phép →</a>
             </h2>
             <p>Duyệt hoặc từ chối đơn nghỉ phép của nhân viên cửa hàng.</p>
         </article>
@@ -88,8 +86,7 @@
         <!-- Vân Anh role admin-->
         <article class="action-card">
             <h2>
-                <a th:href="@{/manager/recruitment}" style="color:var(--caramel-dark);">Đề xuất tuyển nhân sự</a>
-            </h2>
+                <a th:href="@{/manager/recruitment}">Đề xuất tuyển nhân sự</a>            </h2>
             <p>Đề xuất nhân viên mới. Admin duyệt rồi hệ thống mới tạo tài khoản và gửi mật khẩu qua email.</p>
         </article>
         <article class="action-card" id="reports">
@@ -97,60 +94,8 @@
             <p>Xem và gửi báo cáo chấm công tháng của cửa hàng cho Admin.</p>
         </article>
     </section>
-
-    <div class="manager-leave-overlay" id="managerLeaveOverlay" aria-hidden="true"
-         th:attr="data-api-base=@{/manager/leave},data-csrf-token=${_csrf.token},data-csrf-header=${_csrf.headerName}">
-        <section class="manager-leave-drawer" role="dialog" aria-modal="true" aria-labelledby="managerLeaveHeading">
-            <header class="manager-leave-header">
-                <div>
-                    <h2 id="managerLeaveHeading">Quản lý đơn nghỉ phép</h2>
-                    <p>Chỉ hiển thị nhân viên thuộc cửa hàng của bạn.</p>
-                </div>
-                <button class="manager-leave-close" type="button" id="managerLeaveClose" aria-label="Đóng">×</button>
-            </header>
-
-            <div class="manager-leave-toolbar" id="managerLeaveToolbar">
-                <label for="managerLeaveFilter">Trạng thái</label>
-                <select id="managerLeaveFilter">
-                    <option value="PENDING">Chờ duyệt</option>
-                    <option value="">Tất cả</option>
-                    <option value="APPROVED">Đã duyệt</option>
-                    <option value="REJECTED">Đã từ chối</option>
-                </select>
-            </div>
-
-            <div class="manager-leave-banner" id="managerLeaveMessage" role="status" aria-live="polite" hidden></div>
-
-            <div class="manager-leave-scroll" id="managerLeaveScroll">
-                <div id="managerLeaveList" class="manager-leave-list"></div>
-                <div class="manager-leave-more">
-                    <button type="button" id="managerLeaveMore" class="manager-leave-btn manager-leave-btn-ghost" hidden>
-                        Tải thêm đơn
-                    </button>
-                </div>
-            </div>
-
-            <div class="manager-leave-detail" id="managerLeaveDetail" hidden>
-                <button class="manager-leave-link" type="button" id="managerLeaveBack">← Quay lại danh sách</button>
-                <div id="managerLeaveDetailContent"></div>
-                <div class="manager-leave-actions" id="managerLeaveActions">
-                    <button class="manager-leave-btn manager-leave-btn-approve" type="button" id="managerLeaveApprove">Duyệt đơn</button>
-                    <button class="manager-leave-btn manager-leave-btn-reject" type="button" id="managerLeaveRejectToggle">Từ chối</button>
-                </div>
-                <div class="manager-leave-reject-panel" id="managerLeaveRejectPanel" hidden>
-                    <label for="managerLeaveRejectReason">Lý do từ chối <span>*</span></label>
-                    <textarea id="managerLeaveRejectReason" maxlength="500" rows="3" placeholder="Nhập lý do gửi tới nhân viên..."></textarea>
-                    <div class="manager-leave-actions">
-                        <button class="manager-leave-btn manager-leave-btn-ghost" type="button" id="managerLeaveRejectCancel">Hủy</button>
-                        <button class="manager-leave-btn manager-leave-btn-reject" type="button" id="managerLeaveRejectConfirm">Xác nhận từ chối</button>
-                    </div>
-                </div>
-            </div>
-        </section>
-    </div>
 </main>
 
 <script th:src="@{/js/ManagerDashboard.js}"></script>
-<script defer th:src="@{/js/ManagerLeave.js}"></script>
 </body>
 </html>

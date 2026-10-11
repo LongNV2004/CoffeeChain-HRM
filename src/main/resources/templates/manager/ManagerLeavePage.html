@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý nghỉ phép — CoffeeHRM</title>
+    <link rel="stylesheet" th:href="@{/css/ManagerLeavePage.css}">
+</head>
+<body class="leave-workspace-body">
+<header th:replace="~{fragments/navbar :: manager('leave')}"></header>
+<main class="wrap ml-page" id="leaveWorkspace" th:attr="data-api=@{/manager/leaves/api},data-review-api=@{/manager/leave},data-csrf=${_csrf.token},data-csrf-header=${_csrf.headerName}">
+    <div class="ml-breadcrumb"><a th:href="@{/dashboard/manager}">Tổng quan cửa hàng</a><span>›</span><strong>Quản lý nghỉ phép</strong></div>
+    <div class="ml-titlebar">
+        <div><p class="ml-eyebrow">QUẢN LÝ NHÂN SỰ</p><h1>Quản lý nghỉ phép</h1><p>Theo dõi đơn nghỉ, phê duyệt và gợi ý nhân viên thay ca trong cửa hàng.</p></div>
+        <button type="button" id="mlOpenGaps" class="ml-btn ml-btn-primary">Ca cần bố trí <span id="mlGapButtonCount">0</span></button>
+    </div>
+    <section class="ml-stats" aria-label="Thống kê đơn nghỉ phép">
+        <button type="button" class="ml-stat" data-filter="PENDING"><span>Chờ duyệt</span><strong id="mlPendingCount">—</strong><small>Đơn cần xử lý</small></button>
+        <button type="button" class="ml-stat" data-filter="APPROVED"><span>Đã duyệt</span><strong id="mlApprovedCount">—</strong><small>Đơn đã phê duyệt</small></button>
+        <button type="button" class="ml-stat" data-filter="REJECTED"><span>Đã từ chối</span><strong id="mlRejectedCount">—</strong><small>Đơn không được duyệt</small></button>
+        <button type="button" class="ml-stat" id="mlStatGaps"><span>Ca cần bố trí</span><strong id="mlGapCount">—</strong><small>Xem đề xuất thay ca</small></button>
+    </section>
+    <section class="ml-panel">
+        <div class="ml-panel-head"><div><h2>Danh sách đơn xin nghỉ</h2><p>Chỉ hiển thị nhân viên thuộc cửa hàng bạn quản lý.</p></div></div>
+        <div class="ml-filters">
+            <label class="ml-search" for="mlSearch"><svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><input id="mlSearch" type="search" placeholder="Tìm theo tên nhân viên..." maxlength="100" autocomplete="off"></label>
+            <label class="ml-filter-label" for="mlStatus">Trạng thái <select id="mlStatus"><option value="PENDING">Chờ duyệt</option><option value="">Tất cả</option><option value="APPROVED">Đã duyệt</option><option value="REJECTED">Đã từ chối</option></select></label>
+        </div>
+        <div class="ml-table-wrap"><table class="ml-table"><thead><tr><th>Nhân viên</th><th>Khoảng thời gian</th><th>Lý do</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody id="mlTableBody"><tr><td colspan="5" class="ml-empty">Đang tải danh sách...</td></tr></tbody></table></div>
+        <div class="ml-pagination"><span id="mlResultCount">—</span><div><button id="mlPrevious" class="ml-btn ml-btn-outline" type="button">← Trước</button><span id="mlPageNumber">Trang 1</span><button id="mlNext" class="ml-btn ml-btn-outline" type="button">Sau →</button></div></div>
+    </section>
+    <p id="mlToast" class="ml-toast" role="status" aria-live="polite" hidden></p>
+</main>
+<div class="ml-overlay" id="mlDetailOverlay" aria-hidden="true">
+    <section class="ml-modal" role="dialog" aria-modal="true" aria-labelledby="mlDetailTitle">
+        <header class="ml-modal-head"><div><p>CHI TIẾT ĐƠN NGHỈ</p><h2 id="mlDetailTitle">Đơn xin nghỉ phép</h2></div><button class="ml-x" id="mlCloseDetail" type="button" aria-label="Đóng">×</button></header>
+        <div class="ml-modal-body" id="mlDetailBody">Đang tải...</div>
+        <div class="ml-modal-actions" id="mlDetailActions"><button class="ml-btn ml-btn-outline" type="button" id="mlShowSuggestions" hidden>Xem đề xuất người thay</button><button class="ml-btn ml-btn-approve" type="button" id="mlApprove" hidden>Duyệt đơn</button><button class="ml-btn ml-btn-danger" type="button" id="mlReject" hidden>Từ chối</button></div>
+        <div class="ml-reject" id="mlRejectForm" hidden><label for="mlRejectReason">Lý do từ chối <span>*</span></label><textarea id="mlRejectReason" maxlength="500" rows="3" placeholder="Nêu lý do để nhân viên biết..."></textarea><div><button class="ml-btn ml-btn-outline" type="button" id="mlCancelReject">Hủy</button><button class="ml-btn ml-btn-danger" type="button" id="mlConfirmReject">Xác nhận từ chối</button></div></div>
+    </section>
+</div>
+<div class="ml-overlay ml-side-overlay" id="mlSuggestionsOverlay" aria-hidden="true">
+    <section class="ml-drawer" role="dialog" aria-modal="true" aria-labelledby="mlSuggestionsTitle">
+        <header class="ml-modal-head"><div><p>GỢI Ý THAY CA</p><h2 id="mlSuggestionsTitle">Ca cần bố trí</h2></div><button class="ml-x" id="mlCloseSuggestions" type="button" aria-label="Đóng">×</button></header>
+        <div class="ml-drawer-content">
+            <div id="mlGapsList" class="ml-gap-list"></div>
+            <div id="mlCandidatePanel" class="ml-candidate-panel"><p class="ml-muted">Chọn một ca để xem nhân viên phù hợp.</p></div>
+        </div>
+        <div class="ml-drawer-footer"><p>Giai đoạn 3 chỉ đề xuất. Việc xác nhận phân công sẽ thực hiện ở giai đoạn 4.</p><button class="ml-btn ml-btn-outline" type="button" id="mlCloseSuggestionsFooter">Đóng · xử lý sau</button></div>
+    </section>
+</div>
+<script defer th:src="@{/js/ManagerLeavePage.js}"></script>
+</body>
+</html>
