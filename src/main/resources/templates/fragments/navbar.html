@@ -173,7 +173,7 @@
                 <svg class="coffee-icon"><use href="#coffee-i-calendar"/></svg>
                 <span class="coffee-side-label">Chấm công</span>
             </a>
-            <a class="coffee-menu-item" th:href="@{/dashboard/admin#reports}"
+            <a class="coffee-menu-item" th:href="@{/attendance/admin/reports}"
                th:classappend="${active == 'reports'} ? ' is-active'" title="Báo cáo toàn chuỗi">
                 <svg class="coffee-icon"><use href="#coffee-i-chart"/></svg>
                 <span class="coffee-side-label">Báo cáo toàn chuỗi</span>
@@ -217,8 +217,8 @@
                     <a th:href="@{/training}" th:classappend="${active == 'training'} ? ' is-active'">Đào tạo</a>
                 </div>
             </div>
-            <a class="coffee-menu-item" th:href="@{/dashboard/manager#reports}"
-               th:classappend="${active == 'reports'} ? ' is-active'" title="Báo cáo cửa hàng">
+            <a class="coffee-menu-item" th:href="@{/attendance/manager/reports}"
+               th:classappend="${active == 'reports' or active == 'attendance-report'} ? ' is-active'" title="Báo cáo cửa hàng">
                 <svg class="coffee-icon"><use href="#coffee-i-chart"/></svg>
                 <span class="coffee-side-label">Báo cáo Store</span>
             </a>
