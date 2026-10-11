@@ -169,6 +169,6 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                         ? item.getApprovedBy().getEmployee().getFullName() : null)
                 .createdAt(item.getCreatedAt())
                 .resolvedDate(item.getResolvedDate())
-                .build();
-    }
+                .rejectReason(item.getRejectReason())
+                .build();    }
 }

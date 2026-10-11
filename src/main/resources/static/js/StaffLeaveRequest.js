@@ -130,6 +130,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const created = document.createElement('small');
         created.textContent = `Mã đơn #${item.id} · Gửi lúc: ${item.createdAt?.replace('T', ' ').slice(0, 16) || '—'}`;
         card.append(head, reason, created);
+
+        if (item.status === 'REJECTED' && item.rejectReason) {
+            const rejectionReason = document.createElement('p');
+            rejectionReason.textContent = `Lý do từ chối: ${item.rejectReason}`;
+            card.append(rejectionReason);
+        }
+
         historyList.append(card);
     }
 

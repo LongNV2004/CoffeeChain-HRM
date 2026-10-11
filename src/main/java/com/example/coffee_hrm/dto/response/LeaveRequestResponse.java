@@ -26,4 +26,5 @@ public class LeaveRequestResponse {
     private String approvedByName;
     private LocalDateTime createdAt;
     private LocalDateTime resolvedDate;
+    private String rejectReason;
 }

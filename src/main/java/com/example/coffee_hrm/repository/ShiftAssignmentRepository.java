@@ -2,11 +2,13 @@ package com.example.coffee_hrm.repository;
 
 import com.example.coffee_hrm.common.enums.AssignmentStatus;
 import com.example.coffee_hrm.entity.ShiftAssignment;
+import jakarta.persistence.LockModeType;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -17,8 +19,7 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
 
     @Query(
             """
-            SELECT sa
-            FROM ShiftAssignment sa
+            SELECT sa FROM ShiftAssignment sa
             JOIN FETCH sa.shift s
             WHERE sa.employee.id = :employeeId
               AND sa.workDate >= :fromDate
@@ -33,8 +34,7 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
 
     @Query(
             """
-            SELECT sa
-            FROM ShiftAssignment sa
+            SELECT sa FROM ShiftAssignment sa
             JOIN FETCH sa.shift s
             JOIN FETCH sa.employee e
             WHERE s.store.id = :storeId
@@ -51,8 +51,7 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
 
     @Query(
             """
-            SELECT sa
-            FROM ShiftAssignment sa
+            SELECT sa FROM ShiftAssignment sa
             JOIN FETCH sa.shift s
             JOIN FETCH sa.employee e
             WHERE sa.employee.id = :employeeId
@@ -69,8 +68,7 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
 
     @Query(
             """
-            SELECT sa
-            FROM ShiftAssignment sa
+            SELECT sa FROM ShiftAssignment sa
             JOIN FETCH sa.shift s
             JOIN FETCH s.store st
             JOIN FETCH sa.employee e
@@ -86,8 +84,7 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
 
     @Query(
             """
-            SELECT sa
-            FROM ShiftAssignment sa
+            SELECT sa FROM ShiftAssignment sa
             JOIN sa.shift s
             WHERE s.store.id = :storeId
               AND sa.workDate >= :startDate
@@ -101,8 +98,7 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
 
     @Query(
             """
-            SELECT sa
-            FROM ShiftAssignment sa
+            SELECT sa FROM ShiftAssignment sa
             JOIN FETCH sa.shift s
             JOIN FETCH s.store
             JOIN FETCH sa.employee e
@@ -120,8 +116,7 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
 
     @Query(
             """
-            SELECT sa
-            FROM ShiftAssignment sa
+            SELECT sa FROM ShiftAssignment sa
             JOIN FETCH sa.shift s
             JOIN FETCH s.store
             JOIN FETCH sa.employee e
@@ -134,8 +129,7 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
 
     @Query(
             """
-            SELECT DISTINCT sa.workDate
-            FROM ShiftAssignment sa
+            SELECT DISTINCT sa.workDate FROM ShiftAssignment sa
             JOIN sa.shift s
             WHERE sa.employee.id = :employeeId
               AND s.store.id = :storeId
@@ -152,16 +146,14 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
 
     @Query(
             """
-            SELECT DISTINCT sa.workDate
-            FROM ShiftAssignment sa
+            SELECT DISTINCT sa.workDate FROM ShiftAssignment sa
             JOIN sa.shift s
             WHERE sa.employee.id = :employeeId
               AND s.store.id = :storeId
               AND sa.status = :assignmentStatus
               AND sa.workDate BETWEEN :startDate AND :endDate
               AND EXISTS (
-                SELECT lr.id
-                FROM LeaveRequest lr
+                SELECT lr.id FROM LeaveRequest lr
                 WHERE lr.employee.id = :employeeId
                   AND lr.status = :pendingStatus
                   AND sa.workDate BETWEEN lr.startDate AND lr.endDate
@@ -175,4 +167,46 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
             @Param("assignmentStatus") AssignmentStatus assignmentStatus,
             @Param("pendingStatus")
             com.example.coffee_hrm.common.enums.ApprovalStatus pendingStatus);
+
+    @Query(
+            """
+            SELECT sa FROM ShiftAssignment sa
+            JOIN FETCH sa.shift s
+            WHERE sa.employee.id = :employeeId
+              AND s.store.id = :storeId
+              AND sa.status = :status
+              AND sa.workDate BETWEEN :startDate AND :endDate
+            ORDER BY sa.workDate ASC, s.startTime ASC, sa.id ASC
+            """)
+    List<ShiftAssignment> findActiveAssignmentsForLeave(
+            @Param("employeeId") Integer employeeId,
+            @Param("storeId") Integer storeId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("status") AssignmentStatus status);
+
+    @Query(
+            """
+            SELECT DISTINCT sa.workDate FROM ShiftAssignment sa
+            JOIN sa.shift s
+            WHERE sa.employee.id = :employeeId
+              AND s.store.id = :storeId
+              AND sa.status = :assignmentStatus
+              AND sa.workDate BETWEEN :startDate AND :endDate
+              AND EXISTS (
+                SELECT lr.id FROM LeaveRequest lr
+                WHERE lr.employee.id = :employeeId
+                  AND lr.id <> :excludingRequestId
+                  AND lr.status = :pendingStatus
+                  AND sa.workDate BETWEEN lr.startDate AND lr.endDate
+              )
+            """)
+    List<LocalDate> findPendingLeaveWorkDatesExcluding(
+            @Param("employeeId") Integer employeeId,
+            @Param("storeId") Integer storeId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("assignmentStatus") AssignmentStatus assignmentStatus,
+            @Param("pendingStatus") com.example.coffee_hrm.common.enums.ApprovalStatus pendingStatus,
+            @Param("excludingRequestId") Integer excludingRequestId);
 }

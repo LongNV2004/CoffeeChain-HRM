@@ -1,19 +1,23 @@
 package com.example.coffee_hrm.repository;
 
 import com.example.coffee_hrm.entity.LeaveBalance;
-import com.example.coffee_hrm.entity.LeaveBalanceId;
+import jakarta.persistence.LockModeType;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import java.util.Optional;
 
-public interface LeaveBalanceRepository extends JpaRepository<LeaveBalance, LeaveBalanceId> {
-    // Native scalar read avoids relying on the currently mismatched LeaveBalance entity primary key.
+public interface LeaveBalanceRepository extends JpaRepository<LeaveBalance, Integer> {
     @Query(value = """
-            SELECT UsedDays
-            FROM dbo.LeaveBalances
+            SELECT UsedDays FROM dbo.LeaveBalances
             WHERE EmployeeId = :employeeId AND [Year] = :year
             """, nativeQuery = true)
     Optional<Integer> findUsedDays(@Param("employeeId") Integer employeeId,
                                    @Param("year") int year);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT b FROM LeaveBalance b WHERE b.employee.id = :employeeId AND b.year = :year")
+    Optional<LeaveBalance> lockByEmployeeIdAndYear(@Param("employeeId") Integer employeeId,
+                                                   @Param("year") Integer year);
 }

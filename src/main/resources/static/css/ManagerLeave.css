@@ -1,0 +1,40 @@
+.leave-text-button{border:0;padding:0;font:inherit;color:var(--caramel-dark);background:transparent;text-align:left;cursor:pointer;font-weight:600}
+.leave-text-button:hover{text-decoration:underline}
+.manager-leave-overlay{position:fixed;inset:0;z-index:1200;background:rgba(30,17,10,.5);display:none;justify-content:flex-end}
+.manager-leave-overlay.is-open{display:flex}
+.manager-leave-drawer{background:#fff;width:min(100%,620px);height:100%;display:flex;flex-direction:column;box-shadow:-12px 0 40px rgba(0,0,0,.17)}
+.manager-leave-header{background:var(--espresso);padding:22px 26px;color:#fff;display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.manager-leave-header h2{margin:0;font-size:22px}.manager-leave-header p{color:#e3c6ac;font-size:13px;margin:6px 0 0}
+.manager-leave-close{background:#ffffff24;color:#fff;border:0;border-radius:8px;cursor:pointer;font-size:27px;width:38px;height:38px;flex-shrink:0}
+.manager-leave-toolbar{padding:16px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px}
+.manager-leave-toolbar label{font-size:13px;font-weight:600}.manager-leave-toolbar select{font:inherit;font-size:13px;border:1px solid var(--line);background:#fff;border-radius:7px;padding:9px 12px}
+.manager-leave-scroll,.manager-leave-detail{padding:18px 24px;overflow:auto;flex:1;min-height:0}
+.manager-leave-list{display:grid;gap:11px}.manager-leave-card{border:1px solid var(--line);border-radius:10px;background:#fff;padding:15px}
+.manager-leave-card-header{display:flex;align-items:start;justify-content:space-between;gap:10px;margin-bottom:7px}
+.manager-leave-card h3{font:600 15px 'Inter',sans-serif;margin:0}.manager-leave-card p{margin:6px 0;color:var(--espresso-soft);font-size:13px}
+.manager-leave-card small{display:block;color:var(--ink-soft);font-size:12px;margin:7px 0}
+.manager-leave-status{font-size:12px;padding:4px 9px;border-radius:99px;background:var(--paper-dim);white-space:nowrap}
+.manager-leave-status[data-status='PENDING']{background:#fff0c7;color:#875400}
+.manager-leave-status[data-status='APPROVED']{background:#e3f3e7;color:#276b3a}
+.manager-leave-status[data-status='REJECTED']{background:#fbe5e0;color:#9b392b}
+.manager-leave-btn{font:600 13px 'Inter',sans-serif;padding:10px 15px;border-radius:8px;border:1px solid transparent;cursor:pointer}
+.manager-leave-btn:disabled{opacity:.52;cursor:not-allowed}
+.manager-leave-btn-ghost{border-color:var(--line);background:#fff;color:var(--espresso)}
+.manager-leave-btn-approve{background:#38794c;color:#fff}.manager-leave-btn-reject{background:#a84133;color:#fff}
+.manager-leave-link{border:0;background:transparent;color:var(--caramel-dark);padding:5px 0;font-weight:600;cursor:pointer;margin-bottom:12px}
+.manager-leave-more{text-align:center;padding:14px 0}
+.manager-leave-banner{padding:12px 22px;border-bottom:1px solid var(--line);background:#ecf7ef;font-size:13px;color:#25693a}
+.manager-leave-banner.is-error{background:#ffedeb;color:#922f26}
+.manager-leave-detail h3{font-size:19px;margin:4px 0 15px}.manager-leave-info{display:grid;gap:10px;margin:0 0 18px}
+.manager-leave-info div{padding-bottom:9px;border-bottom:1px solid var(--paper-dim)}
+.manager-leave-info dt{color:var(--ink-soft);font-size:12px}.manager-leave-info dd{margin:4px 0 0;font-size:14px;overflow-wrap:anywhere;white-space:pre-wrap}
+.manager-leave-shifts{border:1px solid var(--line);border-radius:10px;padding:14px;margin:15px 0;background:var(--paper)}
+.manager-leave-shifts h4{margin:0 0 9px;font-size:14px}.manager-leave-shifts ul{padding-left:20px;margin:0;display:grid;gap:8px;font-size:13px}
+.manager-leave-quota{font-size:13px;padding:10px 0;color:var(--espresso-soft)}
+.manager-leave-blocked{font-size:13px;background:#ffedeb;color:#9a3226;border-radius:7px;padding:12px;margin:10px 0}
+.manager-leave-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;margin:14px 0}
+.manager-leave-reject-panel{padding:13px 0;border-top:1px solid var(--line)}
+.manager-leave-reject-panel label{font-weight:600;font-size:13px;display:block;margin-bottom:8px}
+.manager-leave-reject-panel label span{color:#a84133}
+.manager-leave-reject-panel textarea{font:inherit;font-size:13px;width:100%;padding:12px;border-radius:7px;border:1px solid var(--line);resize:vertical}
+@media(max-width:650px){.manager-leave-header{padding:18px}.manager-leave-scroll,.manager-leave-detail{padding:16px}.manager-leave-toolbar{padding:14px 16px}}

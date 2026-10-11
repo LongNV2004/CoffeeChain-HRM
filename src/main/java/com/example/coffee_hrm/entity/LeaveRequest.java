@@ -53,5 +53,7 @@ public class LeaveRequest {
 
     @Column(name = "ResolvedDate")
     private LocalDateTime resolvedDate;
-}
 
+    @Column(name = "RejectReason", length = 500)
+    private String rejectReason;
+}
