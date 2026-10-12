@@ -44,13 +44,12 @@
     <th:block th:replace="~{fragments/navbar :: sidebar('staff', ${active})}"></th:block>
 </th:block>
 
-<aside th:fragment="sidebar(role, active)"
-       class="coffee-sidebar"
+<div th:fragment="sidebar(role, active)" class="hrm-shell">
+    <link rel="stylesheet" th:href="@{/css/hrm-design-system.css}">
+    <link rel="stylesheet" th:href="@{/css/CoffeeNavbar.css}">
+<aside class="coffee-sidebar"
        th:attr="data-role=${role}"
        aria-label="Thanh điều hướng CoffeeHRM">
-
-    <!-- Đặt trong fragment để mọi trang dùng navbar cũ đều tự nhận CSS/JS mới. -->
-    <link rel="stylesheet" th:href="@{/css/CoffeeNavbar.css}">
 
     <!-- SVG nội bộ: không phụ thuộc thư viện icon bên ngoài. -->
     <svg class="coffee-icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -132,12 +131,8 @@
         </span>
     </div>
 
-    <!-- Thông báo là mục trên cùng cho cả 3 vai trò. Toàn bộ hàng là một nút bấm. -->
-    <div class="coffee-sidebar-notification" title="Thông báo">
-        <div th:replace="~{fragments/navbar :: bell}"></div>
-    </div>
-
     <nav class="coffee-sidebar-menu" aria-label="Điều hướng theo vai trò">
+        <p class="coffee-menu-caption">Menu chính</p>
         <!-- ADMIN: từng URL được giữ y nguyên navbar gốc. -->
         <div th:if="${role == 'admin'}" class="coffee-menu-section">
             <a class="coffee-menu-item" th:href="@{/dashboard/admin}"
@@ -224,7 +219,6 @@
             </a>
         </div>
 
-        <!-- STAFF: giữ cả hai URL yêu cầu đổi ca như navbar gốc. -->
         <div th:if="${role == 'staff'}" class="coffee-menu-section">
             <a class="coffee-menu-item" th:href="@{/dashboard/staff}"
                th:classappend="${active == 'dashboard'} ? ' is-active'" title="Tổng quan">
@@ -237,10 +231,10 @@
                 <span class="coffee-side-label">Thông tin cá nhân</span>
             </a>
             <div class="coffee-menu-group"
-                 th:classappend="${active == 'schedule' or active == 'availability' or active == 'shift-change' or active == 'requests-history'} ? ' is-open'">
+                 th:classappend="${active == 'schedule' or active == 'availability'} ? ' is-open'">
                 <button type="button" class="coffee-menu-item coffee-group-toggle"
-                        data-group-toggle title="Lịch làm việc & đổi ca"
-                        th:attr="aria-expanded=${active == 'schedule' or active == 'availability' or active == 'shift-change' or active == 'requests-history'}">
+                        data-group-toggle title="Lịch làm việc và đổi ca"
+                        th:attr="aria-expanded=${active == 'schedule' or active == 'availability'}">
                     <svg class="coffee-icon"><use href="#coffee-i-shift"/></svg>
                     <span class="coffee-side-label">Lịch làm việc &amp; đổi ca</span>
                     <svg class="coffee-icon coffee-chevron coffee-side-label"><use href="#coffee-i-chevron"/></svg>
@@ -248,8 +242,6 @@
                 <div class="coffee-group-children">
                     <a th:href="@{/schedule/staff}" th:classappend="${active == 'schedule'} ? ' is-active'">Lịch làm việc &amp; Đổi ca</a>
                     <a th:href="@{/availability}" th:classappend="${active == 'availability'} ? ' is-active'">Đăng kí lịch làm việc</a>
-                    <a th:href="@{/dashboard/staff#shift-change}" th:classappend="${active == 'shift-change'} ? ' is-active'">Yêu cầu đổi ca</a>
-                    <a th:href="@{/schedule/staff#requests-history}" th:classappend="${active == 'requests-history'} ? ' is-active'">Lịch sử yêu cầu đổi ca</a>
                 </div>
             </div>
             <a class="coffee-menu-item" th:href="@{/attendance/staff/choose}"
@@ -298,8 +290,54 @@
             </form>
         </div>
     </div>
-    <script th:src="@{/js/CoffeeNavbar.js}" defer></script>
 </aside>
+
+<header class="hrm-topbar">
+    <button class="hrm-menu-btn" type="button" data-sidebar-mobile aria-label="Mở menu" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <path d="M4 7h16M4 12h16M4 17h16"/>
+        </svg>
+    </button>
+    <div class="hrm-topbar-titles">
+        <span class="hrm-topbar-kicker" th:text="${role == 'admin' ? 'Admin' : (role == 'manager' ? 'Quản lý cửa hàng' : 'Nhân viên')}">Admin</span>
+        <strong class="hrm-topbar-title" th:switch="${active}">
+            <span th:case="'dashboard'">Tổng quan</span>
+            <span th:case="'stores'">Cửa hàng</span>
+            <span th:case="'employees'">Nhân sự</span>
+            <span th:case="'recruitment'">Tuyển dụng</span>
+            <span th:case="'training'">Đào tạo</span>
+            <span th:case="'attendance'">Chấm công</span>
+            <span th:case="'reports'">Báo cáo</span>
+            <span th:case="'attendance-report'">Báo cáo</span>
+            <span th:case="'schedule'">Lịch làm việc</span>
+            <span th:case="'availability'">Đăng ký lịch</span>
+            <span th:case="'slot-limits'">Cấu hình ca</span>
+            <span th:case="'leave'">Nghỉ phép</span>
+            <span th:case="'profile'">Thông tin cá nhân</span>
+            <span th:case="*">CoffeeHRM</span>
+        </strong>
+    </div>
+    <div class="hrm-topbar-end">
+        <div class="hrm-topbar-bell">
+            <div th:replace="~{fragments/navbar :: bell}"></div>
+        </div>
+        <div class="hrm-user-pill">
+            <span class="coffee-account-avatar" aria-hidden="true">
+                <img th:if="${currentUserAvatar != null and !#strings.isEmpty(currentUserAvatar)}"
+                     th:src="${currentUserAvatar}" alt=""
+                     onerror="this.hidden=true">
+                <svg class="coffee-icon"><use href="#coffee-i-user"/></svg>
+            </span>
+            <span class="hrm-user-meta">
+                <strong th:text="${currentUserName != null and !#strings.isEmpty(currentUserName) ? currentUserName : 'Tài khoản'}">Tài khoản</strong>
+                <small th:text="${role == 'admin' ? 'Admin' : (role == 'manager' ? 'Quản lý cửa hàng' : 'Nhân viên')}">Nhân viên</small>
+            </span>
+        </div>
+    </div>
+</header>
+<div class="hrm-nav-backdrop" data-sidebar-backdrop></div>
+<script th:src="@{/js/CoffeeNavbar.js}" defer></script>
+</div>
 
 </body>
 </html>

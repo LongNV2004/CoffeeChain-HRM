@@ -1,41 +1,62 @@
-@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Cormorant+Garamond:wght@600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap');
 
-/* Chỉ áp dụng bố cục dịch ngang trên các trang thực sự chứa sidebar. */
+html:has(.coffee-sidebar) {
+    min-height: 100%;
+    background:
+        radial-gradient(900px 520px at 8% -10%, #F6D3BE 0%, transparent 58%),
+        radial-gradient(760px 480px at 100% 100%, #E7D2C2 0%, transparent 52%),
+        linear-gradient(165deg, #F4E4D6 0%, #EFE0D2 42%, #F7EFE6 100%);
+}
+
 body:has(.coffee-sidebar) {
-    --coffee-sidebar-width: 296px;
-    padding-left: var(--coffee-sidebar-width);
+    --shell-inset: 18px;
+    --shell-header: 84px;
+    --shell-surface: #F4F2F0;
+    --coffee-sidebar-width: 248px;
+    margin: 0;
+    background: transparent;
+    padding-top: calc(var(--shell-inset) + var(--shell-header));
+    padding-right: calc(var(--shell-inset) + 10px);
+    padding-bottom: calc(var(--shell-inset) + 20px);
+    padding-left: calc(var(--shell-inset) + var(--coffee-sidebar-width));
     transition: padding-left .22s ease;
 }
-body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 76px; }
-body:has(.coffee-sidebar) main.wrap {
-    width: auto;
-    max-width: none;
-    margin-right: 28px;
-    margin-left: 28px;
+body:has(.coffee-sidebar)::before {
+    content: "";
+    position: fixed;
+    z-index: -1;
+    inset: var(--shell-inset);
+    border-radius: 28px;
+    background: var(--shell-surface);
+    border: 1px solid rgba(255, 255, 255, .72);
+    box-shadow: 0 24px 60px rgba(92, 58, 32, .12);
+    pointer-events: none;
 }
+body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 76px; }
 
 .coffee-sidebar,
 .coffee-sidebar * { box-sizing: border-box; }
 
 .coffee-sidebar {
-    --coffee-ink: #f9efdf;
-    --coffee-muted: #ceaa91;
-    --coffee-highlight: #e9b97f;
+    --coffee-ink: #44403C;
+    --coffee-muted: #A8A29E;
+    --coffee-highlight: #1C1917;
     position: fixed;
-    z-index: 1050;
-    inset: 0 auto 0 0;
+    z-index: 50;
+    top: var(--shell-inset, 18px);
+    bottom: var(--shell-inset, 18px);
+    left: var(--shell-inset, 18px);
     display: flex;
     flex-direction: column;
-    width: 296px;
-    height: 100vh;
-    height: 100dvh;
-    padding: 18px 13px 0;
-    background: linear-gradient(165deg, #1d0e09 0%, #2c160e 54%, #28150f 100%);
-    border-right: 1px solid #4a2b1b;
+    width: var(--coffee-sidebar-width, 248px);
+    height: auto;
+    padding: 18px 14px 0;
+    background: var(--shell-surface, #F4F2F0);
+    border: 0;
+    border-radius: 28px 0 0 28px;
     color: var(--coffee-ink);
-    font: 500 13px/1.55 'Be Vietnam Pro', Arial, sans-serif;
-    box-shadow: 5px 0 20px rgba(26, 13, 6, .09);
-    transition: width .22s ease;
+    font: 500 14px/1.45 'Be Vietnam Pro', Arial, sans-serif;
+    transition: width .22s ease, transform .22s ease;
 }
 
 .coffee-sidebar button,
@@ -43,8 +64,9 @@ body:has(.coffee-sidebar) main.wrap {
 .coffee-sidebar button { cursor: pointer; }
 .coffee-sidebar a { text-decoration: none; }
 .coffee-sidebar button:focus-visible,
-.coffee-sidebar a:focus-visible {
-    outline: 2px solid #ffd491;
+.coffee-sidebar a:focus-visible,
+.hrm-topbar button:focus-visible {
+    outline: 2px solid #6B4F3A;
     outline-offset: 2px;
 }
 .coffee-icon-sprite {
@@ -64,121 +86,109 @@ body:has(.coffee-sidebar) main.wrap {
     stroke-linejoin: round;
 }
 
-/* Header + nút thu gọn. */
 .coffee-sidebar-head {
     display: flex;
     align-items: center;
-    gap: 5px;
-    min-height: 62px;
-    padding: 0 1px 13px 2px;
-    border-bottom: 1px solid rgba(239, 183, 137, .13);
+    gap: 6px;
+    min-height: 52px;
+    padding: 0 4px 8px;
+    border-bottom: 0;
 }
 .coffee-sidebar-brand {
     display: flex;
     align-items: center;
-    gap: 11px;
+    gap: 10px;
     flex: 1;
     min-width: 0;
 }
 .coffee-brand-mark {
     display: grid;
     place-items: center;
-    width: 44px;
-    height: 44px;
-    flex: 0 0 44px;
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
     border-radius: 12px;
-    color: #281309;
-    background: linear-gradient(140deg, #dfb17e, #905837);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1);
+    color: #F6E7D4;
+    background: #3F2E24;
 }
-.coffee-sidebar .coffee-brand-mark .coffee-icon {
-    width: 27px;
-    height: 27px;
-}
-.coffee-brand-title {
-    min-width: 0;
-    white-space: nowrap;
-}
+.coffee-sidebar .coffee-brand-mark .coffee-icon { width: 22px; height: 22px; }
+.coffee-brand-title { min-width: 0; white-space: nowrap; }
 .coffee-brand-title strong {
     display: block;
-    font-family: 'Cormorant Garamond', Georgia, serif;
-    font-size: 25px;
+    color: #1C1917;
+    font-size: 16px;
     font-weight: 700;
-    line-height: 1.05;
-    letter-spacing: .2px;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
 }
 .coffee-brand-title small {
     display: block;
+    margin-top: 2px;
     color: var(--coffee-muted);
-    font: 600 9px/1.4 'Be Vietnam Pro', Arial, sans-serif;
-    letter-spacing: 1.1px;
-    margin-top: 5px;
+    font: 600 10px/1.3 'Be Vietnam Pro', Arial, sans-serif;
+    letter-spacing: .08em;
 }
 .coffee-sidebar-toggle {
     display: grid;
     place-items: center;
-    width: 28px;
+    width: 32px;
     height: 32px;
-    flex: 0 0 28px;
+    flex: 0 0 32px;
     padding: 0;
-    color: #e4b48d;
+    color: #78716C;
     background: transparent;
     border: 0;
     border-radius: 8px;
 }
-.coffee-sidebar-toggle:hover { background: rgba(222, 156, 111, .14); }
+.coffee-sidebar-toggle:hover { background: #F6F3F0; color: #1C1917; }
 
-/* Tên vai trò hiện tại. */
-.coffee-role-chip {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-height: 66px;
-    padding: 12px;
-    margin: 16px 1px 15px;
-    border: 1px solid rgba(188, 113, 74, .21);
-    border-radius: 13px;
-    background: rgba(56, 27, 17, .63);
-}
-.coffee-role-chip > .coffee-icon { color: #f1bc41; }
+.coffee-role-chip { display: none; }
+.coffee-role-chip > .coffee-icon { color: #6B4F3A; }
 .coffee-role-chip small,
 .coffee-role-chip strong { display: block; }
 .coffee-role-chip small {
     color: var(--coffee-muted);
     font-size: 10px;
     font-weight: 700;
-    letter-spacing: .45px;
+    letter-spacing: .06em;
 }
 .coffee-role-chip strong {
-    color: #fff3e6;
-    font-size: 12px;
-    line-height: 1.55;
+    color: #1C1917;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
 }
 
-/* Menu có vùng cuộn riêng, footer không trôi khỏi đáy. */
 .coffee-sidebar-menu {
     flex: 1 1 auto;
     min-height: 0;
     overflow-x: hidden;
     overflow-y: auto;
     scrollbar-width: thin;
-    scrollbar-color: #80523d transparent;
+    scrollbar-color: #D6D3D1 transparent;
     padding: 2px 0 12px;
 }
-.coffee-menu-section { display: flex; flex-direction: column; gap: 5px; }
+.coffee-menu-caption {
+    margin: 8px 0 6px;
+    padding: 0 12px;
+    color: #A8A29E;
+    font-size: 13px;
+    font-weight: 500;
+}
+.coffee-menu-section { display: flex; flex-direction: column; gap: 2px; }
 .coffee-sidebar .coffee-menu-item {
     display: flex;
     width: 100%;
-    min-height: 46px;
+    min-height: 44px;
     align-items: center;
-    gap: 14px;
-    padding: 11px 13px;
+    gap: 12px;
+    padding: 8px 12px;
     border: none;
-    border-radius: 11px;
-    color: #e2c1a9;
+    border-radius: 14px;
+    color: #78716C;
     background: transparent;
     text-align: left;
-    transition: background-color .16s, color .16s;
+    transition: background-color .16s, color .16s, box-shadow .16s;
 }
 .coffee-sidebar .coffee-menu-item > .coffee-icon:first-child { flex-shrink: 0; }
 .coffee-sidebar .coffee-menu-item > span:not(.coffee-menu-count) {
@@ -188,160 +198,106 @@ body:has(.coffee-sidebar) main.wrap {
 }
 .coffee-sidebar .coffee-menu-item:hover,
 .coffee-sidebar .coffee-group-toggle:hover {
-    background: rgba(212, 156, 116, .11);
-    color: #ffdbb4;
+    background: rgba(255, 255, 255, .55);
+    color: #1C1917;
 }
 .coffee-sidebar .coffee-menu-item.is-active {
-    color: #2b170d;
-    background: linear-gradient(100deg, #e3b078, #9d6245);
-    font-weight: 700;
-    box-shadow: 0 5px 12px rgba(13, 6, 3, .12);
+    color: #1C1917;
+    background: #fff;
+    font-weight: 600;
+    box-shadow: 0 8px 22px rgba(70, 46, 28, .08);
 }
 .coffee-sidebar .coffee-menu-group.is-open > .coffee-group-toggle {
-    color: #ffcf60;
+    color: #3F2E24;
+    font-weight: 600;
 }
 .coffee-sidebar .coffee-group-toggle .coffee-chevron {
-    width: 17px;
-    height: 17px;
-    flex: 0 0 17px;
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
     margin-left: auto;
     transition: transform .2s;
 }
 .coffee-menu-group.is-open .coffee-chevron { transform: rotate(180deg); }
 .coffee-group-children {
     display: none;
-    margin: 2px 0 5px 34px;
-    padding: 3px 0 3px 11px;
-    border-left: 1px solid rgba(236, 180, 128, .24);
+    margin: 2px 0 6px 22px;
+    padding: 2px 0 2px 10px;
+    border-left: 1px solid #E7E5E4;
 }
 .coffee-menu-group.is-open .coffee-group-children { display: flex; flex-direction: column; }
 .coffee-sidebar .coffee-group-children a {
     display: block;
-    padding: 9px 12px;
+    padding: 8px 10px;
     margin: 1px 0;
-    color: #cfaa90;
-    font-size: 11px;
-    line-height: 1.7;
+    color: #57534E;
+    font-size: 13px;
+    line-height: 1.45;
     border-radius: 8px;
     overflow-wrap: anywhere;
 }
-.coffee-sidebar .coffee-group-children a:hover,
+.coffee-sidebar .coffee-group-children a:hover { background: #F6F3F0; color: #1C1917; }
 .coffee-sidebar .coffee-group-children a.is-active {
-    color: #ffcf60;
-    background: rgba(227, 176, 120, .1);
+    color: #3F2E24;
+    background: #F3EBE4;
+    font-weight: 600;
 }
 .coffee-sidebar .coffee-menu-count {
     margin-left: auto;
-    padding: 0 5px;
-    color: #ffcf60;
-    font-size: 10px;
+    min-width: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: #FEF3C7;
+    color: #92400E;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
     white-space: nowrap;
 }
-
-/* Thông báo là mục trên cùng của menu, riêng bên ngoài vùng cuộn
-   để popup không bị cắt khi menu của role có nhiều mục. */
-.coffee-sidebar-notification {
-    flex: 0 0 auto;
-    margin: 0 0 7px;
-}
-.coffee-sidebar-notification .notif-wrap { position: static; width: 100%; }
-.coffee-sidebar .coffee-sidebar-notification .notif-bell-btn {
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 14px;
-    position: relative;
-    width: 100%;
-    min-width: 0;
-    min-height: 46px;
-    height: auto;
-    padding: 11px 13px;
-    color: #e2c1a9;
-    background: transparent;
-    border: 0;
-    border-radius: 11px;
-    box-shadow: none;
-    text-align: left;
-    font: inherit;
-    line-height: 1.55;
-}
-.coffee-sidebar .coffee-sidebar-notification .notif-bell-btn > svg {
-    width: 20px;
-    height: 20px;
-    flex: 0 0 20px;
-    fill: none;
-    stroke: currentColor;
-}
-.coffee-sidebar .coffee-sidebar-notification .notif-bell-btn:hover,
-.coffee-sidebar .coffee-sidebar-notification .notif-bell-btn[aria-expanded="true"] {
-    color: #ffdbb4;
-    background: rgba(212, 156, 116, .11);
-}
-.coffee-sidebar .coffee-sidebar-notification .notif-bell-btn > .coffee-side-label {
-    flex: 1;
-    min-width: 0;
-}
-.coffee-sidebar .coffee-sidebar-notification .notif-badge {
-    position: absolute;
-    top: 5px;
-    left: 25px;
-    right: auto;
-    transform: none;
-    pointer-events: none;
-}
-/* Popup mở ngang từ sidebar, nằm phía trên thay vì footer. */
-.coffee-sidebar .notif-popup {
-    position: fixed;
-    left: 307px;
-    right: auto;
-    top: clamp(90px, 23vh, 213px);
-    bottom: auto;
-    width: min(360px, calc(100vw - 324px));
-    max-height: min(570px, calc(100dvh - clamp(90px, 23vh, 213px) - 16px));
-    overflow-y: auto;
-    z-index: 1600;
+.coffee-sidebar .coffee-menu-item.is-active .coffee-menu-count {
+    background: #FEF3C7;
+    color: #92400E;
 }
 
-/* Nút quay lại và thông tin tài khoản vẫn được ghim dưới cùng. */
 .coffee-sidebar-bottom {
     flex: 0 0 auto;
-    padding-bottom: max(11px, env(safe-area-inset-bottom));
-    border-top: 1px solid rgba(239, 183, 137, .13);
-    background: #28150f;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    border-top: 0;
+    background: transparent;
 }
 .coffee-sidebar .coffee-back-button {
     display: flex;
     width: 100%;
     align-items: center;
-    gap: 14px;
-    min-height: 41px;
-    padding: 7px 13px;
-    color: #debda5;
+    gap: 12px;
+    min-height: 40px;
+    padding: 8px 12px;
+    color: #57534E;
     text-align: left;
     background: transparent;
     border: 0;
-    border-radius: 9px;
+    border-radius: 10px;
 }
-.coffee-sidebar .coffee-back-button:hover { background: rgba(212, 156, 116, .11); }
+.coffee-sidebar .coffee-back-button:hover { background: #F6F3F0; color: #1C1917; }
 .coffee-account-row {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 13px 2px 0;
-    margin-top: 6px;
-    border-top: 1px solid rgba(239, 183, 137, .13);
+    padding: 12px 4px 0;
+    margin-top: 4px;
+    border-top: 1px solid #F0EEEC;
 }
 .coffee-account-avatar {
     display: grid;
     place-items: center;
-    width: 40px;
-    height: 40px;
-    flex: 0 0 40px;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
     border-radius: 50%;
     overflow: hidden;
-    color: #412617;
-    background: linear-gradient(120deg, #f8d5a2, #aa6b49);
-    border: 2px solid rgba(255, 229, 196, .46);
+    color: #F6E7D4;
+    background: #6B4F3A;
 }
 .coffee-account-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .coffee-account-avatar img:not([hidden]) ~ svg { display: none; }
@@ -354,67 +310,197 @@ body:has(.coffee-sidebar) main.wrap {
     white-space: nowrap;
     text-overflow: ellipsis;
 }
-.coffee-account-info strong { font-size: 11px; color: #fff4e7; }
-.coffee-account-info small { font-size: 10px; color: var(--coffee-muted); }
+.coffee-account-info strong { font-size: 13px; color: #1C1917; }
+.coffee-account-info small { font-size: 11px; color: var(--coffee-muted); }
 .coffee-logout-form { flex: 0 0 auto; margin: 0; }
 .coffee-sidebar .coffee-logout-button {
     display: grid;
     place-items: center;
-    width: 30px;
+    width: 34px;
     height: 34px;
     padding: 0;
     border: 0;
     border-radius: 8px;
-    color: #e5b188;
+    color: #78716C;
     background: transparent;
 }
-.coffee-sidebar .coffee-logout-button:hover { color: #fff; background: rgba(212, 156, 116, .14); }
+.coffee-sidebar .coffee-logout-button:hover { color: #B42318; background: #FEF2F2; }
 
-/* Thu gọn thật sự: xóa không gian chữ, không ép cắt chữ như ảnh lỗi. */
 .coffee-sidebar.is-collapsed { width: 76px; padding-right: 10px; padding-left: 10px; }
 .coffee-sidebar.is-collapsed .coffee-side-label { display: none !important; }
+.coffee-sidebar.is-collapsed .coffee-menu-caption { display: none; }
 .coffee-sidebar.is-collapsed .coffee-sidebar-head { flex-direction: column; gap: 4px; padding-bottom: 8px; }
-.coffee-sidebar.is-collapsed .coffee-sidebar-brand { flex: 0 0 44px; }
-.coffee-sidebar.is-collapsed .coffee-sidebar-toggle {
-    width: 44px;
-    height: 27px;
-    transform: rotate(180deg);
-}
-.coffee-sidebar.is-collapsed .coffee-role-chip {
-    justify-content: center;
-    min-height: 44px;
-    margin: 12px 0;
-    padding: 10px;
-}
+.coffee-sidebar.is-collapsed .coffee-sidebar-brand { flex: 0 0 40px; }
+.coffee-sidebar.is-collapsed .coffee-sidebar-toggle { width: 40px; height: 28px; transform: rotate(180deg); }
 .coffee-sidebar.is-collapsed .coffee-menu-item,
-.coffee-sidebar.is-collapsed .coffee-back-button,
-.coffee-sidebar.is-collapsed .coffee-sidebar-notification .notif-bell-btn {
+.coffee-sidebar.is-collapsed .coffee-back-button {
     justify-content: center;
     gap: 0;
-    padding: 11px;
-}
-.coffee-sidebar.is-collapsed .coffee-sidebar-notification .notif-badge {
-    left: 24px;
+    padding: 10px;
 }
 .coffee-sidebar.is-collapsed .coffee-group-children { display: none !important; }
 .coffee-sidebar.is-collapsed .coffee-account-row { justify-content: center; flex-wrap: wrap; gap: 2px; }
 .coffee-sidebar.is-collapsed .coffee-logout-form { flex: 0 0 100%; display: flex; justify-content: center; }
-.coffee-sidebar.is-collapsed .notif-popup {
-    left: 85px;
-    width: min(360px, calc(100vw - 101px));
-}
 
-@media (max-width: 700px) {
-    body:has(.coffee-sidebar) main.wrap { margin-right: 12px; margin-left: 12px; }
-    .coffee-sidebar:not(.is-collapsed) .notif-popup {
-        left: 8px;
-        top: clamp(90px, 23vh, 213px);
-        bottom: auto;
-        width: min(360px, calc(100vw - 16px));
+.hrm-topbar {
+    position: fixed;
+    z-index: 40;
+    top: var(--shell-inset, 18px);
+    right: var(--shell-inset, 18px);
+    left: calc(var(--shell-inset, 18px) + var(--coffee-sidebar-width, 248px));
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    height: var(--shell-header, 84px);
+    padding: 0 18px 0 8px;
+    background: var(--shell-surface, #F4F2F0);
+    border: 0;
+    border-radius: 0 28px 0 0;
+    transition: left .22s ease;
+}
+.hrm-topbar-titles { min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+.hrm-topbar-kicker { display: none; }
+.hrm-topbar-title {
+    color: #1C1917;
+    font: 700 32px/1.15 'Be Vietnam Pro', Arial, sans-serif;
+    letter-spacing: -0.04em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.hrm-topbar-title span { font: inherit; }
+.hrm-topbar-end {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 0 0 auto;
+}
+.hrm-topbar-bell { position: relative; }
+.hrm-user-pill {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 52px;
+    max-width: 240px;
+    padding: 6px 16px 6px 6px;
+    border-radius: 999px;
+    background: #fff;
+    border: 1px solid rgba(255, 255, 255, .9);
+    box-shadow: 0 8px 22px rgba(70, 46, 28, .06);
+}
+.hrm-user-pill .coffee-icon {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.hrm-user-meta { min-width: 0; display: flex; flex-direction: column; }
+.hrm-user-meta strong,
+.hrm-user-meta small {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.hrm-user-meta strong {
+    color: #1C1917;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+.hrm-user-meta small {
+    margin-top: 2px;
+    color: #A8A29E;
+    font-size: 12px;
+    line-height: 1.2;
+}
+.hrm-topbar .coffee-side-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.hrm-topbar .notif-wrap { position: relative; }
+.hrm-topbar .notif-bell-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    border: 1px solid #E7E5E4;
+    background: #fff;
+    color: #44403C;
+}
+.hrm-topbar .notif-bell-btn:hover,
+.hrm-topbar .notif-bell-btn[aria-expanded="true"] { background: #FAF7F4; }
+.hrm-topbar .notif-popup { z-index: 80; }
+.hrm-menu-btn {
+    display: none;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 1px solid #E7E5E4;
+    border-radius: 12px;
+    background: #fff;
+    color: #1C1917;
+    cursor: pointer;
+}
+.hrm-menu-btn svg { width: 18px; height: 18px; }
+.hrm-nav-backdrop { display: none; }
+
+@media (max-width: 900px) {
+    body:has(.coffee-sidebar),
+    body:has(.coffee-sidebar.is-collapsed) {
+        --shell-inset: 0px;
+        --shell-header: 68px;
+        --coffee-sidebar-width: 0px;
+        padding-left: 0;
+        padding-right: 0;
+    }
+    body:has(.coffee-sidebar)::before { border-radius: 0; }
+    .coffee-sidebar {
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: min(300px, 88vw);
+        border-radius: 0 20px 20px 0;
+        background: #F7F5F3;
+        transform: translateX(-110%);
+        box-shadow: none;
+    }
+    body.hrm-nav-open .coffee-sidebar {
+        transform: none;
+        box-shadow: 16px 0 40px rgba(28, 25, 23, .16);
+    }
+    .hrm-topbar {
+        left: 0;
+        right: 0;
+        top: 0;
+        z-index: 46;
+        height: 68px;
+        padding: 0 14px;
+        border-radius: 0;
+    }
+    .hrm-topbar-title { font-size: 22px; }
+    .hrm-user-meta small { display: none; }
+    .hrm-user-pill { max-width: 168px; min-height: 44px; padding-right: 12px; }
+    .hrm-menu-btn { display: grid; }
+    body.hrm-nav-open .hrm-nav-backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 45;
+        background: rgba(28, 25, 23, .38);
+    }
+    .hrm-topbar .notif-popup {
+        position: fixed;
+        top: 72px;
+        right: 12px;
+        left: auto;
+        width: min(360px, calc(100vw - 24px));
     }
 }
+
 @media (prefers-reduced-motion: reduce) {
     body:has(.coffee-sidebar),
     .coffee-sidebar,
-    .coffee-sidebar * { transition-duration: .01ms !important; }
+    .hrm-topbar { transition-duration: .01ms !important; }
 }
