@@ -111,4 +111,12 @@ public interface ShiftChangeRequestRepository extends JpaRepository<ShiftChangeR
     List<ShiftChangeRequest> findPendingForAffectedAssignments(
             @Param("assignmentIds") List<Integer> assignmentIds,
             @Param("status") ApprovalStatus status);
+
+    @Query("""
+           SELECT scr FROM ShiftChangeRequest scr
+           WHERE scr.assignment.id = :assignmentId
+              OR scr.targetAssignment.id = :assignmentId
+           """)
+    List<ShiftChangeRequest> findAllByAssignmentId(@Param("assignmentId") Integer assignmentId);
 }
+

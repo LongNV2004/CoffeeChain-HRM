@@ -128,6 +128,10 @@ public class ScheduleServiceImpl implements ScheduleService {
         if (assignment.getCancelledByLeaveRequest() != null) {
             throw new BusinessException("Không thể xóa ca đã hủy do đơn nghỉ được duyệt.");
         }
+        List<ShiftChangeRequest> relatedRequests = shiftChangeRequestRepository.findAllByAssignmentId(assignment.getId());
+        if (!relatedRequests.isEmpty()) {
+            shiftChangeRequestRepository.deleteAll(relatedRequests);
+        }
         shiftAssignmentRepository.delete(assignment);
     }
 
@@ -168,6 +172,11 @@ public class ScheduleServiceImpl implements ScheduleService {
             if (!isShiftStillUpcoming(targetAssignment.getWorkDate(), targetStart)) {
                 throw new BusinessException("Không thể đổi với ca làm việc đã qua.");
             }
+            if (assignment.getShift() != null && targetAssignment.getShift() != null
+                    && Objects.equals(targetAssignment.getShift().getId(), assignment.getShift().getId())
+                    && Objects.equals(targetAssignment.getWorkDate(), assignment.getWorkDate())) {
+                throw new BusinessException("Hai ca làm việc cùng loại trong cùng một ngày, không thể hoán đổi.");
+            }
             targetEmployee = targetAssignment.getEmployee();
             reasonPrefix = "[Đổi chéo ca với: " + targetEmployee.getFullName() + " - " + targetAssignment.getShift().getShiftName() + " (" + targetAssignment.getWorkDate().format(DATE_FORMATTER) + ")] ";
         } else if ("TRANSFER".equalsIgnoreCase(changeType)) {
@@ -185,7 +194,11 @@ public class ScheduleServiceImpl implements ScheduleService {
         } else {
             reasonPrefix = "[Nhờ Quản lý sắp xếp người thay thế] ";
         }
-        String fullReason = reasonPrefix + request.getReason().trim();
+        String rawReason = request.getReason() != null ? request.getReason().trim() : "";
+        String fullReason = reasonPrefix + rawReason;
+        if (fullReason.length() > 255) {
+            fullReason = fullReason.substring(0, 255);
+        }
         Boolean isTargetAgreed = "MANAGER_ASSIGN".equalsIgnoreCase(changeType) ? Boolean.TRUE : null;
         LocalDateTime targetAgreedAt = "MANAGER_ASSIGN".equalsIgnoreCase(changeType) ? VietnamTime.now() : null;
         ShiftChangeRequest changeRequest = ShiftChangeRequest.builder() .assignment(assignment) .employee(currentEmployee) .targetAssignment(targetAssignment) .targetEmployee(targetEmployee) .isTargetAgreed(isTargetAgreed) .targetAgreedAt(targetAgreedAt) .reason(fullReason) .status(ApprovalStatus.PENDING) .build();
@@ -245,6 +258,58 @@ public class ScheduleServiceImpl implements ScheduleService {
                 throw new BusinessException("Ca đổi chéo không còn hiệu lực.");
             }
             guardShiftSwapAgainstApprovedLeave(requester, targetEmp, assignment, targetAssignment);
+
+            if (assignment.getShift() != null && targetAssignment.getShift() != null) {
+                if (Objects.equals(assignment.getShift().getId(), targetAssignment.getShift().getId())
+                        && Objects.equals(assignment.getWorkDate(), targetAssignment.getWorkDate())) {
+                    throw new BusinessException("Hai ca làm việc cùng loại trong cùng một ngày, không thể hoán đổi.");
+                }
+
+                if (shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus(
+                        targetEmp.getId(), assignment.getShift().getId(), assignment.getWorkDate(), AssignmentStatus.ASSIGNED)) {
+                    throw new BusinessException("Nhân viên " + targetEmp.getFullName() + " đã có ca làm việc này trên lịch rồi.");
+                }
+
+                if (shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus(
+                        requester.getId(), targetAssignment.getShift().getId(), targetAssignment.getWorkDate(), AssignmentStatus.ASSIGNED)) {
+                    throw new BusinessException("Nhân viên " + requester.getFullName() + " đã có ca làm việc này trên lịch rồi.");
+                }
+
+                if (assignment.getWorkDate() != null) {
+                    List<ShiftAssignment> targetExistingSameDay = shiftAssignmentRepository.findByEmployee_IdAndWorkDateAndStatus(
+                            targetEmp.getId(), assignment.getWorkDate(), AssignmentStatus.ASSIGNED);
+                    for (ShiftAssignment existing : targetExistingSameDay) {
+                        if (Objects.equals(existing.getId(), targetAssignment.getId())) {
+                            continue;
+                        }
+                        Shift otherShift = existing.getShift();
+                        Shift newShift = assignment.getShift();
+                        if (otherShift != null && newShift != null
+                                && newShift.getStartTime().isBefore(otherShift.getEndTime())
+                                && newShift.getEndTime().isAfter(otherShift.getStartTime())) {
+                            throw new BusinessException("Nhân viên " + targetEmp.getFullName() + " bị trùng giờ ca làm việc khác trong ngày " + assignment.getWorkDate().format(DATE_FORMATTER) + ".");
+                        }
+                    }
+                }
+
+                if (targetAssignment.getWorkDate() != null) {
+                    List<ShiftAssignment> reqExistingSameDay = shiftAssignmentRepository.findByEmployee_IdAndWorkDateAndStatus(
+                            requester.getId(), targetAssignment.getWorkDate(), AssignmentStatus.ASSIGNED);
+                    for (ShiftAssignment existing : reqExistingSameDay) {
+                        if (Objects.equals(existing.getId(), assignment.getId())) {
+                            continue;
+                        }
+                        Shift otherShift = existing.getShift();
+                        Shift newShift = targetAssignment.getShift();
+                        if (otherShift != null && newShift != null
+                                && newShift.getStartTime().isBefore(otherShift.getEndTime())
+                                && newShift.getEndTime().isAfter(otherShift.getStartTime())) {
+                            throw new BusinessException("Nhân viên " + requester.getFullName() + " bị trùng giờ ca làm việc khác trong ngày " + targetAssignment.getWorkDate().format(DATE_FORMATTER) + ".");
+                        }
+                    }
+                }
+            }
+
             assignment.setEmployee(targetEmp);
             targetAssignment.setEmployee(requester);
             shiftAssignmentRepository.save(assignment);

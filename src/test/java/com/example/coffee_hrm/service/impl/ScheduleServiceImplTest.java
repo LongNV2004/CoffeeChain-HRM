@@ -464,6 +464,81 @@ class ScheduleServiceImplTest {
         assertTrue(view.getShiftRows().getFirst().getDayCells().get(1).getAssignments().isEmpty());
     }
 
+    @Test
+    void cancelAssignmentCleansUpRelatedChangeRequests() {
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        ShiftAssignment assignment = ShiftAssignment.builder()
+                .id(100)
+                .shift(shiftMorning)
+                .employee(empTuan)
+                .workDate(VietnamTime.today().plusDays(1))
+                .build();
+        when(shiftAssignmentRepository.findByIdWithDetails(100)).thenReturn(Optional.of(assignment));
+        ShiftChangeRequest related = ShiftChangeRequest.builder().id(50).assignment(assignment).build();
+        when(shiftChangeRequestRepository.findAllByAssignmentId(100)).thenReturn(List.of(related));
+
+        scheduleService.cancelAssignment(100, managerUser);
+
+        verify(shiftChangeRequestRepository).deleteAll(List.of(related));
+        verify(shiftAssignmentRepository).delete(assignment);
+    }
+
+    @Test
+    void resolveShiftChangeSwapRejectsWhenTargetAlreadyHasShift() {
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        User mgr = buildUser(2, "manager1", RoleName.MANAGER, empManager);
+        when(userRepository.findById(2)).thenReturn(Optional.of(mgr));
+
+        Shift shiftEvening = Shift.builder().id(2).shiftName("Ca Chiều").store(store).build();
+        LocalDate d1 = VietnamTime.today().plusDays(1);
+        LocalDate d2 = VietnamTime.today().plusDays(2);
+
+        ShiftAssignment assignmentA = ShiftAssignment.builder()
+                .id(100).employee(empTuan).shift(shiftMorning).workDate(d1).status(AssignmentStatus.ASSIGNED).build();
+        ShiftAssignment assignmentB = ShiftAssignment.builder()
+                .id(101).employee(empThu).shift(shiftEvening).workDate(d2).status(AssignmentStatus.ASSIGNED).build();
+
+        ShiftChangeRequest req = ShiftChangeRequest.builder()
+                .id(55).assignment(assignmentA).targetAssignment(assignmentB).employee(empTuan).targetEmployee(empThu).status(ApprovalStatus.PENDING).build();
+
+        when(shiftChangeRequestRepository.findByIdWithDetails(55)).thenReturn(Optional.of(req));
+        when(employeeRepository.lockByIdForLeaveRequest(20)).thenReturn(Optional.of(empTuan));
+        when(employeeRepository.lockByIdForLeaveRequest(30)).thenReturn(Optional.of(empThu));
+
+        when(shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus(
+                30, 1, d1, AssignmentStatus.ASSIGNED)).thenReturn(true);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> scheduleService.resolveShiftChange(55, true, null, managerUser));
+        assertTrue(ex.getMessage().contains("đã có ca làm việc này trên lịch rồi"));
+        verify(shiftAssignmentRepository, never()).save(any());
+    }
+
+    @Test
+    void resolveShiftChangeSwapRejectsSameShiftAndDate() {
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        User mgr = buildUser(2, "manager1", RoleName.MANAGER, empManager);
+        when(userRepository.findById(2)).thenReturn(Optional.of(mgr));
+
+        LocalDate d1 = VietnamTime.today().plusDays(1);
+        ShiftAssignment assignmentA = ShiftAssignment.builder()
+                .id(100).employee(empTuan).shift(shiftMorning).workDate(d1).status(AssignmentStatus.ASSIGNED).build();
+        ShiftAssignment assignmentB = ShiftAssignment.builder()
+                .id(101).employee(empThu).shift(shiftMorning).workDate(d1).status(AssignmentStatus.ASSIGNED).build();
+
+        ShiftChangeRequest req = ShiftChangeRequest.builder()
+                .id(56).assignment(assignmentA).targetAssignment(assignmentB).employee(empTuan).targetEmployee(empThu).status(ApprovalStatus.PENDING).build();
+
+        when(shiftChangeRequestRepository.findByIdWithDetails(56)).thenReturn(Optional.of(req));
+        when(employeeRepository.lockByIdForLeaveRequest(20)).thenReturn(Optional.of(empTuan));
+        when(employeeRepository.lockByIdForLeaveRequest(30)).thenReturn(Optional.of(empThu));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> scheduleService.resolveShiftChange(56, true, null, managerUser));
+        assertTrue(ex.getMessage().contains("Hai ca làm việc cùng loại trong cùng một ngày"));
+        verify(shiftAssignmentRepository, never()).save(any());
+    }
+
     private User buildUser(Integer id, String username, RoleName roleName, Employee employee) {
         Role role = Role.builder().id(roleName == RoleName.ADMIN ? 1 : (roleName == RoleName.MANAGER ? 2 : 3)).roleName(roleName).build();
         return User.builder()
