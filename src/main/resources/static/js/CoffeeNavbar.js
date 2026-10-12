@@ -102,9 +102,49 @@
         applyState();
     }
 
+    function closeAccountMenus() {
+        document.querySelectorAll('[data-account]').forEach(function (root) {
+            const menu = root.querySelector('.hrm-account-menu');
+            const button = root.querySelector('[data-account-toggle]');
+            root.classList.remove('is-open');
+            if (menu) menu.setAttribute('hidden', '');
+            if (button) button.setAttribute('aria-expanded', 'false');
+        });
+    }
+
+    function initAccountMenus() {
+        document.querySelectorAll('[data-account]').forEach(function (root) {
+            if (root.dataset.accountReady === 'true') return;
+            root.dataset.accountReady = 'true';
+            const button = root.querySelector('[data-account-toggle]');
+            const menu = root.querySelector('.hrm-account-menu');
+            if (!button || !menu) return;
+
+            button.addEventListener('click', function (event) {
+                event.stopPropagation();
+                const willOpen = menu.hasAttribute('hidden');
+                closeAccountMenus();
+                if (willOpen) {
+                    menu.removeAttribute('hidden');
+                    root.classList.add('is-open');
+                    button.setAttribute('aria-expanded', 'true');
+                }
+            });
+            menu.addEventListener('click', function (event) {
+                event.stopPropagation();
+            });
+        });
+    }
+
     function initAll() {
         document.querySelectorAll('.coffee-sidebar').forEach(initSidebar);
+        initAccountMenus();
     }
+
+    document.addEventListener('click', closeAccountMenus);
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') closeAccountMenus();
+    });
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initAll, { once: true });

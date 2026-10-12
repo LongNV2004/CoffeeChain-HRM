@@ -3,445 +3,260 @@
 <head>
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-    <title>
-        Staff Dashboard — CoffeeHRM
-    </title>
+    <title>Staff Dashboard — CoffeeHRM</title>
     <link href="https://fonts.googleapis.com" rel="preconnect"/>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
     <link rel="stylesheet" th:href="@{/css/StaffDashboard.css}"/>
     <link rel="stylesheet" th:href="@{/css/StaffLeaveRequest.css}"/>
-    <script src="https://unpkg.com/lucide@latest">
-    </script>
 </head>
 <body>
-<header th:replace="~{fragments/navbar :: staff('dashboard')}">
-</header>
-<main class="wrap dash-main">
-    <section class="welcome">
-        <div class="eyebrow">
-            Cá nhân — Staff
+<header th:replace="~{fragments/navbar :: staff('dashboard')}"></header>
+<main class="wrap dash-main hrm-board hrm-staff">
+    <section class="alert-incoming-banner" th:if="${!#lists.isEmpty(dashboard.incomingShiftChanges)}">
+        <div>
+            <h3>
+                Bạn có
+                <span th:text="${#lists.size(dashboard.incomingShiftChanges)}">1</span>
+                lời mời đổi ca từ đồng nghiệp đang chờ bạn xác nhận!
+            </h3>
+            <p th:with="firstReq=${dashboard.incomingShiftChanges[0]}">
+                Đồng nghiệp
+                <strong th:text="${firstReq.requesterName}">Nguyễn Văn A</strong>
+                muốn đổi:
+                <strong th:text="${firstReq.proposalSummary}">Đổi ca</strong>.
+            </p>
         </div>
-        <h1>
-            Xin chào Staff
-        </h1>
-        <p>
-     <span th:text="${dashboard.displayName}">
-      Staff
-     </span>
-            · tài khoản
-            <strong th:text="${dashboard.username}">
-                username
-            </strong>
-        </p>
+        <a class="hrm-banner-link" th:href="@{/schedule/staff}">Xem chi tiết lịch</a>
     </section>
-    <section class="panel">
-        <h2>
-            <button class="notif-open-link" data-open-notifications="" type="button">
-                Thông báo
-            </button>
-        </h2>
-        <p>
-            Mở chuông ở góc phải thanh tiêu đề để xem thông báo gửi đến tài khoản của bạn.
-        </p>
+
+    <section class="welcome">
+        <div>
+            <div class="eyebrow">Cá nhân — Staff</div>
+            <h1>Xin chào Staff</h1>
+            <p>
+                <span th:text="${dashboard.displayName}">Staff</span>
+                · tài khoản
+                <strong th:text="${dashboard.username}">username</strong>
+            </p>
+        </div>
+        <div class="hrm-hero-actions">
+            <button class="hrm-chip notif-open-link" data-open-notifications type="button">Thông báo</button>
+        </div>
     </section>
-    <section class="panel" id="training">
-        <h2>
-            Đào tạo
-        </h2>
-        <p th:if="${activeTrainingCount != null and activeTrainingCount &gt; 0}">
+
+    <article class="panel" id="attendance">
+        <h2>Chấm công hôm nay</h2>
+        <p class="status-line">
+            Trạng thái:
+            <strong th:text="${dashboard.todayAttendanceStatus}">Chưa chấm công</strong>
+        </p>
+        <p>
+            Giờ vào:
+            <span th:text="${dashboard.todayCheckIn != null} ? ${#temporals.format(dashboard.todayCheckIn, 'HH:mm')} : 'Chưa có'">—</span>
+        </p>
+        <p>
+            Giờ ra:
+            <span th:text="${dashboard.todayCheckOut != null} ? ${#temporals.format(dashboard.todayCheckOut, 'HH:mm')} : 'Chưa có'">—</span>
+        </p>
+        <p style="margin-top:12px;">
+            <a class="hrm-text-link" th:href="@{/attendance/staff/history}">Xem lịch sử chấm công →</a>
+        </p>
+    </article>
+
+    <article class="panel" id="profile">
+        <h2>Thông tin cá nhân</h2>
+        <dl class="info-list">
+            <div>
+                <dt>Họ tên</dt>
+                <dd th:text="${dashboard.displayName}">—</dd>
+            </div>
+            <div>
+                <dt>Email</dt>
+                <dd th:text="${dashboard.email != null} ? ${dashboard.email} : 'Chưa cập nhật'">—</dd>
+            </div>
+            <div>
+                <dt>Số điện thoại</dt>
+                <dd th:text="${dashboard.phone != null} ? ${dashboard.phone} : 'Chưa cập nhật'">—</dd>
+            </div>
+            <div>
+                <dt>Cửa hàng</dt>
+                <dd th:text="${dashboard.storeName != null} ? ${dashboard.storeName} : 'Chưa gán cửa hàng'">—</dd>
+            </div>
+            <div>
+                <dt>Trạng thái</dt>
+                <dd th:text="${dashboard.employeeStatus != null} ? ${dashboard.employeeStatus} : '—'">—</dd>
+            </div>
+            <div>
+                <dt>Ngày vào làm</dt>
+                <dd th:text="${dashboard.hireDate != null} ? ${#temporals.format(dashboard.hireDate, 'dd/MM/yyyy')} : '—'">—</dd>
+            </div>
+        </dl>
+    </article>
+
+    <article class="panel" id="training">
+        <h2>Đào tạo</h2>
+        <p th:if="${activeTrainingCount != null and activeTrainingCount > 0}">
             Bạn đang tham gia
-            <strong th:text="${activeTrainingCount}">
-                0
-            </strong>
+            <strong th:text="${activeTrainingCount}">0</strong>
             lớp đào tạo.
         </p>
         <p th:if="${activeTrainingCount == null or activeTrainingCount == 0}">
             Xem các lớp đào tạo bạn được phân công và kết quả Đạt/Không đạt.
         </p>
         <p style="margin-top:12px;">
-            <a style="color:var(--caramel);font-weight:600;font-size:13px;" th:href="@{/training/staff}">
-                Xem danh sách lớp đào tạo →
-            </a>
+            <a class="hrm-text-link" th:href="@{/training/staff}">Xem danh sách lớp đào tạo →</a>
         </p>
-    </section>
-    <!-- Alert Banner when having incoming shift swap requests -->
-    <section class="alert-incoming-banner" style="background: linear-gradient(135deg, #FFF8E1 0%, #FFF3E0 100%); border: 2px solid #FFE082; border-radius: 10px; padding: 18px 24px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; box-shadow: 0 4px 12px rgba(193,121,58,0.1);" th:if="${!#lists.isEmpty(dashboard.incomingShiftChanges)}">
-        <div style="display:flex;align-items:center;gap:14px;">
-            <div style="width:44px;height:44px;border-radius:50%;background:#FFE082;display:flex;align-items:center;justify-content:center;color:#B78103;flex-shrink:0;">
-                <i data-lucide="mail" style="width:24px;height:24px;">
-                </i>
-            </div>
-            <div>
-                <h3 style="margin:0;font-size:16px;color:#B78103;font-weight:700;">
-                    Bạn có
-                    <span th:text="${#lists.size(dashboard.incomingShiftChanges)}">
-        1
-       </span>
-                    lời mời đổi ca từ đồng nghiệp đang chờ bạn xác nhận!
-                </h3>
-                <p style="margin:4px 0 0 0;font-size:13px;color:#5D4037;" th:with="firstReq=${dashboard.incomingShiftChanges[0]}">
-                    Đồng nghiệp
-                    <strong th:text="${firstReq.requesterName}">
-                        Nguyễn Văn A
-                    </strong>
-                    muốn đổi:
-                    <strong th:text="${firstReq.proposalSummary}">
-                        Đổi ca
-                    </strong>
-                    .
-                </p>
-            </div>
-        </div>
-        <a style="background:var(--caramel);color:#fff;padding:10px 20px;border-radius:6px;font-weight:600;font-size:13px;text-decoration:none;white-space:nowrap;box-shadow:0 2px 6px rgba(193,121,58,0.3);display:inline-flex;align-items:center;gap:6px;" th:href="@{/schedule/staff}">
-            Xem chi tiết lịch
-            <i data-lucide="arrow-right" style="width:14px;height:14px;">
-            </i>
-        </a>
-    </section>
-    <section class="split" id="profile">
-        <article class="panel">
-            <h2>
-                Thông tin cá nhân
-            </h2>
-            <dl class="info-list">
-                <div>
-                    <dt>
-                        Họ tên
-                    </dt>
-                    <dd th:text="${dashboard.displayName}">
-                        —
-                    </dd>
-                </div>
-                <div>
-                    <dt>
-                        Email
-                    </dt>
-                    <dd th:text="${dashboard.email != null} ? ${dashboard.email} : 'Chưa cập nhật'">
-                        —
-                    </dd>
-                </div>
-                <div>
-                    <dt>
-                        Số điện thoại
-                    </dt>
-                    <dd th:text="${dashboard.phone != null} ? ${dashboard.phone} : 'Chưa cập nhật'">
-                        —
-                    </dd>
-                </div>
-                <div>
-                    <dt>
-                        Cửa hàng
-                    </dt>
-                    <dd th:text="${dashboard.storeName != null} ? ${dashboard.storeName} : 'Chưa gán cửa hàng'">
-                        —
-                    </dd>
-                </div>
-                <div>
-                    <dt>
-                        Trạng thái
-                    </dt>
-                    <dd th:text="${dashboard.employeeStatus != null} ? ${dashboard.employeeStatus} : '—'">
-                        —
-                    </dd>
-                </div>
-                <div>
-                    <dt>
-                        Ngày vào làm
-                    </dt>
-                    <dd th:text="${dashboard.hireDate != null} ? ${#temporals.format(dashboard.hireDate, 'dd/MM/yyyy')} : '—'">
-                        —
-                    </dd>
-                </div>
-            </dl>
-        </article>
-        <article class="panel" id="attendance">
-            <h2>
-                Chấm công hôm nay
-            </h2>
-            <p class="status-line">
-                Trạng thái:
-                <strong th:text="${dashboard.todayAttendanceStatus}">
-                    Chưa chấm công
-                </strong>
-            </p>
-            <p>
-                Giờ vào:
-                <span th:text="${dashboard.todayCheckIn != null} ? ${#temporals.format(dashboard.todayCheckIn, 'HH:mm')} : 'Chưa có'">
-       —
-      </span>
-            </p>
-            <p>
-                Giờ ra:
-                <span th:text="${dashboard.todayCheckOut != null} ? ${#temporals.format(dashboard.todayCheckOut, 'HH:mm')} : 'Chưa có'">
-       —
-      </span>
-            </p>
-            <p style="margin-top:12px;">
-                <a style="color:var(--caramel);font-weight:600;font-size:13px;" th:href="@{/attendance/staff/history}">
-                    Xem lịch sử chấm công →
-                </a>
-            </p>
-        </article>
-    </section>
+    </article>
+
     <section class="panel" id="schedule">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;flex-wrap:wrap;">
-            <h2 style="margin:0;">
-                Lịch làm việc
-            </h2>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <a style="background:var(--caramel);color:#fff;padding:6px 12px;border-radius:4px;font-size:12px;font-weight:600;" th:href="@{/schedule/staff}">
-                    Xem chi tiết &amp; Đổi ca →
-                </a>
-                <a style="border:1px solid var(--line);background:#fff;color:var(--espresso);padding:6px 12px;border-radius:4px;font-size:12px;font-weight:600;" th:href="@{/availability}">
-                    Đăng kí lịch làm việc
-                </a>
+        <div class="hrm-panel-tools">
+            <h2>Lịch làm việc</h2>
+            <div class="hrm-inline-actions">
+                <a class="primary-btn" th:href="@{/schedule/staff}">Xem chi tiết &amp; Đổi ca →</a>
+                <a class="hrm-chip" th:href="@{/availability}">Đăng kí lịch làm việc</a>
             </div>
         </div>
-        <p class="empty" th:if="${#lists.isEmpty(dashboard.upcomingShifts)}">
-            Chưa có ca làm việc sắp tới.
-        </p>
+        <p class="empty" th:if="${#lists.isEmpty(dashboard.upcomingShifts)}">Chưa có ca làm việc sắp tới.</p>
         <table th:if="${!#lists.isEmpty(dashboard.upcomingShifts)}">
             <thead>
             <tr>
-                <th>
-                    Ngày
-                </th>
-                <th>
-                    Ca
-                </th>
-                <th>
-                    Giờ
-                </th>
-                <th>
-                    Trạng thái
-                </th>
+                <th>Ngày</th>
+                <th>Ca</th>
+                <th>Giờ</th>
+                <th>Trạng thái</th>
             </tr>
             </thead>
             <tbody>
             <tr th:each="item : ${dashboard.upcomingShifts}">
-                <td th:text="${#temporals.format(item.workDate, 'dd/MM/yyyy')}">
-                    01/01/2026
-                </td>
-                <td th:text="${item.shiftName}">
-                    Ca sáng
-                </td>
+                <td th:text="${#temporals.format(item.workDate, 'dd/MM/yyyy')}">01/01/2026</td>
+                <td th:text="${item.shiftName}">Ca sáng</td>
                 <td>
-        <span th:text="${#temporals.format(item.startTime, 'HH:mm')}">
-         08:00
-        </span>
+                    <span th:text="${#temporals.format(item.startTime, 'HH:mm')}">08:00</span>
                     –
-                    <span th:text="${#temporals.format(item.endTime, 'HH:mm')}">
-         12:00
-        </span>
+                    <span th:text="${#temporals.format(item.endTime, 'HH:mm')}">12:00</span>
                 </td>
-                <td th:text="${item.status}">
-                    Assigned
-                </td>
+                <td th:text="${item.status}">Assigned</td>
             </tr>
             </tbody>
         </table>
     </section>
+
     <section class="split">
         <article class="panel" id="leave">
             <div class="leave-heading">
-                <h2>
-                    Đơn nghỉ phép
-                </h2>
+                <h2>Đơn nghỉ phép</h2>
                 <div class="leave-actions">
-                    <button class="leave-btn leave-btn-outline" id="openLeaveHistory" type="button">
-                        Xem lịch sử
-                    </button>
-                    <button class="leave-btn leave-btn-primary" id="openLeaveModal" type="button">
-                        + Tạo đơn
-                    </button>
+                    <button class="leave-btn leave-btn-outline" id="openLeaveHistory" type="button">Xem lịch sử</button>
+                    <button class="leave-btn leave-btn-primary" id="openLeaveModal" type="button">+ Tạo đơn</button>
                 </div>
             </div>
-            <p class="leave-alert leave-alert-success" th:if="${leaveSuccess != null}" th:text="${leaveSuccess}">
-            </p>
-            <p class="leave-alert leave-alert-error" th:if="${leaveError != null}" th:text="${leaveError}">
-            </p>
-            <p class="empty" th:if="${#lists.isEmpty(dashboard.leaveRequests)}">
-                Chưa có đơn nghỉ phép.
-            </p>
+            <p class="leave-alert leave-alert-success" th:if="${leaveSuccess != null}" th:text="${leaveSuccess}"></p>
+            <p class="leave-alert leave-alert-error" th:if="${leaveError != null}" th:text="${leaveError}"></p>
+            <p class="empty" th:if="${#lists.isEmpty(dashboard.leaveRequests)}">Chưa có đơn nghỉ phép.</p>
             <ul class="request-list" th:if="${!#lists.isEmpty(dashboard.leaveRequests)}">
                 <li th:each="item : ${dashboard.leaveRequests}">
-                    <strong th:text="${#temporals.format(item.startDate, 'dd/MM/yyyy') + ' → ' + #temporals.format(item.endDate, 'dd/MM/yyyy')}">
-                        date
-                    </strong>
-                    <span th:text="${item.status}">
-        Pending
-       </span>
-                    <p th:text="${item.reason != null} ? ${item.reason} : 'Không có lý do'">
-                        reason
-                    </p>
+                    <strong th:text="${#temporals.format(item.startDate, 'dd/MM/yyyy') + ' → ' + #temporals.format(item.endDate, 'dd/MM/yyyy')}">date</strong>
+                    <span th:text="${item.status}">Pending</span>
+                    <p th:text="${item.reason != null} ? ${item.reason} : 'Không có lý do'">reason</p>
                 </li>
             </ul>
         </article>
         <article class="panel" id="shift-change">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-                <h2 style="margin:0;">
-                    Yêu cầu đổi ca
-                </h2>
-                <a style="font-size:13px;color:var(--caramel);font-weight:600;display:inline-flex;align-items:center;gap:4px;" th:href="@{/schedule/staff}">
-                    Xem lịch làm việc
-                    <i data-lucide="arrow-right" style="width:13px;height:13px;">
-                    </i>
-                </a>
+            <div class="hrm-panel-tools">
+                <h2>Yêu cầu đổi ca</h2>
+                <a class="hrm-text-link" th:href="@{/schedule/staff}">Xem lịch làm việc</a>
             </div>
-            <!-- Incoming invitations -->
-            <div style="margin-bottom:16px;background:#FFFDFB;border:1px solid #FFE082;border-radius:8px;padding:14px;" th:if="${!#lists.isEmpty(dashboard.incomingShiftChanges)}">
-                <div style="font-weight:700;color:#B78103;font-size:13px;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
-                    <i data-lucide="inbox" style="width:16px;height:16px;color:#B78103;">
-                    </i>
-                    Lời mời nhận được (
-                    <span th:text="${#lists.size(dashboard.incomingShiftChanges)}">
-        1
-       </span>
-                    )
+            <div class="hrm-invite" th:if="${!#lists.isEmpty(dashboard.incomingShiftChanges)}">
+                <div class="hrm-invite-title">
+                    Lời mời nhận được (<span th:text="${#lists.size(dashboard.incomingShiftChanges)}">1</span>)
                 </div>
-                <div style="padding:10px 0;border-bottom:1px dashed var(--line);font-size:13px;" th:each="inItem : ${dashboard.incomingShiftChanges}">
-                    <div style="display:flex;justify-content:space-between;align-items:center;">
-                        <strong th:text="${inItem.requesterName}">
-                            Nguyễn Văn A
-                        </strong>
-                        <small style="color:var(--ink-soft);" th:text="${inItem.requestDate != null} ? ${#temporals.format(inItem.requestDate, 'dd/MM/yyyy HH:mm')} : '—'">
-                            20/09/2026
-                        </small>
+                <div class="hrm-invite-item" th:each="inItem : ${dashboard.incomingShiftChanges}">
+                    <div class="hrm-invite-top">
+                        <strong th:text="${inItem.requesterName}">Nguyễn Văn A</strong>
+                        <small th:text="${inItem.requestDate != null} ? ${#temporals.format(inItem.requestDate, 'dd/MM/yyyy HH:mm')} : '—'">20/09/2026</small>
                     </div>
-                    <div style="margin:4px 0;color:var(--espresso-soft);" th:text="${inItem.proposalSummary}">
-                        Đổi chéo ca
-                    </div>
-                    <div style="font-style:italic;font-size:12px;color:var(--ink-soft);margin-bottom:8px;" th:if="${inItem.reason != null &amp;&amp; !inItem.reason.isEmpty()}" th:text="'“' + ${inItem.reason} + '”'">
-                        Lý do
-                    </div>
-                    <div style="display:flex;gap:8px;margin-top:6px;">
-                        <form method="post" style="display:inline;" th:action="@{/schedule/staff/requests/{id}/respond(id=${inItem.requestId})}">
+                    <div th:text="${inItem.proposalSummary}">Đổi chéo ca</div>
+                    <div th:if="${inItem.reason != null and !inItem.reason.isEmpty()}" th:text="'“' + ${inItem.reason} + '”'">Lý do</div>
+                    <div class="hrm-respond">
+                        <form method="post" th:action="@{/schedule/staff/requests/{id}/respond(id=${inItem.requestId})}">
                             <input name="agreed" type="hidden" value="true"/>
-                            <button onclick="return confirm('Bạn có chắc chắn muốn ĐỒNG Ý yêu cầu đổi ca này?')" style="background:#2E7D32;color:#fff;border:none;border-radius:4px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px;" type="submit">
-                                <i data-lucide="check" style="width:13px;height:13px;">
-                                </i>
-                                Đồng ý hỗ trợ
-                            </button>
+                            <button class="hrm-btn-ok" onclick="return confirm('Bạn có chắc chắn muốn ĐỒNG Ý yêu cầu đổi ca này?')" type="submit">Đồng ý hỗ trợ</button>
                         </form>
-                        <form method="post" style="display:inline;" th:action="@{/schedule/staff/requests/{id}/respond(id=${inItem.requestId})}">
+                        <form method="post" th:action="@{/schedule/staff/requests/{id}/respond(id=${inItem.requestId})}">
                             <input name="agreed" type="hidden" value="false"/>
-                            <button onclick="return confirm('Bạn có chắc chắn muốn TỪ CHỐI yêu cầu đổi ca này?')" style="background:transparent;color:#C62828;border:1px solid #FFCDD2;border-radius:4px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px;" type="submit">
-                                <i data-lucide="x" style="width:13px;height:13px;">
-                                </i>
-                                Từ chối
-                            </button>
+                            <button class="hrm-btn-no" onclick="return confirm('Bạn có chắc chắn muốn TỪ CHỐI yêu cầu đổi ca này?')" type="submit">Từ chối</button>
                         </form>
                     </div>
                 </div>
             </div>
-            <!-- Sent requests history -->
             <div th:if="${!#lists.isEmpty(dashboard.shiftChangeRequests)}">
-                <div style="font-weight:600;color:var(--espresso);font-size:13px;margin-bottom:6px;">
-                    Yêu cầu bạn đã gửi:
-                </div>
-                <ul class="request-list" style="margin-top:0;">
+                <div class="hrm-invite-title">Yêu cầu bạn đã gửi:</div>
+                <ul class="request-list">
                     <li th:each="item : ${dashboard.shiftChangeRequests}">
-                        <strong th:text="${item.requestDate != null} ? ${#temporals.format(item.requestDate, 'dd/MM/yyyy HH:mm')} : '—'">
-                            date
-                        </strong>
-                        <span th:text="${item.status}">
-         Pending
-        </span>
-                        <p th:text="${item.reason != null} ? ${item.reason} : 'Không có lý do'">
-                            reason
-                        </p>
+                        <strong th:text="${item.requestDate != null} ? ${#temporals.format(item.requestDate, 'dd/MM/yyyy HH:mm')} : '—'">date</strong>
+                        <span th:text="${item.status}">Pending</span>
+                        <p th:text="${item.reason != null} ? ${item.reason} : 'Không có lý do'">reason</p>
                     </li>
                 </ul>
             </div>
-            <p class="empty" th:if="${#lists.isEmpty(dashboard.incomingShiftChanges) &amp;&amp; #lists.isEmpty(dashboard.shiftChangeRequests)}">
-                Chưa có yêu cầu đổi ca nào.
-            </p>
+            <p class="empty" th:if="${#lists.isEmpty(dashboard.incomingShiftChanges) and #lists.isEmpty(dashboard.shiftChangeRequests)}">Chưa có yêu cầu đổi ca nào.</p>
         </article>
     </section>
-    <div aria-hidden="true" class="leave-overlay" id="leaveModal" th:attr="data-open-on-error=${leaveError != null}" th:data-preview-url="@{/staff/leave/preview}">
-        <section aria-labelledby="leaveModalTitle" aria-modal="true" class="leave-dialog" role="dialog">
-            <header class="leave-dialog-header">
-                <div>
-                    <h2 id="leaveModalTitle">
-                        Tạo đơn xin nghỉ phép
-                    </h2>
-                    <p>
-                        Ngày nghỉ được tính theo ngày có ca đã phân công.
-                    </p>
-                </div>
-                <button aria-label="Đóng" class="leave-close" data-leave-close="" type="button">
-                    ×
-                </button>
-            </header>
-            <form class="leave-dialog-form" id="leaveCreateForm" method="post" th:action="@{/staff/leave}">
-                <div class="leave-date-grid">
-                    <label>
-                        Ngày bắt đầu
-                        <span>
-         *
-        </span>
-                        <input id="leaveStartDate" name="startDate" required="" th:value="${leaveFormStart}" type="date"/>
-                    </label>
-                    <label>
-                        Ngày kết thúc
-                        <span>
-         *
-        </span>
-                        <input id="leaveEndDate" name="endDate" required="" th:value="${leaveFormEnd}" type="date"/>
-                    </label>
-                </div>
-                <label>
-                    Lý do xin nghỉ
-                    <span>
-        *
-       </span>
-                    <textarea maxlength="255" name="reason" placeholder="Nhập lý do nghỉ phép..." required="" rows="4" th:text="${leaveFormReason}"></textarea>
-                </label>
-                <div aria-live="polite" class="leave-preview" id="leavePreview" role="status">
-                    Chọn ngày để kiểm tra số ngày nghỉ và quỹ phép.
-                </div>
-                <div class="leave-form-actions">
-                    <button class="leave-btn leave-btn-outline" data-leave-close="" type="button">
-                        Hủy
-                    </button>
-                    <button class="leave-btn leave-btn-primary" id="leaveSubmit" type="submit">
-                        Gửi đơn
-                    </button>
-                </div>
-            </form>
-        </section>
-    </div>
-    <div aria-hidden="true" class="leave-overlay leave-overlay-drawer" id="leaveHistoryDrawer" th:data-history-url="@{/staff/leave/history}">
-        <section aria-labelledby="leaveHistoryTitle" aria-modal="true" class="leave-drawer" role="dialog">
-            <header class="leave-dialog-header">
-                <div>
-                    <h2 id="leaveHistoryTitle">
-                        Lịch sử xin nghỉ phép
-                    </h2>
-                    <p>
-                        Toàn bộ đơn đã gửi của bạn.
-                    </p>
-                </div>
-                <button aria-label="Đóng" class="leave-close" data-leave-close="" type="button">
-                    ×
-                </button>
-            </header>
-            <div aria-live="polite" class="leave-history-list" id="leaveHistoryList">
-            </div>
-            <div class="leave-history-footer">
-                <button class="leave-btn leave-btn-outline" hidden="" id="leaveLoadMore" type="button">
-                    Tải thêm
-                </button>
-            </div>
-        </section>
-    </div>
 </main>
-<script th:src="@{/js/StaffDashboard.js}">
-</script>
-<script defer="" th:src="@{/js/StaffLeaveRequest.js}">
-</script>
-<script>
-    if (window.lucide) { lucide.createIcons(); }
-</script>
+
+<div aria-hidden="true" class="leave-overlay" id="leaveModal" th:attr="data-open-on-error=${leaveError != null}" th:data-preview-url="@{/staff/leave/preview}">
+    <section aria-labelledby="leaveModalTitle" aria-modal="true" class="leave-dialog" role="dialog">
+        <header class="leave-dialog-header">
+            <div>
+                <h2 id="leaveModalTitle">Tạo đơn xin nghỉ phép</h2>
+                <p>Ngày nghỉ được tính theo ngày có ca đã phân công.</p>
+            </div>
+            <button aria-label="Đóng" class="leave-close" data-leave-close type="button">×</button>
+        </header>
+        <form class="leave-dialog-form" id="leaveCreateForm" method="post" th:action="@{/staff/leave}">
+            <div class="leave-date-grid">
+                <label>
+                    Ngày bắt đầu
+                    <span>*</span>
+                    <input id="leaveStartDate" name="startDate" required th:value="${leaveFormStart}" type="date"/>
+                </label>
+                <label>
+                    Ngày kết thúc
+                    <span>*</span>
+                    <input id="leaveEndDate" name="endDate" required th:value="${leaveFormEnd}" type="date"/>
+                </label>
+            </div>
+            <label>
+                Lý do xin nghỉ
+                <span>*</span>
+                <textarea maxlength="255" name="reason" placeholder="Nhập lý do nghỉ phép..." required rows="4" th:text="${leaveFormReason}"></textarea>
+            </label>
+            <div aria-live="polite" class="leave-preview" id="leavePreview" role="status">
+                Chọn ngày để kiểm tra số ngày nghỉ và quỹ phép.
+            </div>
+            <div class="leave-form-actions">
+                <button class="leave-btn leave-btn-outline" data-leave-close type="button">Hủy</button>
+                <button class="leave-btn leave-btn-primary" id="leaveSubmit" type="submit">Gửi đơn</button>
+            </div>
+        </form>
+    </section>
+</div>
+<div aria-hidden="true" class="leave-overlay leave-overlay-drawer" id="leaveHistoryDrawer" th:data-history-url="@{/staff/leave/history}">
+    <section aria-labelledby="leaveHistoryTitle" aria-modal="true" class="leave-drawer" role="dialog">
+        <header class="leave-dialog-header">
+            <div>
+                <h2 id="leaveHistoryTitle">Lịch sử xin nghỉ phép</h2>
+                <p>Toàn bộ đơn đã gửi của bạn.</p>
+            </div>
+            <button aria-label="Đóng" class="leave-close" data-leave-close type="button">×</button>
+        </header>
+        <div aria-live="polite" class="leave-history-list" id="leaveHistoryList"></div>
+        <div class="leave-history-footer">
+            <button class="leave-btn leave-btn-outline" hidden id="leaveLoadMore" type="button">Tải thêm</button>
+        </div>
+    </section>
+</div>
+<script th:src="@{/js/StaffDashboard.js}"></script>
+<script defer th:src="@{/js/StaffLeaveRequest.js}"></script>
 </body>
 </html>

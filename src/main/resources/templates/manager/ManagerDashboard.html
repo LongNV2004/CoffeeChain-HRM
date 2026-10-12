@@ -11,25 +11,37 @@
 </head>
 <body class="manager-dashboard">
 <header th:replace="~{fragments/navbar :: manager('dashboard')}"></header>
-<main class="wrap dash-main">
+<main class="wrap dash-main hrm-board">
     <section class="welcome">
-        <div class="eyebrow">Cửa hàng — Manager</div>
-        <h1>Xin chào Manager</h1>
-        <p>
-            <span th:text="${dashboard.displayName}">Manager</span> · tài khoản
-            <strong th:text="${dashboard.username}">username</strong>
-        </p>
+        <div>
+            <div class="eyebrow">Cửa hàng — Manager</div>
+            <h1>Xin chào Manager</h1>
+            <p>
+                <span th:text="${dashboard.displayName}">Manager</span> · tài khoản
+                <strong th:text="${dashboard.username}">username</strong>
+            </p>
+            <div class="store-banner" th:if="${dashboard.storeId != null}">
+                <h2 th:text="${dashboard.storeName}">Store</h2>
+                <p th:text="${dashboard.storeAddress}">Địa chỉ</p>
+            </div>
+            <div class="store-banner warning" th:if="${dashboard.storeId == null}">
+                <h2>Chưa được gán cửa hàng</h2>
+                <p>Tài khoản quản lý này chưa liên kết với cửa hàng nào. Liên hệ Admin để được phân công.</p>
+            </div>
+        </div>
+        <div class="hrm-hero-actions">
+            <button type="button" class="hrm-chip notif-open-link" data-open-notifications>Thông báo</button>
+        </div>
     </section>
 
-    <section class="store-banner" th:if="${dashboard.storeId != null}">
-        <h2 th:text="${dashboard.storeName}">Store</h2>
-        <p th:text="${dashboard.storeAddress}">Địa chỉ</p>
-    </section>
-
-    <section class="store-banner warning" th:if="${dashboard.storeId == null}">
-        <h2>Chưa được gán cửa hàng</h2>
-        <p>Tài khoản quản lý này chưa liên kết với cửa hàng nào. Liên hệ Admin để được phân công.</p>
-    </section>
+    <aside class="hrm-spotlight" id="leave" aria-label="Đơn nghỉ phép chờ duyệt">
+        <span>Chờ duyệt</span>
+        <div>
+            <strong th:text="${dashboard.pendingLeaveCount}">0</strong>
+            <p>Đơn nghỉ phép đang chờ xử lý</p>
+        </div>
+        <a th:href="@{/manager/leaves(status='PENDING')}">Mở đơn nghỉ phép</a>
+    </aside>
 
     <section class="stat-grid">
         <article class="stat-card">
@@ -38,10 +50,11 @@
         </article>
         <article class="stat-card" id="schedule">
             <div class="label">
-                <a th:href="@{/schedule/manager}">Ca làm hôm nay </a>            </div>
+                <a th:href="@{/schedule/manager}">Ca làm hôm nay</a>
+            </div>
             <div class="value" th:text="${dashboard.todayShiftCount}">0</div>
         </article>
-        <article class="stat-card" id="leave">
+        <article class="stat-card">
             <div class="label">
                 <a class="ml-dashboard-link" th:href="@{/manager/leaves(status='PENDING')}">Đơn nghỉ phép chờ duyệt</a>
             </div>
@@ -49,44 +62,31 @@
         </article>
         <article class="stat-card">
             <div class="label">
-                <a th:href="@{/schedule/manager#shift-change-requests}">Yêu cầu đổi ca chờ duyệt </a>
+                <a th:href="@{/schedule/manager#shift-change-requests}">Yêu cầu đổi ca chờ duyệt</a>
             </div>
             <div class="value" th:text="${dashboard.pendingShiftChangeCount}">0</div>
         </article>
     </section>
 
-    <section class="action-grid">
+    <section class="action-grid hrm-modules">
         <article class="action-card" id="attendance">
-            <h2>
-                <a th:href="@{/attendance/manager}">Chấm công </a>
-            </h2>
+            <h2><a th:href="@{/attendance/manager}">Chấm công</a></h2>
             <p>Xem lịch sử giờ vào/ra của nhân viên thuộc cửa hàng bạn quản lý.</p>
         </article>
         <article class="action-card">
-            <h2>
-                <a th:href="@{/schedule/manager}">Lịch làm việc </a>            </h2>
+            <h2><a th:href="@{/schedule/manager}">Lịch làm việc</a></h2>
             <p>Phân công ca và phê duyệt đổi ca cho nhân viên.</p>
         </article>
         <article class="action-card">
-            <h2>
-                <a class="ml-dashboard-link" th:href="@{/manager/leaves}">Quản lý nghỉ phép →</a>
-            </h2>
+            <h2><a class="ml-dashboard-link" th:href="@{/manager/leaves}">Quản lý nghỉ phép →</a></h2>
             <p>Duyệt hoặc từ chối đơn nghỉ phép của nhân viên cửa hàng.</p>
-        </article>
-        <article class="action-card">
-            <h2>
-                <button type="button" class="notif-open-link" data-open-notifications>Thông báo</button>
-            </h2>
-            <p>Mở chuông ở góc phải thanh tiêu đề để xem thông báo gửi đến tài khoản của bạn.</p>
         </article>
         <article class="action-card">
             <h2><a th:href="@{/training}">Đào tạo</a></h2>
             <p>Xem danh sách lớp đào tạo của cửa hàng và tạo lớp mới.</p>
         </article>
-        <!-- Vân Anh role admin-->
         <article class="action-card">
-            <h2>
-                <a th:href="@{/manager/recruitment}">Đề xuất tuyển nhân sự</a>            </h2>
+            <h2><a th:href="@{/manager/recruitment}">Đề xuất tuyển nhân sự</a></h2>
             <p>Đề xuất nhân viên mới. Admin duyệt rồi hệ thống mới tạo tài khoản và gửi mật khẩu qua email.</p>
         </article>
         <article class="action-card" id="reports">

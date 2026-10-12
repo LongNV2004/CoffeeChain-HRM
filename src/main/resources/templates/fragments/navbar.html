@@ -321,17 +321,32 @@
         <div class="hrm-topbar-bell">
             <div th:replace="~{fragments/navbar :: bell}"></div>
         </div>
-        <div class="hrm-user-pill">
-            <span class="coffee-account-avatar" aria-hidden="true">
-                <img th:if="${currentUserAvatar != null and !#strings.isEmpty(currentUserAvatar)}"
-                     th:src="${currentUserAvatar}" alt=""
-                     onerror="this.hidden=true">
-                <svg class="coffee-icon"><use href="#coffee-i-user"/></svg>
-            </span>
-            <span class="hrm-user-meta">
-                <strong th:text="${currentUserName != null and !#strings.isEmpty(currentUserName) ? currentUserName : 'Tài khoản'}">Tài khoản</strong>
-                <small th:text="${role == 'admin' ? 'Admin' : (role == 'manager' ? 'Quản lý cửa hàng' : 'Nhân viên')}">Nhân viên</small>
-            </span>
+        <div class="hrm-account" data-account>
+            <button type="button" class="hrm-user-pill" data-account-toggle
+                    aria-haspopup="menu" aria-expanded="false" aria-controls="hrmAccountMenu">
+                <span class="coffee-account-avatar" aria-hidden="true">
+                    <img th:if="${currentUserAvatar != null and !#strings.isEmpty(currentUserAvatar)}"
+                         th:src="${currentUserAvatar}" alt=""
+                         onerror="this.hidden=true">
+                    <svg class="coffee-icon"><use href="#coffee-i-user"/></svg>
+                </span>
+                <span class="hrm-user-meta">
+                    <strong th:text="${currentUserName != null and !#strings.isEmpty(currentUserName) ? currentUserName : 'Tài khoản'}">Tài khoản</strong>
+                    <small th:text="${role == 'admin' ? 'Admin' : (role == 'manager' ? 'Quản lý cửa hàng' : 'Nhân viên')}">Nhân viên</small>
+                </span>
+                <svg class="hrm-caret" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m7 10 5 5 5-5"/>
+                </svg>
+            </button>
+            <div class="hrm-account-menu" id="hrmAccountMenu" role="menu" hidden>
+                <div class="hrm-account-menu-head">
+                    <strong th:text="${currentUserName != null and !#strings.isEmpty(currentUserName) ? currentUserName : 'Tài khoản'}">Tài khoản</strong>
+                    <small th:text="${role == 'admin' ? 'Admin' : (role == 'manager' ? 'Quản lý cửa hàng' : 'Nhân viên')}">Nhân viên</small>
+                </div>
+                <form class="coffee-logout-form" th:action="@{/logout}" method="post">
+                    <button class="hrm-account-logout" type="submit" role="menuitem">Đăng xuất</button>
+                </form>
+            </div>
         </div>
     </div>
 </header>
