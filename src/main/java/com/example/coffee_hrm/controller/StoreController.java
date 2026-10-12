@@ -80,7 +80,8 @@ public class StoreController {
             StoreResponse created = storeService.createStore(user, storeForm);
             redirectAttributes.addFlashAttribute("successMessage",
                     "Đã tạo cửa hàng " + created.getStoreName() + " (Store #" + created.getId()
-                            + "). Manager: Chưa chỉ định.");
+                            + "). Manager: Chưa chỉ định."
+                            + locationSuffix(created));
             return STORE_LIST_REDIRECT;
         } catch (BusinessException ex) {
             model.addAttribute("errorMessage", ex.getMessage());
@@ -142,14 +143,18 @@ public class StoreController {
 
     private String storeUpdatedMessage(StoreResponse updated) {
         String message = "Đã cập nhật thông tin cửa hàng " + updated.getStoreName() + ".";
-        if (updated.getLatitude() != null && updated.getLongitude() != null) {
-            message += " Vị trí chấm công: "
-                    + updated.getLatitude().stripTrailingZeros().toPlainString()
-                    + ", "
-                    + updated.getLongitude().stripTrailingZeros().toPlainString()
-                    + ".";
+        return message + locationSuffix(updated);
+    }
+
+    private String locationSuffix(StoreResponse store) {
+        if (store.getLatitude() == null || store.getLongitude() == null) {
+            return "";
         }
-        return message;
+        return " Vị trí chấm công: "
+                + store.getLatitude().stripTrailingZeros().toPlainString()
+                + ", "
+                + store.getLongitude().stripTrailingZeros().toPlainString()
+                + ".";
     }
 
     private String plainCoordinate(BigDecimal value) {

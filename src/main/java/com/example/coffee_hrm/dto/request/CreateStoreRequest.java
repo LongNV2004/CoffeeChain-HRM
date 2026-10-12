@@ -31,4 +31,12 @@ public class CreateStoreRequest {
 
     @NotNull(message = "Vui lòng chọn trạng thái")
     private Boolean isActive;
+
+    @NotBlank(message = "Vui lòng nhập vĩ độ")
+    @Size(max = 20, message = "Vĩ độ tối đa 20 ký tự")
+    private String latitude;
+
+    @NotBlank(message = "Vui lòng nhập kinh độ")
+    @Size(max = 20, message = "Kinh độ tối đa 20 ký tự")
+    private String longitude;
 }

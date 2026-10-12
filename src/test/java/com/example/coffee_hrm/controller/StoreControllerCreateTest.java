@@ -120,7 +120,9 @@ class StoreControllerCreateTest {
                         .param("storeName", "   Coffee Nguyễn Trãi   ")
                         .param("address", "  12 Nguyễn Trãi ")
                         .param("totalLeaveDays", "12")
-                        .param("isActive", "true"))
+                        .param("isActive", "true")
+                        .param("latitude", " 21.028511 ")
+                        .param("longitude", " 105.854167 "))
                 .andExpect(redirectedUrl("/admin/stores"))
                 .andExpect(flash().attribute("successMessage", containsString("Coffee Nguyễn Trãi")));
 
@@ -128,6 +130,8 @@ class StoreControllerCreateTest {
         verify(storeService).createStore(any(AuthenticatedUser.class), captor.capture());
         assertEquals("Coffee Nguyễn Trãi", captor.getValue().getStoreName());
         assertEquals("12 Nguyễn Trãi", captor.getValue().getAddress());
+        assertEquals("21.028511", captor.getValue().getLatitude());
+        assertEquals("105.854167", captor.getValue().getLongitude());
     }
 
     @Test
@@ -164,7 +168,9 @@ class StoreControllerCreateTest {
                         .param("storeName", "Store A")
                         .param("address", "X")
                         .param("totalLeaveDays", "12")
-                        .param("isActive", "true"))
+                        .param("isActive", "true")
+                        .param("latitude", "21.028511")
+                        .param("longitude", "105.854167"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("admin/store-create"))
                 .andExpect(model().attribute("errorMessage", "Tên cửa hàng đã tồn tại"));

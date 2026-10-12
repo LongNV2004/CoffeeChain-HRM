@@ -52,6 +52,10 @@
                     </label>
                 </div>
 
+                <p class="muted">Vị trí này dùng để kiểm tra nhân viên có đang ở cửa hàng khi check-in và check-out.</p>
+                <button type="button" class="logout-btn" data-fill-location>Lấy vị trí hiện tại</button>
+                <p class="muted" data-location-status></p>
+
                 <label>Vĩ độ (latitude)
                     <input type="text" th:field="*{latitude}" inputmode="decimal" maxlength="20" placeholder="Ví dụ: 21.028511">
                 </label>
@@ -91,5 +95,6 @@
     </section>
 </main>
 <script th:src="@{/js/AdminDashboard.js}"></script>
+<script th:src="@{/js/store-location.js}" defer></script>
 </body>
 </html>

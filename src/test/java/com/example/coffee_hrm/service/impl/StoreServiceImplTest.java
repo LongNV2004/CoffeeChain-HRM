@@ -124,6 +124,9 @@ class StoreServiceImplTest {
         assertEquals(14, saved.getTotalLeaveDays());
         assertTrue(saved.getIsActive());
         assertNull(saved.getManager());
+        assertEquals(0, new BigDecimal("21.028511").compareTo(saved.getLatitude()));
+        assertEquals(0, new BigDecimal("105.854167").compareTo(saved.getLongitude()));
+        assertNotNull(saved.getLocationUpdatedAt());
         assertEquals(7, result.getId());
         assertEquals(0L, result.getEmployeeCount());
         assertNull(result.getManagerName());
@@ -138,6 +141,20 @@ class StoreServiceImplTest {
 
         assertTrue(result.getIsActive());
         assertEquals(12, result.getTotalLeaveDays());
+    }
+
+    @Test
+    void createStoreRejectsMissingCoordinates() {
+        CreateStoreRequest request = createRequest("Store C", "C", 12, true);
+        request.setLatitude(" ");
+        request.setLongitude(null);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> storeService.createStore(admin, request));
+
+        assertEquals(StoreServiceImpl.LOCATION_REQUIRED, ex.getMessage());
+        verify(storeRepository, never()).save(any());
+        verify(storeOpeningSetup, never()).ensureOpeningShifts(any());
     }
 
     @Test
@@ -243,6 +260,8 @@ class StoreServiceImplTest {
                 .address(address)
                 .totalLeaveDays(totalLeaveDays)
                 .isActive(isActive)
+                .latitude("21.028511")
+                .longitude("105.854167")
                 .build();
     }
 

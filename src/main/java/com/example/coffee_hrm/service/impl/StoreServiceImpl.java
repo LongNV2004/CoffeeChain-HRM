@@ -35,6 +35,7 @@ public class StoreServiceImpl implements StoreService {
     static final String STORE_NAME_REQUIRED = "Vui lòng nhập tên cửa hàng";
     static final String ADDRESS_REQUIRED = "Vui lòng nhập địa chỉ";
     static final String INVALID_COORDINATES = "Tọa độ cửa hàng không hợp lệ.";
+    static final String LOCATION_REQUIRED = "Vui lòng thiết lập vị trí chấm công của cửa hàng.";
 
     /** Nhân viên đã nghỉ việc không còn được tính là thành viên của cửa hàng. */
     private static final EmployeeStatus FORMER_EMPLOYEE_STATUS = EmployeeStatus.TERMINATED;
@@ -70,7 +71,7 @@ public class StoreServiceImpl implements StoreService {
             throw new BusinessException(STORE_NAME_EXISTS);
         }
         // Cửa hàng mới chưa có nhân viên và chưa chỉ định Manager; phân công thực hiện ở Quản lý nhân sự.
-        // Ca và số chỗ được gắn ngay để đăng ký, duyệt và xem lịch dùng được mà không cần nhập ca thủ công.
+        // Ca, số chỗ và vị trí chấm công được gắn ngay để nhân viên check-in được.
         Store store = Store.builder()
                 .storeName(storeName)
                 .address(address)
@@ -81,6 +82,7 @@ public class StoreServiceImpl implements StoreService {
         if (request.getIsActive() != null) {
             store.setIsActive(request.getIsActive());
         }
+        applyLocation(store, request.getLatitude(), request.getLongitude(), true);
         Store saved = storeRepository.save(store);
         storeOpeningSetup.ensureOpeningShifts(saved);
         return toStoreResponse(saved, 0L);
@@ -99,14 +101,17 @@ public class StoreServiceImpl implements StoreService {
         store.setAddress(request.getAddress().trim());
         store.setTotalLeaveDays(request.getTotalLeaveDays());
         store.setIsActive(request.getIsActive());
-        applyLocation(store, request.getLatitude(), request.getLongitude());
+        applyLocation(store, request.getLatitude(), request.getLongitude(), false);
         return toStoreResponse(store, countMembers(storeId));
     }
 
-    private void applyLocation(Store store, String latitudeText, String longitudeText) {
+    private void applyLocation(Store store, String latitudeText, String longitudeText, boolean required) {
         BigDecimal latitude = parseCoordinate(latitudeText);
         BigDecimal longitude = parseCoordinate(longitudeText);
         if (latitude == null && longitude == null) {
+            if (required) {
+                throw new BusinessException(LOCATION_REQUIRED);
+            }
             return;
         }
         if (!GeoDistance.isValidLatitude(latitude) || !GeoDistance.isValidLongitude(longitude)) {

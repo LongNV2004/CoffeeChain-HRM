@@ -55,6 +55,22 @@
                     </label>
                 </div>
 
+                <p class="muted">Vị trí này dùng để kiểm tra nhân viên có đang ở cửa hàng khi check-in và check-out.</p>
+                <button type="button" class="logout-btn" data-fill-location>Lấy vị trí hiện tại</button>
+                <p class="muted" data-location-status></p>
+
+                <label>Vĩ độ (latitude)
+                    <input type="text" th:field="*{latitude}" inputmode="decimal" maxlength="20" required
+                           placeholder="Ví dụ: 21.028511">
+                    <span class="field-error" th:if="${#fields.hasErrors('latitude')}" th:errors="*{latitude}">Error</span>
+                </label>
+
+                <label>Kinh độ (longitude)
+                    <input type="text" th:field="*{longitude}" inputmode="decimal" maxlength="20" required
+                           placeholder="Ví dụ: 105.854167">
+                    <span class="field-error" th:if="${#fields.hasErrors('longitude')}" th:errors="*{longitude}">Error</span>
+                </label>
+
                 <div class="form-actions">
                     <button type="submit" class="primary-btn">Tạo cửa hàng</button>
                     <a class="logout-btn" th:href="@{/admin/stores}">Hủy</a>
@@ -64,7 +80,7 @@
 
         <article class="panel">
             <h2>Trạng thái ban đầu</h2>
-            <p>Cửa hàng mới được tạo chưa có nhân viên và chưa có Manager phụ trách.</p>
+            <p>Cửa hàng mới được tạo chưa có nhân viên và chưa có Manager phụ trách. Vị trí chấm công là bắt buộc để nhân viên check-in và check-out.</p>
             <dl class="info-list">
                 <div><dt>Số nhân viên</dt><dd>0</dd></div>
                 <div><dt>Manager</dt><dd class="muted">Chưa chỉ định</dd></div>
@@ -77,5 +93,6 @@
     </section>
 </main>
 <script th:src="@{/js/AdminDashboard.js}"></script>
+<script th:src="@{/js/store-location.js}" defer></script>
 </body>
 </html>

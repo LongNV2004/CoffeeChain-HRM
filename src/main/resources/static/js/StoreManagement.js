@@ -191,7 +191,7 @@
                 status.closest('label').replaceWith(hidden);
             }
 
-            ['storeName', 'address', 'totalLeaveDays'].forEach(name => {
+            ['storeName', 'address', 'totalLeaveDays', 'latitude', 'longitude'].forEach(name => {
                 const input = form.elements.namedItem(name);
                 if (!input) return;
 

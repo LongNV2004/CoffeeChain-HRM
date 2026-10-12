@@ -118,6 +118,7 @@
                             <div>
                                 <strong th:text="${store.storeName}">Tên cửa hàng</strong>
                                 <small>Mã cửa hàng: <span th:text="${store.id}">1</span></small>
+                                <small th:if="${store.latitude == null or store.longitude == null}">Chưa có vị trí chấm công</small>
                             </div>
                         </div>
                     </td>
@@ -394,6 +395,7 @@
     </div>
 </section>
 <script th:src="@{/js/AdminDashboard.js}"></script>
+<script th:src="@{/js/store-location.js}" defer></script>
 <script th:src="@{/js/StoreManagement.js}" defer></script>
 </body>
 </html>
