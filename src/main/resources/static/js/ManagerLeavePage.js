@@ -475,7 +475,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ids('mlNext').addEventListener('click', () => { if (page + 1 < pages) { page++; loadList(); } });
     ids('mlCloseDetail').addEventListener('click', closeAll);
     ids('mlCloseSuggestions').addEventListener('click', closeAll);
-    ids('mlCloseSuggestionsFooter').addEventListener('click', closeAll);
+    ids('mlCloseSuggestionsFooter')?.addEventListener('click', closeAll);
     [detailOverlay, suggestionsOverlay].forEach(box => box.addEventListener('mousedown', event => {
         if (event.target === box) closeAll();
     }));
