@@ -45,6 +45,8 @@ class StoreServiceImplTest {
     private StoreRepository storeRepository;
     @Mock
     private EmployeeRepository employeeRepository;
+    @Mock
+    private StoreOpeningSetup storeOpeningSetup;
 
     @InjectMocks
     private StoreServiceImpl storeService;
@@ -125,6 +127,7 @@ class StoreServiceImplTest {
         assertEquals(7, result.getId());
         assertEquals(0L, result.getEmployeeCount());
         assertNull(result.getManagerName());
+        verify(storeOpeningSetup).ensureOpeningShifts(saved);
     }
 
     @Test
@@ -146,6 +149,7 @@ class StoreServiceImplTest {
 
         assertEquals(StoreServiceImpl.STORE_NAME_EXISTS, ex.getMessage());
         verify(storeRepository, never()).save(any());
+        verify(storeOpeningSetup, never()).ensureOpeningShifts(any());
     }
 
     @Test

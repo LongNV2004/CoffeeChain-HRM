@@ -41,6 +41,7 @@ public class StoreServiceImpl implements StoreService {
 
     private final StoreRepository storeRepository;
     private final EmployeeRepository employeeRepository;
+    private final StoreOpeningSetup storeOpeningSetup;
 
     @Override
     public List<StoreResponse> getStores(AuthenticatedUser actor) {
@@ -69,6 +70,7 @@ public class StoreServiceImpl implements StoreService {
             throw new BusinessException(STORE_NAME_EXISTS);
         }
         // Cửa hàng mới chưa có nhân viên và chưa chỉ định Manager; phân công thực hiện ở Quản lý nhân sự.
+        // Ca và số chỗ được gắn ngay để đăng ký, duyệt và xem lịch dùng được mà không cần nhập ca thủ công.
         Store store = Store.builder()
                 .storeName(storeName)
                 .address(address)
@@ -79,7 +81,9 @@ public class StoreServiceImpl implements StoreService {
         if (request.getIsActive() != null) {
             store.setIsActive(request.getIsActive());
         }
-        return toStoreResponse(storeRepository.save(store), 0L);
+        Store saved = storeRepository.save(store);
+        storeOpeningSetup.ensureOpeningShifts(saved);
+        return toStoreResponse(saved, 0L);
     }
 
     @Override
