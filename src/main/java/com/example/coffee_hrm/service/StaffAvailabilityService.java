@@ -43,15 +43,8 @@ public interface StaffAvailabilityService {
      */
     void reviewAvailability(Integer availabilityId, boolean approved, AuthenticatedUser manager);
 
-    /** Duyệt hoặc từ chối cả một lần đăng ký định kỳ. Duyệt thì xếp ca vào lịch tương lai và báo nhân viên. */
+    /** Duyệt hoặc từ chối đơn đăng ký ca của một nhân viên. Duyệt thì xếp ca vào lịch tương lai và báo nhân viên đó. */
     void reviewRegistration(String registrationKey, boolean approved, AuthenticatedUser manager);
-
-    /**
-     * Duyệt hoặc từ chối mọi đề xuất đang chờ.
-     *
-     * @return thông báo kết quả cho Manager
-     */
-    String reviewAllNextWeekAvailabilities(boolean approved, AuthenticatedUser manager);
 
     /**
      * Cập nhật số nhân viên tối đa của một ca trong một thứ.

@@ -386,7 +386,7 @@ p {
   border-radius: 12px;
   outline: none;
 
-  background: antiquewhite;
+  background: #fff;
   color: var(--espresso);
 
   font-size: 13px;
