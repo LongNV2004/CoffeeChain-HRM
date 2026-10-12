@@ -191,65 +191,6 @@ class StaffAvailabilityServiceImplTest {
     }
 
     @Test
-    void reviewAllApprovesEveryPendingSlot() {
-        WorkAvailability first = pendingAvailability();
-        WorkAvailability second = pendingAvailability();
-        second.setId(6);
-        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
-        when(workAvailabilityRepository.findVisibleByStore(eq(1), any(LocalDate.class), eq(ApprovalStatus.PENDING)))
-                .thenReturn(List.of(first, second));
-        when(workAvailabilityRepository.findByIdWithDetails(5)).thenReturn(Optional.of(first));
-        when(workAvailabilityRepository.findByIdWithDetails(6)).thenReturn(Optional.of(second));
-
-        String message = service.reviewAllNextWeekAvailabilities(true, managerUser);
-
-        verify(scheduleService, times(2)).assignShiftFromApprovedAvailability(any(), eq(managerUser));
-        assertEquals(ApprovalStatus.APPROVED, first.getStatus());
-        assertEquals(ApprovalStatus.APPROVED, second.getStatus());
-        assertTrue(message.contains("2"));
-    }
-
-    @Test
-    void reviewAllRejectsOnlyPendingSlots() {
-        WorkAvailability pending = pendingAvailability();
-        WorkAvailability alreadyApproved = pendingAvailability();
-        alreadyApproved.setId(6);
-        alreadyApproved.setStatus(ApprovalStatus.APPROVED);
-        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
-        when(workAvailabilityRepository.findVisibleByStore(eq(1), any(LocalDate.class), eq(ApprovalStatus.PENDING)))
-                .thenReturn(List.of(pending, alreadyApproved));
-
-        String message = service.reviewAllNextWeekAvailabilities(false, managerUser);
-
-        assertEquals(ApprovalStatus.REJECTED, pending.getStatus());
-        assertEquals(ApprovalStatus.APPROVED, alreadyApproved.getStatus());
-        assertTrue(message.contains("1"));
-        verify(workAvailabilityRepository).saveAll(List.of(pending));
-        verify(scheduleService, never()).assignShiftFromApprovedAvailability(any(), any());
-    }
-
-    @Test
-    void reviewAllKeepsFailedSlotPending() {
-        WorkAvailability first = pendingAvailability();
-        WorkAvailability second = pendingAvailability();
-        second.setId(6);
-        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
-        when(workAvailabilityRepository.findVisibleByStore(eq(1), any(LocalDate.class), eq(ApprovalStatus.PENDING)))
-                .thenReturn(List.of(first, second));
-        when(workAvailabilityRepository.findByIdWithDetails(5)).thenReturn(Optional.of(first));
-        when(workAvailabilityRepository.findByIdWithDetails(6)).thenReturn(Optional.of(second));
-        org.mockito.Mockito.doNothing()
-                .doThrow(new BusinessException("Nhân viên đã có ca trùng giờ."))
-                .when(scheduleService).assignShiftFromApprovedAvailability(any(), any());
-
-        String message = service.reviewAllNextWeekAvailabilities(true, managerUser);
-
-        assertEquals(ApprovalStatus.APPROVED, first.getStatus());
-        assertEquals(ApprovalStatus.PENDING, second.getStatus());
-        assertTrue(message.contains("trùng giờ"));
-    }
-
-    @Test
     void approveRejectsStaffWithoutCertificate() {
         staff.setCertificationStatus(CertificationStatus.NOTCERTIFIED);
         WorkAvailability availability = pendingAvailability();
@@ -444,6 +385,7 @@ class StaffAvailabilityServiceImplTest {
         service.reviewRegistration("batch-1", false, managerUser);
 
         assertEquals(ApprovalStatus.REJECTED, availability.getStatus());
+        verify(workAvailabilityRepository, never()).findVisibleByStore(any(), any(), any());
         verify(scheduleService, never()).assignShiftFromApprovedAvailability(any(), any());
         verify(notificationService).notifyUsers(
                 eq(List.of(staffAccount)),
@@ -455,16 +397,45 @@ class StaffAvailabilityServiceImplTest {
     }
 
     @Test
-    void reviewAllThrowsWhenNothingPending() {
+    void reviewOneEmployeeLeavesAnotherPending() {
+        WorkAvailability selected = pendingAvailability();
+        selected.setDayOfWeek(1);
+        selected.setWorkDate(null);
+        selected.setDurationCode("W1");
+        selected.setRegistrationKey("batch-tuan");
+        selected.setValidFrom(LocalDate.of(2026, 10, 12));
+        selected.setValidTo(LocalDate.of(2026, 10, 18));
+        Employee other = Employee.builder()
+                .id(21)
+                .fullName("Nguyễn Thị Mai")
+                .store(store)
+                .status(EmployeeStatus.ACTIVE)
+                .certificationStatus(CertificationStatus.CERTIFIED)
+                .build();
+        WorkAvailability untouched = WorkAvailability.builder()
+                .id(6)
+                .employee(other)
+                .shift(shift)
+                .dayOfWeek(2)
+                .workDate(null)
+                .durationCode("W1")
+                .registrationKey("batch-mai")
+                .validFrom(LocalDate.of(2026, 10, 12))
+                .validTo(LocalDate.of(2026, 10, 18))
+                .status(ApprovalStatus.PENDING)
+                .build();
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
-        when(workAvailabilityRepository.findVisibleByStore(eq(1), any(LocalDate.class), eq(ApprovalStatus.PENDING)))
-                .thenReturn(List.of());
+        when(workAvailabilityRepository.findByRegistrationKey("batch-tuan")).thenReturn(List.of(selected));
+        when(userRepository.findByEmployee_Id(20)).thenReturn(Optional.of(buildUser(3, "staff1", RoleName.STAFF, staff)));
 
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.reviewAllNextWeekAvailabilities(true, managerUser));
+        service.reviewRegistration("batch-tuan", true, managerUser);
 
-        assertTrue(ex.getMessage().contains("chờ duyệt"));
-        verify(scheduleService, never()).assignShiftFromApprovedAvailability(any(), any());
+        assertEquals(ApprovalStatus.APPROVED, selected.getStatus());
+        assertEquals(ApprovalStatus.PENDING, untouched.getStatus());
+        verify(workAvailabilityRepository).saveAll(List.of(selected));
+        verify(workAvailabilityRepository, never()).findByRegistrationKey("batch-mai");
+        verify(notificationService).notifyUsers(any(), anyString(), anyString(), any(), anyString(), eq(20));
+        verify(notificationService, never()).notifyUsers(any(), anyString(), anyString(), any(), anyString(), eq(21));
     }
 
     @Test

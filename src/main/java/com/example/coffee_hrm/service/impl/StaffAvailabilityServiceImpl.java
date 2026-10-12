@@ -55,7 +55,6 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
 
-    private static final DateTimeFormatter DAY_MONTH = DateTimeFormatter.ofPattern("dd/MM");
     private static final DateTimeFormatter FULL_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
     private static final String[] VI_DAYS = {"Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"};
@@ -311,72 +310,6 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
 
     @Override
     @Transactional
-    public String reviewAllNextWeekAvailabilities(boolean approved, AuthenticatedUser manager) {
-        Store store = resolveManagerStore(manager);
-        List<WorkAvailability> pending = workAvailabilityRepository
-                .findVisibleByStore(store.getId(), VietnamTime.today(), ApprovalStatus.PENDING)
-                .stream()
-                .filter(wa -> resolveStatus(wa.getStatus()) == ApprovalStatus.PENDING)
-                .toList();
-        if (pending.isEmpty()) {
-            throw new BusinessException("Không có đề xuất nào đang chờ duyệt.");
-        }
-
-        boolean includesLegacyDatedRows = pending.stream().anyMatch(wa -> wa.getDayOfWeek() == null);
-        if (!approved) {
-            for (WorkAvailability availability : pending) {
-                availability.setStatus(ApprovalStatus.REJECTED);
-            }
-            workAvailabilityRepository.saveAll(pending);
-            notifyRejectedEmployees(pending);
-            return "Đã từ chối " + pending.size()
-                    + " đề xuất đang chờ. Nhân viên đã được thông báo. Các slot này không được xếp vào lịch.";
-        }
-
-        int approvedCount = 0;
-        List<String> failures = new ArrayList<>();
-        Set<String> reviewedKeys = new LinkedHashSet<>();
-        for (WorkAvailability availability : pending) {
-            try {
-                if (availability.getDayOfWeek() != null && availability.getRegistrationKey() != null) {
-                    if (!reviewedKeys.add(availability.getRegistrationKey())) {
-                        continue;
-                    }
-                    long slots = pending.stream()
-                            .filter(wa -> availability.getRegistrationKey().equals(wa.getRegistrationKey()))
-                            .count();
-                    reviewRegistration(availability.getRegistrationKey(), true, manager);
-                    approvedCount += (int) slots;
-                } else {
-                    reviewAvailability(availability.getId(), true, manager);
-                    approvedCount++;
-                }
-            } catch (BusinessException ex) {
-                failures.add(describeSlot(availability) + ": " + ex.getMessage());
-            }
-        }
-
-        if (approvedCount == 0) {
-            throw new BusinessException("Không duyệt được đề xuất nào. " + String.join(" ", failures));
-        }
-        if (includesLegacyDatedRows) {
-            if (failures.isEmpty()) {
-                return "Đã duyệt " + approvedCount + " đề xuất và xếp vào lịch làm việc.";
-            }
-            return "Đã duyệt " + approvedCount + " đề xuất và xếp vào lịch làm việc. "
-                    + failures.size() + " đề xuất chưa xếp được: " + String.join("; ", failures);
-        }
-        if (failures.isEmpty()) {
-            return "Đã duyệt " + approvedCount
-                    + " đề xuất và xếp vào lịch làm việc tương lai theo đúng thứ và thời hạn. "
-                    + "Ca đã phân trùng đúng slot được giữ nguyên. Nhân viên đã được thông báo.";
-        }
-        return "Đã duyệt " + approvedCount + " đề xuất và xếp vào lịch làm việc tương lai. "
-                + failures.size() + " đề xuất chưa duyệt được: " + String.join("; ", failures);
-    }
-
-    @Override
-    @Transactional
     public SlotLimitUpdateResult updateSlotLimit(Integer shiftId,
                                                   Integer dayOfWeek,
                                                   String maxEmployeesRaw,
@@ -459,21 +392,6 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                                     + " ngày " + date.format(FULL_DATE) + ": " + ex.getMessage());
                 }
             }
-        }
-    }
-
-    private void notifyRejectedEmployees(List<WorkAvailability> pending) {
-        Map<Integer, List<WorkAvailability>> byEmployee = new LinkedHashMap<>();
-        for (WorkAvailability availability : pending) {
-            if (availability.getEmployee() == null || availability.getEmployee().getId() == null) {
-                continue;
-            }
-            byEmployee.computeIfAbsent(availability.getEmployee().getId(), ignored -> new ArrayList<>()).add(availability);
-        }
-        for (List<WorkAvailability> rows : byEmployee.values()) {
-            notifyEmployee(rows.getFirst().getEmployee(), false,
-                    "Quản lý đã từ chối " + rows.size()
-                            + " đăng ký lịch làm việc đang chờ. Các slot này không được xếp vào lịch.");
         }
     }
 
@@ -766,18 +684,6 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                         : dateLabel(availability.getWorkDate()))
                 .certificationLabel(certificationLabel(employee))
                 .build();
-    }
-
-    private String describeSlot(WorkAvailability availability) {
-        Employee employee = availability.getEmployee();
-        Shift shift = availability.getShift();
-        String who = employee != null && employee.getFullName() != null ? employee.getFullName() : "Nhân viên";
-        String shiftName = shift != null && shift.getShiftName() != null ? shift.getShiftName() : "ca";
-        if (availability.getDayOfWeek() != null) {
-            return who + " — " + shiftName + " mỗi " + AvailabilityCoverage.dayName(availability.getDayOfWeek());
-        }
-        String date = availability.getWorkDate() != null ? availability.getWorkDate().format(DAY_MONTH) : "";
-        return who + " — " + shiftName + " " + date;
     }
 
     private String describeConflict(WorkAvailability availability) {

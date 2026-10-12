@@ -35,12 +35,10 @@ public class ManagerAvailabilityController {
             List<WeeklyAvailabilityView.RegistrationGroup> registrations =
                     grid.getRegistrations() != null ? grid.getRegistrations() : List.of();
             model.addAttribute("registrations", registrations);
-            model.addAttribute("pendingCount", registrations.stream().filter(WeeklyAvailabilityView.RegistrationGroup::isPending).count());
             model.addAttribute("pageError", null);
         } catch (BusinessException ex) {
             model.addAttribute("availabilityGrid", null);
             model.addAttribute("registrations", List.of());
-            model.addAttribute("pendingCount", 0L);
             model.addAttribute("pageError", ex.getMessage());
         }
         return "manager/ManagerAvailability";
@@ -95,32 +93,8 @@ public class ManagerAvailabilityController {
             }
             redirectAttributes.addFlashAttribute("successMessage",
                     approved
-                            ? "Đã duyệt đăng ký. Các ca đã được xếp vào lịch làm việc trong thời hạn đăng ký. Nhân viên đã được thông báo."
-                            : "Đã từ chối đăng ký. Nhân viên đã được thông báo và các slot này không được xếp vào lịch.");
-        } catch (BusinessException ex) {
-            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
-        }
-        return "redirect:/availability/manager";
-    }
-
-    @PostMapping("/approve-all")
-    public String approveAll(@AuthenticationPrincipal AuthenticatedUser user,
-                             RedirectAttributes redirectAttributes) {
-        return reviewAll(true, user, redirectAttributes);
-    }
-
-    @PostMapping("/reject-all")
-    public String rejectAll(@AuthenticationPrincipal AuthenticatedUser user,
-                            RedirectAttributes redirectAttributes) {
-        return reviewAll(false, user, redirectAttributes);
-    }
-
-    private String reviewAll(boolean approved,
-                             AuthenticatedUser user,
-                             RedirectAttributes redirectAttributes) {
-        try {
-            String message = staffAvailabilityService.reviewAllNextWeekAvailabilities(approved, user);
-            redirectAttributes.addFlashAttribute("successMessage", message);
+                            ? "Đã duyệt đơn đăng ký ca của nhân viên này. Các ca trong đơn đã được xếp vào lịch làm việc. Nhân viên đã được thông báo."
+                            : "Đã từ chối đơn đăng ký ca của nhân viên này. Nhân viên đã được thông báo và các slot trong đơn không được xếp vào lịch.");
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
         }
