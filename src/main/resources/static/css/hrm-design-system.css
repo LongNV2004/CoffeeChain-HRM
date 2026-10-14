@@ -347,6 +347,43 @@ body:has(.coffee-sidebar) .btn-primary:hover,
 body:has(.coffee-sidebar) .store-btn--primary:hover,
 body:has(.coffee-sidebar) .leave-btn-primary:hover,
 body:has(.coffee-sidebar) .ml-btn-primary:hover { background: #3E2820; color: #fff; }
+body:has(.coffee-sidebar) .primary-btn:disabled {
+    opacity: .55;
+    cursor: not-allowed;
+}
+body:has(.coffee-sidebar) .recruit-form > .recruit-card { display: grid; gap: 14px; }
+body:has(.coffee-sidebar) .recruit-form [hidden],
+body:has(.coffee-sidebar) .recruit-toast[hidden] { display: none !important; }
+body:has(.coffee-sidebar) .recruit-form .recruit-card h2 { margin: 0; }
+body:has(.coffee-sidebar) .recruit-form .icon-btn {
+    width: 36px;
+    min-width: 36px;
+    min-height: 36px;
+    height: 36px;
+    padding: 0;
+    border-radius: 12px;
+}
+body:has(.coffee-sidebar) .recruit-form .icon-btn-danger {
+    background: #F8E4E1;
+    color: #9F3B32;
+    border-color: #F0C7C2;
+}
+body:has(.coffee-sidebar) .recruit-form .icon-btn-danger:hover {
+    background: #F8E4E1;
+    color: #9F3B32;
+    border-color: #9F3B32;
+}
+body:has(.coffee-sidebar) .recruit-form .is-invalid {
+    border-color: #9F3B32;
+    box-shadow: none;
+}
+body:has(.coffee-sidebar) .candidate-table th { background: #F3EEE9; }
+body:has(.coffee-sidebar) .candidate-table tr.is-editing td { background: rgba(182, 139, 112, .12); }
+body:has(.coffee-sidebar) .entry-panel .gender-pills { max-width: none; }
+body:has(.coffee-sidebar) .recruit-dialog {
+    border-radius: 22px;
+    border: 1px solid rgba(255, 255, 255, .7);
+}
 body:has(.coffee-sidebar) .btn-publish {
     display: inline-flex;
     align-items: center;

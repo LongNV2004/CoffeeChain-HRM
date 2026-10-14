@@ -198,13 +198,8 @@ public class TrainingServiceImpl implements TrainingService {
     public List<TrainingTrainerOption> listTrainerCandidates(AuthenticatedUser admin) {
         requireAdmin(admin, "Chỉ Admin mới được tạo lớp đào tạo.");
         return userRepository.findActiveByRoleName(RoleName.MANAGER).stream()
-                .map(user -> TrainingTrainerOption.builder()
-                        .userId(user.getId())
-                        .fullName(userDisplayName(user))
-                        .storeName(user.getEmployee() != null && user.getEmployee().getStore() != null
-                                ? user.getEmployee().getStore().getStoreName()
-                                : null)
-                        .build())
+                .map(this::toTrainerOption)
+                .flatMap(Optional::stream)
                 .sorted(Comparator.comparing(TrainingTrainerOption::getFullName, String.CASE_INSENSITIVE_ORDER))
                 .toList();
     }
@@ -489,6 +484,7 @@ public class TrainingServiceImpl implements TrainingService {
         List<Store> stores = requireStores(request.getStoreIds());
         boolean singleStore = stores.size() == 1;
         User trainer = requireManagerTrainer(request.getTrainerId());
+        requireTrainerAssignedToStores(trainer, stores);
         if (trainer.getId().equals(admin.getUserId())) {
             throw new BusinessException("Người tạo lớp và người đào tạo là hai vai trò khác nhau.");
         }
@@ -1190,6 +1186,41 @@ public class TrainingServiceImpl implements TrainingService {
             throw new BusinessException("Người đào tạo phải là Manager đang hoạt động.");
         }
         return trainer;
+    }
+
+    private Optional<TrainingTrainerOption> toTrainerOption(User user) {
+        Store managedStore = currentManagedStore(user);
+        if (managedStore == null) {
+            return Optional.empty();
+        }
+        return Optional.of(TrainingTrainerOption.builder()
+                .userId(user.getId())
+                .fullName(userDisplayName(user))
+                .storeId(managedStore.getId())
+                .storeName(managedStore.getStoreName())
+                .build());
+    }
+
+    /**
+     * Cửa hàng Manager đang được phân công quản lý theo Stores.ManagerId.
+     * Không dùng cửa hàng trên hồ sơ nhân viên, vì phân công có thể đã đổi.
+     */
+    private Store currentManagedStore(User user) {
+        if (user == null || user.getEmployee() == null || user.getEmployee().getId() == null) {
+            return null;
+        }
+        return storeRepository.findByManager_Id(user.getEmployee().getId()).orElse(null);
+    }
+
+    private void requireTrainerAssignedToStores(User trainer, List<Store> stores) {
+        Store managedStore = currentManagedStore(trainer);
+        boolean assigned = managedStore != null
+                && stores.stream().anyMatch(store -> managedStore.getId().equals(store.getId()));
+        if (!assigned) {
+            throw new BusinessException(stores.size() <= 1
+                    ? "Người đào tạo phải là Manager đang được phân công quản lý cơ sở đã chọn."
+                    : "Người đào tạo phải là Manager của một trong các cơ sở đã chọn.");
+        }
     }
 
     private String requireUniqueOpenClassName(String className) {

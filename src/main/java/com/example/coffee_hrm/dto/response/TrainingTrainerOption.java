@@ -13,5 +13,7 @@ public class TrainingTrainerOption {
 
     private Integer userId;
     private String fullName;
+    /** Cửa hàng Manager đang được phân công quản lý (Stores.ManagerId). */
+    private Integer storeId;
     private String storeName;
 }

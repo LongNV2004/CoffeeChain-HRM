@@ -284,6 +284,7 @@ class TrainingServiceImplTest {
                 .build()));
         when(storeRepository.findById(5)).thenReturn(Optional.of(store));
         when(userRepository.findByIdWithRole(2)).thenReturn(Optional.of(user(2, RoleName.MANAGER, 20)));
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
         LocalDate overlapStart = VietnamTime.today().plusDays(10);
         LocalDate overlapEnd = overlapStart.plusDays(1);
         when(trainingClassRepository.findActiveByStoreId(5, TrainingClassStatus.REJECTED))
@@ -315,6 +316,7 @@ class TrainingServiceImplTest {
         when(trainingSkillRepository.findById(9)).thenReturn(Optional.of(skill));
         when(storeRepository.findById(5)).thenReturn(Optional.of(store));
         when(userRepository.findByIdWithRole(2)).thenReturn(Optional.of(trainer));
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
         when(userRepository.findById(1)).thenReturn(Optional.of(user(1, RoleName.ADMIN, null)));
         when(employeeRepository.findByIdWithStore(30)).thenReturn(Optional.of(
                 employee(30, "An", store, EmployeeStatus.ACTIVE)));
@@ -377,6 +379,7 @@ class TrainingServiceImplTest {
         when(trainingSkillRepository.findById(9)).thenReturn(Optional.of(skill));
         when(storeRepository.findById(5)).thenReturn(Optional.of(store));
         when(userRepository.findByIdWithRole(2)).thenReturn(Optional.of(trainer));
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
         when(userRepository.findById(1)).thenReturn(Optional.of(user(1, RoleName.ADMIN, null)));
         when(employeeRepository.findByIdWithStore(30)).thenReturn(Optional.of(learner));
         when(trainingClassRepository.findActiveByStoreId(5, TrainingClassStatus.REJECTED)).thenReturn(List.of());
@@ -450,6 +453,7 @@ class TrainingServiceImplTest {
         when(trainingSkillRepository.findById(9)).thenReturn(Optional.of(skill));
         when(storeRepository.findById(5)).thenReturn(Optional.of(store));
         when(userRepository.findByIdWithRole(2)).thenReturn(Optional.of(user(2, RoleName.MANAGER, 20)));
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
         when(userRepository.findById(1)).thenReturn(Optional.of(user(1, RoleName.ADMIN, null)));
         when(employeeRepository.findByIdWithStore(30)).thenReturn(Optional.of(
                 employee(30, "An", store, EmployeeStatus.ACTIVE)));
@@ -905,12 +909,33 @@ class TrainingServiceImplTest {
                 any(), eq(TrainingResult.PASS), eq(TrainingClassStatus.APPROVED)))
                 .thenReturn(List.of());
         when(userRepository.findActiveByRoleName(RoleName.MANAGER)).thenReturn(List.of(trainer));
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
 
         var employees = trainingService.listActiveEmployees(admin);
         var trainers = trainingService.listTrainerCandidates(admin);
 
         assertEquals(List.of(30), employees.stream().map(item -> item.getEmployeeId()).toList());
         assertEquals(List.of(2), trainers.stream().map(item -> item.getUserId()).toList());
+        assertEquals(5, trainers.getFirst().getStoreId());
+        assertEquals("Store A", trainers.getFirst().getStoreName());
+    }
+
+    @Test
+    void trainerCandidatesFollowCurrentStoreAssignment() {
+        Store workplace = Store.builder().id(5).storeName("Nơi làm việc").build();
+        Store managed = Store.builder().id(6).storeName("Cơ sở được phân công").build();
+        User assigned = user(2, RoleName.MANAGER, 20);
+        assigned.getEmployee().setStore(workplace);
+        User unassigned = user(4, RoleName.MANAGER, 40);
+        when(userRepository.findActiveByRoleName(RoleName.MANAGER)).thenReturn(List.of(assigned, unassigned));
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(managed));
+
+        var trainers = trainingService.listTrainerCandidates(admin);
+
+        assertEquals(1, trainers.size());
+        assertEquals(2, trainers.getFirst().getUserId());
+        assertEquals(6, trainers.getFirst().getStoreId());
+        assertEquals("Cơ sở được phân công", trainers.getFirst().getStoreName());
     }
 
     @Test
@@ -1545,6 +1570,7 @@ class TrainingServiceImplTest {
         when(trainingClassRepository.findActiveByStoreId(5, TrainingClassStatus.REJECTED)).thenReturn(List.of());
         when(trainingClassRepository.findActiveByStoreId(6, TrainingClassStatus.REJECTED)).thenReturn(List.of());
         when(userRepository.findByIdWithRole(2)).thenReturn(Optional.of(trainer));
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(firstStore));
         when(userRepository.findById(1)).thenReturn(Optional.of(user(1, RoleName.ADMIN, null)));
         when(employeeRepository.findByIdWithStore(30)).thenReturn(Optional.of(firstEmployee));
         when(employeeRepository.findByIdWithStore(31)).thenReturn(Optional.of(secondEmployee));
@@ -1618,6 +1644,7 @@ class TrainingServiceImplTest {
         when(trainingClassRepository.findActiveByStoreId(5, TrainingClassStatus.REJECTED)).thenReturn(List.of());
         when(trainingClassRepository.findActiveByStoreId(6, TrainingClassStatus.REJECTED)).thenReturn(List.of());
         when(userRepository.findByIdWithRole(2)).thenReturn(Optional.of(trainer));
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(secondStore));
         when(userRepository.findById(1)).thenReturn(Optional.of(user(1, RoleName.ADMIN, null)));
         when(employeeRepository.findByIdWithStore(32)).thenReturn(Optional.of(outsider));
         when(trainingClassRepository.save(any(TrainingClass.class))).thenAnswer(invocation -> {
@@ -1651,6 +1678,7 @@ class TrainingServiceImplTest {
         when(trainingSkillRepository.findById(9)).thenReturn(Optional.of(skill));
         when(storeRepository.findById(5)).thenReturn(Optional.of(store));
         when(userRepository.findByIdWithRole(2)).thenReturn(Optional.of(user(2, RoleName.MANAGER, 20)));
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
         when(userRepository.findById(1)).thenReturn(Optional.of(user(1, RoleName.ADMIN, null)));
         when(employeeRepository.findByIdWithStore(32)).thenReturn(Optional.of(outsider));
         when(trainingClassRepository.findActiveByStoreId(5, TrainingClassStatus.REJECTED)).thenReturn(List.of());
@@ -1671,6 +1699,108 @@ class TrainingServiceImplTest {
                 () -> trainingService.createCentralizedClass(request, admin));
 
         assertEquals("Nhân viên không thuộc cửa hàng của bạn.", ex.getMessage());
+    }
+
+    @Test
+    void oneStoreClassRejectsTrainerWhoDoesNotManageThatStore() {
+        Store selected = Store.builder().id(5).storeName("Store A").build();
+        Store other = Store.builder().id(6).storeName("Store B").build();
+        when(trainingSkillRepository.findById(9)).thenReturn(Optional.of(TrainingSkill.builder()
+                .id(9)
+                .skillName("Barista")
+                .status(TrainingSkillStatus.ACTIVE)
+                .build()));
+        when(storeRepository.findById(5)).thenReturn(Optional.of(selected));
+        when(userRepository.findByIdWithRole(2)).thenReturn(Optional.of(user(2, RoleName.MANAGER, 20)));
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(other));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> trainingService.createCentralizedClass(adminClassRequest(
+                        VietnamTime.today().plusDays(1),
+                        VietnamTime.today().plusDays(1),
+                        LocalTime.of(8, 0),
+                        LocalTime.of(10, 0)), admin));
+
+        assertEquals("Người đào tạo phải là Manager đang được phân công quản lý cơ sở đã chọn.", ex.getMessage());
+        verify(trainingClassRepository, never()).save(any());
+    }
+
+    @Test
+    void oneStoreClassRejectsTrainerWhoIsNoLongerAssigned() {
+        Store selected = Store.builder().id(5).storeName("Store A").build();
+        when(trainingSkillRepository.findById(9)).thenReturn(Optional.of(TrainingSkill.builder()
+                .id(9)
+                .skillName("Barista")
+                .status(TrainingSkillStatus.ACTIVE)
+                .build()));
+        when(storeRepository.findById(5)).thenReturn(Optional.of(selected));
+        when(userRepository.findByIdWithRole(2)).thenReturn(Optional.of(user(2, RoleName.MANAGER, 20)));
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.empty());
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> trainingService.createCentralizedClass(adminClassRequest(
+                        VietnamTime.today().plusDays(1),
+                        VietnamTime.today().plusDays(1),
+                        LocalTime.of(8, 0),
+                        LocalTime.of(10, 0)), admin));
+
+        assertEquals("Người đào tạo phải là Manager đang được phân công quản lý cơ sở đã chọn.", ex.getMessage());
+        verify(trainingClassRepository, never()).save(any());
+    }
+
+    @Test
+    void multiStoreClassRejectsTrainerOutsideSelectedStores() {
+        Store first = Store.builder().id(5).storeName("Store A").build();
+        Store second = Store.builder().id(6).storeName("Store B").build();
+        Store outside = Store.builder().id(7).storeName("Store C").build();
+        when(trainingSkillRepository.findById(9)).thenReturn(Optional.of(TrainingSkill.builder()
+                .id(9)
+                .skillName("Barista")
+                .status(TrainingSkillStatus.ACTIVE)
+                .build()));
+        when(storeRepository.findById(5)).thenReturn(Optional.of(first));
+        when(storeRepository.findById(6)).thenReturn(Optional.of(second));
+        when(userRepository.findByIdWithRole(2)).thenReturn(Optional.of(user(2, RoleName.MANAGER, 20)));
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(outside));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> trainingService.createCentralizedClass(CreateCentralizedTrainingRequest.builder()
+                        .className("Lớp liên cơ sở")
+                        .skillIds(List.of(9))
+                        .storeIds(List.of(5, 6))
+                        .employeeIds(List.of(30))
+                        .trainerId(2)
+                        .startDate(VietnamTime.today().plusDays(2))
+                        .endDate(VietnamTime.today().plusDays(2))
+                        .startTime(LocalTime.of(9, 0))
+                        .endTime(LocalTime.of(11, 0))
+                        .build(), admin));
+
+        assertEquals("Người đào tạo phải là Manager của một trong các cơ sở đã chọn.", ex.getMessage());
+        verify(trainingClassRepository, never()).save(any());
+    }
+
+    @Test
+    void createClassRejectsTrainerWhoNoLongerHoldsManagerRole() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        when(trainingSkillRepository.findById(9)).thenReturn(Optional.of(TrainingSkill.builder()
+                .id(9)
+                .skillName("Barista")
+                .status(TrainingSkillStatus.ACTIVE)
+                .build()));
+        when(storeRepository.findById(5)).thenReturn(Optional.of(store));
+        when(userRepository.findByIdWithRole(2)).thenReturn(Optional.of(user(2, RoleName.STAFF, 20)));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> trainingService.createCentralizedClass(adminClassRequest(
+                        VietnamTime.today().plusDays(1),
+                        VietnamTime.today().plusDays(1),
+                        LocalTime.of(8, 0),
+                        LocalTime.of(10, 0)), admin));
+
+        assertEquals("Người đào tạo phải là Manager đang hoạt động.", ex.getMessage());
+        verify(storeRepository, never()).findByManager_Id(any());
+        verify(trainingClassRepository, never()).save(any());
     }
 
     private EmployeeSkillTrainingFact fact(Integer employeeId,
