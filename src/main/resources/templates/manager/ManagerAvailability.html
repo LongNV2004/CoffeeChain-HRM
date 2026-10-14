@@ -36,8 +36,8 @@
             </div>
         </div>
         <p>
-            Đơn đang chờ được gom ở bảng riêng phía dưới. Duyệt hoặc từ chối từng nhân viên;
-            không duyệt hay từ chối toàn bộ danh sách cùng lúc.
+            Đơn đang chờ được gom ở bảng riêng phía dưới. Duyệt hoặc từ chối từng nhân viên,
+            hoặc dùng Duyệt tất cả / Từ chối tất cả cho mọi đơn đang chờ.
             Khi duyệt, các slot trong đơn của nhân viên đó được xếp vào lịch làm việc tương lai, đúng ca và đúng thứ trong thời hạn.
             Nhân viên xem lại các ca đó trên Lịch làm việc và nhận thông báo.
             Ca đã phân trùng đúng slot được giữ nguyên.
@@ -92,11 +92,31 @@
     </section>
 
     <section class="panel" id="pending-registrations">
-        <h2>
-            Đơn chờ duyệt
-            <span class="muted" th:text="'(' + ${#lists.size(registrations.?[pending])} + ')'">(0)</span>
-        </h2>
-        <p class="muted">Chỉ các đơn đang chờ. Chọn Duyệt hoặc Từ chối trên đúng dòng của nhân viên cần xử lý.</p>
+        <div class="panel-head">
+            <div>
+                <h2>
+                    Đơn chờ duyệt
+                    <span class="muted" th:text="'(' + ${#lists.size(registrations.?[pending])} + ')'">(0)</span>
+                </h2>
+                <p>Chỉ các đơn đang chờ. Duyệt hoặc từ chối từng nhân viên, hoặc xử lý toàn bộ danh sách đang chờ.</p>
+            </div>
+            <div class="bulk-actions" th:if="${!#lists.isEmpty(registrations.?[pending])}">
+                <form th:action="@{/availability/manager/review-all}" method="post">
+                    <input type="hidden" name="approved" value="true">
+                    <button class="bulk-btn approve" type="submit"
+                            onclick="return confirm('Duyệt tất cả đơn đang chờ? Mỗi nhân viên được duyệt theo đơn của chính họ; các slot trong đơn được xếp vào lịch.');">
+                        Duyệt tất cả
+                    </button>
+                </form>
+                <form th:action="@{/availability/manager/review-all}" method="post">
+                    <input type="hidden" name="approved" value="false">
+                    <button class="bulk-btn reject" type="submit"
+                            onclick="return confirm('Từ chối tất cả đơn đang chờ? Chỉ các đơn đang chờ bị từ chối. Đơn đã duyệt được giữ nguyên.');">
+                        Từ chối tất cả
+                    </button>
+                </form>
+            </div>
+        </div>
         <p class="empty" th:if="${#lists.isEmpty(registrations.?[pending])}">Không có đơn đang chờ duyệt.</p>
         <table th:if="${!#lists.isEmpty(registrations.?[pending])}">
             <thead>

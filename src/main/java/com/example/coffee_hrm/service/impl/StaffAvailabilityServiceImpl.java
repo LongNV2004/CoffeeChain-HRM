@@ -65,7 +65,11 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
     static final String NOT_CERTIFIED_APPROVAL_MESSAGE =
             "Nhân viên chưa có chứng chỉ nên không thể đăng ký ca làm việc. "
                     + "Vui lòng hoàn thành khóa đào tạo và đạt yêu cầu để được cấp chứng chỉ.";
-    static final String INVALID_LIMIT_MESSAGE = "Số lượng nhân viên tối đa phải là số nguyên dương.";
+    static final String INVALID_LIMIT_MESSAGE = "Vui lòng nhập số lượng nhân viên lớn hơn 0.";
+    static final String SLOT_LIMIT_HEADCOUNT_MESSAGE =
+            "Số lượng nhân viên trong ca không được vượt quá số nhân viên Staff hiện có tại cửa hàng (%d nhân viên).";
+    static final String SLOT_LIMIT_NO_STAFF_MESSAGE =
+            "Cửa hàng chưa có nhân viên Staff. Hãy thêm nhân viên trước khi cấu hình sức chứa lớn hơn 0.";
     static final String OTHER_STORE_SHIFT_MESSAGE = "Ca làm việc không thuộc cửa hàng bạn quản lý.";
 
     private static final List<ApprovalStatus> OCCUPYING_STATUSES =
@@ -310,6 +314,42 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
 
     @Override
     @Transactional
+    public int reviewAllPendingRegistrations(boolean approved, AuthenticatedUser manager) {
+        Store store = resolveManagerStore(manager);
+        List<WorkAvailability> visible = workAvailabilityRepository.findVisibleByStore(
+                store.getId(), VietnamTime.today(), ApprovalStatus.PENDING);
+        LinkedHashSet<String> registrationKeys = new LinkedHashSet<>();
+        List<Integer> legacyIds = new ArrayList<>();
+        for (WorkAvailability availability : visible) {
+            if (resolveStatus(availability.getStatus()) != ApprovalStatus.PENDING) {
+                continue;
+            }
+            if (availability.getRegistrationKey() != null && !availability.getRegistrationKey().isBlank()) {
+                registrationKeys.add(availability.getRegistrationKey());
+            } else if (availability.getId() != null) {
+                legacyIds.add(availability.getId());
+            }
+        }
+        if (registrationKeys.isEmpty() && legacyIds.isEmpty()) {
+            throw new BusinessException("Không có đơn đang chờ duyệt.");
+        }
+        for (String registrationKey : registrationKeys) {
+            reviewRegistration(registrationKey, approved, manager);
+        }
+        for (Integer availabilityId : legacyIds) {
+            reviewAvailability(availabilityId, approved, manager);
+        }
+        return registrationKeys.size() + legacyIds.size();
+    }
+
+    @Override
+    public int countStaffForSlotLimit(AuthenticatedUser manager) {
+        Store store = resolveManagerStore(manager);
+        return countStaffExcludingManager(store, manager.getEmployeeId());
+    }
+
+    @Override
+    @Transactional
     public SlotLimitUpdateResult updateSlotLimit(Integer shiftId,
                                                   Integer dayOfWeek,
                                                   String maxEmployeesRaw,
@@ -324,6 +364,13 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
         Store store = resolveManagerStore(manager);
         Shift shift = shiftRepository.findByIdAndStore_Id(shiftId, store.getId())
                 .orElseThrow(() -> new BusinessException(OTHER_STORE_SHIFT_MESSAGE));
+        int staffCount = countStaffExcludingManager(store, manager.getEmployeeId());
+        if (staffCount < 1) {
+            throw new BusinessException(SLOT_LIMIT_NO_STAFF_MESSAGE);
+        }
+        if (maxEmployees > staffCount) {
+            throw new BusinessException(String.format(SLOT_LIMIT_HEADCOUNT_MESSAGE, staffCount));
+        }
 
         ShiftSlotLimit limit = shiftSlotLimitRepository.lockByShiftAndDay(shiftId, dayOfWeek)
                 .orElseGet(() -> ShiftSlotLimit.builder()
@@ -772,6 +819,12 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
         if (employee == null || employee.getStore() == null || !Objects.equals(employee.getStore().getId(), store.getId())) {
             throw new BusinessException("Đề xuất này không thuộc nhân viên của cửa hàng bạn quản lý.");
         }
+    }
+
+    private int countStaffExcludingManager(Store store, Integer managerEmployeeId) {
+        long count = employeeRepository.countSchedulableStaff(
+                store.getId(), EmployeeStatus.ACTIVE, RoleName.STAFF, managerEmployeeId);
+        return count > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) count;
     }
 
     private Store resolveManagerStore(AuthenticatedUser manager) {

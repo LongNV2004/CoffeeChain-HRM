@@ -1,6 +1,7 @@
 package com.example.coffee_hrm.repository;
 
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
+import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.entity.Employee;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -70,6 +71,25 @@ public interface EmployeeRepository extends JpaRepository<Employee, Integer> {
             ORDER BY e.id
             """)
     List<Employee> findByStoreIdWithAccount(@Param("storeId") Integer storeId);
+
+    /**
+     * Nhân viên Staff đang làm việc tại đúng một cửa hàng.
+     * Không tính Manager, Admin, nhân viên nghỉ phép, đã nghỉ việc, hoặc cửa hàng khác.
+     */
+    @Query("""
+            SELECT COUNT(e)
+            FROM Employee e
+            JOIN e.user u
+            JOIN u.role r
+            WHERE e.store.id = :storeId
+              AND e.status = :status
+              AND r.roleName = :staffRole
+              AND e.id <> :managerEmployeeId
+            """)
+    long countSchedulableStaff(@Param("storeId") Integer storeId,
+                                @Param("status") EmployeeStatus status,
+                                @Param("staffRole") RoleName staffRole,
+                                @Param("managerEmployeeId") Integer managerEmployeeId);
 
     @Query(
             """

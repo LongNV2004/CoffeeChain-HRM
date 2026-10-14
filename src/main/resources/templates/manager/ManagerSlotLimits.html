@@ -39,6 +39,15 @@
             cho đến khi bạn đổi, kể cả khi các ca cùng tên. Nếu hạ giới hạn xuống thấp hơn số đăng ký
             đã duyệt và đang chờ, đăng ký cũ được giữ nguyên và ô đó tạm ngưng nhận thêm.
         </p>
+        <p>
+            Mỗi ca được cấu hình từ 1 đến
+            <strong th:text="${staffSlotCapacity}">0</strong>
+            nhân viên Staff đang làm việc tại cửa hàng. Không tính quản lý, admin, nhân viên nghỉ phép hoặc đã nghỉ việc.
+            Giới hạn tính riêng cho từng ca, không cộng các ca lại.
+        </p>
+        <p class="flash error" th:if="${staffSlotCapacity == 0}">
+            Cửa hàng chưa có nhân viên Staff. Hãy thêm nhân viên trước khi cấu hình sức chứa lớn hơn 0.
+        </p>
         <p class="muted" th:if="${#lists.isEmpty(availabilityGrid.shiftRows)}">
             Cửa hàng chưa có ca làm việc.
         </p>
@@ -67,10 +76,22 @@
                             <input type="hidden" name="dayOfWeek" th:value="${cell.dayOfWeek}">
                             <label>
                                 Tối đa
-                                <input type="number" name="maxEmployees" min="1" step="1" required
+                                <input type="number" name="maxEmployees" step="1" required
+                                       th:min="${staffSlotCapacity > 0 ? 1 : 0}"
+                                       th:max="${staffSlotCapacity}"
                                        th:value="${cell.maxEmployees}"
+                                       th:disabled="${staffSlotCapacity == 0}"
                                        th:attr="aria-label=${'Số nhân viên tối đa ' + cell.dayOfWeekName + ' ' + row.shiftName}">
                             </label>
+                            <span class="muted">Staff hiện có: <strong th:text="${staffSlotCapacity}">0</strong></span>
+                            <p class="slot-warning limit-client-error" hidden></p>
+                            <p class="slot-warning"
+                               th:if="${cell.configured and cell.maxEmployees != null and cell.maxEmployees > staffSlotCapacity}">
+                                Sức chứa đang lưu (<strong th:text="${cell.maxEmployees}">11</strong>)
+                                lớn hơn số nhân viên Staff hiện có
+                                (<strong th:text="${staffSlotCapacity}">10</strong>).
+                                Hãy điều chỉnh khi cập nhật. Cấu hình cũ, đăng ký đã duyệt và lịch làm việc được giữ nguyên.
+                            </p>
                             <span>Đã duyệt: <strong th:text="${cell.approvedCount}">0</strong></span>
                             <span>Chờ duyệt: <strong th:text="${cell.pendingCount}">0</strong></span>
                             <span>Còn lại: <strong th:text="${cell.remainingText}">—</strong></span>
@@ -78,7 +99,7 @@
                             <p class="slot-warning" th:if="${cell.overCapacity}" th:text="${cell.registrationHint}">
                                 Giới hạn thấp hơn số đăng ký hiện tại.
                             </p>
-                            <button class="limit-save" type="submit">Cập nhật</button>
+                            <button class="limit-save" type="submit" th:disabled="${staffSlotCapacity == 0}">Cập nhật</button>
                         </form>
                     </td>
                 </tr>
@@ -87,5 +108,39 @@
         </div>
     </section>
 </main>
+<script th:if="${availabilityGrid != null}" th:inline="javascript">
+(function () {
+    var staffCount = /*[[${staffSlotCapacity}]]*/ 0;
+    var overLimit = "Số lượng nhân viên trong ca không được vượt quá số nhân viên Staff hiện có tại cửa hàng ("
+        + staffCount + " nhân viên).";
+    var mustBePositive = "Vui lòng nhập số lượng nhân viên lớn hơn 0.";
+    document.querySelectorAll(".limit-form").forEach(function (form) {
+        var input = form.querySelector('input[name="maxEmployees"]');
+        var button = form.querySelector(".limit-save");
+        var error = form.querySelector(".limit-client-error");
+        if (!input || !button || !error || input.disabled) {
+            return;
+        }
+        function validate(showMessage) {
+            var raw = input.value.trim();
+            var message = "";
+            if (raw !== "" && (!/^\d+$/.test(raw) || Number(raw) < 1)) {
+                message = mustBePositive;
+            } else if (raw !== "" && Number(raw) > staffCount) {
+                message = overLimit;
+            }
+            var blocked = message !== "" || raw === "";
+            error.hidden = !showMessage || message === "";
+            error.textContent = showMessage ? message : "";
+            input.classList.toggle("is-invalid", showMessage && message !== "");
+            button.disabled = blocked;
+        }
+        var raw = input.value.trim();
+        var alreadyInvalid = raw !== "" && (!/^\d+$/.test(raw) || Number(raw) < 1 || Number(raw) > staffCount);
+        validate(alreadyInvalid);
+        input.addEventListener("input", function () { validate(true); });
+    });
+})();
+</script>
 </body>
 </html>

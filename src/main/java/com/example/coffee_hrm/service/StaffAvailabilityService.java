@@ -47,9 +47,24 @@ public interface StaffAvailabilityService {
     void reviewRegistration(String registrationKey, boolean approved, AuthenticatedUser manager);
 
     /**
+     * Duyệt hoặc từ chối mọi đơn đang chờ của cửa hàng.
+     * Mỗi đơn vẫn được xử lý riêng; đơn đã duyệt hoặc đã từ chối không đổi.
+     *
+     * @return số đơn đang chờ đã xử lý
+     */
+    int reviewAllPendingRegistrations(boolean approved, AuthenticatedUser manager);
+
+    /**
+     * Số nhân viên Staff đang làm việc tại cửa hàng của Manager.
+     * Không tính Manager, Admin, nhân viên không còn hoạt động, hoặc cửa hàng khác.
+     */
+    int countStaffForSlotLimit(AuthenticatedUser manager);
+
+    /**
      * Cập nhật số nhân viên tối đa của một ca trong một thứ.
+     * Giá trị phải từ 1 đến số Staff đang làm việc tại cửa hàng.
      * Giới hạn giữ nguyên cho các tuần và tháng sau cho đến khi Manager đổi.
-     * Không đổi trạng thái các đăng ký đã có.
+     * Không đổi trạng thái các đăng ký đã có và không sửa cấu hình cũ khi số nhân viên thay đổi.
      */
     SlotLimitUpdateResult updateSlotLimit(Integer shiftId,
                                            Integer dayOfWeek,
