@@ -16,16 +16,34 @@
         catch (_) { /* Không có quyền lưu cục bộ. */ }
 
         const mobileScreen = typeof window.matchMedia === 'function'
-            ? window.matchMedia('(max-width: 760px)')
+            ? window.matchMedia('(max-width: 900px)')
             : { matches: false };
-        let collapsed = savedPreference === null ? mobileScreen.matches : savedPreference === 'true';
+        let collapsed = savedPreference === 'true';
+        let mobileOpen = false;
+        const shell = sidebar.closest('.hrm-shell') || document;
+        const mobileBtn = shell.querySelector('[data-sidebar-mobile]');
+        const backdrop = shell.querySelector('[data-sidebar-backdrop]');
 
         function applyState() {
-            sidebar.classList.toggle('is-collapsed', collapsed);
+            const mobile = mobileScreen.matches;
+            if (mobile) {
+                sidebar.classList.remove('is-collapsed');
+                sidebar.classList.toggle('is-mobile-open', mobileOpen);
+                document.body.classList.toggle('hrm-nav-open', mobileOpen);
+            } else {
+                mobileOpen = false;
+                sidebar.classList.remove('is-mobile-open');
+                document.body.classList.remove('hrm-nav-open');
+                sidebar.classList.toggle('is-collapsed', collapsed);
+            }
             if (toggle) {
                 toggle.setAttribute('aria-expanded', String(!collapsed));
                 toggle.setAttribute('aria-label', collapsed ? 'Mở rộng thanh điều hướng' : 'Thu gọn thanh điều hướng');
                 toggle.title = collapsed ? 'Mở rộng' : 'Thu gọn';
+            }
+            if (mobileBtn) {
+                mobileBtn.setAttribute('aria-expanded', String(mobileOpen));
+                mobileBtn.setAttribute('aria-label', mobileOpen ? 'Đóng menu' : 'Mở menu');
             }
         }
 
@@ -41,6 +59,14 @@
 
         if (toggle) toggle.addEventListener('click', function () {
             setCollapsed(!collapsed, true);
+        });
+        if (mobileBtn) mobileBtn.addEventListener('click', function () {
+            mobileOpen = !mobileOpen;
+            applyState();
+        });
+        if (backdrop) backdrop.addEventListener('click', function () {
+            mobileOpen = false;
+            applyState();
         });
 
         groups.forEach(function (group) {
@@ -60,18 +86,65 @@
         });
 
         // Khi chưa lưu lựa chọn, kích thước màn hình quyết định trạng thái mặc định.
-        function onScreenChange(event) {
-            if (savedPreference === null) setCollapsed(event.matches, false);
+        function onScreenChange() {
+            applyState();
         }
+        sidebar.querySelectorAll('a').forEach(function (link) {
+            link.addEventListener('click', function () {
+                if (!mobileScreen.matches) return;
+                mobileOpen = false;
+                applyState();
+            });
+        });
         if (mobileScreen.addEventListener) mobileScreen.addEventListener('change', onScreenChange);
         else if (mobileScreen.addListener) mobileScreen.addListener(onScreenChange);
 
         applyState();
     }
 
+    function closeAccountMenus() {
+        document.querySelectorAll('[data-account]').forEach(function (root) {
+            const menu = root.querySelector('.hrm-account-menu');
+            const button = root.querySelector('[data-account-toggle]');
+            root.classList.remove('is-open');
+            if (menu) menu.setAttribute('hidden', '');
+            if (button) button.setAttribute('aria-expanded', 'false');
+        });
+    }
+
+    function initAccountMenus() {
+        document.querySelectorAll('[data-account]').forEach(function (root) {
+            if (root.dataset.accountReady === 'true') return;
+            root.dataset.accountReady = 'true';
+            const button = root.querySelector('[data-account-toggle]');
+            const menu = root.querySelector('.hrm-account-menu');
+            if (!button || !menu) return;
+
+            button.addEventListener('click', function (event) {
+                event.stopPropagation();
+                const willOpen = menu.hasAttribute('hidden');
+                closeAccountMenus();
+                if (willOpen) {
+                    menu.removeAttribute('hidden');
+                    root.classList.add('is-open');
+                    button.setAttribute('aria-expanded', 'true');
+                }
+            });
+            menu.addEventListener('click', function (event) {
+                event.stopPropagation();
+            });
+        });
+    }
+
     function initAll() {
         document.querySelectorAll('.coffee-sidebar').forEach(initSidebar);
+        initAccountMenus();
     }
+
+    document.addEventListener('click', closeAccountMenus);
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') closeAccountMenus();
+    });
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initAll, { once: true });

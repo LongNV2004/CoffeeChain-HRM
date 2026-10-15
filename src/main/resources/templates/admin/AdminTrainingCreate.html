@@ -100,9 +100,11 @@
                 <select th:field="*{trainerId}" required>
                     <option value="">-- Chọn Manager --</option>
                     <option th:each="trainer : ${trainers}" th:value="${trainer.userId}"
+                            th:attr="data-store-id=${trainer.storeId}"
                             th:text="${trainer.storeName != null} ? |${trainer.fullName} · ${trainer.storeName}| : ${trainer.fullName}">Manager</option>
                 </select>
             </label>
+            <p id="trainer-hint" class="muted" hidden></p>
             <label>Tên lớp
                 <input type="text" th:field="*{className}" maxlength="150" required>
             </label>
@@ -138,6 +140,12 @@
     (function () {
         var form = document.getElementById('centralized-form');
         var error = document.getElementById('class-client-error');
+        var trainerSelect = document.querySelector('[name="trainerId"]');
+        var trainerHint = document.getElementById('trainer-hint');
+        var trainerCatalog = [];
+        var SINGLE_STORE_EMPTY = 'Cơ sở này hiện chưa có Manager phù hợp để phụ trách đào tạo';
+        var MULTI_STORE_EMPTY = 'Các cơ sở đã chọn hiện chưa có Manager phù hợp để phụ trách đào tạo';
+        var RESELECT_TRAINER = 'Người đào tạo đã chọn không còn thuộc các cơ sở này. Vui lòng chọn lại.';
 
         function selectedStoreIds() {
             return Array.prototype.map.call(
@@ -145,6 +153,74 @@
                 function (input) { return input.value; }
             );
         }
+
+        function emptyTrainerMessage(storeIds) {
+            return storeIds.length === 1 ? SINGLE_STORE_EMPTY : MULTI_STORE_EMPTY;
+        }
+
+        if (trainerSelect) {
+            Array.prototype.forEach.call(trainerSelect.options, function (option) {
+                if (!option.value) {
+                    return;
+                }
+                trainerCatalog.push({
+                    value: option.value,
+                    label: option.textContent,
+                    storeId: option.getAttribute('data-store-id') || ''
+                });
+            });
+        }
+
+        function matchingTrainers(storeIds) {
+            return trainerCatalog.filter(function (trainer) {
+                return storeIds.indexOf(trainer.storeId) >= 0;
+            });
+        }
+
+        function syncTrainers() {
+            if (!trainerSelect) {
+                return;
+            }
+            var storeIds = selectedStoreIds();
+            var previous = trainerSelect.value;
+            var matches = matchingTrainers(storeIds);
+            var placeholder = trainerSelect.querySelector('option[value=""]');
+            trainerSelect.innerHTML = '';
+            var emptyOption = placeholder || document.createElement('option');
+            emptyOption.value = '';
+            emptyOption.textContent = '-- Chọn Manager --';
+            trainerSelect.appendChild(emptyOption);
+            matches.forEach(function (trainer) {
+                var option = document.createElement('option');
+                option.value = trainer.value;
+                option.textContent = trainer.label;
+                option.setAttribute('data-store-id', trainer.storeId);
+                trainerSelect.appendChild(option);
+            });
+            var stillValid = matches.some(function (trainer) { return trainer.value === previous; });
+            trainerSelect.value = stillValid ? previous : '';
+            if (!trainerHint) {
+                return;
+            }
+            if (!storeIds.length) {
+                trainerHint.hidden = false;
+                trainerHint.textContent = 'Chọn cửa hàng trước.';
+            } else if (!matches.length) {
+                trainerHint.hidden = false;
+                trainerHint.textContent = emptyTrainerMessage(storeIds);
+            } else if (previous && !stillValid) {
+                trainerHint.hidden = false;
+                trainerHint.textContent = RESELECT_TRAINER;
+            } else {
+                trainerHint.hidden = true;
+                trainerHint.textContent = '';
+            }
+        }
+
+        document.querySelectorAll('input[name="storeIds"]').forEach(function (input) {
+            input.addEventListener('change', syncTrainers);
+        });
+        syncTrainers();
 
         if (!form) {
             return;
@@ -188,8 +264,18 @@
                 return;
             }
             var trainer = form.querySelector('[name="trainerId"]');
-            if (!trainer || !trainer.value) {
-                fail('Vui lòng chọn người đào tạo.');
+            var trainerMatches = matchingTrainers(selectedStores);
+            var selectedTrainer = trainerMatches.filter(function (item) {
+                return trainer && item.value === trainer.value;
+            })[0];
+            if (!trainer || !trainer.value || !selectedTrainer) {
+                fail(selectedStores.length && !trainerMatches.length
+                    ? emptyTrainerMessage(selectedStores)
+                    : (trainer && trainer.value
+                        ? (selectedStores.length === 1
+                            ? 'Người đào tạo phải là Manager đang được phân công quản lý cơ sở đã chọn.'
+                            : 'Người đào tạo phải là Manager của một trong các cơ sở đã chọn.')
+                        : 'Vui lòng chọn người đào tạo.'));
                 return;
             }
             var startDate = document.getElementById('class-start-date');

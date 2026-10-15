@@ -55,7 +55,6 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
 
-    private static final DateTimeFormatter DAY_MONTH = DateTimeFormatter.ofPattern("dd/MM");
     private static final DateTimeFormatter FULL_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
     private static final String[] VI_DAYS = {"Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"};
@@ -66,7 +65,11 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
     static final String NOT_CERTIFIED_APPROVAL_MESSAGE =
             "Nhân viên chưa có chứng chỉ nên không thể đăng ký ca làm việc. "
                     + "Vui lòng hoàn thành khóa đào tạo và đạt yêu cầu để được cấp chứng chỉ.";
-    static final String INVALID_LIMIT_MESSAGE = "Số lượng nhân viên tối đa phải là số nguyên dương.";
+    static final String INVALID_LIMIT_MESSAGE = "Vui lòng nhập số lượng nhân viên lớn hơn 0.";
+    static final String SLOT_LIMIT_HEADCOUNT_MESSAGE =
+            "Số lượng nhân viên trong ca không được vượt quá số nhân viên Staff hiện có tại cửa hàng (%d nhân viên).";
+    static final String SLOT_LIMIT_NO_STAFF_MESSAGE =
+            "Cửa hàng chưa có nhân viên Staff. Hãy thêm nhân viên trước khi cấu hình sức chứa lớn hơn 0.";
     static final String OTHER_STORE_SHIFT_MESSAGE = "Ca làm việc không thuộc cửa hàng bạn quản lý.";
 
     private static final List<ApprovalStatus> OCCUPYING_STATUSES =
@@ -311,68 +314,38 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
 
     @Override
     @Transactional
-    public String reviewAllNextWeekAvailabilities(boolean approved, AuthenticatedUser manager) {
+    public int reviewAllPendingRegistrations(boolean approved, AuthenticatedUser manager) {
         Store store = resolveManagerStore(manager);
-        List<WorkAvailability> pending = workAvailabilityRepository
-                .findVisibleByStore(store.getId(), VietnamTime.today(), ApprovalStatus.PENDING)
-                .stream()
-                .filter(wa -> resolveStatus(wa.getStatus()) == ApprovalStatus.PENDING)
-                .toList();
-        if (pending.isEmpty()) {
-            throw new BusinessException("Không có đề xuất nào đang chờ duyệt.");
-        }
-
-        boolean includesLegacyDatedRows = pending.stream().anyMatch(wa -> wa.getDayOfWeek() == null);
-        if (!approved) {
-            for (WorkAvailability availability : pending) {
-                availability.setStatus(ApprovalStatus.REJECTED);
+        List<WorkAvailability> visible = workAvailabilityRepository.findVisibleByStore(
+                store.getId(), VietnamTime.today(), ApprovalStatus.PENDING);
+        LinkedHashSet<String> registrationKeys = new LinkedHashSet<>();
+        List<Integer> legacyIds = new ArrayList<>();
+        for (WorkAvailability availability : visible) {
+            if (resolveStatus(availability.getStatus()) != ApprovalStatus.PENDING) {
+                continue;
             }
-            workAvailabilityRepository.saveAll(pending);
-            notifyRejectedEmployees(pending);
-            return "Đã từ chối " + pending.size()
-                    + " đề xuất đang chờ. Nhân viên đã được thông báo. Các slot này không được xếp vào lịch.";
-        }
-
-        int approvedCount = 0;
-        List<String> failures = new ArrayList<>();
-        Set<String> reviewedKeys = new LinkedHashSet<>();
-        for (WorkAvailability availability : pending) {
-            try {
-                if (availability.getDayOfWeek() != null && availability.getRegistrationKey() != null) {
-                    if (!reviewedKeys.add(availability.getRegistrationKey())) {
-                        continue;
-                    }
-                    long slots = pending.stream()
-                            .filter(wa -> availability.getRegistrationKey().equals(wa.getRegistrationKey()))
-                            .count();
-                    reviewRegistration(availability.getRegistrationKey(), true, manager);
-                    approvedCount += (int) slots;
-                } else {
-                    reviewAvailability(availability.getId(), true, manager);
-                    approvedCount++;
-                }
-            } catch (BusinessException ex) {
-                failures.add(describeSlot(availability) + ": " + ex.getMessage());
+            if (availability.getRegistrationKey() != null && !availability.getRegistrationKey().isBlank()) {
+                registrationKeys.add(availability.getRegistrationKey());
+            } else if (availability.getId() != null) {
+                legacyIds.add(availability.getId());
             }
         }
+        if (registrationKeys.isEmpty() && legacyIds.isEmpty()) {
+            throw new BusinessException("Không có đơn đang chờ duyệt.");
+        }
+        for (String registrationKey : registrationKeys) {
+            reviewRegistration(registrationKey, approved, manager);
+        }
+        for (Integer availabilityId : legacyIds) {
+            reviewAvailability(availabilityId, approved, manager);
+        }
+        return registrationKeys.size() + legacyIds.size();
+    }
 
-        if (approvedCount == 0) {
-            throw new BusinessException("Không duyệt được đề xuất nào. " + String.join(" ", failures));
-        }
-        if (includesLegacyDatedRows) {
-            if (failures.isEmpty()) {
-                return "Đã duyệt " + approvedCount + " đề xuất và xếp vào lịch làm việc.";
-            }
-            return "Đã duyệt " + approvedCount + " đề xuất và xếp vào lịch làm việc. "
-                    + failures.size() + " đề xuất chưa xếp được: " + String.join("; ", failures);
-        }
-        if (failures.isEmpty()) {
-            return "Đã duyệt " + approvedCount
-                    + " đề xuất và xếp vào lịch làm việc tương lai theo đúng thứ và thời hạn. "
-                    + "Ca đã phân trùng đúng slot được giữ nguyên. Nhân viên đã được thông báo.";
-        }
-        return "Đã duyệt " + approvedCount + " đề xuất và xếp vào lịch làm việc tương lai. "
-                + failures.size() + " đề xuất chưa duyệt được: " + String.join("; ", failures);
+    @Override
+    public int countStaffForSlotLimit(AuthenticatedUser manager) {
+        Store store = resolveManagerStore(manager);
+        return countStaffExcludingManager(store, manager.getEmployeeId());
     }
 
     @Override
@@ -391,6 +364,13 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
         Store store = resolveManagerStore(manager);
         Shift shift = shiftRepository.findByIdAndStore_Id(shiftId, store.getId())
                 .orElseThrow(() -> new BusinessException(OTHER_STORE_SHIFT_MESSAGE));
+        int staffCount = countStaffExcludingManager(store, manager.getEmployeeId());
+        if (staffCount < 1) {
+            throw new BusinessException(SLOT_LIMIT_NO_STAFF_MESSAGE);
+        }
+        if (maxEmployees > staffCount) {
+            throw new BusinessException(String.format(SLOT_LIMIT_HEADCOUNT_MESSAGE, staffCount));
+        }
 
         ShiftSlotLimit limit = shiftSlotLimitRepository.lockByShiftAndDay(shiftId, dayOfWeek)
                 .orElseGet(() -> ShiftSlotLimit.builder()
@@ -459,21 +439,6 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                                     + " ngày " + date.format(FULL_DATE) + ": " + ex.getMessage());
                 }
             }
-        }
-    }
-
-    private void notifyRejectedEmployees(List<WorkAvailability> pending) {
-        Map<Integer, List<WorkAvailability>> byEmployee = new LinkedHashMap<>();
-        for (WorkAvailability availability : pending) {
-            if (availability.getEmployee() == null || availability.getEmployee().getId() == null) {
-                continue;
-            }
-            byEmployee.computeIfAbsent(availability.getEmployee().getId(), ignored -> new ArrayList<>()).add(availability);
-        }
-        for (List<WorkAvailability> rows : byEmployee.values()) {
-            notifyEmployee(rows.getFirst().getEmployee(), false,
-                    "Quản lý đã từ chối " + rows.size()
-                            + " đăng ký lịch làm việc đang chờ. Các slot này không được xếp vào lịch.");
         }
     }
 
@@ -768,18 +733,6 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                 .build();
     }
 
-    private String describeSlot(WorkAvailability availability) {
-        Employee employee = availability.getEmployee();
-        Shift shift = availability.getShift();
-        String who = employee != null && employee.getFullName() != null ? employee.getFullName() : "Nhân viên";
-        String shiftName = shift != null && shift.getShiftName() != null ? shift.getShiftName() : "ca";
-        if (availability.getDayOfWeek() != null) {
-            return who + " — " + shiftName + " mỗi " + AvailabilityCoverage.dayName(availability.getDayOfWeek());
-        }
-        String date = availability.getWorkDate() != null ? availability.getWorkDate().format(DAY_MONTH) : "";
-        return who + " — " + shiftName + " " + date;
-    }
-
     private String describeConflict(WorkAvailability availability) {
         String shiftName = availability.getShift() != null ? availability.getShift().getShiftName() : "Ca";
         if (availability.getDayOfWeek() != null) {
@@ -866,6 +819,12 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
         if (employee == null || employee.getStore() == null || !Objects.equals(employee.getStore().getId(), store.getId())) {
             throw new BusinessException("Đề xuất này không thuộc nhân viên của cửa hàng bạn quản lý.");
         }
+    }
+
+    private int countStaffExcludingManager(Store store, Integer managerEmployeeId) {
+        long count = employeeRepository.countSchedulableStaff(
+                store.getId(), EmployeeStatus.ACTIVE, RoleName.STAFF, managerEmployeeId);
+        return count > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) count;
     }
 
     private Store resolveManagerStore(AuthenticatedUser manager) {
