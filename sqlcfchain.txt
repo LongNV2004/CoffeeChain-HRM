@@ -156,9 +156,13 @@ BEGIN
         EmployeeId INT NOT NULL,
         WorkDate DATE NOT NULL,
         Status NVARCHAR(20) NOT NULL CONSTRAINT DF_ShiftAssignments_Status DEFAULT (N'Assigned'),
-        IsPublished BIT NOT NULL CONSTRAINT DF_ShiftAssignments_IsPublished DEFAULT (0),
+        IsPublished BIT NOT NULL CONSTRAINT DF_ShiftAssignments_IsPublished DEFAULT (1),
         PublishedAt DATETIME2 NULL,
-CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_ShiftAssignments_CreatedAt DEFAULT (SYSUTCDATETIME()),
+        CancelledByLeaveRequestId INT NULL,
+        ReplacesAssignmentId INT NULL,
+        ReplacementDeferred BIT NOT NULL CONSTRAINT DF_ShiftAssignments_ReplacementDeferred DEFAULT (0),
+        ReplacementConfirmedBy INT NULL,
+        CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_ShiftAssignments_CreatedAt DEFAULT (SYSUTCDATETIME()),
         CONSTRAINT FK_ShiftAssignments_Shift FOREIGN KEY (ShiftId) REFERENCES dbo.Shifts(ShiftId),
         CONSTRAINT FK_ShiftAssignments_Employee FOREIGN KEY (EmployeeId) REFERENCES dbo.Employees(EmployeeId),
         CONSTRAINT UQ_Assignment_EmpShiftDate UNIQUE (EmployeeId, ShiftId, WorkDate)
@@ -166,6 +170,51 @@ CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_ShiftAssignments_CreatedAt DEFAULT (S
     CREATE INDEX IX_ShiftAssignments_Store ON dbo.ShiftAssignments(ShiftId, WorkDate);
     CREATE INDEX IX_ShiftAssignments_Date ON dbo.ShiftAssignments(WorkDate);
     PRINT N'Đã tạo bảng ShiftAssignments.';
+END
+GO
+
+-- Đảm bảo các cột và ràng buộc của ShiftAssignments tồn tại trên cả DB đã tạo từ trước
+IF COL_LENGTH(N'dbo.ShiftAssignments', N'IsPublished') IS NULL
+    ALTER TABLE dbo.ShiftAssignments ADD IsPublished BIT NOT NULL CONSTRAINT DF_ShiftAssignments_IsPublished DEFAULT (1);
+IF COL_LENGTH(N'dbo.ShiftAssignments', N'PublishedAt') IS NULL
+    ALTER TABLE dbo.ShiftAssignments ADD PublishedAt DATETIME2 NULL;
+IF COL_LENGTH(N'dbo.ShiftAssignments', N'CancelledByLeaveRequestId') IS NULL
+    ALTER TABLE dbo.ShiftAssignments ADD CancelledByLeaveRequestId INT NULL;
+IF COL_LENGTH(N'dbo.ShiftAssignments', N'ReplacesAssignmentId') IS NULL
+    ALTER TABLE dbo.ShiftAssignments ADD ReplacesAssignmentId INT NULL;
+IF COL_LENGTH(N'dbo.ShiftAssignments', N'ReplacementDeferred') IS NULL
+    ALTER TABLE dbo.ShiftAssignments ADD ReplacementDeferred BIT NOT NULL CONSTRAINT DF_ShiftAssignments_ReplacementDeferred DEFAULT (0);
+IF COL_LENGTH(N'dbo.ShiftAssignments', N'ReplacementConfirmedBy') IS NULL
+    ALTER TABLE dbo.ShiftAssignments ADD ReplacementConfirmedBy INT NULL;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.key_constraints WHERE name = N'UQ_Assignment_EmpShiftDate' AND parent_object_id = OBJECT_ID(N'dbo.ShiftAssignments'))
+    ALTER TABLE dbo.ShiftAssignments ADD CONSTRAINT UQ_Assignment_EmpShiftDate UNIQUE (EmployeeId, ShiftId, WorkDate);
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_ShiftAssignments_CancelledByLeave')
+    ALTER TABLE dbo.ShiftAssignments ADD CONSTRAINT FK_ShiftAssignments_CancelledByLeave FOREIGN KEY (CancelledByLeaveRequestId) REFERENCES dbo.LeaveRequests(LeaveRequestId);
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_ShiftAssignments_ReplacesAssignment')
+    ALTER TABLE dbo.ShiftAssignments ADD CONSTRAINT FK_ShiftAssignments_ReplacesAssignment FOREIGN KEY (ReplacesAssignmentId) REFERENCES dbo.ShiftAssignments(AssignmentId);
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_ShiftAssignments_ReplacementConfirmedBy')
+    ALTER TABLE dbo.ShiftAssignments ADD CONSTRAINT FK_ShiftAssignments_ReplacementConfirmedBy FOREIGN KEY (ReplacementConfirmedBy) REFERENCES dbo.Users(UserId);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.ShiftAssignments') AND name = N'UX_ShiftAssignments_OneReplacementPerOriginal')
+    CREATE UNIQUE INDEX UX_ShiftAssignments_OneReplacementPerOriginal ON dbo.ShiftAssignments(ReplacesAssignmentId) WHERE ReplacesAssignmentId IS NOT NULL;
+GO
+
+-- Bảng ShiftSlotLimits (Giới hạn số lượng nhân viên theo ca)
+IF OBJECT_ID(N'dbo.ShiftSlotLimits', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.ShiftSlotLimits (
+        LimitId INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_ShiftSlotLimits PRIMARY KEY,
+        ShiftId INT NOT NULL,
+        DayOfWeek TINYINT NOT NULL,
+        MaxEmployees INT NOT NULL,
+        UpdatedAt DATETIME2 NOT NULL CONSTRAINT DF_ShiftSlotLimits_UpdatedAt DEFAULT (SYSUTCDATETIME()),
+        CONSTRAINT UQ_ShiftSlotLimits_Shift_Day UNIQUE (ShiftId, DayOfWeek),
+        CONSTRAINT FK_ShiftSlotLimits_Shift FOREIGN KEY (ShiftId) REFERENCES dbo.Shifts (ShiftId),
+        CONSTRAINT CK_ShiftSlotLimits_DayOfWeek CHECK (DayOfWeek BETWEEN 1 AND 7),
+        CONSTRAINT CK_ShiftSlotLimits_MaxEmployees CHECK (MaxEmployees >= 1)
+    );
+    PRINT N'Đã tạo bảng ShiftSlotLimits.';
 END
 GO
 
@@ -193,6 +242,33 @@ BEGIN
     );
     PRINT N'Đã tạo bảng ShiftChangeRequests.';
 END
+GO
+
+-- Thêm các cột phục vụ Đổi chéo ca nếu bảng đã tồn tại từ trước
+IF COL_LENGTH(N'dbo.ShiftChangeRequests', N'TargetAssignmentId') IS NULL
+    ALTER TABLE dbo.ShiftChangeRequests ADD TargetAssignmentId INT NULL;
+IF COL_LENGTH(N'dbo.ShiftChangeRequests', N'TargetEmployeeId') IS NULL
+    ALTER TABLE dbo.ShiftChangeRequests ADD TargetEmployeeId INT NULL;
+IF COL_LENGTH(N'dbo.ShiftChangeRequests', N'IsTargetAgreed') IS NULL
+    ALTER TABLE dbo.ShiftChangeRequests ADD IsTargetAgreed BIT NULL;
+IF COL_LENGTH(N'dbo.ShiftChangeRequests', N'TargetAgreedAt') IS NULL
+    ALTER TABLE dbo.ShiftChangeRequests ADD TargetAgreedAt DATETIME2 NULL;
+IF COL_LENGTH(N'dbo.ShiftChangeRequests', N'ResolvedBy') IS NULL
+    ALTER TABLE dbo.ShiftChangeRequests ADD ResolvedBy INT NULL;
+IF COL_LENGTH(N'dbo.ShiftChangeRequests', N'ResolvedDate') IS NULL
+    ALTER TABLE dbo.ShiftChangeRequests ADD ResolvedDate DATETIME2 NULL;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_ShiftChangeRequests_Assignment')
+    ALTER TABLE dbo.ShiftChangeRequests ADD CONSTRAINT FK_ShiftChangeRequests_Assignment FOREIGN KEY (AssignmentId) REFERENCES dbo.ShiftAssignments(AssignmentId);
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_ShiftChangeRequests_Employee')
+    ALTER TABLE dbo.ShiftChangeRequests ADD CONSTRAINT FK_ShiftChangeRequests_Employee FOREIGN KEY (EmployeeId) REFERENCES dbo.Employees(EmployeeId);
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_ShiftChangeRequests_ResolvedBy')
+    ALTER TABLE dbo.ShiftChangeRequests ADD CONSTRAINT FK_ShiftChangeRequests_ResolvedBy FOREIGN KEY (ResolvedBy) REFERENCES dbo.Users(UserId);
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_ChangeReq_TargetAssignment')
+    ALTER TABLE dbo.ShiftChangeRequests ADD CONSTRAINT FK_ChangeReq_TargetAssignment FOREIGN KEY (TargetAssignmentId) REFERENCES dbo.ShiftAssignments(AssignmentId);
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_ChangeReq_TargetEmployee')
+    ALTER TABLE dbo.ShiftChangeRequests ADD CONSTRAINT FK_ChangeReq_TargetEmployee FOREIGN KEY (TargetEmployeeId) REFERENCES dbo.Employees(EmployeeId);
 GO
 
 -- Bảng Attendances (Điểm danh / Chấm công)
@@ -487,18 +563,44 @@ SET IDENTITY_INSERT dbo.Shifts OFF;
 GO
 
 -- Seed ShiftAssignments mẫu tuần làm việc
-IF NOT EXISTS (SELECT 1 FROM dbo.ShiftAssignments WHERE WorkDate >= '2026-09-20')
+IF NOT EXISTS (SELECT 1 FROM dbo.ShiftAssignments WHERE WorkDate >= '2026-10-12')
 BEGIN
     INSERT INTO dbo.ShiftAssignments (ShiftId, EmployeeId, WorkDate, Status, IsPublished, PublishedAt) VALUES
-    (1, 2, '2026-09-21', N'Assigned', 1, SYSUTCDATETIME()), -- Tuấn Ca Sáng T2 (Đã công bố)
-    (2, 3, '2026-09-21', N'Assigned', 1, SYSUTCDATETIME()), -- Thu Ca Chiều T2 (Đã công bố)
-    (3, 4, '2026-09-21', N'Assigned', 1, SYSUTCDATETIME()), -- Đức Ca Tối T2 (Đã công bố)
-    (1, 3, '2026-09-22', N'Assigned', 1, SYSUTCDATETIME()), -- Thu Ca Sáng T3
-    (2, 2, '2026-09-22', N'Assigned', 1, SYSUTCDATETIME()), -- Tuấn Ca Chiều T3
-    (1, 2, '2026-09-23', N'Assigned', 1, SYSUTCDATETIME()), -- Tuấn Ca Sáng T4
-    (1, 4, '2026-09-23', N'Assigned', 1, SYSUTCDATETIME()), -- Đức Ca Sáng T4
-    (2, 3, '2026-09-24', N'Assigned', 1, SYSUTCDATETIME()), -- Thu Ca Chiều T5
-    (3, 2, '2026-09-25', N'Assigned', 1, SYSUTCDATETIME()); -- Tuấn Ca Tối T6
+    -- Tuần hiện tại: 12/10/2026 - 18/10/2026
+    (1, 2, '2026-10-12', N'Assigned', 1, SYSUTCDATETIME()),
+    (2, 3, '2026-10-12', N'Assigned', 1, SYSUTCDATETIME()),
+    (3, 4, '2026-10-12', N'Assigned', 1, SYSUTCDATETIME()),
+    (1, 3, '2026-10-13', N'Assigned', 1, SYSUTCDATETIME()),
+    (1, 4, '2026-10-13', N'Assigned', 1, SYSUTCDATETIME()),
+    (2, 2, '2026-10-13', N'Assigned', 1, SYSUTCDATETIME()),
+    (1, 2, '2026-10-14', N'Assigned', 1, SYSUTCDATETIME()),
+    (2, 3, '2026-10-14', N'Assigned', 1, SYSUTCDATETIME()),
+    (3, 4, '2026-10-14', N'Assigned', 1, SYSUTCDATETIME()),
+    (1, 3, '2026-10-15', N'Assigned', 1, SYSUTCDATETIME()),
+    (2, 2, '2026-10-15', N'Assigned', 1, SYSUTCDATETIME()),
+    (1, 2, '2026-10-16', N'Assigned', 1, SYSUTCDATETIME()),
+    (1, 4, '2026-10-16', N'Assigned', 1, SYSUTCDATETIME()),
+    (2, 3, '2026-10-16', N'Assigned', 1, SYSUTCDATETIME()),
+    (1, 3, '2026-10-17', N'Assigned', 1, SYSUTCDATETIME()),
+    (2, 2, '2026-10-17', N'Assigned', 1, SYSUTCDATETIME()),
+    (1, 2, '2026-10-18', N'Assigned', 1, SYSUTCDATETIME()),
+    (2, 3, '2026-10-18', N'Assigned', 1, SYSUTCDATETIME()),
+    -- Tuần tiếp theo: 19/10/2026 - 25/10/2026
+    (1, 2, '2026-10-19', N'Assigned', 1, SYSUTCDATETIME()),
+    (2, 3, '2026-10-19', N'Assigned', 1, SYSUTCDATETIME()),
+    (3, 4, '2026-10-19', N'Assigned', 1, SYSUTCDATETIME()),
+    (1, 3, '2026-10-20', N'Assigned', 1, SYSUTCDATETIME()),
+    (2, 2, '2026-10-20', N'Assigned', 1, SYSUTCDATETIME()),
+    (1, 2, '2026-10-21', N'Assigned', 1, SYSUTCDATETIME()),
+    (2, 3, '2026-10-21', N'Assigned', 1, SYSUTCDATETIME()),
+    (1, 3, '2026-10-22', N'Assigned', 1, SYSUTCDATETIME()),
+    (2, 2, '2026-10-22', N'Assigned', 1, SYSUTCDATETIME()),
+    (1, 2, '2026-10-23', N'Assigned', 1, SYSUTCDATETIME()),
+    (2, 3, '2026-10-23', N'Assigned', 1, SYSUTCDATETIME()),
+    (1, 3, '2026-10-24', N'Assigned', 1, SYSUTCDATETIME()),
+    (2, 2, '2026-10-24', N'Assigned', 1, SYSUTCDATETIME()),
+    (1, 2, '2026-10-25', N'Assigned', 1, SYSUTCDATETIME()),
+    (2, 3, '2026-10-25', N'Assigned', 1, SYSUTCDATETIME());
     PRINT N'Đã thêm dữ liệu phân ca tuần mẫu.';
 END;
 GO

@@ -34,3 +34,6 @@ build/
 
 # Consolidated DB setup script (share manually with team)
 coffee_hrm_full_setup.sql
+
+# OS metadata
+.DS_Store
