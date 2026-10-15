@@ -329,6 +329,19 @@ public class ScheduleServiceImpl implements ScheduleService {
             if (!Objects.equals(targetEmp.getId(), requester.getId()) && shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus( targetEmp.getId(), assignment.getShift().getId(), assignment.getWorkDate(), AssignmentStatus.ASSIGNED)) {
                 throw new BusinessException("Nhân viên " + targetEmp.getFullName() + " đã có ca làm việc này trên lịch rồi.");
             }
+            if (assignment.getWorkDate() != null) {
+                List<ShiftAssignment> targetExistingSameDay = shiftAssignmentRepository.findByEmployee_IdAndWorkDateAndStatus(
+                        targetEmp.getId(), assignment.getWorkDate(), AssignmentStatus.ASSIGNED);
+                for (ShiftAssignment existing : targetExistingSameDay) {
+                    Shift otherShift = existing.getShift();
+                    Shift newShift = assignment.getShift();
+                    if (otherShift != null && newShift != null
+                            && newShift.getStartTime().isBefore(otherShift.getEndTime())
+                            && newShift.getEndTime().isAfter(otherShift.getStartTime())) {
+                        throw new BusinessException("Nhân viên " + targetEmp.getFullName() + " bị trùng giờ ca làm việc khác trong ngày " + assignment.getWorkDate().format(DATE_FORMATTER) + ".");
+                    }
+                }
+            }
             assignment.setEmployee(targetEmp);
             shiftAssignmentRepository.save(assignment);
             changeRequest.setTargetEmployee(targetEmp);
@@ -346,6 +359,19 @@ public class ScheduleServiceImpl implements ScheduleService {
             ensureNoApprovedLeave(replacementEmp.getId(), assignment.getWorkDate());
             if (shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus( replacementEmp.getId(), assignment.getShift().getId(), assignment.getWorkDate(), AssignmentStatus.ASSIGNED)) {
                 throw new BusinessException("Nhân viên " + replacementEmp.getFullName() + " đã có ca làm việc này trên lịch rồi.");
+            }
+            if (assignment.getWorkDate() != null) {
+                List<ShiftAssignment> repExistingSameDay = shiftAssignmentRepository.findByEmployee_IdAndWorkDateAndStatus(
+                        replacementEmp.getId(), assignment.getWorkDate(), AssignmentStatus.ASSIGNED);
+                for (ShiftAssignment existing : repExistingSameDay) {
+                    Shift otherShift = existing.getShift();
+                    Shift newShift = assignment.getShift();
+                    if (otherShift != null && newShift != null
+                            && newShift.getStartTime().isBefore(otherShift.getEndTime())
+                            && newShift.getEndTime().isAfter(otherShift.getStartTime())) {
+                        throw new BusinessException("Nhân viên " + replacementEmp.getFullName() + " bị trùng giờ ca làm việc khác trong ngày " + assignment.getWorkDate().format(DATE_FORMATTER) + ".");
+                    }
+                }
             }
             assignment.setEmployee(replacementEmp);
             shiftAssignmentRepository.save(assignment);
@@ -393,7 +419,7 @@ public class ScheduleServiceImpl implements ScheduleService {
                 colleagueShifts.add(WeeklyScheduleView.ColleagueShiftOption.builder() .assignmentId(sa.getId()) .employeeId(sa.getEmployee().getId()) .employeeName(sa.getEmployee().getFullName()) .shiftId(sa.getShift().getId()) .shiftName(sa.getShift().getShiftName()) .timeRange(timeRange) .workDate(sa.getWorkDate()) .formattedDate(formattedDate) .displayText(display) .build());
             }
         }
-        appendApprovedRegistrations(store, dayHeaders, assignmentMap, currentEmpId);
+        appendApprovedRegistrations(store, dayHeaders, assignmentMap, currentEmpId, assignments);
         List<WeeklyScheduleView.ShiftRow> shiftRows = new ArrayList<>();
         for (Shift shift : shifts) {
             List<WeeklyScheduleView.DayCell> cells = new ArrayList<>();
@@ -464,17 +490,40 @@ public class ScheduleServiceImpl implements ScheduleService {
         return date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
     }
 
-    /** Đưa lịch đăng ký đã duyệt vào tuần, không thêm trùng nhân viên cùng ca. */ private void appendApprovedRegistrations(Store store, List<WeeklyScheduleView.DayHeader> dayHeaders, Map<String, List<WeeklyScheduleView.AssignmentItem>> assignmentMap, Integer currentEmpId) {
+    /** Đưa lịch đăng ký đã duyệt vào tuần, không thêm trùng nhân viên cùng ca hoặc ca đã nhượng/đổi. */
+    private void appendApprovedRegistrations(Store store,
+                                             List<WeeklyScheduleView.DayHeader> dayHeaders,
+                                             Map<String, List<WeeklyScheduleView.AssignmentItem>> assignmentMap,
+                                             Integer currentEmpId,
+                                             List<ShiftAssignment> assignments) {
         if (dayHeaders == null || dayHeaders.isEmpty()) {
             return;
         }
         LocalDate monday = dayHeaders.getFirst().getDate();
         LocalDate sunday = dayHeaders.getLast().getDate();
-        List<WorkAvailability> approved = workAvailabilityRepository.findApprovedCovering( store.getId(), monday, sunday, ApprovalStatus.APPROVED);
+        List<WorkAvailability> approved = workAvailabilityRepository.findApprovedCovering(
+                store.getId(), monday, sunday, ApprovalStatus.APPROVED);
         if (approved == null) {
             return;
         }
-        Map<Integer, List<LeaveRequest>> approvedLeavesByEmployee = leaveRequestRepository.findByStoreAndStatusOverlapping(store.getId(), ApprovalStatus.APPROVED, monday, sunday).stream().collect(java.util.stream.Collectors.groupingBy(leave -> leave.getEmployee().getId()));
+        Map<Integer, List<LeaveRequest>> approvedLeavesByEmployee = leaveRequestRepository.findByStoreAndStatusOverlapping(
+                store.getId(), ApprovalStatus.APPROVED, monday, sunday).stream()
+                .collect(java.util.stream.Collectors.groupingBy(leave -> leave.getEmployee().getId()));
+
+        List<ShiftChangeRequest> approvedChanges = shiftChangeRequestRepository.findApprovedCoveringWeek(
+                store.getId(), ApprovalStatus.APPROVED, monday, sunday);
+        Set<String> surrenderedSlots = new HashSet<>();
+        if (approvedChanges != null) {
+            for (ShiftChangeRequest scr : approvedChanges) {
+                if (scr.getAssignment() != null && scr.getAssignment().getShift() != null && scr.getAssignment().getWorkDate() != null) {
+                    surrenderedSlots.add(scr.getEmployee().getId() + "_" + scr.getAssignment().getShift().getId() + "_" + scr.getAssignment().getWorkDate());
+                }
+                if (scr.getTargetAssignment() != null && scr.getTargetAssignment().getShift() != null && scr.getTargetAssignment().getWorkDate() != null && scr.getTargetEmployee() != null) {
+                    surrenderedSlots.add(scr.getTargetEmployee().getId() + "_" + scr.getTargetAssignment().getShift().getId() + "_" + scr.getTargetAssignment().getWorkDate());
+                }
+            }
+        }
+
         for (WorkAvailability availability : approved) {
             if (availability.getShift() == null || availability.getEmployee() == null) {
                 continue;
@@ -486,20 +535,57 @@ public class ScheduleServiceImpl implements ScheduleService {
                 if (!AvailabilityCoverage.appliesOn(availability, dh.getDate())) {
                     continue;
                 }
-                boolean approvedLeaveDay = approvedLeavesByEmployee.getOrDefault(availability.getEmployee().getId(), List.of()).stream().anyMatch(leave -> !dh.getDate().isBefore(leave.getStartDate()) && !dh.getDate().isAfter(leave.getEndDate()));
+                Integer employeeId = availability.getEmployee().getId();
+                Integer shiftId = availability.getShift().getId();
+                LocalDate workDate = dh.getDate();
+
+                if (surrenderedSlots.contains(employeeId + "_" + shiftId + "_" + workDate)) {
+                    continue;
+                }
+
+                boolean approvedLeaveDay = approvedLeavesByEmployee.getOrDefault(employeeId, List.of()).stream()
+                        .anyMatch(leave -> !workDate.isBefore(leave.getStartDate()) && !workDate.isAfter(leave.getEndDate()));
                 if (approvedLeaveDay) {
                     continue;
                 }
-                String key = availability.getShift().getId() + "_" + dh.getDate();
+
+                if (assignments != null) {
+                    boolean hasOverlappingAssigned = assignments.stream()
+                            .filter(sa -> Objects.equals(sa.getEmployee().getId(), employeeId))
+                            .filter(sa -> Objects.equals(sa.getWorkDate(), workDate))
+                            .anyMatch(sa -> {
+                                Shift other = sa.getShift();
+                                Shift current = availability.getShift();
+                                return other != null && current != null
+                                        && current.getStartTime().isBefore(other.getEndTime())
+                                        && current.getEndTime().isAfter(other.getStartTime());
+                            });
+                    if (hasOverlappingAssigned) {
+                        continue;
+                    }
+                }
+
+                String key = shiftId + "_" + workDate;
                 List<WeeklyScheduleView.AssignmentItem> items = assignmentMap.computeIfAbsent(key, ignored -> new ArrayList<>());
-                Integer employeeId = availability.getEmployee().getId();
                 boolean alreadyListed = items.stream().anyMatch(item -> Objects.equals(item.getEmployeeId(), employeeId));
                 if (alreadyListed) {
-                    items.stream() .filter(item -> Objects.equals(item.getEmployeeId(), employeeId)) .forEach(item -> item.setCanCancel(false));
+                    items.stream()
+                            .filter(item -> Objects.equals(item.getEmployeeId(), employeeId))
+                            .forEach(item -> item.setCanCancel(false));
                     continue;
                 }
                 boolean isCurrentStaff = currentEmpId != null && Objects.equals(currentEmpId, employeeId);
-                items.add(WeeklyScheduleView.AssignmentItem.builder() .employeeId(employeeId) .employeeName(availability.getEmployee().getFullName()) .employeePhone(availability.getEmployee().getPhone()) .status(AssignmentStatus.ASSIGNED.getDbValue()) .isPublished(true) .isCurrentStaff(isCurrentStaff) .canCancel(false) .canRequestChange(false) .appliedFromRegistration(true) .build());
+                items.add(WeeklyScheduleView.AssignmentItem.builder()
+                        .employeeId(employeeId)
+                        .employeeName(availability.getEmployee().getFullName())
+                        .employeePhone(availability.getEmployee().getPhone())
+                        .status(AssignmentStatus.ASSIGNED.getDbValue())
+                        .isPublished(true)
+                        .isCurrentStaff(isCurrentStaff)
+                        .canCancel(false)
+                        .canRequestChange(false)
+                        .appliedFromRegistration(true)
+                        .build());
             }
         }
     }

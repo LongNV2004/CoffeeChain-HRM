@@ -539,6 +539,119 @@ class ScheduleServiceImplTest {
         verify(shiftAssignmentRepository, never()).save(any());
     }
 
+    @Test
+    void resolveShiftChangeSwapPermitsNonOverlappingShiftsOnSameDay() {
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        User mgr = buildUser(2, "manager1", RoleName.MANAGER, empManager);
+        when(userRepository.findById(2)).thenReturn(Optional.of(mgr));
+
+        Shift shiftAfternoon = Shift.builder()
+                .id(2)
+                .shiftName("Ca Chiều")
+                .store(store)
+                .startTime(LocalTime.of(12, 0))
+                .endTime(LocalTime.of(17, 0))
+                .build();
+
+        Employee empDuc = Employee.builder().id(40).fullName("Phạm Minh Đức").store(store).status(EmployeeStatus.ACTIVE).build();
+
+        LocalDate dFriday = LocalDate.of(2026, 10, 16);
+        LocalDate dSaturday = LocalDate.of(2026, 10, 17);
+
+        // Duc has Friday morning, Thu has Friday afternoon
+        ShiftAssignment assignmentA = ShiftAssignment.builder()
+                .id(1024).employee(empDuc).shift(shiftMorning).workDate(dFriday).status(AssignmentStatus.ASSIGNED).build();
+        ShiftAssignment thuExistingFridayAfternoon = ShiftAssignment.builder()
+                .id(1025).employee(empThu).shift(shiftAfternoon).workDate(dFriday).status(AssignmentStatus.ASSIGNED).build();
+
+        // Thu has Saturday morning, Duc has Saturday afternoon
+        ShiftAssignment assignmentB = ShiftAssignment.builder()
+                .id(1027).employee(empThu).shift(shiftMorning).workDate(dSaturday).status(AssignmentStatus.ASSIGNED).build();
+        ShiftAssignment ducExistingSaturdayAfternoon = ShiftAssignment.builder()
+                .id(1029).employee(empDuc).shift(shiftAfternoon).workDate(dSaturday).status(AssignmentStatus.ASSIGNED).build();
+
+        ShiftChangeRequest req = ShiftChangeRequest.builder()
+                .id(100).assignment(assignmentA).targetAssignment(assignmentB).employee(empDuc).targetEmployee(empThu).status(ApprovalStatus.PENDING).build();
+
+        when(shiftChangeRequestRepository.findByIdWithDetails(100)).thenReturn(Optional.of(req));
+        when(employeeRepository.lockByIdForLeaveRequest(40)).thenReturn(Optional.of(empDuc));
+        when(employeeRepository.lockByIdForLeaveRequest(30)).thenReturn(Optional.of(empThu));
+
+        // When checking existing assignments for Thu on Friday
+        when(shiftAssignmentRepository.findByEmployee_IdAndWorkDateAndStatus(30, dFriday, AssignmentStatus.ASSIGNED))
+                .thenReturn(List.of(thuExistingFridayAfternoon));
+        // When checking existing assignments for Duc on Saturday
+        when(shiftAssignmentRepository.findByEmployee_IdAndWorkDateAndStatus(40, dSaturday, AssignmentStatus.ASSIGNED))
+                .thenReturn(List.of(ducExistingSaturdayAfternoon));
+
+        when(shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus(30, 1, dFriday, AssignmentStatus.ASSIGNED))
+                .thenReturn(false);
+        when(shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus(40, 1, dSaturday, AssignmentStatus.ASSIGNED))
+                .thenReturn(false);
+
+        scheduleService.resolveShiftChange(100, true, null, managerUser);
+
+        assertEquals(30, assignmentA.getEmployee().getId());
+        assertEquals(40, assignmentB.getEmployee().getId());
+        assertEquals(ApprovalStatus.APPROVED, req.getStatus());
+        verify(shiftAssignmentRepository).save(assignmentA);
+        verify(shiftAssignmentRepository).save(assignmentB);
+    }
+
+    @Test
+    void weeklyScheduleExcludesSurrenderedShiftAvailability() {
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        when(shiftRepository.findByStore_IdOrderByStartTimeAsc(1)).thenReturn(List.of(shiftMorning));
+
+        Employee empDuc = Employee.builder().id(40).fullName("Phạm Minh Đức").store(store).status(EmployeeStatus.ACTIVE).build();
+
+        LocalDate monday = LocalDate.of(2026, 10, 12);
+        LocalDate saturday = LocalDate.of(2026, 10, 17);
+
+        // Saturday morning assigned to Duc after swap
+        ShiftAssignment saturdayMorningDuc = ShiftAssignment.builder()
+                .id(1027).employee(empDuc).shift(shiftMorning).workDate(saturday).status(AssignmentStatus.ASSIGNED).build();
+
+        when(shiftAssignmentRepository.findWeeklyAssignmentsForStore(eq(1), eq(monday), eq(monday.plusDays(6)), eq(AssignmentStatus.ASSIGNED)))
+                .thenReturn(List.of(saturdayMorningDuc));
+
+        // Thu had an approved availability covering Saturday
+        WorkAvailability thuAvailability = WorkAvailability.builder()
+                .id(10)
+                .employee(empThu)
+                .shift(shiftMorning)
+                .dayOfWeek(6) // Saturday
+                .validFrom(monday)
+                .validTo(monday.plusMonths(1))
+                .status(ApprovalStatus.APPROVED)
+                .build();
+        when(workAvailabilityRepository.findApprovedCovering(eq(1), eq(monday), eq(monday.plusDays(6)), eq(ApprovalStatus.APPROVED)))
+                .thenReturn(List.of(thuAvailability));
+
+        // Thu surrendered Saturday morning in an approved swap
+        ShiftAssignment fridayMorning = ShiftAssignment.builder()
+                .id(1024).employee(empThu).shift(shiftMorning).workDate(LocalDate.of(2026, 10, 16)).status(AssignmentStatus.ASSIGNED).build();
+        ShiftChangeRequest approvedSwap = ShiftChangeRequest.builder()
+                .id(1)
+                .employee(empDuc)
+                .assignment(fridayMorning)
+                .targetEmployee(empThu)
+                .targetAssignment(saturdayMorningDuc)
+                .status(ApprovalStatus.APPROVED)
+                .build();
+        when(shiftChangeRequestRepository.findApprovedCoveringWeek(eq(1), eq(ApprovalStatus.APPROVED), eq(monday), eq(monday.plusDays(6))))
+                .thenReturn(List.of(approvedSwap));
+
+        WeeklyScheduleView view = scheduleService.getWeeklyScheduleForManager(managerUser, LocalDate.of(2026, 10, 14));
+
+        // Saturday is index 5 (Monday=0, Tuesday=1, Wednesday=2, Thursday=3, Friday=4, Saturday=5)
+        List<WeeklyScheduleView.AssignmentItem> saturdayAssignments =
+                view.getShiftRows().getFirst().getDayCells().get(5).getAssignments();
+
+        assertEquals(1, saturdayAssignments.size(), "Saturday morning cell should contain ONLY Duc, not Thu");
+        assertEquals("Phạm Minh Đức", saturdayAssignments.getFirst().getEmployeeName());
+    }
+
     private User buildUser(Integer id, String username, RoleName roleName, Employee employee) {
         Role role = Role.builder().id(roleName == RoleName.ADMIN ? 1 : (roleName == RoleName.MANAGER ? 2 : 3)).roleName(roleName).build();
         return User.builder()

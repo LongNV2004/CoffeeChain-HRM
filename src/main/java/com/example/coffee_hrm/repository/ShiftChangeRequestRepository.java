@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -118,5 +119,26 @@ public interface ShiftChangeRequestRepository extends JpaRepository<ShiftChangeR
               OR scr.targetAssignment.id = :assignmentId
            """)
     List<ShiftChangeRequest> findAllByAssignmentId(@Param("assignmentId") Integer assignmentId);
+
+    @Query("""
+           SELECT scr FROM ShiftChangeRequest scr
+           JOIN FETCH scr.assignment sa
+           JOIN FETCH sa.shift s
+           JOIN FETCH scr.employee e
+           LEFT JOIN FETCH scr.targetEmployee te
+           LEFT JOIN FETCH scr.targetAssignment tsa
+           LEFT JOIN FETCH tsa.shift tsas
+           WHERE s.store.id = :storeId
+             AND scr.status = :status
+             AND (
+                   (sa.workDate BETWEEN :startDate AND :endDate)
+                   OR (tsa IS NOT NULL AND tsa.workDate BETWEEN :startDate AND :endDate)
+                 )
+           """)
+    List<ShiftChangeRequest> findApprovedCoveringWeek(
+            @Param("storeId") Integer storeId,
+            @Param("status") ApprovalStatus status,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate);
 }
 
