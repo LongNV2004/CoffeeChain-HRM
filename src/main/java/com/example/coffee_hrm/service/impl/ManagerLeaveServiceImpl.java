@@ -17,6 +17,7 @@ import com.example.coffee_hrm.entity.ShiftChangeRequest;
 import com.example.coffee_hrm.entity.Shift;
 import com.example.coffee_hrm.entity.ShiftSlotLimit;
 import com.example.coffee_hrm.entity.WorkAvailability;
+import com.example.coffee_hrm.common.store.StoreAccessMessages;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.service.support.AvailabilityCoverage;
 import com.example.coffee_hrm.entity.Store;
@@ -270,7 +271,7 @@ public class ManagerLeaveServiceImpl implements ManagerLeaveService {
         Store store = storeRepository.findByManager_Id(user.getEmployeeId())
                 .orElseThrow(() -> new BusinessException("Bạn chưa quản lý cửa hàng nào."));
         if (!Boolean.TRUE.equals(store.getIsActive())) {
-            throw new BusinessException("Cửa hàng đang ngừng hoạt động.");
+            throw new BusinessException(StoreAccessMessages.INACTIVE);
         }
         return store;
     }

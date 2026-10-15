@@ -870,7 +870,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
         }
         Store store = employee.getStore();
         if (store == null || !Boolean.TRUE.equals(store.getIsActive())) {
-            throw new BusinessException("Cửa hàng hiện tại không còn hoạt động.");
+            throw new BusinessException(com.example.coffee_hrm.common.store.StoreAccessMessages.INACTIVE);
         }
     }
 

@@ -1,11 +1,13 @@
 package com.example.coffee_hrm.dto.response;
 
+import com.example.coffee_hrm.common.enums.StoreStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Getter
@@ -19,6 +21,10 @@ public class StoreResponse {
     private String address;
     private Integer totalLeaveDays;
     private Boolean isActive;
+    private StoreStatus status;
+    private String statusLabel;
+    private String stateKey;
+    private LocalDate openingDate;
     private long employeeCount;
     private String managerName;
     private BigDecimal latitude;

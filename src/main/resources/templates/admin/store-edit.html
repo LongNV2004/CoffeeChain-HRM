@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
+    <link rel="stylesheet" th:href="@{/css/StoreManagement.css}">
 </head>
 <body>
 <header th:replace="~{fragments/navbar :: admin('stores')}"></header>
@@ -26,43 +27,61 @@
             <h2>Thông tin cửa hàng</h2>
             <p>Tên cửa hàng không được trùng với cửa hàng khác trong chuỗi.</p>
 
-            <form class="stack-form" method="post" th:action="@{/admin/stores/{id}(id=${store.id})}" th:object="${storeForm}">
-                <label>Tên cửa hàng
+            <form class="stack-form store-edit-form" method="post" th:action="@{/admin/stores/{id}(id=${store.id})}" th:object="${storeForm}"
+                  th:attr="data-vietnam-today=${vietnamToday != null ? #temporals.format(vietnamToday, 'yyyy-MM-dd') : ''}" autocomplete="off">
+                <div class="store-form-status">
+                    <span>Trạng thái hiện tại</span>
+                    <strong class="store-badge"
+                            th:classappend="${store.stateKey == 'pre-opening'} ? ' store-badge--preopening' : (${store.stateKey == 'inactive' or (store.stateKey == null and !store.isActive)} ? ' store-badge--inactive' : ' store-badge--active')"
+                            th:text="${store.statusLabel != null ? store.statusLabel : (store.isActive ? 'Hoạt động' : 'Ngừng hoạt động')}">Hoạt động</strong>
+                    <p class="store-form-note">Ngừng hoạt động hoặc kích hoạt lại thực hiện tại danh sách cửa hàng. Cửa hàng đang ngừng hoạt động không tự mở lại khi đến ngày khai trương.</p>
+                </div>
+
+                <label>Tên cửa hàng <span class="req" aria-hidden="true">*</span>
                     <input type="text" th:field="*{storeName}" maxlength="100" required>
                     <span class="field-error" th:if="${#fields.hasErrors('storeName')}" th:errors="*{storeName}">Error</span>
                 </label>
 
-                <label>Địa chỉ
+                <label>Địa chỉ cửa hàng <span class="req" aria-hidden="true">*</span>
                     <input type="text" th:field="*{address}" maxlength="255" required>
                     <span class="field-error" th:if="${#fields.hasErrors('address')}" th:errors="*{address}">Error</span>
                 </label>
 
                 <div class="two-col">
-                    <label>Số ngày phép / năm
+                    <label>Ngày khai trương <span class="req" aria-hidden="true">*</span>
+                        <span class="store-date-field">
+                            <input type="text" th:field="*{openingDate}" inputmode="numeric" maxlength="10" required
+                                   placeholder="dd/MM/yyyy" autocomplete="off" data-opening-date
+                                   pattern="(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[0-2])/[0-9]{4}"
+                                   title="Định dạng dd/MM/yyyy">
+                            <button type="button" class="store-date-trigger" data-opening-trigger aria-label="Mở lịch chọn ngày khai trương">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18"/></svg>
+                            </button>
+                            <input type="date" data-opening-picker tabindex="-1" aria-hidden="true">
+                        </span>
+                        <span class="field-error" th:if="${#fields.hasErrors('openingDate')}" th:errors="*{openingDate}">Error</span>
+                    </label>
+                    <label>Số ngày phép / năm <span class="req" aria-hidden="true">*</span>
                         <input type="number" th:field="*{totalLeaveDays}" min="0" required>
                         <span class="field-error" th:if="${#fields.hasErrors('totalLeaveDays')}" th:errors="*{totalLeaveDays}">Error</span>
                     </label>
-
-                    <label>Trạng thái
-                        <select th:field="*{isActive}">
-                            <option th:value="true">Hoạt động</option>
-                            <option th:value="false">Ngừng hoạt động</option>
-                        </select>
-                        <span class="field-error" th:if="${#fields.hasErrors('isActive')}" th:errors="*{isActive}">Error</span>
-                    </label>
                 </div>
+                <p class="store-form-note">Nếu cửa hàng chưa ngừng hoạt động, lưu ngày khai trương sẽ tính lại trạng thái. Ngày tương lai là Chuẩn bị khai trương; hôm nay hoặc ngày đã qua là Hoạt động.</p>
 
                 <p class="muted">Vị trí này dùng để kiểm tra nhân viên có đang ở cửa hàng khi check-in và check-out.</p>
                 <button type="button" class="logout-btn" data-fill-location>Lấy vị trí hiện tại</button>
                 <p class="muted" data-location-status></p>
 
-                <label>Vĩ độ (latitude)
-                    <input type="text" th:field="*{latitude}" inputmode="decimal" maxlength="20" placeholder="Ví dụ: 21.028511">
-                </label>
-
-                <label>Kinh độ (longitude)
-                    <input type="text" th:field="*{longitude}" inputmode="decimal" maxlength="20" placeholder="Ví dụ: 105.854167">
-                </label>
+                <div class="two-col">
+                    <label>Vĩ độ
+                        <input type="text" th:field="*{latitude}" inputmode="decimal" maxlength="20" placeholder="Ví dụ: 21.028511">
+                        <span class="field-error" th:if="${#fields.hasErrors('latitude')}" th:errors="*{latitude}">Error</span>
+                    </label>
+                    <label>Kinh độ
+                        <input type="text" th:field="*{longitude}" inputmode="decimal" maxlength="20" placeholder="Ví dụ: 105.854167">
+                        <span class="field-error" th:if="${#fields.hasErrors('longitude')}" th:errors="*{longitude}">Error</span>
+                    </label>
+                </div>
                 <p class="muted" th:if="${store.locationUpdatedAt != null}">
                     Vị trí cập nhật lúc
                     <span th:text="${#temporals.format(store.locationUpdatedAt, 'dd/MM/yyyy HH:mm')}">01/01/2026 08:00</span>
@@ -70,7 +89,7 @@
                 <p class="muted" th:if="${store.locationUpdatedAt == null}">Cửa hàng chưa được thiết lập vị trí chấm công.</p>
 
                 <div class="form-actions">
-                    <button type="submit" class="primary-btn">Lưu thay đổi</button>
+                    <button type="submit" class="primary-btn" data-submit-label="Đang lưu…">Lưu thay đổi</button>
                     <a class="logout-btn" th:href="@{/admin/stores}">Hủy</a>
                 </div>
             </form>
@@ -96,5 +115,6 @@
 </main>
 <script th:src="@{/js/AdminDashboard.js}"></script>
 <script th:src="@{/js/store-location.js}" defer></script>
+<script th:src="@{/js/store-form.js}" defer></script>
 </body>
 </html>

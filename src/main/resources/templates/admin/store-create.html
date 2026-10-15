@@ -3,96 +3,191 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Thêm cửa hàng — CoffeeHRM</title>
+    <title>Tạo cửa hàng mới — CoffeeHRM</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
+    <link rel="stylesheet" th:href="@{/css/StoreManagement.css}">
 </head>
 <body>
 <header th:replace="~{fragments/navbar :: admin('stores')}"></header>
 
-<main class="wrap dash-main">
-    <section class="welcome">
-        <div class="eyebrow">Trụ sở — Admin</div>
-        <h1>Thêm cửa hàng mới</h1>
-        <p>Store ID do hệ thống tự sinh sau khi lưu.</p>
-        <p class="muted"><a class="back-link" th:href="@{/admin/stores}">← Danh sách cửa hàng</a></p>
-    </section>
+<main class="wrap dash-main store-form-page">
+    <header class="store-create-head">
+        <nav class="store-create-crumb" aria-label="Đường dẫn">
+            <a class="back-link" th:href="@{/admin/stores}">Danh sách cửa hàng</a>
+            <span aria-hidden="true">/</span>
+            <span aria-current="page">Tạo cửa hàng mới</span>
+        </nav>
+        <h1>Tạo cửa hàng mới</h1>
+        <p>Điền thông tin chi nhánh. Hệ thống tự gán trạng thái theo ngày khai trương tại Việt Nam.</p>
+    </header>
 
-    <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}">Error</p>
+    <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}" role="alert">Error</p>
 
-    <section class="split">
-        <article class="panel">
-            <h2>Thông tin cửa hàng</h2>
-            <p>Tên cửa hàng không được trùng với cửa hàng đã có trong chuỗi.</p>
+    <form class="stack-form store-create-form" method="post" th:action="@{/admin/stores/create}" th:object="${storeForm}"
+          th:attr="data-vietnam-today=${vietnamToday != null ? #temporals.format(vietnamToday, 'yyyy-MM-dd') : ''}" autocomplete="off">
+        <div class="store-create-main">
+            <section class="store-create-card" aria-labelledby="store-basic-title">
+                <h2 id="store-basic-title">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 9 2-5h14l2 5v3a3 3 0 0 1-5.4 1.8A3 3 0 0 1 12 15a3 3 0 0 1-3.6-1.2A3 3 0 0 1 3 12V9Z"/><path d="M5 15v6h14v-6M9 21v-5h6v5"/></svg>
+                    Thông tin cơ bản
+                </h2>
+                <p class="store-create-lead">Tên cửa hàng không được trùng với cửa hàng đã có trong chuỗi.</p>
+                <div class="store-create-fields">
+                    <label>Tên cửa hàng <span class="req" aria-hidden="true">*</span>
+                        <input type="text" th:field="*{storeName}" maxlength="100" required
+                               pattern=".*\S.*" title="Tên cửa hàng không được để trống" autocomplete="organization"
+                               placeholder="Tên chi nhánh">
+                        <span class="field-error" th:if="${#fields.hasErrors('storeName')}" th:errors="*{storeName}">Error</span>
+                    </label>
+                </div>
+            </section>
 
-            <form class="stack-form" method="post" th:action="@{/admin/stores/create}" th:object="${storeForm}"
-                  onsubmit="this.querySelector('[type=submit]').disabled = true;">
-                <label>Tên cửa hàng
-                    <input type="text" th:field="*{storeName}" maxlength="100" required
-                           pattern=".*\S.*" title="Tên cửa hàng không được để trống">
-                    <span class="field-error" th:if="${#fields.hasErrors('storeName')}" th:errors="*{storeName}">Error</span>
-                </label>
+            <section class="store-create-card" aria-labelledby="store-contact-title">
+                <h2 id="store-contact-title">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+                    Thông tin liên hệ
+                </h2>
+                <div class="store-create-fields">
+                    <label>Địa chỉ <span class="req" aria-hidden="true">*</span>
+                        <input type="text" th:field="*{address}" maxlength="255" required
+                               pattern=".*\S.*" title="Địa chỉ không được để trống" autocomplete="street-address"
+                               placeholder="Số nhà, đường, quận">
+                        <span class="field-error" th:if="${#fields.hasErrors('address')}" th:errors="*{address}">Error</span>
+                    </label>
+                </div>
+            </section>
 
-                <label>Địa chỉ
-                    <input type="text" th:field="*{address}" maxlength="255" required
-                           pattern=".*\S.*" title="Địa chỉ không được để trống">
-                    <span class="field-error" th:if="${#fields.hasErrors('address')}" th:errors="*{address}">Error</span>
-                </label>
+            <section class="store-create-card" aria-labelledby="store-opening-title">
+                <h2 id="store-opening-title">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18"/></svg>
+                    Thông tin khai trương
+                </h2>
+                <div class="store-create-fields">
+                    <label>Ngày khai trương <span class="req" aria-hidden="true">*</span>
+                        <span class="store-date-field">
+                            <input type="text" th:field="*{openingDate}" inputmode="numeric" maxlength="10" required
+                                   placeholder="dd/MM/yyyy" autocomplete="off" data-opening-date
+                                   pattern="(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[0-2])/[0-9]{4}"
+                                   title="Định dạng dd/MM/yyyy">
+                            <button type="button" class="store-date-trigger" data-opening-trigger aria-label="Mở lịch chọn ngày khai trương">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18"/></svg>
+                            </button>
+                            <input type="date" data-opening-picker tabindex="-1" aria-hidden="true">
+                        </span>
+                        <span class="field-error" th:if="${#fields.hasErrors('openingDate')}" th:errors="*{openingDate}">Error</span>
+                    </label>
+                    <p class="store-form-note">Cửa hàng sẽ tự chuyển sang Hoạt động khi đến ngày khai trương.</p>
+                    <div class="store-status-preview" data-status-preview
+                         th:hidden="${storeForm.openingDate == null}">
+                        <span>Trạng thái dự kiến</span>
+                        <strong class="store-badge" data-status-preview-label
+                                th:classappend="${storeForm.openingDate != null and vietnamToday != null and storeForm.openingDate.isAfter(vietnamToday)} ? ' store-badge--preopening' : ' store-badge--active'"
+                                th:text="${storeForm.openingDate != null and vietnamToday != null and storeForm.openingDate.isAfter(vietnamToday)} ? 'Chuẩn bị khai trương' : 'Hoạt động'">Hoạt động</strong>
+                    </div>
+                </div>
+            </section>
 
-                <div class="two-col">
-                    <label>Số ngày phép / năm
+            <section class="store-create-card" aria-labelledby="store-extra-title">
+                <h2 id="store-extra-title">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h5"/></svg>
+                    Thông tin bổ sung
+                </h2>
+                <p class="store-create-lead">Số ngày phép năm áp dụng cho nhân sự của cửa hàng này.</p>
+                <div class="store-create-fields">
+                    <label>Số ngày phép / năm <span class="req" aria-hidden="true">*</span>
                         <input type="number" th:field="*{totalLeaveDays}" min="0" required>
                         <span class="field-error" th:if="${#fields.hasErrors('totalLeaveDays')}" th:errors="*{totalLeaveDays}">Error</span>
                     </label>
-
-                    <label>Trạng thái
-                        <select th:field="*{isActive}">
-                            <option th:value="true">Hoạt động</option>
-                            <option th:value="false">Ngừng hoạt động</option>
-                        </select>
-                        <span class="field-error" th:if="${#fields.hasErrors('isActive')}" th:errors="*{isActive}">Error</span>
-                    </label>
                 </div>
+            </section>
 
-                <p class="muted">Vị trí này dùng để kiểm tra nhân viên có đang ở cửa hàng khi check-in và check-out.</p>
-                <button type="button" class="logout-btn" data-fill-location>Lấy vị trí hiện tại</button>
-                <p class="muted" data-location-status></p>
-
-                <label>Vĩ độ (latitude)
-                    <input type="text" th:field="*{latitude}" inputmode="decimal" maxlength="20" required
-                           placeholder="Ví dụ: 21.028511">
-                    <span class="field-error" th:if="${#fields.hasErrors('latitude')}" th:errors="*{latitude}">Error</span>
-                </label>
-
-                <label>Kinh độ (longitude)
-                    <input type="text" th:field="*{longitude}" inputmode="decimal" maxlength="20" required
-                           placeholder="Ví dụ: 105.854167">
-                    <span class="field-error" th:if="${#fields.hasErrors('longitude')}" th:errors="*{longitude}">Error</span>
-                </label>
-
-                <div class="form-actions">
-                    <button type="submit" class="primary-btn">Tạo cửa hàng</button>
-                    <a class="logout-btn" th:href="@{/admin/stores}">Hủy</a>
+            <section class="store-create-card" aria-labelledby="store-location-title">
+                <h2 id="store-location-title">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+                    Vị trí cửa hàng
+                </h2>
+                <p class="store-create-lead">Vĩ độ và kinh độ dùng để kiểm tra nhân viên có đang ở cửa hàng khi check-in và check-out.</p>
+                <div class="store-create-fields">
+                    <button type="button" class="logout-btn store-create-locate" data-fill-location>Lấy vị trí hiện tại</button>
+                    <p class="store-form-note" data-location-status role="status"></p>
+                    <div class="two-col">
+                        <label>Vĩ độ <span class="req" aria-hidden="true">*</span>
+                            <input type="text" th:field="*{latitude}" inputmode="decimal" maxlength="20" required
+                                   placeholder="Ví dụ: 21.028511" autocomplete="off">
+                            <span class="field-error" th:if="${#fields.hasErrors('latitude')}" th:errors="*{latitude}">Error</span>
+                        </label>
+                        <label>Kinh độ <span class="req" aria-hidden="true">*</span>
+                            <input type="text" th:field="*{longitude}" inputmode="decimal" maxlength="20" required
+                                   placeholder="Ví dụ: 105.854167" autocomplete="off">
+                            <span class="field-error" th:if="${#fields.hasErrors('longitude')}" th:errors="*{longitude}">Error</span>
+                        </label>
+                    </div>
                 </div>
-            </form>
-        </article>
+            </section>
+        </div>
 
-        <article class="panel">
-            <h2>Trạng thái ban đầu</h2>
-            <p>Cửa hàng mới được tạo chưa có nhân viên và chưa có Manager phụ trách. Vị trí chấm công là bắt buộc để nhân viên check-in và check-out.</p>
-            <dl class="info-list">
-                <div><dt>Số nhân viên</dt><dd>0</dd></div>
-                <div><dt>Manager</dt><dd class="muted">Chưa chỉ định</dd></div>
-            </dl>
-            <p class="muted">
-                Sau khi tạo, xem nhân viên và chỉ định Manager tại
-                <a class="back-link" th:href="@{/admin/employees}">Quản lý nhân sự</a>.
-            </p>
-        </article>
-    </section>
+        <aside class="store-create-aside" aria-label="Bản xem trước cửa hàng">
+            <article class="store-create-card store-create-preview">
+                <p class="store-create-kicker">Xem trước</p>
+                <div class="store-create-identity">
+                    <span class="store-monogram" data-preview-monogram aria-hidden="true">CH</span>
+                    <div>
+                        <p class="store-create-name" data-preview-name
+                           th:text="${storeForm.storeName != null and !#strings.isEmpty(storeForm.storeName)} ? ${storeForm.storeName} : 'Chưa nhập tên'">Chưa nhập tên</p>
+                    </div>
+                </div>
+                <div class="store-create-status" aria-live="polite">
+                    <span>Trạng thái dự kiến</span>
+                    <strong class="store-badge" data-preview-badge
+                            th:classappend="${storeForm.openingDate != null and vietnamToday != null and storeForm.openingDate.isAfter(vietnamToday)} ? ' store-badge--preopening' : ' store-badge--active'"
+                            th:text="${storeForm.openingDate != null and vietnamToday != null and storeForm.openingDate.isAfter(vietnamToday)} ? 'Chuẩn bị khai trương' : 'Hoạt động'"
+                            th:hidden="${storeForm.openingDate == null}">Hoạt động</strong>
+                    <p data-preview-status-empty th:hidden="${storeForm.openingDate != null}">Chọn ngày khai trương để xem trạng thái dự kiến.</p>
+                    <p data-preview-status-note>Trạng thái thực tế do hệ thống xác định khi lưu, theo ngày tại Việt Nam.</p>
+                </div>
+                <dl class="store-create-facts">
+                    <div>
+                        <dt>Địa chỉ</dt>
+                        <dd data-preview-address
+                            th:text="${storeForm.address != null and !#strings.isEmpty(storeForm.address)} ? ${storeForm.address} : 'Chưa nhập địa chỉ'">Chưa nhập địa chỉ</dd>
+                    </div>
+                    <div>
+                        <dt>Ngày khai trương</dt>
+                        <dd data-preview-opening
+                            th:text="${storeForm.openingDate != null} ? ${#temporals.format(storeForm.openingDate, 'dd/MM/yyyy')} : 'Chưa chọn'">Chưa chọn</dd>
+                    </div>
+                    <div>
+                        <dt>Số ngày phép / năm</dt>
+                        <dd data-preview-leave
+                            th:text="${storeForm.totalLeaveDays != null} ? ${storeForm.totalLeaveDays + ' ngày'} : 'Chưa nhập'">12 ngày</dd>
+                    </div>
+                    <div>
+                        <dt>Vị trí chấm công</dt>
+                        <dd data-preview-coords
+                            th:text="${storeForm.latitude != null and storeForm.longitude != null and !#strings.isEmpty(storeForm.latitude) and !#strings.isEmpty(storeForm.longitude)} ? (${storeForm.latitude} + ', ' + ${storeForm.longitude}) : 'Chưa có tọa độ'">Chưa có tọa độ</dd>
+                    </div>
+                    <div>
+                        <dt>Manager</dt>
+                        <dd>Chưa chỉ định</dd>
+                    </div>
+                    <div>
+                        <dt>Nhân sự</dt>
+                        <dd>0</dd>
+                    </div>
+                </dl>
+            </article>
+        </aside>
+
+        <div class="form-actions store-create-actions">
+            <a class="logout-btn" th:href="@{/admin/stores}">Hủy</a>
+            <button type="submit" class="primary-btn" data-submit-label="Đang tạo cửa hàng…">Tạo cửa hàng</button>
+        </div>
+    </form>
 </main>
 <script th:src="@{/js/AdminDashboard.js}"></script>
 <script th:src="@{/js/store-location.js}" defer></script>
+<script th:src="@{/js/store-form.js}" defer></script>
 </body>
 </html>

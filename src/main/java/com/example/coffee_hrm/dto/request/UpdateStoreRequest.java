@@ -10,7 +10,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.springframework.format.annotation.DateTimeFormat;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Getter
@@ -32,8 +34,9 @@ public class UpdateStoreRequest {
     @Min(value = 0, message = "Số ngày phép không được âm")
     private Integer totalLeaveDays;
 
-    @NotNull(message = "Vui lòng chọn trạng thái")
-    private Boolean isActive;
+    @NotNull(message = "Vui lòng chọn ngày khai trương")
+    @DateTimeFormat(pattern = "dd/MM/yyyy")
+    private LocalDate openingDate;
 
     @Valid
     private List<StoreOperatingHourRequest> operatingHours;

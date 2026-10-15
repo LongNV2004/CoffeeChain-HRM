@@ -25,6 +25,7 @@
 
     <p class="flash success" th:if="${successMessage}" th:text="${successMessage}" role="status"></p>
     <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}" role="alert"></p>
+    <p id="storeStatusNotice" class="flash success" role="status" hidden></p>
     <p id="storeFeedback" class="flash error" role="alert" hidden></p>
 
     <section class="store-stats" aria-label="Thống kê cửa hàng">
@@ -50,6 +51,20 @@
             <span class="store-stat-icon store-stat-icon--green">
             <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="m5 12 4 4L19 6"/>
+            </svg>
+        </span>
+        </article>
+
+        <article class="store-stat">
+            <div>
+                <span>Chuẩn bị khai trương</span>
+                <strong data-stat="pre-opening">0</strong>
+                <small>Chưa đến ngày khai trương</small>
+            </div>
+            <span class="store-stat-icon store-stat-icon--amber">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="3" y="5" width="18" height="16" rx="2"/>
+                <path d="M7 3v4M17 3v4M3 10h18"/>
             </svg>
         </span>
         </article>
@@ -86,14 +101,14 @@
                 <p>Quản lý địa điểm, trạng thái và nhân sự tại từng cửa hàng.</p></div>
             <div class="store-panel-actions">
                 <a class="store-btn store-btn--secondary" th:href="@{/admin/employees}">Quản lý nhân sự</a>
-                <a class="store-btn store-btn--primary" th:href="@{/admin/stores/create}"
-                   data-store-modal data-modal-title="Thêm chi nhánh mới">+ Thêm chi nhánh mới</a>
+                <a class="store-btn store-btn--primary" th:href="@{/admin/stores/create}">+ Tạo cửa hàng mới</a>
             </div>
         </div>
         <div class="store-toolbar">
             <div class="store-tabs" role="group" aria-label="Lọc theo trạng thái">
                 <button type="button" class="is-current" data-status-filter="all" aria-pressed="true">Tất cả <span data-count="all">0</span></button>
                 <button type="button" data-status-filter="active" aria-pressed="false">Hoạt động <span data-count="active">0</span></button>
+                <button type="button" data-status-filter="pre-opening" aria-pressed="false">Chuẩn bị khai trương <span data-count="pre-opening">0</span></button>
                 <button type="button" data-status-filter="inactive" aria-pressed="false">Ngừng hoạt động <span data-count="inactive">0</span></button>
             </div>
             <label class="store-search"><span class="sr-only">Tìm kiếm cửa hàng</span>
@@ -104,14 +119,15 @@
             <table class="store-table">
                 <thead><tr>
                     <th scope="col">STT</th><th scope="col">Mã / Tên chi nhánh</th>
-                    <th scope="col">Địa chỉ</th><th scope="col">Store Manager</th>
+                    <th scope="col">Địa chỉ</th><th scope="col">Khai trương</th><th scope="col">Store Manager</th>
                     <th scope="col">Nhân sự</th><th scope="col">Trạng thái</th>
                     <th scope="col">Hành động</th>
                 </tr></thead>
                 <tbody>
-                <tr th:if="${#lists.isEmpty(stores)}"><td colspan="7" class="store-empty">Chưa có cửa hàng nào.</td></tr>
+                <tr th:if="${#lists.isEmpty(stores)}"><td colspan="8" class="store-empty">Chưa có cửa hàng nào.</td></tr>
                 <tr th:each="store, position : ${stores}" class="store-data-row"
-                    th:attr="data-state=${store.isActive ? 'active' : 'inactive'},data-employee-count=${store.employeeCount},data-manager-assigned=${store.managerName != null}">
+                    th:with="state=${store.stateKey != null ? store.stateKey : (store.isActive ? 'active' : 'inactive')}"
+                    th:attr="data-state=${state},data-employee-count=${store.employeeCount},data-manager-assigned=${store.managerName != null}">
                     <td class="store-index" th:text="${position.count}">1</td>
                     <td>
                         <div class="store-name-cell">
@@ -123,13 +139,16 @@
                         </div>
                     </td>
                     <td class="store-address" th:text="${store.address}">Địa chỉ</td>
+                    <td class="store-opening"
+                        th:text="${store.openingDate != null ? #temporals.format(store.openingDate, 'dd/MM/yyyy') : '—'}">01/01/2026</td>
                     <td><span th:if="${store.managerName != null}" class="store-manager"
                               th:text="${store.managerName}">Manager</span>
                         <span th:if="${store.managerName == null}" class="store-unassigned">Chưa phân công</span></td>
                     <td><span class="store-count"><svg aria-hidden="true"><use href="#coffee-i-people"/></svg>
                         <span th:text="${store.employeeCount}">0</span> NV</span></td>
-                    <td><span class="store-badge" th:classappend="${store.isActive} ? ' store-badge--active' : ' store-badge--inactive'"
-                              th:text="${store.isActive} ? 'Hoạt động' : 'Ngừng hoạt động'">Hoạt động</span></td>
+                    <td><span class="store-badge"
+                              th:classappend="${state == 'pre-opening'} ? ' store-badge--preopening' : (${state == 'inactive'} ? ' store-badge--inactive' : ' store-badge--active')"
+                              th:text="${store.statusLabel != null ? store.statusLabel : (state == 'inactive' ? 'Ngừng hoạt động' : (state == 'pre-opening' ? 'Chuẩn bị khai trương' : 'Hoạt động'))}">Hoạt động</span></td>
                     <td><div class="store-actions">
                         <a class="store-action store-action--view"
                            th:href="@{/admin/stores/{id}/employees(id=${store.id})}"
@@ -151,13 +170,17 @@
                                 <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L9 17l-4 1 1-4L16.5 3.5Z"/>
                             </svg>
                         </a>
-                        <a class="store-switch" th:href="@{/admin/stores/{id}/edit(id=${store.id})}"
-                           data-store-toggle th:title="${store.isActive} ? 'Ngừng hoạt động' : 'Kích hoạt'"
-                           th:attr="aria-label=|${store.isActive ? 'Ngừng hoạt động' : 'Kích hoạt'} cửa hàng ${store.storeName}|">
+                        <a class="store-switch" href="#"
+                           data-store-toggle
+                           th:data-store-id="${store.id}"
+                           th:data-store-name="${store.storeName}"
+                           th:data-opening="${store.openingDate != null ? #temporals.format(store.openingDate, 'dd/MM/yyyy') : ''}"
+                           th:title="${state == 'inactive'} ? 'Kích hoạt lại' : 'Ngừng hoạt động'"
+                           th:attr="aria-label=|${state == 'inactive' ? 'Kích hoạt lại' : 'Ngừng hoạt động'} cửa hàng ${store.storeName}|">
                             <span></span></a>
                     </div></td>
                 </tr>
-                <tr id="storeNoMatch" hidden><td colspan="7" class="store-empty">Không tìm thấy cửa hàng phù hợp.</td></tr>
+                <tr id="storeNoMatch" hidden><td colspan="8" class="store-empty">Không tìm thấy cửa hàng phù hợp.</td></tr>
                 </tbody>
             </table>
         </div>
@@ -394,7 +417,27 @@
         </form>
     </div>
 </section>
+<div class="store-overlay" id="storeStatusBackdrop" hidden></div>
+<section class="store-modal store-status-dialog" id="storeStatusDialog" role="dialog" aria-modal="true"
+         aria-labelledby="storeStatusTitle" hidden>
+    <div class="store-dialog-head">
+        <div>
+            <h2 id="storeStatusTitle">Xác nhận thay đổi trạng thái</h2>
+            <p id="storeStatusLead">Thao tác này chỉ đổi trạng thái vận hành.</p>
+        </div>
+        <button class="store-dialog-close" type="button" data-close-status aria-label="Đóng">×</button>
+    </div>
+    <div class="store-modal-body">
+        <p id="storeStatusDetail"></p>
+        <p id="storeStatusError" class="flash error" role="alert" hidden></p>
+        <div class="form-actions">
+            <button type="button" class="store-btn store-btn--secondary" data-close-status>Hủy</button>
+            <button type="button" class="store-btn store-btn--primary" id="storeStatusConfirm">Xác nhận</button>
+        </div>
+    </div>
+</section>
 <script th:src="@{/js/AdminDashboard.js}"></script>
+<script th:src="@{/js/store-form.js}" defer></script>
 <script th:src="@{/js/store-location.js}" defer></script>
 <script th:src="@{/js/StoreManagement.js}" defer></script>
 </body>

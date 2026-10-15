@@ -9,6 +9,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.springframework.format.annotation.DateTimeFormat;
+
+import java.time.LocalDate;
 
 @Getter
 @Setter
@@ -29,8 +32,9 @@ public class CreateStoreRequest {
     @Min(value = 0, message = "Số ngày phép không được âm")
     private Integer totalLeaveDays;
 
-    @NotNull(message = "Vui lòng chọn trạng thái")
-    private Boolean isActive;
+    @NotNull(message = "Vui lòng chọn ngày khai trương")
+    @DateTimeFormat(pattern = "dd/MM/yyyy")
+    private LocalDate openingDate;
 
     @NotBlank(message = "Vui lòng nhập vĩ độ")
     @Size(max = 20, message = "Vĩ độ tối đa 20 ký tự")

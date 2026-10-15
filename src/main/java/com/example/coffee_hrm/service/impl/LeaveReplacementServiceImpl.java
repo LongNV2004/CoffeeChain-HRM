@@ -203,7 +203,7 @@ public class LeaveReplacementServiceImpl implements LeaveReplacementService {
         Store store = storeRepository.findByManager_Id(manager.getEmployeeId())
                 .orElseThrow(() -> new BusinessException("Chưa được phân công quản lý cửa hàng."));
         if (!Boolean.TRUE.equals(store.getIsActive())) {
-            throw new BusinessException("Cửa hàng không hoạt động.");
+            throw new BusinessException(com.example.coffee_hrm.common.store.StoreAccessMessages.INACTIVE);
         }
         return store;
     }

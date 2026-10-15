@@ -16,4 +16,6 @@ public interface StoreService {
     StoreResponse createStore(AuthenticatedUser actor, CreateStoreRequest request);
 
     StoreResponse updateStore(AuthenticatedUser actor, Integer storeId, UpdateStoreRequest request);
+
+    StoreResponse changeStatus(AuthenticatedUser actor, Integer storeId, String action);
 }

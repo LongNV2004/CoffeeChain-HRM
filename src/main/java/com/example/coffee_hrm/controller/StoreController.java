@@ -7,6 +7,7 @@ import com.example.coffee_hrm.dto.response.StoreResponse;
 import com.example.coffee_hrm.entity.Store;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.StoreService;
+import com.example.coffee_hrm.service.impl.StoreServiceImpl;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.propertyeditors.StringTrimmerEditor;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.WebDataBinder;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.InitBinder;
@@ -24,11 +26,14 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 @Controller
 @RequiredArgsConstructor
@@ -62,7 +67,6 @@ public class StoreController {
         Store defaults = Store.builder().build();
         model.addAttribute("storeForm", CreateStoreRequest.builder()
                 .totalLeaveDays(defaults.getTotalLeaveDays())
-                .isActive(defaults.getIsActive())
                 .build());
         return STORE_CREATE_VIEW;
     }
@@ -80,10 +84,12 @@ public class StoreController {
             StoreResponse created = storeService.createStore(user, storeForm);
             redirectAttributes.addFlashAttribute("successMessage",
                     "Đã tạo cửa hàng " + created.getStoreName() + " (Store #" + created.getId()
-                            + "). Manager: Chưa chỉ định."
+                            + "). Trạng thái: " + created.getStatusLabel()
+                            + ". Manager: Chưa chỉ định."
                             + locationSuffix(created));
             return STORE_LIST_REDIRECT;
         } catch (BusinessException ex) {
+            exposeBusinessError(bindingResult, ex);
             model.addAttribute("errorMessage", ex.getMessage());
             return STORE_CREATE_VIEW;
         }
@@ -102,7 +108,7 @@ public class StoreController {
                     .storeName(store.getStoreName())
                     .address(store.getAddress())
                     .totalLeaveDays(store.getTotalLeaveDays())
-                    .isActive(store.getIsActive())
+                    .openingDate(store.getOpeningDate())
                     .latitude(plainCoordinate(store.getLatitude()))
                     .longitude(plainCoordinate(store.getLongitude()))
                     .build());
@@ -136,14 +142,55 @@ public class StoreController {
             redirectAttributes.addFlashAttribute("successMessage", storeUpdatedMessage(updated));
             return STORE_LIST_REDIRECT;
         } catch (BusinessException ex) {
+            exposeBusinessError(bindingResult, ex);
             model.addAttribute("errorMessage", ex.getMessage());
             return STORE_EDIT_VIEW;
         }
     }
 
+    @PostMapping("/{storeId}/status")
+    @ResponseBody
+    public ResponseEntity<Map<String, String>> changeStatus(@PathVariable Integer storeId,
+                                                            @RequestParam String action,
+                                                            @AuthenticationPrincipal AuthenticatedUser user) {
+        try {
+            StoreResponse updated = storeService.changeStatus(user, storeId, action);
+            String message = "deactivate".equals(action)
+                    ? "Đã chuyển cửa hàng " + updated.getStoreName()
+                    + " sang Ngừng hoạt động. Dữ liệu nhân sự và nghiệp vụ được giữ nguyên."
+                    : "Đã kích hoạt lại cửa hàng " + updated.getStoreName()
+                    + ". Trạng thái hiện tại: " + updated.getStatusLabel() + ".";
+            return ResponseEntity.ok(Map.of(
+                    "message", message,
+                    "status", updated.getStatus().name(),
+                    "statusLabel", updated.getStatusLabel()));
+        } catch (BusinessException ex) {
+            return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
+        }
+    }
+
     private String storeUpdatedMessage(StoreResponse updated) {
         String message = "Đã cập nhật thông tin cửa hàng " + updated.getStoreName() + ".";
+        if (updated.getStatusLabel() != null) {
+            message = message + " Trạng thái: " + updated.getStatusLabel() + ".";
+        }
         return message + locationSuffix(updated);
+    }
+
+    private void exposeBusinessError(BindingResult bindingResult, BusinessException ex) {
+        String message = ex.getMessage();
+        if (StoreServiceImpl.STORE_NAME_EXISTS.equals(message)
+                || StoreServiceImpl.STORE_NAME_REQUIRED.equals(message)) {
+            bindingResult.rejectValue("storeName", "business", message);
+        } else if (StoreServiceImpl.ADDRESS_REQUIRED.equals(message)) {
+            bindingResult.rejectValue("address", "business", message);
+        } else if (StoreServiceImpl.OPENING_DATE_REQUIRED.equals(message)) {
+            bindingResult.rejectValue("openingDate", "business", message);
+        } else if (StoreServiceImpl.LOCATION_REQUIRED.equals(message)
+                || StoreServiceImpl.INVALID_COORDINATES.equals(message)) {
+            bindingResult.rejectValue("latitude", "business", message);
+            bindingResult.rejectValue("longitude", "business", message);
+        }
     }
 
     private String locationSuffix(StoreResponse store) {

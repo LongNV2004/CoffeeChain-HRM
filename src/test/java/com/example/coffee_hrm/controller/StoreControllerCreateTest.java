@@ -1,6 +1,7 @@
 package com.example.coffee_hrm.controller;
 
 import com.example.coffee_hrm.common.enums.RoleName;
+import com.example.coffee_hrm.common.enums.StoreStatus;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.dto.request.CreateStoreRequest;
 import com.example.coffee_hrm.dto.response.StoreResponse;
@@ -26,8 +27,10 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasProperty;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -67,8 +70,9 @@ class StoreControllerCreateTest {
                 .andExpect(view().name("admin/store-create"))
                 .andExpect(model().attribute("storeForm", allOf(
                         hasProperty("totalLeaveDays", is(12)),
-                        hasProperty("isActive", is(true)))))
-                .andExpect(content().string(containsString("Thêm cửa hàng mới")))
+                        hasProperty("openingDate", nullValue()))))
+                .andExpect(content().string(containsString("Tạo cửa hàng mới")))
+                .andExpect(content().string(containsString("Ngày khai trương")))
                 .andExpect(content().string(containsString("Chưa chỉ định")));
     }
 
@@ -93,7 +97,7 @@ class StoreControllerCreateTest {
                             .param("storeName", "Store X")
                             .param("address", "X")
                             .param("totalLeaveDays", "12")
-                            .param("isActive", "true"))
+                            .param("openingDate", "20/10/2026"))
                     .andExpect(status().is3xxRedirection());
         }
         verify(storeService, never()).createStore(any(), any());
@@ -105,7 +109,7 @@ class StoreControllerCreateTest {
                         .param("storeName", "Store X")
                         .param("address", "X")
                         .param("totalLeaveDays", "12")
-                        .param("isActive", "true"))
+                        .param("openingDate", "20/10/2026"))
                 .andExpect(status().is3xxRedirection());
         verify(storeService, never()).createStore(any(), any());
     }
@@ -120,7 +124,7 @@ class StoreControllerCreateTest {
                         .param("storeName", "   Coffee Nguyễn Trãi   ")
                         .param("address", "  12 Nguyễn Trãi ")
                         .param("totalLeaveDays", "12")
-                        .param("isActive", "true")
+                        .param("openingDate", "20/10/2026")
                         .param("latitude", " 21.028511 ")
                         .param("longitude", " 105.854167 "))
                 .andExpect(redirectedUrl("/admin/stores"))
@@ -132,6 +136,7 @@ class StoreControllerCreateTest {
         assertEquals("12 Nguyễn Trãi", captor.getValue().getAddress());
         assertEquals("21.028511", captor.getValue().getLatitude());
         assertEquals("105.854167", captor.getValue().getLongitude());
+        assertEquals(java.time.LocalDate.of(2026, 10, 20), captor.getValue().getOpeningDate());
     }
 
     @Test
@@ -140,7 +145,7 @@ class StoreControllerCreateTest {
                         .param("storeName", "   ")
                         .param("address", "")
                         .param("totalLeaveDays", "12")
-                        .param("isActive", "true"))
+                        .param("openingDate", "20/10/2026"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("admin/store-create"))
                 .andExpect(model().attributeHasFieldErrors("storeForm", "storeName", "address"))
@@ -154,7 +159,7 @@ class StoreControllerCreateTest {
                         .param("storeName", "a".repeat(101))
                         .param("address", "X")
                         .param("totalLeaveDays", "-1")
-                        .param("isActive", "true"))
+                        .param("openingDate", "20/10/2026"))
                 .andExpect(status().isOk())
                 .andExpect(model().attributeHasFieldErrors("storeForm", "storeName", "totalLeaveDays"));
         verify(storeService, never()).createStore(any(), any());
@@ -168,13 +173,48 @@ class StoreControllerCreateTest {
                         .param("storeName", "Store A")
                         .param("address", "X")
                         .param("totalLeaveDays", "12")
-                        .param("isActive", "true")
+                        .param("openingDate", "20/10/2026")
                         .param("latitude", "21.028511")
                         .param("longitude", "105.854167"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("admin/store-create"))
                 .andExpect(model().attribute("errorMessage", "Tên cửa hàng đã tồn tại"));
         verify(storeService).createStore(any(), any());
+    }
+
+    @Test
+    void missingOpeningDateIsRejectedOnTheField() throws Exception {
+        mockMvc.perform(post("/admin/stores/create").with(user(actor(RoleName.ADMIN))).with(csrf())
+                        .param("storeName", "Store A")
+                        .param("address", "12 Nguyễn Trãi")
+                        .param("totalLeaveDays", "12")
+                        .param("latitude", "21.028511")
+                        .param("longitude", "105.854167"))
+                .andExpect(status().isOk())
+                .andExpect(model().attributeHasFieldErrors("storeForm", "openingDate"))
+                .andExpect(content().string(containsString("Vui lòng chọn ngày khai trương")));
+        verify(storeService, never()).createStore(any(), any());
+    }
+
+    @Test
+    void adminDeactivatesStoreThroughStatusEndpoint() throws Exception {
+        when(storeService.changeStatus(any(), eq(5), eq("deactivate"))).thenReturn(StoreResponse.builder()
+                .id(5).storeName("Coffee Nguyễn Trãi").status(StoreStatus.INACTIVE)
+                .statusLabel("Ngừng hoạt động").isActive(false).build());
+
+        mockMvc.perform(post("/admin/stores/5/status").with(user(actor(RoleName.ADMIN))).with(csrf())
+                        .param("action", "deactivate"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Ngừng hoạt động")))
+                .andExpect(content().string(containsString("Coffee Nguyễn Trãi")));
+    }
+
+    @Test
+    void managerCannotChangeStoreStatus() throws Exception {
+        mockMvc.perform(post("/admin/stores/5/status").with(user(actor(RoleName.MANAGER))).with(csrf())
+                        .param("action", "deactivate"))
+                .andExpect(redirectedUrl("/dashboard/manager"));
+        verify(storeService, never()).changeStatus(any(), any(), any());
     }
 
     private AuthenticatedUser actor(RoleName roleName) {

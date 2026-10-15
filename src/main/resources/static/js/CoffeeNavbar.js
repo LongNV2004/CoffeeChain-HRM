@@ -151,4 +151,22 @@
     } else {
         initAll();
     }
+
+    if (window.fetch && !window.fetch.storeInactiveGuard) {
+        const originalFetch = window.fetch.bind(window);
+        const guardedFetch = function () {
+            return originalFetch.apply(null, arguments).then(function (response) {
+                if (response.status === 403) {
+                    response.clone().json().then(function (body) {
+                        if (body && body.code === 'STORE_INACTIVE') {
+                            window.location.assign('/store-inactive');
+                        }
+                    }).catch(function () { /* Phản hồi 403 không phải JSON thì giữ nguyên xử lý của trang. */ });
+                }
+                return response;
+            });
+        };
+        guardedFetch.storeInactiveGuard = true;
+        window.fetch = guardedFetch;
+    }
 })();

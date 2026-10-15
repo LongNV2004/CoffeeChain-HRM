@@ -58,10 +58,27 @@
         feedback.scrollIntoView({ block: 'nearest' });
     }
 
+    const statusDialog = document.getElementById('storeStatusDialog');
+    const statusBackdrop = document.getElementById('storeStatusBackdrop');
+    const statusDetail = document.getElementById('storeStatusDetail');
+    const statusError = document.getElementById('storeStatusError');
+    const statusConfirm = document.getElementById('storeStatusConfirm');
+    let pendingStatus = null;
+
+    const savedNotice = sessionStorage.getItem('coffeehrm.storeStatusNotice');
+    if (savedNotice) {
+        sessionStorage.removeItem('coffeehrm.storeStatusNotice');
+        const banner = document.getElementById('storeStatusNotice');
+        if (banner) {
+            banner.textContent = savedNotice;
+            banner.hidden = false;
+        }
+    }
+
     function updateDialogLock() {
         document.body.classList.toggle(
             'store-dialog-open',
-            !modal.hidden || !drawer.hidden || !employeeModal.hidden
+            !modal.hidden || !drawer.hidden || !employeeModal.hidden || (statusDialog && !statusDialog.hidden)
         );
     }
 
@@ -69,12 +86,15 @@
         all: rows.length,
         active: 0,
         inactive: 0,
+        'pre-opening': 0,
         employees: 0,
         managers: 0
     };
 
     rows.forEach(row => {
-        counts[row.dataset.state] += 1;
+        if (Object.prototype.hasOwnProperty.call(counts, row.dataset.state)) {
+            counts[row.dataset.state] += 1;
+        }
         counts.employees += Number(row.dataset.employeeCount) || 0;
         counts.managers += row.dataset.managerAssigned === 'true' ? 1 : 0;
     });
@@ -181,25 +201,6 @@
 
         if (modal.dataset.mode === 'create') {
             form.classList.add('store-create-form');
-            const status = form.querySelector('[name="isActive"]');
-
-            if (status) {
-                const hidden = element('input');
-                hidden.type = 'hidden';
-                hidden.name = 'isActive';
-                hidden.value = 'true';
-                status.closest('label').replaceWith(hidden);
-            }
-
-            ['storeName', 'address', 'totalLeaveDays', 'latitude', 'longitude'].forEach(name => {
-                const input = form.elements.namedItem(name);
-                if (!input) return;
-
-                input.required = true;
-                const star = element('span', 'store-required', ' *');
-                star.setAttribute('aria-hidden', 'true');
-                input.closest('label').insertBefore(star, input);
-            });
         }
 
         const cancelLink = form.querySelector('.form-actions a');
@@ -217,7 +218,8 @@
         if (serverError) modalBody.appendChild(serverError);
 
         modalBody.appendChild(form);
-        form.querySelector('input:not([type=hidden])')?.focus();
+        if (window.refreshStoreOpeningFields) window.refreshStoreOpeningFields(form);
+        form.querySelector('input:not([type=hidden]):not([data-opening-picker])')?.focus();
     }
 
     async function openModal(link) {
@@ -255,11 +257,18 @@
         if (!form) return;
 
         event.preventDefault();
+        event.stopPropagation();
         if (saving || !form.reportValidity()) return;
 
         saving = true;
+        let navigated = false;
         const submit = form.querySelector('[type=submit]');
-        if (submit) submit.disabled = true;
+        const idleLabel = submit ? submit.textContent : '';
+        if (submit) {
+            submit.disabled = true;
+            submit.setAttribute('aria-busy', 'true');
+            if (submit.dataset.submitLabel) submit.textContent = submit.dataset.submitLabel;
+        }
 
         try {
             const result = await loadPage(form.action, {
@@ -267,7 +276,10 @@
                 body: new FormData(form)
             });
 
-            if (successfulSave(result)) return;
+            if (successfulSave(result)) {
+                navigated = true;
+                return;
+            }
 
             if (result.parsed.querySelector('form.stack-form')) {
                 renderForm(result.parsed);
@@ -285,8 +297,15 @@
             banner.textContent = error.message;
         } finally {
             saving = false;
+            if (navigated) return;
             const activeSubmit = modalBody.querySelector('form.stack-form [type=submit]');
-            if (activeSubmit) activeSubmit.disabled = false;
+            if (activeSubmit) {
+                activeSubmit.disabled = false;
+                activeSubmit.removeAttribute('aria-busy');
+                if (!activeSubmit.isConnected || activeSubmit === submit) {
+                    activeSubmit.textContent = idleLabel;
+                }
+            }
         }
     });
 
@@ -468,48 +487,86 @@
         }
     }
 
-    async function toggleStore(link) {
-        if (link.classList.contains('is-busy')) return;
+    function closeStatusDialog() {
+        if (pendingStatus && pendingStatus.busy) return;
+        pendingStatus = null;
+        if (statusDialog) statusDialog.hidden = true;
+        if (statusBackdrop) statusBackdrop.hidden = true;
+        if (statusError) statusError.hidden = true;
+        updateDialogLock();
+    }
 
-        const active = link.closest('tr').dataset.state === 'active';
-        const question = active
-            ? 'Ngừng hoạt động cửa hàng này?'
-            : 'Kích hoạt lại cửa hàng này?';
+    function openStatusDialog(link) {
+        if (!statusDialog || !link.dataset.storeId) return;
+        const inactive = link.closest('tr')?.dataset.state === 'inactive';
+        const name = link.dataset.storeName || 'cửa hàng này';
+        const opening = link.dataset.opening ? `Ngày khai trương: ${link.dataset.opening}. ` : '';
+        pendingStatus = {
+            id: link.dataset.storeId,
+            action: inactive ? 'reactivate' : 'deactivate',
+            busy: false
+        };
+        document.getElementById('storeStatusTitle').textContent = inactive
+            ? 'Kích hoạt lại cửa hàng'
+            : 'Ngừng hoạt động cửa hàng';
+        document.getElementById('storeStatusLead').textContent = name;
+        statusDetail.textContent = inactive
+            ? `${opening}Nếu ngày khai trương còn ở tương lai, cửa hàng chuyển sang Chuẩn bị khai trương. Nếu ngày khai trương là hôm nay hoặc đã qua, cửa hàng chuyển sang Hoạt động.`
+            : `${opening}Manager và nhân viên sẽ không dùng được các chức năng nghiệp vụ. Tài khoản, lịch làm, đơn nghỉ phép và dữ liệu chấm công được giữ nguyên. Cửa hàng không tự hoạt động lại khi đến ngày khai trương.`;
+        statusError.hidden = true;
+        statusConfirm.disabled = false;
+        statusConfirm.textContent = 'Xác nhận';
+        statusDialog.hidden = false;
+        statusBackdrop.hidden = false;
+        updateDialogLock();
+        statusConfirm.focus();
+    }
 
-        if (!window.confirm(question)) return;
-
-        link.classList.add('is-busy');
+    async function confirmStatusChange() {
+        if (!pendingStatus || pendingStatus.busy) return;
+        pendingStatus.busy = true;
+        statusConfirm.disabled = true;
+        statusConfirm.textContent = 'Đang cập nhật…';
+        statusError.hidden = true;
         feedback.hidden = true;
-
+        const token = document.querySelector('meta[name="_csrf"]')?.content;
+        const header = document.querySelector('meta[name="_csrf_header"]')?.content;
+        const body = new URLSearchParams();
+        body.set('action', pendingStatus.action);
+        if (token) body.set('_csrf', token);
+        const headers = {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        };
+        if (token && header) headers[header] = token;
         try {
-            const existing = await loadPage(link.href);
-            const form = existing.parsed.querySelector('form.stack-form');
-            const status = form?.elements.namedItem('isActive');
-
-            if (!form || !status) {
-                throw new Error('Không đọc được form cập nhật của cửa hàng.');
-            }
-
-            if (status.value !== String(active)) {
-                throw new Error('Trạng thái cửa hàng vừa thay đổi. Hãy tải lại trang.');
-            }
-
-            status.value = String(!active);
-
-            const target = new URL(form.getAttribute('action'), existing.response.url);
-            const saved = await loadPage(target.href, {
+            const response = await fetch(`/admin/stores/${encodeURIComponent(pendingStatus.id)}/status`, {
                 method: 'POST',
-                body: new FormData(form)
+                credentials: 'same-origin',
+                headers,
+                body
             });
-
-            if (successfulSave(saved)) return;
-            throw new Error(errorText(saved.parsed));
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.message || 'Không thể cập nhật trạng thái cửa hàng.');
+            }
+            sessionStorage.setItem('coffeehrm.storeStatusNotice', data.message || 'Đã cập nhật trạng thái cửa hàng.');
+            window.location.reload();
         } catch (error) {
-            showError(error.message);
-        } finally {
-            link.classList.remove('is-busy');
+            statusError.textContent = error.message;
+            statusError.hidden = false;
+            pendingStatus.busy = false;
+            statusConfirm.disabled = false;
+            statusConfirm.textContent = 'Xác nhận';
         }
     }
+
+    if (statusConfirm) statusConfirm.addEventListener('click', () => { void confirmStatusChange(); });
+    document.querySelectorAll('[data-close-status]').forEach(item => {
+        item.addEventListener('click', closeStatusDialog);
+    });
+    if (statusBackdrop) statusBackdrop.addEventListener('click', closeStatusDialog);
 
     function employeeBaseUrl() {
         return `/admin/stores/${encodeURIComponent(drawer.dataset.storeId)}/employees`;
@@ -765,7 +822,7 @@
             void openDrawer(drawerLink);
         } else if (toggleLink) {
             event.preventDefault();
-            void toggleStore(toggleLink);
+            openStatusDialog(toggleLink);
         }
     });
 
@@ -778,20 +835,23 @@
     });
 
     document.addEventListener('keydown', event => {
-        const currentDialog = !employeeModal.hidden
-            ? employeeModal
-            : !modal.hidden
-                ? modal
-                : !drawer.hidden
-                    ? drawer
-                    : null;
+        const currentDialog = statusDialog && !statusDialog.hidden
+            ? statusDialog
+            : !employeeModal.hidden
+                ? employeeModal
+                : !modal.hidden
+                    ? modal
+                    : !drawer.hidden
+                        ? drawer
+                        : null;
 
         if (!currentDialog) return;
 
         if (event.key === 'Escape') {
             event.preventDefault();
 
-            if (currentDialog === employeeModal) closeEmployeeModal();
+            if (currentDialog === statusDialog) closeStatusDialog();
+            else if (currentDialog === employeeModal) closeEmployeeModal();
             else if (currentDialog === modal) closeModal();
             else closeDrawer();
         }
