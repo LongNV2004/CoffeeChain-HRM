@@ -575,3 +575,106 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
     .hrm-topbar,
     .hrm-caret { transition-duration: .01ms !important; }
 }
+
+.coffee-confirm {
+    position: fixed;
+    inset: 0;
+    z-index: 120;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+}
+.coffee-confirm[hidden] { display: none !important; }
+.coffee-confirm-backdrop {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    padding: 0;
+    background: rgba(43, 27, 18, .42);
+    cursor: pointer;
+}
+.coffee-confirm-card {
+    position: relative;
+    z-index: 1;
+    width: min(420px, 100%);
+    padding: 22px 22px 18px;
+    border: 1px solid rgba(92, 60, 46, .14);
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 18px 48px rgba(43, 27, 18, .22);
+    font-family: 'Inter', sans-serif;
+}
+.coffee-confirm-card h2 {
+    margin: 0;
+    color: #2B1B12;
+    font-family: 'Fraunces', serif;
+    font-size: 22px;
+    font-weight: 600;
+    line-height: 1.25;
+}
+.coffee-confirm-card p {
+    margin: 8px 0 0;
+    color: #4A3324;
+    font-size: 15px;
+    line-height: 1.5;
+}
+.coffee-confirm-reason {
+    display: grid;
+    gap: 6px;
+    margin-top: 14px;
+}
+.coffee-confirm-reason[hidden] { display: none !important; }
+.coffee-confirm-reason span {
+    color: #4A3324;
+    font-size: 13px;
+    font-weight: 600;
+}
+.coffee-confirm-reason textarea {
+    width: 100%;
+    min-height: 88px;
+    padding: 10px 12px;
+    border: 1px solid #E4D7C4;
+    border-radius: 12px;
+    background: #fff;
+    color: #2B1B12;
+    font: 400 14px/1.45 'Inter', sans-serif;
+    resize: vertical;
+}
+.coffee-confirm-reason textarea:focus {
+    outline: 2px solid #C1793A;
+    outline-offset: 1px;
+}
+.coffee-confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+.coffee-confirm-cancel,
+.coffee-confirm-ok {
+    min-height: 40px;
+    padding: 0 16px;
+    border-radius: 12px;
+    font: 600 14px/1 'Inter', sans-serif;
+    cursor: pointer;
+}
+.coffee-confirm-cancel {
+    border: 1px solid #E4D7C4;
+    background: #FBF3E8;
+    color: #2B1B12;
+}
+.coffee-confirm-cancel:hover { background: #F1E8DB; }
+.coffee-confirm-ok {
+    border: 0;
+    background: #5C3C2E;
+    color: #F8F1EB;
+}
+.coffee-confirm-ok:hover { background: #3E2820; }
+.coffee-confirm-ok.is-danger { background: #9F3B32; }
+.coffee-confirm-ok.is-danger:hover { background: #7E2E28; }
+.coffee-confirm-cancel:focus-visible,
+.coffee-confirm-ok:focus-visible {
+    outline: 2px solid #C1793A;
+    outline-offset: 2px;
+}
+body.coffee-dialog-open { overflow: hidden; }

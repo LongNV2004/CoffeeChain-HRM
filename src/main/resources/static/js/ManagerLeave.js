@@ -204,8 +204,19 @@ document.addEventListener('DOMContentLoaded', () => {
             reasonInput.focus();
             return;
         }
-        if (status === 'APPROVED' && !window.confirm(`Duyệt đơn của ${item.employeeName}? Ca liên quan sẽ được giải phóng.`)) return;
-        if (status === 'REJECTED' && !window.confirm('Xác nhận từ chối đơn nghỉ phép này?')) return;
+        const accepted = await window.CoffeeDialog.confirm(status === 'APPROVED'
+            ? {
+                title: 'Duyệt đơn nghỉ phép',
+                message: `Duyệt đơn của ${item.employeeName}? Ca liên quan sẽ được giải phóng.`,
+                confirmText: 'Duyệt'
+            }
+            : {
+                title: 'Từ chối đơn nghỉ phép',
+                message: 'Xác nhận từ chối đơn nghỉ phép này?',
+                confirmText: 'Từ chối',
+                tone: 'danger'
+            });
+        if (!accepted) return;
         busy = true;
         approveButton.disabled = true;
         rejectConfirm.disabled = true;

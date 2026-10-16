@@ -101,7 +101,10 @@
                 <td class="actions">
                     <a class="link-btn" th:href="@{/training/classes/{id}(id=${item.id})}">Xem chi tiết</a>
                     <form th:action="@{/training/classes/{id}/delete(id=${item.id})}" method="post"
-                          onsubmit="return confirm('Xóa lớp đào tạo này?');">
+                          data-coffee-confirm="Xóa lớp đào tạo này?"
+                          data-coffee-title="Xóa lớp đào tạo"
+                          data-coffee-ok="Xóa"
+                          data-coffee-tone="danger">
                         <button class="link-btn danger" type="submit">Xóa</button>
                     </form>
                 </td>

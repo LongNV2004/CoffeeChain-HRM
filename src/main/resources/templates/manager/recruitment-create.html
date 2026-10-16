@@ -303,10 +303,16 @@
         }
         const message = "Xóa " + person.fullName + " khỏi danh sách ứng viên?";
         if (!removeDialog || typeof removeDialog.showModal !== "function") {
-            if (window.confirm(message)) {
+            window.CoffeeDialog.confirm({
+                title: "Xóa ứng viên",
+                message: message,
+                confirmText: "Xóa",
+                tone: "danger"
+            }).then(function (accepted) {
+                if (!accepted) return;
                 removeCandidate(index);
                 showToast("Đã xóa " + person.fullName + " khỏi danh sách ứng viên.");
-            }
+            });
             return;
         }
         pendingRemove = index;

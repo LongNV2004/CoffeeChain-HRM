@@ -200,11 +200,8 @@ th{color:var(--ink-soft);font-weight:500;}
 .recruit-summary{max-width:720px;}
 .table-scroll{overflow-x:auto;margin-top:12px;}
 .nowrap{white-space:nowrap;}
-.candidate-decide{display:grid;gap:8px;min-width:190px;}
-.candidate-decide textarea{
-  width:100%;min-height:52px;font:inherit;color:var(--espresso);
-  border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;
-}
+.candidate-decide{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+.candidate-decide form{margin:0;}
 .badge-partial{background:#E7EEF8;color:#2C4A73;}
 .recruit-empty{margin:0;}
 .recruit-form{gap:16px;max-width:960px;margin-top:0;}

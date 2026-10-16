@@ -104,14 +104,19 @@
                 <form th:action="@{/availability/manager/review-all}" method="post">
                     <input type="hidden" name="approved" value="true">
                     <button class="bulk-btn approve" type="submit"
-                            onclick="return confirm('Duyệt tất cả đơn đang chờ? Mỗi nhân viên được duyệt theo đơn của chính họ; các slot trong đơn được xếp vào lịch.');">
+                            data-coffee-confirm="Duyệt tất cả đơn đang chờ? Mỗi nhân viên được duyệt theo đơn của chính họ; các slot trong đơn được xếp vào lịch."
+                            data-coffee-title="Duyệt tất cả đơn"
+                            data-coffee-ok="Duyệt tất cả">
                         Duyệt tất cả
                     </button>
                 </form>
                 <form th:action="@{/availability/manager/review-all}" method="post">
                     <input type="hidden" name="approved" value="false">
                     <button class="bulk-btn reject" type="submit"
-                            onclick="return confirm('Từ chối tất cả đơn đang chờ? Chỉ các đơn đang chờ bị từ chối. Đơn đã duyệt được giữ nguyên.');">
+                            data-coffee-confirm="Từ chối tất cả đơn đang chờ? Chỉ các đơn đang chờ bị từ chối. Đơn đã duyệt được giữ nguyên."
+                            data-coffee-title="Từ chối tất cả đơn"
+                            data-coffee-ok="Từ chối tất cả"
+                            data-coffee-tone="danger">
                         Từ chối tất cả
                     </button>
                 </form>
@@ -150,8 +155,9 @@
                             <input type="hidden" name="availabilityId" th:if="${item.registrationKey == null}" th:value="${item.availabilityId}">
                             <input type="hidden" name="approved" value="true">
                             <button class="mini-btn approve" type="submit"
-                                    th:attr="data-employee=${item.employeeName}"
-                                    onclick="return confirm('Duyệt đơn đăng ký ca của ' + this.getAttribute('data-employee') + '? Chỉ các slot trong đơn của nhân viên này được xếp vào lịch.');">
+                                    th:data-coffee-confirm="|Duyệt đơn đăng ký ca của ${item.employeeName}? Chỉ các slot trong đơn của nhân viên này được xếp vào lịch.|"
+                                    data-coffee-title="Duyệt đơn đăng ký ca"
+                                    data-coffee-ok="Duyệt">
                                 Duyệt
                             </button>
                         </form>
@@ -160,8 +166,10 @@
                             <input type="hidden" name="availabilityId" th:if="${item.registrationKey == null}" th:value="${item.availabilityId}">
                             <input type="hidden" name="approved" value="false">
                             <button class="mini-btn reject" type="submit"
-                                    th:attr="data-employee=${item.employeeName}"
-                                    onclick="return confirm('Từ chối đơn đăng ký ca của ' + this.getAttribute('data-employee') + '? Chỉ đơn của nhân viên này bị từ chối.');">
+                                    th:data-coffee-confirm="|Từ chối đơn đăng ký ca của ${item.employeeName}? Chỉ đơn của nhân viên này bị từ chối.|"
+                                    data-coffee-title="Từ chối đơn đăng ký ca"
+                                    data-coffee-ok="Từ chối"
+                                    data-coffee-tone="danger">
                                 Từ chối
                             </button>
                         </form>

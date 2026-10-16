@@ -283,7 +283,10 @@
                 <strong th:text="${currentUserName != null and !#strings.isEmpty(currentUserName) ? currentUserName : 'Tài khoản'}">Tài khoản</strong>
                 <small th:text="${role == 'admin' ? 'Admin' : (role == 'manager' ? 'Manager' : 'Nhân viên')}">Admin</small>
             </span>
-            <form class="coffee-logout-form" th:action="@{/logout}" method="post">
+            <form class="coffee-logout-form" th:action="@{/logout}" method="post"
+                  data-coffee-confirm="Bạn muốn đăng xuất khỏi hệ thống?"
+                  data-coffee-title="Đăng xuất"
+                  data-coffee-ok="Đăng xuất">
                 <button class="coffee-logout-button" type="submit" aria-label="Đăng xuất" title="Đăng xuất">
                     <svg class="coffee-icon" aria-hidden="true"><use href="#coffee-i-logout"/></svg>
                 </button>
@@ -343,7 +346,10 @@
                     <strong th:text="${currentUserName != null and !#strings.isEmpty(currentUserName) ? currentUserName : 'Tài khoản'}">Tài khoản</strong>
                     <small th:text="${role == 'admin' ? 'Admin' : (role == 'manager' ? 'Quản lý cửa hàng' : 'Nhân viên')}">Nhân viên</small>
                 </div>
-                <form class="coffee-logout-form" th:action="@{/logout}" method="post">
+                <form class="coffee-logout-form" th:action="@{/logout}" method="post"
+                      data-coffee-confirm="Bạn muốn đăng xuất khỏi hệ thống?"
+                      data-coffee-title="Đăng xuất"
+                      data-coffee-ok="Đăng xuất">
                     <button class="hrm-account-logout" type="submit" role="menuitem">Đăng xuất</button>
                 </form>
             </div>
@@ -351,6 +357,7 @@
     </div>
 </header>
 <div class="hrm-nav-backdrop" data-sidebar-backdrop></div>
+<script th:src="@{/js/CoffeeDialog.js}" defer></script>
 <script th:src="@{/js/CoffeeNavbar.js}" defer></script>
 </div>
 

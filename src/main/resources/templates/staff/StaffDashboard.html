@@ -180,11 +180,18 @@
                     <div class="hrm-respond">
                         <form method="post" th:action="@{/schedule/staff/requests/{id}/respond(id=${inItem.requestId})}">
                             <input name="agreed" type="hidden" value="true"/>
-                            <button class="hrm-btn-ok" onclick="return confirm('Bạn có chắc chắn muốn ĐỒNG Ý yêu cầu đổi ca này?')" type="submit">Đồng ý hỗ trợ</button>
+                            <button class="hrm-btn-ok" type="submit"
+                                    data-coffee-confirm="Bạn có chắc chắn muốn đồng ý yêu cầu đổi ca này?"
+                                    data-coffee-title="Đồng ý đổi ca"
+                                    data-coffee-ok="Đồng ý">Đồng ý hỗ trợ</button>
                         </form>
                         <form method="post" th:action="@{/schedule/staff/requests/{id}/respond(id=${inItem.requestId})}">
                             <input name="agreed" type="hidden" value="false"/>
-                            <button class="hrm-btn-no" onclick="return confirm('Bạn có chắc chắn muốn TỪ CHỐI yêu cầu đổi ca này?')" type="submit">Từ chối</button>
+                            <button class="hrm-btn-no" type="submit"
+                                    data-coffee-confirm="Bạn có chắc chắn muốn từ chối yêu cầu đổi ca này?"
+                                    data-coffee-title="Từ chối đổi ca"
+                                    data-coffee-ok="Từ chối"
+                                    data-coffee-tone="danger">Từ chối</button>
                         </form>
                     </div>
                 </div>

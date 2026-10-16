@@ -141,8 +141,13 @@
         initAccountMenus();
     }
 
-    document.addEventListener('click', closeAccountMenus);
+    document.addEventListener('click', function (event) {
+        if (event.target.closest('#coffeeConfirmDialog')) return;
+        closeAccountMenus();
+    });
     document.addEventListener('keydown', function (event) {
+        const dialog = document.getElementById('coffeeConfirmDialog');
+        if (dialog && !dialog.hidden) return;
         if (event.key === 'Escape') closeAccountMenus();
     });
 

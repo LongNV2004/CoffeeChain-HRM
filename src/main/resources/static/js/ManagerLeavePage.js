@@ -260,10 +260,19 @@ document.addEventListener('DOMContentLoaded', () => {
             toast('Ngày nghỉ đã bắt đầu/đã qua hoặc không đủ quỹ phép.', true);
             return;
         }
-        const confirmation = nextStatus === 'APPROVED'
-            ? 'Duyệt đơn và giải phóng những ca liên quan?'
-            : 'Xác nhận từ chối đơn này?';
-        if (!window.confirm(confirmation)) return;
+        const accepted = await window.CoffeeDialog.confirm(nextStatus === 'APPROVED'
+            ? {
+                title: 'Duyệt đơn nghỉ phép',
+                message: 'Duyệt đơn và giải phóng những ca liên quan?',
+                confirmText: 'Duyệt'
+            }
+            : {
+                title: 'Từ chối đơn nghỉ phép',
+                message: 'Xác nhận từ chối đơn này?',
+                confirmText: 'Từ chối',
+                tone: 'danger'
+            });
+        if (!accepted) return;
         busy = true;
         approve.disabled = true;
         reject.disabled = true;
@@ -313,7 +322,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     async function confirmReplacement(gap, candidate, button) {
         if (busy) return;
-        if (!window.confirm(`Phân công ${candidate.employeeName} thay ${gap.absentEmployeeName} vào ${date(gap.workDate)} · ${gap.shiftName}?`)) return;
+        const accepted = await window.CoffeeDialog.confirm({
+            title: 'Phân công người thay',
+            message: `Phân công ${candidate.employeeName} thay ${gap.absentEmployeeName} vào ${date(gap.workDate)} · ${gap.shiftName}?`,
+            confirmText: 'Phân công'
+        });
+        if (!accepted) return;
         busy = true;
         button.disabled = true;
         try {

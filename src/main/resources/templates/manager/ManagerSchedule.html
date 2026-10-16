@@ -85,7 +85,10 @@
                                   method="post" style="display:inline;">
                                 <input type="hidden" name="currentWeek" th:value="${schedule.weekStartDate}">
                                 <button type="submit" class="del-btn" title="Hủy phân ca"
-                                        onclick="return confirm('Bạn có chắc chắn muốn hủy phân công ca này không?');">×</button>
+                                        data-coffee-confirm="Bạn có chắc chắn muốn hủy phân công ca này không?"
+                                        data-coffee-title="Hủy phân công"
+                                        data-coffee-ok="Hủy phân công"
+                                        data-coffee-tone="danger">×</button>
                             </form>
                         </div>
                     </div>
@@ -163,7 +166,10 @@
                     <form th:action="@{/schedule/manager/requests/{id}/reject(id=${req.requestId})}" method="post" style="display:inline;">
                         <input type="hidden" name="currentWeek" th:value="${schedule.weekStartDate}">
                         <button type="submit" class="btn btn-danger" style="padding:6px 12px;font-size:12px;"
-                                onclick="return confirm('Bạn có chắc chắn muốn từ chối yêu cầu đổi ca này?');">Từ chối</button>
+                                data-coffee-confirm="Bạn có chắc chắn muốn từ chối yêu cầu đổi ca này?"
+                                data-coffee-title="Từ chối yêu cầu đổi ca"
+                                data-coffee-ok="Từ chối"
+                                data-coffee-tone="danger">Từ chối</button>
                     </form>
                 </td>
             </tr>

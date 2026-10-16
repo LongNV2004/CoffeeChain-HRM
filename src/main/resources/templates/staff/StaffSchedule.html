@@ -170,13 +170,20 @@
                 <div class="incoming-card-actions">
                     <form th:action="@{/schedule/staff/requests/{id}/respond(id=${inReq.requestId})}" method="post" style="display:inline;">
                         <input type="hidden" name="agreed" value="true">
-                        <button type="submit" class="btn-agree" onclick="return confirm('Bạn có chắc chắn ĐỒNG Ý yêu cầu đổi ca này? Sau khi đồng ý, đơn sẽ được gửi lên Quản lý cửa hàng phê duyệt.')">
+                        <button type="submit" class="btn-agree"
+                                data-coffee-confirm="Bạn có chắc chắn đồng ý yêu cầu đổi ca này? Sau khi đồng ý, đơn sẽ được gửi lên Quản lý cửa hàng phê duyệt."
+                                data-coffee-title="Đồng ý đổi ca"
+                                data-coffee-ok="Đồng ý">
                             <i data-lucide="check" style="width:14px;height:14px;vertical-align:middle;margin-right:2px;"></i> Đồng ý hỗ trợ
                         </button>
                     </form>
                     <form th:action="@{/schedule/staff/requests/{id}/respond(id=${inReq.requestId})}" method="post" style="display:inline;">
                         <input type="hidden" name="agreed" value="false">
-                        <button type="submit" class="btn-decline" onclick="return confirm('Bạn có chắc chắn muốn TỪ CHỐI yêu cầu đổi ca này?')">
+                        <button type="submit" class="btn-decline"
+                                data-coffee-confirm="Bạn có chắc chắn muốn từ chối yêu cầu đổi ca này?"
+                                data-coffee-title="Từ chối đổi ca"
+                                data-coffee-ok="Từ chối"
+                                data-coffee-tone="danger">
                             <i data-lucide="x" style="width:14px;height:14px;vertical-align:middle;margin-right:2px;"></i> Từ chối
                         </button>
                     </form>

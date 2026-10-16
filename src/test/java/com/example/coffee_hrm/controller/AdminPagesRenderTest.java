@@ -193,7 +193,11 @@ class AdminPagesRenderTest {
                 .andExpect(content().string(containsString("/admin/recruitment/3/candidates/9/reject")))
                 .andExpect(content().string(not(containsString("/admin/recruitment/3/candidates/10/approve"))))
                 .andExpect(content().string(not(containsString("/admin/recruitment/3/candidates/10/reject"))))
-                .andExpect(content().string(containsString("name=\"rejectReason\"")))
+                .andExpect(content().string(containsString(">Duyệt</button>")))
+                .andExpect(content().string(containsString(">Từ chối</button>")))
+                .andExpect(content().string(containsString("data-coffee-reason=\"rejectReason\"")))
+                .andExpect(content().string(not(containsString("name=\"rejectReason\""))))
+                .andExpect(content().string(not(containsString("<textarea"))))
                 .andExpect(content().string(not(containsString("name=\"password\""))));
     }
 
