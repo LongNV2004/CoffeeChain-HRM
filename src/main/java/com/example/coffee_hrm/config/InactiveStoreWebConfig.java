@@ -30,6 +30,7 @@ public class InactiveStoreWebConfig implements WebMvcConfigurer {
                         "/login",
                         "/logout",
                         "/store-inactive",
+                        "/account/password",
                         "/error",
                         "/favicon.ico",
                         "/css/**",

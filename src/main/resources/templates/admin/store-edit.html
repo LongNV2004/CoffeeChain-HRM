@@ -102,12 +102,18 @@
                 <div><dt>Số nhân viên</dt><dd th:text="${store.employeeCount}">0</dd></div>
                 <div>
                     <dt>Manager hiện tại</dt>
-                    <dd th:if="${store.managerName != null}" th:text="${store.managerName}">Manager</dd>
+                    <dd th:if="${store.managerName != null}">
+                        <span th:text="${store.managerName}">Manager</span>
+                        — <span th:text="${store.managerAssignmentLabel != null ? store.managerAssignmentLabel : 'Đã phân công'}">Đã phân công</span>
+                    </dd>
                     <dd th:if="${store.managerName == null}" class="muted">Chưa chỉ định</dd>
                 </div>
             </dl>
+            <p class="muted" th:if="${store.managerName == null and store.stateKey != 'inactive'}">
+                <a class="back-link" th:href="@{/admin/stores/{id}/managers/new(id=${store.id})}">Thêm Manager</a>
+            </p>
             <p class="muted">
-                Xem nhân viên và chỉ định Manager tại
+                Xem nhân viên tại
                 <a class="back-link" th:href="@{/admin/stores/{id}/employees(id=${store.id})}">Nhân sự cửa hàng</a>.
             </p>
         </article>

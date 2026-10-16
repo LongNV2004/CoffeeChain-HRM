@@ -18,6 +18,8 @@ import java.util.regex.Pattern;
 public class AccountMailServiceImpl implements AccountMailService {
 
     static final String REJECTION_SUBJECT = "Thông báo kết quả tuyển dụng – CoffeeHRM";
+    static final String MANAGER_SUBJECT = "Thông tin tài khoản quản lý CoffeeHRM.";
+    private static final String MANAGER_MAIL_FAILURE = "Không gửi được email thông tin tài khoản quản lý.";
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
 
     private final ObjectProvider<JavaMailSender> mailSenders;
@@ -59,6 +61,37 @@ public class AccountMailServiceImpl implements AccountMailService {
         } catch (MessagingException | RuntimeException ex) {
             log.error("Gửi email mật khẩu tạm thất bại tới {}", toEmail, ex);
             throw mailFailure();
+        }
+    }
+
+    @Override
+    public void sendManagerCredentials(String toEmail,
+                                       String managerName,
+                                       String storeName,
+                                       String loginEmail,
+                                       String temporaryPassword) {
+        JavaMailSender mailSender = mailSenders.getIfAvailable();
+        if (mailSender == null) {
+            log.error("Không gửi được email tài khoản quản lý tới {}: chưa cấu hình spring.mail.host", toEmail);
+            throw new BusinessException(MANAGER_MAIL_FAILURE);
+        }
+        String from = resolveFrom();
+        if (from == null) {
+            log.error("Không gửi được email tài khoản quản lý tới {}: thiếu địa chỉ người gửi", toEmail);
+            throw new BusinessException(MANAGER_MAIL_FAILURE);
+        }
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+            helper.setFrom(from);
+            helper.setTo(toEmail);
+            helper.setSubject(MANAGER_SUBJECT);
+            helper.setText(buildManagerBody(managerName, storeName, loginEmail, temporaryPassword));
+            mailSender.send(message);
+            log.info("Đã gửi email tài khoản quản lý tới {}", toEmail);
+        } catch (MessagingException | RuntimeException ex) {
+            log.error("Gửi email tài khoản quản lý thất bại tới {}", toEmail, ex);
+            throw new BusinessException(MANAGER_MAIL_FAILURE);
         }
     }
 
@@ -127,6 +160,30 @@ public class AccountMailServiceImpl implements AccountMailService {
                 Trân trọng,
                 CoffeeHRM
                 """.formatted(employeeName, loginEmail, temporaryPassword, loginUrl);
+    }
+
+    private String buildManagerBody(String managerName, String storeName, String loginEmail, String temporaryPassword) {
+        return """
+                Xin chào %s,
+
+                Tài khoản quản lý CoffeeHRM của bạn đã được tạo.
+
+                Họ và tên: %s
+                Cửa hàng được phân công: %s
+                Email đăng nhập: %s
+
+                Để truy cập hệ thống, mở trang đăng nhập:
+                %s
+
+                Dùng email đăng nhập và mật khẩu tạm thời bên dưới để vào hệ thống.
+                Mật khẩu tạm thời: %s
+
+                Sau khi đăng nhập, bạn vào thẳng trang quản lý cửa hàng và dùng các chức năng của Manager.
+                Không chia sẻ mật khẩu tạm thời.
+
+                Trân trọng,
+                CoffeeHRM
+                """.formatted(managerName, managerName, storeName, loginEmail, loginUrl, temporaryPassword);
     }
 
     private String normalizeRecipient(String toEmail) {

@@ -4,6 +4,12 @@ public interface AccountMailService {
 
     void sendTemporaryPassword(String toEmail, String employeeName, String loginEmail, String temporaryPassword);
 
+    void sendManagerCredentials(String toEmail,
+                                String managerName,
+                                String storeName,
+                                String loginEmail,
+                                String temporaryPassword);
+
     /**
      * Gửi email thông báo không trúng tuyển.
      * Không ném exception: địa chỉ không hợp lệ hoặc lỗi SMTP được ghi log và trả về false

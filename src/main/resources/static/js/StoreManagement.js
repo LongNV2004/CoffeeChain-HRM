@@ -4,34 +4,21 @@
     const page = document.getElementById('storePage');
     if (!page) return;
 
+    page.querySelectorAll('[data-store-toast]').forEach(function (toast) {
+        window.setTimeout(function () { toast.hidden = true; }, 8000);
+        toast.addEventListener('click', function () { toast.hidden = true; });
+    });
+
     const rows = [...page.querySelectorAll('.store-data-row')];
     const feedback = document.getElementById('storeFeedback');
     const modal = document.getElementById('storeModal');
     const modalBackdrop = document.getElementById('storeModalBackdrop');
     const modalBody = document.getElementById('storeModalBody');
-    const drawer = document.getElementById('storeDrawer');
-    const drawerBackdrop = document.getElementById('storeDrawerBackdrop');
-    const drawerBody = document.getElementById('storeDrawerBody');
-    const employeeSearch = document.getElementById('storeEmployeeSearch');
-    const employeeModal = document.getElementById('employeeModal');
-    const employeeBackdrop = document.getElementById('employeeModalBackdrop');
-    const employeeForm = document.getElementById('employeeForm');
-    const employeeError = document.getElementById('employeeFormError');
-    const accountToggle = document.getElementById('employeeCreateAccount');
-    const accountSection = document.getElementById('employeeAccountSection');
-    const accountFields = document.getElementById('employeeAccountFields');
-    const statusSection = document.getElementById('employeeStatusSection');
-    const terminationSection = document.getElementById('employeeTerminationSection');
-    const personalSection = document.getElementById('employeePersonalSection');
 
     let filter = 'all';
     let modalRequest = 0;
-    let drawerRequest = 0;
-    let employeeRequest = 0;
     let saving = false;
-    let employeeSaving = false;
     let lastFocused = null;
-    let employeeReturnFocus = null;
 
     function element(tag, className, value) {
         const item = document.createElement(tag);
@@ -78,7 +65,7 @@
     function updateDialogLock() {
         document.body.classList.toggle(
             'store-dialog-open',
-            !modal.hidden || !drawer.hidden || !employeeModal.hidden || (statusDialog && !statusDialog.hidden)
+            !modal.hidden || (statusDialog && !statusDialog.hidden)
         );
     }
 
@@ -309,184 +296,6 @@
         }
     });
 
-    function closeDrawer() {
-        drawerRequest++;
-        drawer.hidden = true;
-        drawerBackdrop.hidden = true;
-        drawerBody.replaceChildren();
-        updateDialogLock();
-        lastFocused?.focus();
-    }
-
-    function filterEmployees() {
-        const query = normal(employeeSearch.value.trim());
-        const cards = drawerBody.querySelectorAll('.store-employee-card');
-        let visible = 0;
-
-        cards.forEach(card => {
-            card.hidden = !card.dataset.search.includes(query);
-            if (!card.hidden) visible++;
-        });
-
-        const count = drawerBody.querySelector('[data-drawer-count]');
-
-        if (count) {
-            count.textContent = query
-                ? `Hiển thị ${visible}/${cards.length} nhân viên`
-                : `${cards.length} nhân viên tại chi nhánh`;
-        }
-
-        const empty = drawerBody.querySelector('[data-drawer-empty]');
-        if (empty) empty.hidden = visible !== 0;
-    }
-
-    employeeSearch.addEventListener('input', filterEmployees);
-
-    function renderEmployees(parsed) {
-        const selected = [...parsed.querySelectorAll('main > section.panel')]
-            .find(section => section.querySelectorAll('thead th').length === 8);
-
-        if (!selected) throw new Error(errorText(parsed));
-
-        const employeeRows = [
-            ...selected.querySelectorAll('tbody tr.employee-row')
-        ];
-
-        const managerName = drawer.dataset.managerName;
-        const managerRow = employeeRows.find(
-            row => row.dataset.employeeName === managerName
-        );
-        const managerPhone = managerRow?.dataset.employeePhone;
-
-        if (managerPhone) {
-            document.getElementById('storeDrawerMeta').textContent +=
-                ` · SĐT: ${managerPhone}`;
-        }
-
-        drawerBody.replaceChildren();
-
-        const count = element(
-            'p',
-            'store-employee-summary',
-            `${employeeRows.length} nhân viên tại chi nhánh`
-        );
-
-        count.dataset.drawerCount = '';
-        drawerBody.appendChild(count);
-
-        employeeRows.forEach(row => {
-            const id = row.dataset.employeeId;
-            const name = row.dataset.employeeName;
-            const email = row.dataset.employeeEmail || '—';
-            const phone = row.dataset.employeePhone || '—';
-
-            const role = row.dataset.employeeRole === 'MANAGER'
-                ? 'Manager'
-                : row.dataset.employeeRole === 'STAFF'
-                    ? 'Staff'
-                    : 'Chưa có tài khoản';
-
-            const status = row.dataset.employeeStatus === 'ACTIVE'
-                ? 'Đang làm việc'
-                : row.dataset.employeeStatus === 'ON_LEAVE'
-                    ? 'Đang nghỉ phép'
-                    : 'Đã nghỉ việc';
-
-            const card = element('article', 'store-employee-card');
-            const heading = element('div', 'store-employee-top');
-            const identity = element('div', 'store-employee-identity');
-
-            identity.append(
-                element(
-                    'span',
-                    'store-employee-avatar',
-                    name.split(/\s+/).at(-1)?.charAt(0) || '?'
-                ),
-                element('strong', '', name)
-            );
-
-            heading.append(
-                identity,
-                element('span', 'store-role', role)
-            );
-
-            const actions = element('div', 'store-employee-card-actions');
-            const edit = element('button', 'store-employee-edit', 'Sửa');
-
-            edit.type = 'button';
-            edit.title = 'Chỉnh sửa nhân viên';
-            edit.addEventListener('click', () => void openEmployeeModal('edit', id));
-            actions.appendChild(edit);
-
-            card.append(
-                heading,
-                element('p', '', `SĐT: ${phone}`),
-                element('p', '', `Email: ${email}`),
-                element(
-                    'span',
-                    status === 'Đang làm việc'
-                        ? 'store-employee-status store-employee-status--active'
-                        : 'store-employee-status',
-                    status
-                ),
-                actions
-            );
-
-            card.dataset.search = normal(name);
-            drawerBody.appendChild(card);
-        });
-
-        const empty = element(
-            'p',
-            'store-loading',
-            employeeRows.length
-                ? 'Không tìm thấy nhân viên phù hợp.'
-                : 'Cửa hàng hiện chưa có nhân viên.'
-        );
-
-        empty.dataset.drawerEmpty = '';
-        empty.hidden = employeeRows.length > 0;
-        drawerBody.appendChild(empty);
-        filterEmployees();
-    }
-
-    async function openDrawer(link) {
-        feedback.hidden = true;
-        lastFocused = document.activeElement;
-
-        const ticket = ++drawerRequest;
-        drawer.hidden = false;
-        drawerBackdrop.hidden = false;
-
-        const row = link.closest('tr');
-        const storeName = row.querySelector('.store-name-cell strong').textContent.trim();
-        const storeId = row.querySelector('.store-name-cell small span')?.textContent.trim() || '';
-        const address = row.querySelector('.store-address').textContent.trim();
-        const manager = row.querySelector('.store-manager')?.textContent.trim() || '';
-
-        document.getElementById('storeDrawerTitle').textContent = `Nhân sự ${storeName}`;
-        document.getElementById('storeDrawerMeta').textContent =
-            `Mã cửa hàng: ${storeId} · ${address}\nManager: ${manager || 'Chưa phân công'}`;
-
-        drawer.dataset.managerName = manager;
-        drawer.dataset.storeId = storeId;
-        document.getElementById('storeEmployeePageLink').href = '/admin/employees';
-        employeeSearch.value = '';
-
-        updateDialogLock();
-        message(drawerBody, 'Đang tải nhân viên…');
-        drawer.querySelector('[data-close-drawer]').focus();
-
-        try {
-            const result = await loadPage(link.href);
-            if (ticket === drawerRequest && !drawer.hidden) renderEmployees(result.parsed);
-        } catch (error) {
-            if (ticket === drawerRequest && !drawer.hidden) {
-                message(drawerBody, error.message);
-            }
-        }
-    }
-
     function closeStatusDialog() {
         if (pendingStatus && pendingStatus.busy) return;
         pendingStatus = null;
@@ -568,258 +377,13 @@
     });
     if (statusBackdrop) statusBackdrop.addEventListener('click', closeStatusDialog);
 
-    function employeeBaseUrl() {
-        return `/admin/stores/${encodeURIComponent(drawer.dataset.storeId)}/employees`;
-    }
-
-    function showEmployeeError(value) {
-        employeeError.textContent = value;
-        employeeError.hidden = false;
-    }
-
-    function refreshEmployeeFields() {
-        const creating = employeeForm.dataset.mode === 'create';
-        const manager = employeeForm.querySelector('input[name="role"]:checked')?.value === 'MANAGER';
-
-        if (creating && manager) accountToggle.checked = true;
-        accountToggle.disabled = creating && manager;
-        accountFields.hidden = !creating || !accountToggle.checked;
-
-        ['username', 'temporaryPassword'].forEach(name => {
-            employeeForm.elements.namedItem(name).required =
-                creating && accountToggle.checked;
-        });
-
-        terminationSection.hidden = true;
-        employeeForm.elements.namedItem('terminationDate').required = false;
-    }
-
-    function closeEmployeeModal() {
-        if (employeeSaving) return;
-
-        employeeRequest++;
-        employeeModal.hidden = true;
-        employeeBackdrop.hidden = true;
-        updateDialogLock();
-        employeeReturnFocus?.focus();
-    }
-
-    async function readEmployeeResponse(response) {
-        const type = response.headers.get('content-type') || '';
-        const data = type.includes('json') ? await response.json() : null;
-
-        if (
-            response.redirected
-            && new URL(response.url).pathname.startsWith('/login')
-        ) {
-            throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
-        }
-
-        if (!response.ok) {
-            throw new Error(
-                response.status === 403
-                    ? 'Không có quyền thực hiện hoặc CSRF token không hợp lệ.'
-                    : data?.message || data?.detail || `Không thể xử lý yêu cầu (${response.status}).`
-            );
-        }
-
-        if (!data || typeof data !== 'object' || !data.id) {
-            throw new Error('Phản hồi máy chủ không hợp lệ.');
-        }
-
-        return data;
-    }
-
-    async function openEmployeeModal(mode, employeeId = null) {
-        employeeReturnFocus = document.activeElement;
-        const ticket = ++employeeRequest;
-
-        employeeForm.reset();
-        employeeForm.dataset.mode = mode;
-        employeeForm.dataset.employeeId = employeeId || '';
-        employeeForm.dataset.avatarUrl = '';
-
-        employeeError.hidden = true;
-        accountToggle.disabled = false;
-
-        const creating = mode === 'create';
-
-        accountSection.hidden = !creating;
-        statusSection.hidden = creating;
-        personalSection.hidden = !creating;
-        terminationSection.hidden = true;
-
-        document.getElementById('employeeModalTitle').textContent =
-            creating ? 'Thêm nhân viên mới' : 'Chỉnh sửa nhân viên';
-
-        const select = employeeForm.elements.namedItem('storeId');
-        select.replaceChildren(new Option('Chọn chi nhánh', ''));
-
-        rows.forEach(row => {
-            const id = row.querySelector('.store-name-cell small span')?.textContent.trim();
-            const name = row.querySelector('.store-name-cell strong')?.textContent.trim();
-            if (id && name) select.add(new Option(name, id));
-        });
-
-        select.value = drawer.dataset.storeId;
-
-        employeeModal.hidden = false;
-        employeeBackdrop.hidden = false;
-        updateDialogLock();
-        refreshEmployeeFields();
-
-        const submit = employeeForm.querySelector('[type="submit"]');
-        submit.disabled = !creating;
-
-        if (creating) {
-            employeeForm.elements.namedItem('fullName').focus();
-            return;
-        }
-
-        try {
-            const response = await fetch(
-                `${employeeBaseUrl()}/${encodeURIComponent(employeeId)}/edit-data`,
-                { credentials: 'same-origin' }
-            );
-
-            const data = await readEmployeeResponse(response);
-            if (ticket !== employeeRequest || employeeModal.hidden) return;
-
-            document.getElementById('employeeModalTitle').textContent =
-                `Chỉnh sửa nhân viên — ${data.fullName}`;
-
-            ['fullName', 'phone', 'email', 'address', 'hireDate'].forEach(name => {
-                employeeForm.elements.namedItem(name).value = data[name] || '';
-            });
-
-            select.value = data.storeId;
-            employeeForm.elements.namedItem('status').value = data.status;
-            employeeForm.elements.namedItem('terminationDate').value =
-                data.terminationDate || '';
-
-            employeeForm.dataset.avatarUrl = data.avatarUrl || '';
-
-            const role = data.roleName === 'MANAGER' ? 'MANAGER' : 'STAFF';
-
-            employeeForm.querySelector(
-                `input[name="role"][value="${role}"]`
-            ).checked = true;
-
-            refreshEmployeeFields();
-            submit.disabled = false;
-            select.focus();
-        } catch (error) {
-            if (ticket === employeeRequest && !employeeModal.hidden) {
-                showEmployeeError(error.message);
-            }
-        }
-    }
-
-    document.getElementById('storeAddEmployeeButton').addEventListener('click', () => {
-        void openEmployeeModal('create');
-    });
-
-    document.querySelectorAll('[data-close-employee]').forEach(button => {
-        button.addEventListener('click', closeEmployeeModal);
-    });
-
-    accountToggle.addEventListener('change', refreshEmployeeFields);
-
-    employeeForm.querySelectorAll('input[name="role"]').forEach(radio => {
-        radio.addEventListener('change', refreshEmployeeFields);
-    });
-
-    employeeForm.elements.namedItem('status').addEventListener(
-        'change',
-        refreshEmployeeFields
-    );
-
-    employeeForm.addEventListener('submit', async event => {
-        event.preventDefault();
-
-        if (employeeSaving || !employeeForm.reportValidity()) return;
-
-        const value = name =>
-            employeeForm.elements.namedItem(name).value.trim();
-
-        const creating = employeeForm.dataset.mode === 'create';
-
-        const payload = {
-            fullName: value('fullName'),
-            phone: value('phone'),
-            email: value('email'),
-            address: value('address') || null,
-            storeId: Number(value('storeId')),
-            hireDate: value('hireDate'),
-            role: employeeForm.querySelector('input[name="role"]:checked').value
-        };
-
-        if (creating) {
-            payload.createAccount = accountToggle.checked;
-
-            if (payload.createAccount) {
-                payload.username = value('username');
-                payload.temporaryPassword =
-                    employeeForm.elements.namedItem('temporaryPassword').value;
-            }
-        } else {
-            payload.status = value('status');
-            payload.terminationDate = payload.status === 'TERMINATED'
-                ? value('terminationDate') || new Date().toISOString().split('T')[0]
-                : null;
-            payload.avatarUrl = employeeForm.dataset.avatarUrl || null;
-        }
-
-        const url = creating
-            ? `${employeeBaseUrl()}/create`
-            : `${employeeBaseUrl()}/${encodeURIComponent(
-                employeeForm.dataset.employeeId
-            )}/edit`;
-
-        const token = document.querySelector('meta[name="_csrf"]')?.content;
-        const header = document.querySelector('meta[name="_csrf_header"]')?.content;
-        const headers = { 'Content-Type': 'application/json' };
-
-        if (token && header) headers[header] = token;
-
-        const submit = employeeForm.querySelector('[type="submit"]');
-
-        employeeSaving = true;
-        submit.disabled = true;
-        employeeError.hidden = true;
-
-        try {
-            const response = await fetch(url, {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers,
-                body: JSON.stringify(payload)
-            });
-
-            await readEmployeeResponse(response);
-
-            window.location.hash =
-                `store-employees-${drawer.dataset.storeId}`;
-            window.location.reload();
-        } catch (error) {
-            showEmployeeError(error.message);
-        } finally {
-            employeeSaving = false;
-            submit.disabled = false;
-        }
-    });
-
     page.addEventListener('click', event => {
         const modalLink = event.target.closest('[data-store-modal]');
-        const drawerLink = event.target.closest('[data-store-drawer]');
         const toggleLink = event.target.closest('[data-store-toggle]');
 
         if (modalLink) {
             event.preventDefault();
             void openModal(modalLink);
-        } else if (drawerLink) {
-            event.preventDefault();
-            void openDrawer(drawerLink);
         } else if (toggleLink) {
             event.preventDefault();
             openStatusDialog(toggleLink);
@@ -830,20 +394,12 @@
         item.addEventListener('click', closeModal);
     });
 
-    document.querySelectorAll('[data-close-drawer]').forEach(item => {
-        item.addEventListener('click', closeDrawer);
-    });
-
     document.addEventListener('keydown', event => {
         const currentDialog = statusDialog && !statusDialog.hidden
             ? statusDialog
-            : !employeeModal.hidden
-                ? employeeModal
-                : !modal.hidden
-                    ? modal
-                    : !drawer.hidden
-                        ? drawer
-                        : null;
+            : !modal.hidden
+                ? modal
+                : null;
 
         if (!currentDialog) return;
 
@@ -851,9 +407,7 @@
             event.preventDefault();
 
             if (currentDialog === statusDialog) closeStatusDialog();
-            else if (currentDialog === employeeModal) closeEmployeeModal();
             else if (currentDialog === modal) closeModal();
-            else closeDrawer();
         }
 
         if (event.key !== 'Tab') return;
@@ -877,27 +431,4 @@
             first.focus();
         }
     });
-
-    const reopenStoreId = window.location.hash.match(
-        /^#store-employees-(\d+)$/
-    )?.[1];
-
-    if (reopenStoreId) {
-        const row = rows.find(item =>
-            item.querySelector('.store-name-cell small span')
-                ?.textContent.trim() === reopenStoreId
-        );
-
-        const link = row?.querySelector('[data-store-drawer]');
-
-        if (link) {
-            history.replaceState(
-                null,
-                '',
-                window.location.pathname + window.location.search
-            );
-
-            void openDrawer(link);
-        }
-    }
 })();

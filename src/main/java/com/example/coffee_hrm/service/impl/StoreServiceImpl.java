@@ -11,6 +11,7 @@ import com.example.coffee_hrm.dto.request.UpdateStoreRequest;
 import com.example.coffee_hrm.dto.response.StoreResponse;
 import com.example.coffee_hrm.entity.Employee;
 import com.example.coffee_hrm.entity.Store;
+import com.example.coffee_hrm.entity.User;
 import com.example.coffee_hrm.repository.EmployeeRepository;
 import com.example.coffee_hrm.repository.EmployeeRepository.StoreHeadcount;
 import com.example.coffee_hrm.repository.StoreRepository;
@@ -220,6 +221,7 @@ public class StoreServiceImpl implements StoreService {
 
     private StoreResponse toStoreResponse(Store store, long employeeCount) {
         Employee manager = store.getManager();
+        User managerAccount = manager != null ? manager.getUser() : null;
         StoreStatus status = effectiveStatus(store);
         return StoreResponse.builder()
                 .id(store.getId())
@@ -233,10 +235,27 @@ public class StoreServiceImpl implements StoreService {
                 .openingDate(store.getOpeningDate())
                 .employeeCount(employeeCount)
                 .managerName(manager != null ? manager.getFullName() : null)
+                .managerEmail(manager != null ? manager.getEmail() : null)
+                .managerPhone(manager != null ? manager.getPhone() : null)
+                .managerStatusLabel(manager != null ? employeeStatusLabel(manager.getStatus()) : null)
+                .managerAssignmentLabel(manager != null ? "Đã phân công" : "Chưa phân công")
+                .managerCredentialsPending(managerAccount != null
+                        && Boolean.TRUE.equals(managerAccount.getMustChangePassword()))
                 .latitude(store.getLatitude())
                 .longitude(store.getLongitude())
                 .locationUpdatedAt(store.getLocationUpdatedAt())
                 .build();
+    }
+
+    private String employeeStatusLabel(EmployeeStatus status) {
+        if (status == null) {
+            return "—";
+        }
+        return switch (status) {
+            case ACTIVE -> "Đang làm việc";
+            case ON_LEAVE -> "Đang nghỉ phép";
+            case TERMINATED -> "Đã nghỉ việc";
+        };
     }
 
     private String stateKey(StoreStatus status) {

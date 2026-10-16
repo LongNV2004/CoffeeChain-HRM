@@ -50,6 +50,9 @@ public class AuthServiceImpl implements AuthService {
         }
 
         user.setLastLogin(VietnamTime.now());
+        if (Boolean.TRUE.equals(user.getMustChangePassword())) {
+            user.setMustChangePassword(false);
+        }
         userRepository.save(user);
 
         AuthenticatedUser principal = AuthenticatedUser.from(user);

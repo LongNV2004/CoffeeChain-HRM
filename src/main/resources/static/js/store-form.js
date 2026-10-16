@@ -110,6 +110,9 @@
 
     function clientMessage(field) {
         if (field.validity.valueMissing) {
+            if (field.name === 'fullName') return 'Vui lòng nhập họ và tên';
+            if (field.name === 'email') return 'Vui lòng nhập email';
+            if (field.name === 'phone') return 'Vui lòng nhập số điện thoại';
             if (field.name === 'storeName') return 'Vui lòng nhập tên cửa hàng';
             if (field.name === 'address') return 'Vui lòng nhập địa chỉ';
             if (field.name === 'openingDate') return 'Vui lòng chọn ngày khai trương';
@@ -117,6 +120,8 @@
             if (field.name === 'latitude') return 'Vui lòng nhập vĩ độ';
             if (field.name === 'longitude') return 'Vui lòng nhập kinh độ';
         }
+        if (field.validity.typeMismatch && field.name === 'email') return 'Email không đúng định dạng';
+        if (field.validity.patternMismatch && field.name === 'phone') return 'Số điện thoại gồm 9 đến 15 chữ số';
         if (field.validity.patternMismatch || field.validity.customError) {
             if (field.name === 'openingDate') return 'Ngày khai trương phải theo định dạng dd/MM/yyyy';
             if (field.name === 'storeName') return 'Tên cửa hàng không được để trống';
@@ -170,6 +175,13 @@
         const scope = root || document;
         scope.querySelectorAll('[data-opening-date]').forEach(syncText);
         scope.querySelectorAll('.store-create-form').forEach(refreshPreview);
+        scope.querySelectorAll('.store-manager-form').forEach(refreshManagerPreview);
+    }
+
+    function refreshManagerPreview(form) {
+        setPreview(form, '[data-preview-manager]', fieldValue(form, 'fullName'), 'Chưa nhập họ tên');
+        setPreview(form, '[data-preview-email]', fieldValue(form, 'email'), 'Chưa nhập email');
+        setPreview(form, '[data-preview-phone]', fieldValue(form, 'phone'), 'Chưa nhập số điện thoại');
     }
 
     window.refreshStoreOpeningFields = refresh;
@@ -182,6 +194,11 @@
             if (field.validity.valid) clearClientError(field);
             return;
         }
+        if (field.form.classList.contains('store-manager-form')) {
+            if (field.validity.valid) clearClientError(field);
+            refreshManagerPreview(field.form);
+            return;
+        }
         if (!field.form.classList.contains('store-create-form')) return;
         if (field.validity.valid) clearClientError(field);
         refreshPreview(field.form);
@@ -191,7 +208,7 @@
         const field = event.target;
         if (!(field instanceof HTMLInputElement)) return;
         const form = field.form;
-        if (!form || !form.classList.contains('store-create-form')) return;
+        if (!form || (!form.classList.contains('store-create-form') && !form.classList.contains('store-manager-form'))) return;
         showClientError(field);
         if (form.dataset.invalidSweep === 'true') return;
         form.dataset.invalidSweep = 'true';
@@ -225,7 +242,9 @@
     document.addEventListener('submit', function (event) {
         const form = event.target;
         if (!(form instanceof HTMLFormElement)) return;
-        if (!form.classList.contains('store-create-form') && !form.classList.contains('store-edit-form')) return;
+        if (!form.classList.contains('store-create-form')
+                && !form.classList.contains('store-edit-form')
+                && !form.classList.contains('store-manager-form')) return;
         const text = form.querySelector('[data-opening-date]');
         if (text) syncText(text);
         if (!form.checkValidity()) {

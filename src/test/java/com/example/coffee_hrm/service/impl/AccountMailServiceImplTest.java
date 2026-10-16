@@ -65,6 +65,39 @@ class AccountMailServiceImplTest {
     }
 
     @Test
+    void managerMailUsesConfiguredLoginUrlAndDoesNotClaimSuccessWhenSendingFails() throws Exception {
+        JavaMailSender sender = mock(JavaMailSender.class);
+        MimeMessage message = new MimeMessage(Session.getInstance(new Properties()));
+        when(sender.createMimeMessage()).thenReturn(message);
+        AccountMailServiceImpl service = mailService(sender);
+
+        service.sendManagerCredentials("lan@coffee.vn", "Lan Nguyen", "Coffee Nguyễn Trãi", "lan@coffee.vn", "Temp#a12");
+
+        verify(sender).send(message);
+        message.saveChanges();
+        assertEquals(AccountMailServiceImpl.MANAGER_SUBJECT, message.getSubject());
+        String body = message.getContent().toString();
+        assertTrue(body.contains("Lan Nguyen"));
+        assertTrue(body.contains("Coffee Nguyễn Trãi"));
+        assertTrue(body.contains("lan@coffee.vn"));
+        assertTrue(body.contains("http://localhost:8081/login"));
+        assertTrue(body.contains("Temp#a12"));
+        assertTrue(body.contains("vào thẳng trang quản lý cửa hàng"));
+        assertFalse(body.contains("đổi mật khẩu ngay trong lần đăng nhập đầu tiên"));
+        assertFalse(body.contains("trúng tuyển"));
+
+        @SuppressWarnings("unchecked")
+        ObjectProvider<JavaMailSender> missing = mock(ObjectProvider.class);
+        when(missing.getIfAvailable()).thenReturn(null);
+        AccountMailServiceImpl unconfigured = new AccountMailServiceImpl(missing, "", "", "http://localhost:8081/login");
+        BusinessException ex = assertThrows(BusinessException.class, () -> unconfigured.sendManagerCredentials(
+                "lan@coffee.vn", "Lan Nguyen", "Coffee Nguyễn Trãi", "lan@coffee.vn", "Temp#a12"));
+        assertFalse(ex.getMessage().contains("Temp#a12"));
+        assertFalse(ex.getMessage().toLowerCase().contains("thành công"));
+        assertFalse(ex.getMessage().contains("chưa tạo tài khoản"));
+    }
+
+    @Test
     void rejectionMailUsesTheCandidateNameAndReason() throws Exception {
         JavaMailSender sender = mock(JavaMailSender.class);
         MimeMessage message = new MimeMessage(Session.getInstance(new Properties()));

@@ -24,10 +24,22 @@ public interface StoreRepository extends JpaRepository<Store, Integer> {
 
     boolean existsByStoreNameIgnoreCaseAndIdNot(String storeName, Integer storeId);
 
-    @Query("SELECT s FROM Store s LEFT JOIN FETCH s.manager ORDER BY s.id")
+    @Query("""
+            SELECT s FROM Store s
+            LEFT JOIN FETCH s.manager m
+            LEFT JOIN FETCH m.user u
+            LEFT JOIN FETCH u.role
+            ORDER BY s.id
+            """)
     List<Store> findAllWithManager();
 
-    @Query("SELECT s FROM Store s LEFT JOIN FETCH s.manager WHERE s.id = :id")
+    @Query("""
+            SELECT s FROM Store s
+            LEFT JOIN FETCH s.manager m
+            LEFT JOIN FETCH m.user u
+            LEFT JOIN FETCH u.role
+            WHERE s.id = :id
+            """)
     Optional<Store> findByIdWithManager(@Param("id") Integer id);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

@@ -27,6 +27,11 @@ public class StoreResponse {
     private LocalDate openingDate;
     private long employeeCount;
     private String managerName;
+    private String managerEmail;
+    private String managerPhone;
+    private String managerStatusLabel;
+    private String managerAssignmentLabel;
+    private boolean managerCredentialsPending;
     private BigDecimal latitude;
     private BigDecimal longitude;
     private LocalDateTime locationUpdatedAt;

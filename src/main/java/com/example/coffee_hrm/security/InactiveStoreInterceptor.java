@@ -54,6 +54,7 @@ public class InactiveStoreInterceptor implements HandlerInterceptor {
                 || "/login".equals(path)
                 || "/logout".equals(path)
                 || "/store-inactive".equals(path)
+                || "/account/password".equals(path)
                 || "/error".equals(path)
                 || "/favicon.ico".equals(path)
                 || path.startsWith("/css/")
