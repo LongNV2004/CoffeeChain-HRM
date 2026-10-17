@@ -19,8 +19,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.example.coffee_hrm.dto.request.UpdateEmployeeRequest;
+import java.text.Collator;
 import java.time.LocalDate;
 
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
@@ -70,11 +72,25 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     public List<EmployeeResponse> getStoreEmployees(AuthenticatedUser actor, Integer storeId) {
         requireAdmin(actor);
-        Store store = storeRepository.findById(storeId)
+        Store store = storeRepository.findByIdWithManager(storeId)
                 .orElseThrow(() -> new BusinessException(STORE_NOT_FOUND));
-        return employeeRepository.findByStoreIdWithAccount(storeId).stream()
+        List<EmployeeResponse> employees = employeeRepository.findByStoreIdWithAccount(storeId).stream()
                 .map(employee -> toResponse(employee, employee.getUser(), store))
                 .toList();
+        return orderedForStoreView(employees);
+    }
+
+    @Override
+    public EmployeeResponse getStoreEmployee(AuthenticatedUser actor, Integer storeId, Integer employeeId) {
+        requireAdmin(actor);
+        Store store = storeRepository.findByIdWithManager(storeId)
+                .orElseThrow(() -> new BusinessException(STORE_NOT_FOUND));
+        Employee employee = employeeRepository.findByIdWithStoreAccount(employeeId)
+                .orElseThrow(() -> new BusinessException(EMPLOYEE_NOT_FOUND));
+        if (employee.getStore() == null || !store.getId().equals(employee.getStore().getId())) {
+            throw new BusinessException(EMPLOYEE_NOT_IN_STORE);
+        }
+        return toResponse(employee, employee.getUser(), store);
     }
 
     @Override
@@ -362,6 +378,30 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (actor == null || actor.getRoleName() != RoleName.ADMIN) {
             throw new BusinessException(ACCESS_DENIED);
         }
+    }
+
+    /**
+     * Manager của cửa hàng đứng trước Staff. Chỉ sắp xếp bản ghi trả về, không đổi role hay dữ liệu.
+     */
+    private List<EmployeeResponse> orderedForStoreView(List<EmployeeResponse> employees) {
+        Collator nameOrder = Collator.getInstance(Locale.forLanguageTag("vi-VN"));
+        nameOrder.setStrength(Collator.PRIMARY);
+        return employees.stream()
+                .sorted(Comparator
+                        .comparingInt(EmployeeServiceImpl::storeViewRank)
+                        .thenComparing(EmployeeResponse::getFullName, Comparator.nullsLast(nameOrder))
+                        .thenComparing(EmployeeResponse::getId, Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
+    }
+
+    private static int storeViewRank(EmployeeResponse employee) {
+        if (employee.isStoreManager() || employee.getRoleName() == RoleName.MANAGER) {
+            return 0;
+        }
+        if (employee.getRoleName() == RoleName.STAFF) {
+            return 1;
+        }
+        return 2;
     }
 
     private EmployeeResponse toResponse(Employee employee, User user, Store store) {

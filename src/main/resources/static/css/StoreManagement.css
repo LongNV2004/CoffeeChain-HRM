@@ -101,10 +101,37 @@
 }
 .store-switch { position:relative; width:38px; height:22px; border-radius:999px; background:#cbd0d3; transition:background .15s; }
 .store-switch span { position:absolute; width:16px; height:16px; top:3px; left:3px; border-radius:50%; background:white; box-shadow:0 1px 3px #0002; transition:transform .15s; }
-tr[data-state="active"] .store-switch,
-tr[data-state="pre-opening"] .store-switch { background:#35a774; }
-tr[data-state="active"] .store-switch span,
-tr[data-state="pre-opening"] .store-switch span { transform:translateX(16px); }
+.store-data-row[data-state="active"] .store-switch,
+.store-data-row[data-state="pre-opening"] .store-switch { background:#35a774; }
+.store-data-row[data-state="active"] .store-switch span,
+.store-data-row[data-state="pre-opening"] .store-switch span { transform:translateX(16px); }
+.branch-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+    padding: 0 22px 22px;
+}
+.branch-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+    padding: 18px;
+    border: 1px solid var(--store-border);
+    border-radius: 16px;
+    background: #fffdf9;
+}
+.branch-card-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.branch-card h3 { margin: 0; color: var(--store-brown); font-size: 20px; line-height: 1.3; }
+.branch-card .store-name-cell { min-width: 0; }
+.branch-card .store-name-cell small { font-size: 14px; }
+.branch-card .store-address { max-width: none; min-width: 0; margin: 0; }
+.branch-card-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0; }
+.branch-card-facts div { min-width: 0; }
+.branch-card-facts dt { color: var(--store-muted); font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.branch-card-facts dd { margin: 4px 0 0; color: var(--store-brown); font-weight: 600; }
+.branch-card-actions { margin-top: auto; justify-content: flex-end; }
+.branch-card-empty { margin: 0; padding: 8px 22px 22px !important; text-align: left !important; }
 .store-switch.is-busy { pointer-events:none; opacity:.45; }
 .store-empty { padding:35px 14px!important; text-align:center!important; color:#91877d!important; }
 .sr-only { position:absolute!important; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
@@ -668,6 +695,53 @@ body:has(.coffee-sidebar) .store-create-form input.is-invalid:focus {
     }
     .store-create-aside { position: static; }
 }
+.chain-store-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    padding: 0 22px 22px;
+}
+.chain-store-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+    padding: 18px;
+    border: 1px solid var(--store-border);
+    border-radius: 16px;
+    background: #fffdf9;
+}
+.chain-store-card[hidden] { display: none !important; }
+.chain-store-card-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.chain-store-card h2 { margin: 0; color: var(--store-brown); font-size: 20px; line-height: 1.3; }
+.chain-store-kicker {
+    margin: 0 0 4px;
+    color: #9a6420;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+.chain-store-code, .chain-store-address { margin: 0; color: var(--store-muted); font-size: 14px; line-height: 1.5; }
+.chain-store-count { margin: 0; color: var(--store-brown); font-weight: 700; }
+.chain-store-count small { display: block; margin-top: 2px; color: var(--store-muted); font-size: 13px; font-weight: 500; }
+.chain-store-card .store-btn { margin-top: auto; }
+.chain-store-empty { margin: 0; padding: 8px 22px 22px; color: var(--store-muted); }
+.employee-headcount-note { display: block; margin-top: 4px; }
+.employee-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+}
+.employee-detail-avatar {
+    width: 72px;
+    height: 72px;
+    object-fit: cover;
+    border-radius: 12px;
+    border: 1px solid rgba(92, 60, 46, .12);
+}
+.employee-detail-page .store-create-actions { margin-top: 16px; }
+
 @media (max-width: 720px) {
     .store-create-head h1 { font-size: 26px; }
     .store-create-card { padding: 16px 14px; }

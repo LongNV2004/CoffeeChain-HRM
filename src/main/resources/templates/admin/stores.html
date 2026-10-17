@@ -116,76 +116,76 @@
                 <input type="search" data-store-search placeholder="Tìm theo mã cửa hàng..." autocomplete="off">
             </label>
         </div>
-        <div class="store-table-scroll">
-            <table class="store-table">
-                <thead><tr>
-                    <th scope="col">STT</th><th scope="col">Mã / Tên chi nhánh</th>
-                    <th scope="col">Địa chỉ</th><th scope="col">Khai trương</th><th scope="col">Store Manager</th>
-                    <th scope="col">Nhân sự</th><th scope="col">Trạng thái</th>
-                    <th scope="col">Hành động</th>
-                </tr></thead>
-                <tbody>
-                <tr th:if="${#lists.isEmpty(stores)}"><td colspan="8" class="store-empty">Chưa có cửa hàng nào.</td></tr>
-                <tr th:each="store, position : ${stores}" class="store-data-row"
-                    th:with="state=${store.stateKey != null ? store.stateKey : (store.isActive ? 'active' : 'inactive')}"
-                    th:attr="data-state=${state},data-employee-count=${store.employeeCount},data-manager-assigned=${store.managerName != null}">
-                    <td class="store-index" th:text="${position.count}">1</td>
-                    <td>
-                        <div class="store-name-cell">
-                            <div>
-                                <strong th:text="${store.storeName}">Tên cửa hàng</strong>
-                                <small>Mã cửa hàng: <span th:text="${store.id}">1</span></small>
-                                <small th:if="${store.latitude == null or store.longitude == null}">Chưa có vị trí chấm công</small>
-                            </div>
+        <p class="store-empty branch-card-empty" th:if="${#lists.isEmpty(stores)}">Chưa có cửa hàng nào.</p>
+        <div class="branch-card-grid" th:unless="${#lists.isEmpty(stores)}">
+            <article th:each="store : ${stores}" class="branch-card store-data-row"
+                     th:with="state=${store.stateKey != null ? store.stateKey : (store.isActive ? 'active' : 'inactive')}"
+                     th:attr="data-state=${state},data-employee-count=${store.employeeCount},data-manager-assigned=${store.managerName != null}">
+                <div class="branch-card-top">
+                    <div class="store-name-cell">
+                        <div>
+                            <p class="chain-store-kicker">Chi nhánh</p>
+                            <h3 th:text="${store.storeName}">Tên cửa hàng</h3>
+                            <small>Mã cửa hàng: <span th:text="${store.id}">1</span></small>
+                            <small th:if="${store.latitude == null or store.longitude == null}">Chưa có vị trí chấm công</small>
                         </div>
-                    </td>
-                    <td class="store-address" th:text="${store.address}">Địa chỉ</td>
-                    <td class="store-opening"
-                        th:text="${store.openingDate != null ? #temporals.format(store.openingDate, 'dd/MM/yyyy') : '—'}">01/01/2026</td>
-                    <td>
-                        <div class="store-manager-cell" th:if="${store.managerName != null}">
-                            <span class="store-manager" th:text="${store.managerName}">Manager</span>
-                            <small class="store-assignment"
-                                   th:text="${store.managerAssignmentLabel != null ? store.managerAssignmentLabel : 'Đã phân công'}">Đã phân công</small>
-                            <a class="store-btn store-btn--secondary store-btn--compact"
-                               th:href="@{/admin/stores/{id}/managers(id=${store.id})}">Xem Manager</a>
-                        </div>
-                        <div class="store-manager-cell" th:if="${store.managerName == null}">
-                            <span class="store-unassigned">Chưa phân công</span>
-                            <a th:if="${state != 'inactive'}" class="store-btn store-btn--secondary store-btn--compact"
-                               th:href="@{/admin/stores/{id}/managers/new(id=${store.id})}">Thêm Manager</a>
-                        </div>
-                    </td>
-                    <td><span class="store-count"><svg aria-hidden="true"><use href="#coffee-i-people"/></svg>
-                        <span th:text="${store.employeeCount}">0</span> NV</span></td>
-                    <td><span class="store-badge"
-                              th:classappend="${state == 'pre-opening'} ? ' store-badge--preopening' : (${state == 'inactive'} ? ' store-badge--inactive' : ' store-badge--active')"
-                              th:text="${store.statusLabel != null ? store.statusLabel : (state == 'inactive' ? 'Ngừng hoạt động' : (state == 'pre-opening' ? 'Chuẩn bị khai trương' : 'Hoạt động'))}">Hoạt động</span></td>
-                    <td><div class="store-actions">
-                        <a class="store-action"
-                           th:href="@{/admin/stores/{id}/edit(id=${store.id})}"
-                           data-store-modal
-                           data-modal-title="Chỉnh sửa chi nhánh"
-                           title="Sửa cửa hàng"
-                           aria-label="Sửa cửa hàng">
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L9 17l-4 1 1-4L16.5 3.5Z"/>
-                            </svg>
-                        </a>
-                        <a class="store-switch" href="#"
-                           data-store-toggle
-                           th:data-store-id="${store.id}"
-                           th:data-store-name="${store.storeName}"
-                           th:data-opening="${store.openingDate != null ? #temporals.format(store.openingDate, 'dd/MM/yyyy') : ''}"
-                           th:title="${state == 'inactive'} ? 'Kích hoạt lại' : 'Ngừng hoạt động'"
-                           th:attr="aria-label=|${state == 'inactive' ? 'Kích hoạt lại' : 'Ngừng hoạt động'} cửa hàng ${store.storeName}|">
-                            <span></span></a>
-                    </div></td>
-                </tr>
-                <tr id="storeNoMatch" hidden><td colspan="8" class="store-empty">Không tìm thấy cửa hàng phù hợp.</td></tr>
-                </tbody>
-            </table>
+                    </div>
+                    <span class="store-badge"
+                          th:classappend="${state == 'pre-opening'} ? ' store-badge--preopening' : (${state == 'inactive'} ? ' store-badge--inactive' : ' store-badge--active')"
+                          th:text="${store.statusLabel != null ? store.statusLabel : (state == 'inactive' ? 'Ngừng hoạt động' : (state == 'pre-opening' ? 'Chuẩn bị khai trương' : 'Hoạt động'))}">Hoạt động</span>
+                </div>
+                <p class="store-address" th:text="${store.address}">Địa chỉ</p>
+                <dl class="branch-card-facts">
+                    <div>
+                        <dt>Khai trương</dt>
+                        <dd class="store-opening"
+                            th:text="${store.openingDate != null ? #temporals.format(store.openingDate, 'dd/MM/yyyy') : '—'}">01/01/2026</dd>
+                    </div>
+                    <div>
+                        <dt>Nhân sự</dt>
+                        <dd>
+                            <span class="store-count">
+                                <svg aria-hidden="true"><use href="#coffee-i-people"/></svg>
+                                <span th:text="${store.employeeCount}">0</span> NV
+                            </span>
+                        </dd>
+                    </div>
+                </dl>
+                <div class="store-manager-cell" th:if="${store.managerName != null}">
+                    <span class="store-manager" th:text="${store.managerName}">Manager</span>
+                    <small class="store-assignment"
+                           th:text="${store.managerAssignmentLabel != null ? store.managerAssignmentLabel : 'Đã phân công'}">Đã phân công</small>
+                    <a class="store-btn store-btn--secondary store-btn--compact"
+                       th:href="@{/admin/stores/{id}/managers(id=${store.id})}">Xem Manager</a>
+                </div>
+                <div class="store-manager-cell" th:if="${store.managerName == null}">
+                    <span class="store-unassigned">Chưa phân công</span>
+                    <a th:if="${state != 'inactive'}" class="store-btn store-btn--secondary store-btn--compact"
+                       th:href="@{/admin/stores/{id}/managers/new(id=${store.id})}">Thêm Manager</a>
+                </div>
+                <div class="store-actions branch-card-actions">
+                    <a class="store-action"
+                       th:href="@{/admin/stores/{id}/edit(id=${store.id})}"
+                       data-store-modal
+                       data-modal-title="Chỉnh sửa chi nhánh"
+                       title="Sửa cửa hàng"
+                       aria-label="Sửa cửa hàng">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L9 17l-4 1 1-4L16.5 3.5Z"/>
+                        </svg>
+                    </a>
+                    <a class="store-switch" href="#"
+                       data-store-toggle
+                       th:data-store-id="${store.id}"
+                       th:data-store-name="${store.storeName}"
+                       th:data-opening="${store.openingDate != null ? #temporals.format(store.openingDate, 'dd/MM/yyyy') : ''}"
+                       th:title="${state == 'inactive'} ? 'Kích hoạt lại' : 'Ngừng hoạt động'"
+                       th:attr="aria-label=|${state == 'inactive' ? 'Kích hoạt lại' : 'Ngừng hoạt động'} cửa hàng ${store.storeName}|">
+                        <span></span></a>
+                </div>
+            </article>
         </div>
+        <p id="storeNoMatch" class="store-empty branch-card-empty" hidden>Không tìm thấy cửa hàng phù hợp.</p>
     </section>
 </main>
 

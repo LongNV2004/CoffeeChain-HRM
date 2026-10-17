@@ -1,49 +1,73 @@
 <!DOCTYPE html>
 <html lang="vi" xmlns:th="http://www.thymeleaf.org">
-
 <head>
-
     <meta charset="UTF-8">
-
-    <title>Nhân sự toàn chuỗi</title>
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nhân viên toàn chuỗi — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
+    <link rel="stylesheet" th:href="@{/css/StoreManagement.css}">
 </head>
 <body>
 <header th:replace="~{fragments/navbar :: admin('employees')}"></header>
 
-<main class="wrap dash-main">
+<main id="chainStorePage" class="wrap dash-main store-page">
     <section class="welcome">
-        <div class="eyebrow">
-            Trụ sở — Admin
-        </div>
-        <h1>
-            Nhân sự toàn chuỗi
-        </h1>
+        <div class="eyebrow">TRỤ SỞ / NHÂN VIÊN TOÀN CHUỖI</div>
+        <h1>Nhân viên toàn chuỗi</h1>
+        <p>Chọn một cửa hàng để xem nhân viên của cửa hàng đó.</p>
     </section>
-    <section class="panel">
-        <table>
-            <tr>
-                <th>Nhân viên</th>
-                <th>Cửa hàng</th>
-                <th>Email</th>
-                <th>Trạng thái</th>
-                <th>Chứng nhận</th>
-            </tr>
-            <tr th:each="employee:${employees}">
-                <td th:text="${employee.fullName}"></td>
-                <td th:text="${employee.store.storeName}"></td>
-                <td th:text="${employee.email}"></td>
-                <td>
-    <span th:if="${employee.status.name() == 'ACTIVE'}"
-          class="status active">
-        ● Hoạt động
-    </span>
-                </td>
-                <td th:text="${employee.certificationStatus != null} ? ${employee.certificationStatus.label} : 'Chưa chứng nhận'">Chưa chứng nhận</td>
-            </tr>
-        </table>
+
+    <p class="flash success" th:if="${successMessage}" th:text="${successMessage}"></p>
+    <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}"></p>
+
+    <section class="store-panel">
+        <div class="store-panel-top">
+            <div>
+                <h2>Danh sách cửa hàng</h2>
+                <p>Tổng số <strong th:text="${#lists.size(stores)}">0</strong> cửa hàng trong hệ thống.</p>
+            </div>
+        </div>
+
+        <div class="store-toolbar">
+            <label class="store-search">
+                <span class="sr-only">Tìm cửa hàng</span>
+                <input id="chainStoreSearch" type="search" placeholder="Tìm theo tên hoặc mã cửa hàng..." autocomplete="off">
+            </label>
+        </div>
+
+        <p class="chain-store-empty" th:if="${#lists.isEmpty(stores)}">Chưa có cửa hàng nào.</p>
+
+        <div class="chain-store-grid" th:unless="${#lists.isEmpty(stores)}">
+            <article th:each="store : ${stores}" class="chain-store-card"
+                     th:attr="data-store-name=${store.storeName},data-store-code=${store.id}">
+                <div class="chain-store-card-top">
+                    <div>
+                        <p class="chain-store-kicker">Cửa hàng</p>
+                        <h2 th:text="${store.storeName}">Tên cửa hàng</h2>
+                        <p class="chain-store-code">Mã cửa hàng: <span th:text="${store.id}">1</span></p>
+                    </div>
+                    <span th:if="${store.status != null}"
+                          class="store-badge"
+                          th:classappend="${store.stateKey == 'pre-opening'} ? ' store-badge--preopening' : (${store.stateKey == 'inactive'} ? ' store-badge--inactive' : ' store-badge--active')"
+                          th:text="${store.statusLabel != null ? store.statusLabel : 'Chưa cập nhật'}">Hoạt động</span>
+                    <span th:if="${store.status == null}" class="muted">Chưa cập nhật</span>
+                </div>
+                <p class="chain-store-address"
+                   th:text="${store.address != null and !#strings.isEmpty(store.address) ? store.address : 'Chưa cập nhật'}">Địa chỉ</p>
+                <p class="chain-store-count">
+                    <strong th:text="${store.employeeCount}">0</strong> nhân viên
+                    <small>Không tính nhân viên đã nghỉ việc</small>
+                </p>
+                <a class="store-btn store-btn--primary"
+                   th:href="@{/admin/stores/{id}/employees(id=${store.id})}">Xem nhân viên</a>
+            </article>
+        </div>
+        <p id="chainStoreNoMatch" class="chain-store-empty" hidden>Không tìm thấy cửa hàng phù hợp.</p>
     </section>
 </main>
+<script th:src="@{/js/AdminDashboard.js}"></script>
+<script th:src="@{/js/EmployeeManagement.js}" defer></script>
 </body>
 </html>

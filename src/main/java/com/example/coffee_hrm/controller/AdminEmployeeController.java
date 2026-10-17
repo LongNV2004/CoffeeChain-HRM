@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import jakarta.servlet.http.HttpServletRequest;
 import com.example.coffee_hrm.dto.request.CreateEmployeeRequest;
 import com.example.coffee_hrm.dto.request.UpdateEmployeeRequest;
 import jakarta.validation.Valid;
@@ -36,7 +37,9 @@ import java.util.List;
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminEmployeeController {
 
+    private static final String CHAIN_STORES_VIEW = "admin/chain-employees";
     private static final String STORE_EMPLOYEES_VIEW = "admin/store-employees";
+    private static final String EMPLOYEE_DETAIL_VIEW = "admin/employee-detail";
     private static final String EMPLOYEES_HOME_REDIRECT = "redirect:/admin/employees";
     private static final String STORE_EMPLOYEES_REDIRECT = "redirect:/admin/stores/{storeId}/employees";
     private static final String SYSTEM_ERROR_MESSAGE = "Unable to process the request. Please try again later.";
@@ -46,21 +49,16 @@ public class AdminEmployeeController {
     private final EmployeeService employeeService;
 
     @GetMapping("/employees")
-    public String viewAllEmployees(
+    public String viewChainStores(
+            @RequestParam(required = false) Integer storeId,
             @AuthenticationPrincipal AuthenticatedUser user,
             Model model
     ) {
-        model.addAttribute(
-                "employees",
-                employeeService.getAllEmployees(user)
-        );
-
-        model.addAttribute(
-                "stores",
-                storeService.getStores(user)
-        );
-
-        return STORE_EMPLOYEES_VIEW;
+        if (storeId != null) {
+            return "redirect:/admin/stores/" + storeId + "/employees";
+        }
+        model.addAttribute("stores", storeService.getStores(user));
+        return CHAIN_STORES_VIEW;
     }
 
     @GetMapping("/stores/{storeId}/employees")
@@ -75,8 +73,28 @@ public class AdminEmployeeController {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
             return EMPLOYEES_HOME_REDIRECT;
         }
-        model.addAttribute("stores", storeService.getStores(user));
         return STORE_EMPLOYEES_VIEW;
+    }
+
+    @GetMapping("/stores/{storeId}/employees/{employeeId}")
+    public String viewEmployeeDetail(@PathVariable Integer storeId,
+                                     @PathVariable Integer employeeId,
+                                     @AuthenticationPrincipal AuthenticatedUser user,
+                                     Model model,
+                                     RedirectAttributes redirectAttributes) {
+        try {
+            model.addAttribute("store", storeService.getStore(user, storeId));
+        } catch (BusinessException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
+            return EMPLOYEES_HOME_REDIRECT;
+        }
+        try {
+            model.addAttribute("employee", employeeService.getStoreEmployee(user, storeId, employeeId));
+        } catch (BusinessException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
+            return STORE_EMPLOYEES_REDIRECT;
+        }
+        return EMPLOYEE_DETAIL_VIEW;
     }
 
     @PostMapping("/stores/{storeId}/employees/{employeeId}/role")
@@ -145,9 +163,12 @@ public class AdminEmployeeController {
         return Map.of("message", ex.getMessage());
     }
     @ExceptionHandler(DataAccessException.class)
-    public ModelAndView handleDataAccessException() {
-        ModelAndView view = new ModelAndView(STORE_EMPLOYEES_VIEW);
+    public ModelAndView handleDataAccessException(HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        boolean chainDirectory = uri != null && uri.endsWith("/admin/employees");
+        ModelAndView view = new ModelAndView(chainDirectory ? CHAIN_STORES_VIEW : STORE_EMPLOYEES_VIEW);
         view.addObject("stores", List.of());
+        view.addObject("employees", List.of());
         view.addObject("errorMessage", SYSTEM_ERROR_MESSAGE);
         return view;
     }

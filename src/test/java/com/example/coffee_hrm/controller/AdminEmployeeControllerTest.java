@@ -35,6 +35,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(AdminEmployeeController.class)
 @Import({SecurityConfig.class, RoleBasedRedirector.class})
@@ -62,7 +63,13 @@ class AdminEmployeeControllerTest {
                 .andExpect(redirectedUrl("/dashboard/manager"));
         mockMvc.perform(get("/admin/stores/1/employees").with(user(actor(RoleName.STAFF))))
                 .andExpect(redirectedUrl("/dashboard/staff"));
+        mockMvc.perform(get("/admin/employees").with(user(actor(RoleName.STAFF))))
+                .andExpect(redirectedUrl("/dashboard/staff"));
+        mockMvc.perform(get("/admin/stores/1/employees/2").with(user(actor(RoleName.MANAGER))))
+                .andExpect(redirectedUrl("/dashboard/manager"));
         verify(employeeService, never()).getStoreEmployees(any(), any());
+        verify(employeeService, never()).getStoreEmployee(any(), any(), any());
+        verify(storeService, never()).getStores(any());
     }
 
     @Test
@@ -119,6 +126,33 @@ class AdminEmployeeControllerTest {
         mockMvc.perform(get("/admin/stores/99/employees").with(user(actor(RoleName.ADMIN))))
                 .andExpect(redirectedUrl("/admin/employees"))
                 .andExpect(flash().attribute("errorMessage", "Store not found"));
+        mockMvc.perform(get("/admin/stores/99/employees/2").with(user(actor(RoleName.ADMIN))))
+                .andExpect(redirectedUrl("/admin/employees"))
+                .andExpect(flash().attribute("errorMessage", "Store not found"));
+        verify(employeeService, never()).getStoreEmployee(any(), eq(99), any());
+    }
+
+    @Test
+    void employeeOutsideSelectedStoreStaysInsideThatStore() throws Exception {
+        when(storeService.getStore(any(), eq(1))).thenReturn(
+                com.example.coffee_hrm.dto.response.StoreResponse.builder().id(1).storeName("Store A").build());
+        when(employeeService.getStoreEmployee(any(), eq(1), eq(9)))
+                .thenThrow(new BusinessException("Nhân viên không thuộc cửa hàng này"));
+
+        mockMvc.perform(get("/admin/stores/1/employees/9").with(user(actor(RoleName.ADMIN))))
+                .andExpect(redirectedUrl("/admin/stores/1/employees"))
+                .andExpect(flash().attribute("errorMessage", "Nhân viên không thuộc cửa hàng này"));
+    }
+
+    @Test
+    void chainHomeDoesNotLoadEveryEmployee() throws Exception {
+        when(storeService.getStores(any())).thenReturn(java.util.List.of());
+
+        mockMvc.perform(get("/admin/employees").with(user(actor(RoleName.ADMIN))))
+                .andExpect(status().isOk());
+
+        verify(employeeService, never()).getAllEmployees(any());
+        verify(storeService).getStores(any());
     }
 
     @Test

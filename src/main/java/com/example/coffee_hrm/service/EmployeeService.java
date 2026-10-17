@@ -13,6 +13,7 @@ public interface EmployeeService {
     );
     List<EmployeeResponse> getAllEmployees(AuthenticatedUser actor);
     List<EmployeeResponse> getStoreEmployees(AuthenticatedUser actor, Integer storeId);
+    EmployeeResponse getStoreEmployee(AuthenticatedUser actor, Integer storeId, Integer employeeId);
     EmployeeResponse updateEmployee(
             AuthenticatedUser actor,
             Integer storeId,

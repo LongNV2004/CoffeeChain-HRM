@@ -239,36 +239,107 @@ class EmployeeServiceImplTest {
                     () -> employeeService.changeEmployeeRole(actor(role), 1, 10, "MANAGER"));
             assertMessage(EmployeeServiceImpl.ACCESS_DENIED,
                     () -> employeeService.getStoreEmployees(actor(role), 1));
+            assertMessage(EmployeeServiceImpl.ACCESS_DENIED,
+                    () -> employeeService.getStoreEmployee(actor(role), 1, 10));
         }
         verifyNoInteractions(employeeRepository);
     }
 
     @Test
-    void listsOnlyEmployeesOfSelectedStoreWithRoleAndCertificate() {
-        Employee manager = employee(11, storeA, EmployeeStatus.ACTIVE);
+    void listsManagerBeforeStaffWithoutChangingStoredRoles() {
+        Employee manager = employee(11, storeA, EmployeeStatus.ON_LEAVE);
+        manager.setFullName("Zara Manager");
         manager.setHasCertificate(true);
-        manager.setUser(User.builder().id(101).role(managerRole).employee(manager).build());
+        manager.setUser(User.builder().id(101).role(managerRole).employee(manager).passwordHash("SECRET-HASH").build());
+        staffEmployee.setFullName("Binh Staff");
         staffEmployee.setUser(staffUser);
-        Employee withoutAccount = employee(12, storeA, EmployeeStatus.ON_LEAVE);
+        Employee withoutAccount = employee(12, storeA, EmployeeStatus.TERMINATED);
+        withoutAccount.setFullName("An Chua Co Tai Khoan");
         storeA.setManager(manager);
-        when(storeRepository.findById(1)).thenReturn(Optional.of(storeA));
-        when(employeeRepository.findByStoreIdWithAccount(1)).thenReturn(List.of(staffEmployee, manager, withoutAccount));
+        when(storeRepository.findByIdWithManager(1)).thenReturn(Optional.of(storeA));
+        when(employeeRepository.findByStoreIdWithAccount(1)).thenReturn(List.of(withoutAccount, staffEmployee, manager));
 
         List<EmployeeResponse> result = employeeService.getStoreEmployees(admin, 1);
 
-        assertEquals(3, result.size());
-        assertTrue(result.stream().allMatch(e -> e.getStoreId().equals(1)));
-        assertEquals(RoleName.STAFF, result.get(0).getRoleName());
-        assertFalse(result.get(0).isHasCertificate());
-        assertEquals(RoleName.MANAGER, result.get(1).getRoleName());
-        assertTrue(result.get(1).isStoreManager());
-        assertTrue(result.get(1).isHasCertificate());
+        assertEquals(List.of(11, 10, 12), result.stream().map(EmployeeResponse::getId).toList());
+        assertTrue(result.get(0).isStoreManager());
+        assertEquals(RoleName.MANAGER, result.get(0).getRoleName());
+        assertEquals(EmployeeStatus.ON_LEAVE, result.get(0).getStatus());
+        assertEquals(RoleName.STAFF, result.get(1).getRoleName());
+        assertEquals(EmployeeStatus.ACTIVE, result.get(1).getStatus());
         assertNull(result.get(2).getRoleName());
+        assertEquals(EmployeeStatus.TERMINATED, result.get(2).getStatus());
+        assertTrue(result.get(0).isHasCertificate());
+        assertFalse(result.get(1).isHasCertificate());
+        assertEquals(RoleName.MANAGER, manager.getUser().getRole().getRoleName());
+        assertEquals(RoleName.STAFF, staffUser.getRole().getRoleName());
+        assertTrue(result.stream().noneMatch(item -> "SECRET-HASH".equals(item.getEmail())
+                || "SECRET-HASH".equals(item.getPhone())
+                || "SECRET-HASH".equals(item.getAddress())
+                || "SECRET-HASH".equals(item.getAvatarUrl())
+                || "SECRET-HASH".equals(item.getFullName())));
+    }
+
+    @Test
+    void listsStaffByNameWhenStoreHasNoManager() {
+        staffEmployee.setFullName("Binh");
+        staffEmployee.setUser(staffUser);
+        Employee earlier = employee(12, storeA, EmployeeStatus.ACTIVE);
+        earlier.setFullName("An");
+        earlier.setUser(User.builder().id(12).role(staffRole).employee(earlier).isActive(true).build());
+        when(storeRepository.findByIdWithManager(1)).thenReturn(Optional.of(storeA));
+        when(employeeRepository.findByStoreIdWithAccount(1)).thenReturn(List.of(staffEmployee, earlier));
+
+        List<EmployeeResponse> result = employeeService.getStoreEmployees(admin, 1);
+
+        assertEquals(List.of(12, 10), result.stream().map(EmployeeResponse::getId).toList());
+        assertTrue(result.stream().noneMatch(EmployeeResponse::isStoreManager));
+        assertEquals(RoleName.STAFF, earlier.getUser().getRole().getRoleName());
+    }
+
+    @Test
+    void readsEmployeeOnlyInsideSelectedStoreAndKeepsActualStatus() {
+        staffEmployee.setStatus(EmployeeStatus.ON_LEAVE);
+        staffEmployee.setPhone(null);
+        staffUser.setPasswordHash("SECRET-HASH");
+        staffEmployee.setUser(staffUser);
+        when(storeRepository.findByIdWithManager(1)).thenReturn(Optional.of(storeA));
+        when(employeeRepository.findByIdWithStoreAccount(10)).thenReturn(Optional.of(staffEmployee));
+
+        EmployeeResponse result = employeeService.getStoreEmployee(admin, 1, 10);
+
+        assertEquals(EmployeeStatus.ON_LEAVE, result.getStatus());
+        assertEquals(10, result.getId());
+        assertNull(result.getPhone());
+        assertFalse("SECRET-HASH".equals(result.getEmail()));
+        assertFalse("SECRET-HASH".equals(result.getFullName()));
+    }
+
+    @Test
+    void rejectsEmployeeDetailOutsideSelectedStore() {
+        when(storeRepository.findByIdWithManager(2)).thenReturn(Optional.of(storeB));
+        when(employeeRepository.findByIdWithStoreAccount(10)).thenReturn(Optional.of(staffEmployee));
+
+        assertMessage(EmployeeServiceImpl.EMPLOYEE_NOT_IN_STORE,
+                () -> employeeService.getStoreEmployee(admin, 2, 10));
+    }
+
+    @Test
+    void rejectsMissingEmployeeOrStoreOnDetail() {
+        when(storeRepository.findByIdWithManager(1)).thenReturn(Optional.of(storeA));
+        when(employeeRepository.findByIdWithStoreAccount(99)).thenReturn(Optional.empty());
+        assertMessage(EmployeeServiceImpl.EMPLOYEE_NOT_FOUND,
+                () -> employeeService.getStoreEmployee(admin, 1, 99));
+
+        when(storeRepository.findByIdWithManager(99)).thenReturn(Optional.empty());
+        assertMessage(EmployeeServiceImpl.STORE_NOT_FOUND,
+                () -> employeeService.getStoreEmployee(admin, 99, 10));
+        verify(employeeRepository, never()).findByIdWithStoreAccount(10);
     }
 
     @Test
     void listingUnknownStoreFails() {
-        when(storeRepository.findById(99)).thenReturn(Optional.empty());
+        when(storeRepository.findByIdWithManager(99)).thenReturn(Optional.empty());
 
         assertMessage(EmployeeServiceImpl.STORE_NOT_FOUND, () -> employeeService.getStoreEmployees(admin, 99));
     }
