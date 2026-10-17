@@ -40,6 +40,7 @@
                 <label>
                     <span class="field-label">Tên đề xuất <span class="req">*</span></span>
                     <input type="text" th:field="*{title}" maxlength="150" placeholder="Tuyển barista ca tối" required>
+                    <span class="field-error" id="error-title" hidden></span>
                     <span class="field-error" th:if="${#fields.hasErrors('title')}" th:errors="*{title}"></span>
                 </label>
                 <label>
@@ -136,6 +137,7 @@
 (function () {
     const initialCandidates = /*[[${candidatePayload}]]*/ [];
     const maxBirthDate = /*[[${maxBirthDateIso}]]*/ "";
+    const contactCheckUrl = /*[[@{/manager/recruitment/create/contact-check}]]*/ "/manager/recruitment/create/contact-check";
     const form = document.getElementById("recruitment-form");
     const list = document.getElementById("candidate-list");
     const fields = document.getElementById("candidate-fields");
@@ -147,6 +149,7 @@
     let editingIndex = -1;
     let pendingRemove = -1;
     let toastTimer = 0;
+    let checkingContact = false;
     const draftError = document.getElementById("draft-error");
     const listError = document.getElementById("list-error");
     const addButton = document.getElementById("add-candidate");
@@ -157,6 +160,7 @@
     const toast = document.getElementById("recruit-toast");
     const removeDialog = document.getElementById("remove-dialog");
     const emailPattern = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+    const namePattern = /^[\p{L}]+(?:\s+[\p{L}]+)*$/u;
     const fieldIds = {
         fullName: "draft-name",
         dateOfBirth: "draft-dob",
@@ -172,6 +176,12 @@
     list.addEventListener("click", onListClick);
     form.addEventListener("submit", onSubmit);
     form.addEventListener("keydown", onDraftKeydown);
+    const titleInput = form.elements["title"];
+    if (titleInput) {
+        titleInput.addEventListener("input", function () {
+            clearTitleError();
+        });
+    }
     Object.keys(fieldIds).forEach(function (key) {
         const input = document.getElementById(fieldIds[key]);
         input.addEventListener("input", function () {
@@ -215,6 +225,9 @@
     }
 
     function addOrUpdate() {
+        if (checkingContact) {
+            return;
+        }
         const draft = readDraft();
         const result = validate(draft, editingIndex);
         const hasFieldError = Object.keys(result.fields).length > 0;
@@ -227,6 +240,34 @@
             }
             return;
         }
+        checkingContact = true;
+        addButton.disabled = true;
+        checkActiveContact(draft).then(function (remote) {
+            const remoteFields = {};
+            const messages = [];
+            if (remote.emailMessage) {
+                remoteFields.email = remote.emailMessage;
+                messages.push(remote.emailMessage);
+            }
+            if (remote.phoneMessage) {
+                remoteFields.phone = remote.phoneMessage;
+                messages.push(remote.phoneMessage);
+            }
+            if (messages.length > 0) {
+                showFieldErrors(remoteFields);
+                show(draftError, messages.join(" "));
+                return;
+            }
+            commitDraft(draft);
+        }).catch(function () {
+            show(draftError, "Không kiểm tra được email và số điện thoại với nhân viên đang hoạt động. Vui lòng thử lại.");
+        }).finally(function () {
+            checkingContact = false;
+            addButton.disabled = false;
+        });
+    }
+
+    function commitDraft(draft) {
         const wasEditing = editingIndex >= 0;
         const name = draft.fullName;
         if (wasEditing) {
@@ -239,6 +280,27 @@
             ? "Đã cập nhật " + name + " trong danh sách ứng viên."
             : "Đã thêm " + name + " vào danh sách ứng viên.");
         document.getElementById("draft-name").focus();
+    }
+
+    function checkActiveContact(draft) {
+        const params = new URLSearchParams();
+        params.set("email", draft.email);
+        params.set("phone", draft.phone);
+        return fetch(contactCheckUrl + "?" + params.toString(), {
+            headers: {"Accept": "application/json"},
+            credentials: "same-origin"
+        }).then(function (response) {
+            if (!response.ok) {
+                throw new Error("contact check failed");
+            }
+            return response.json();
+        }).then(function (body) {
+            const data = body && body.data ? body.data : {};
+            return {
+                emailMessage: data.emailMessage || "",
+                phoneMessage: data.phoneMessage || ""
+            };
+        });
     }
 
     function startEdit(index) {
@@ -346,6 +408,21 @@
     }
 
     function onSubmit(event) {
+        const title = form.elements["title"];
+        const note = form.elements["note"];
+        if (title) {
+            title.value = title.value.trim();
+        }
+        if (note) {
+            note.value = note.value.trim();
+        }
+        if (title && !title.value) {
+            event.preventDefault();
+            showTitleError("Vui lòng nhập tên đề xuất.");
+            title.focus();
+            return;
+        }
+        clearTitleError();
         if (candidates.length === 0) {
             event.preventDefault();
             show(listError, "Vui lòng thêm ít nhất một nhân viên vào danh sách.");
@@ -355,7 +432,7 @@
     function readDraft() {
         const gender = document.querySelector('input[name="draftGender"]:checked');
         return {
-            fullName: document.getElementById("draft-name").value.trim(),
+            fullName: document.getElementById("draft-name").value.trim().replace(/\s+/g, " "),
             dateOfBirth: document.getElementById("draft-dob").value,
             gender: gender ? gender.value : "",
             phone: document.getElementById("draft-phone").value.replace(/[\s.\-]/g, ""),
@@ -371,6 +448,8 @@
             fields.fullName = "Vui lòng nhập họ và tên.";
         } else if (draft.fullName.length > 100) {
             fields.fullName = "Họ và tên tối đa 100 ký tự.";
+        } else if (!namePattern.test(draft.fullName)) {
+            fields.fullName = "Họ và tên chỉ được chứa chữ cái, không được nhập số.";
         }
         if (!draft.dateOfBirth) {
             fields.dateOfBirth = "Vui lòng chọn ngày sinh.";
@@ -380,7 +459,9 @@
         if (!/^[0-9]{9,15}$/.test(draft.phone)) {
             fields.phone = "Số điện thoại gồm 9 đến 15 chữ số.";
         }
-        if (!draft.email || draft.email.length > 100 || !emailPattern.test(draft.email)) {
+        if (!draft.email) {
+            fields.email = "Vui lòng nhập email cá nhân.";
+        } else if (draft.email.length > 100 || !emailPattern.test(draft.email)) {
             fields.email = "Email không đúng định dạng.";
         }
         if (draft.address.length > 255) {
@@ -389,18 +470,32 @@
         if (ignoreIndex < 0 && candidates.length >= 30) {
             formMessage = "Mỗi đề xuất chứa tối đa 30 nhân viên.";
         }
+        const duplicateMessages = [];
         for (let i = 0; i < candidates.length; i += 1) {
             if (i === ignoreIndex) {
                 continue;
             }
-            if (!fields.email && candidates[i].email === draft.email) {
+            if (!fields.email && sameEmail(candidates[i].email, draft.email)) {
                 fields.email = "Email " + draft.email + " bị trùng trong danh sách nhân viên.";
+                duplicateMessages.push(fields.email);
             }
-            if (!fields.phone && candidates[i].phone === draft.phone) {
+            if (!fields.phone && samePhone(candidates[i].phone, draft.phone)) {
                 fields.phone = "Số điện thoại " + draft.phone + " bị trùng trong danh sách nhân viên.";
+                duplicateMessages.push(fields.phone);
             }
         }
+        if (!formMessage && duplicateMessages.length > 0) {
+            formMessage = duplicateMessages.join(" ");
+        }
         return {fields: fields, form: formMessage};
+    }
+
+    function sameEmail(left, right) {
+        return String(left || "").trim().toLowerCase() === String(right || "").trim().toLowerCase();
+    }
+
+    function samePhone(left, right) {
+        return String(left || "").replace(/[\s.\-]/g, "") === String(right || "").replace(/[\s.\-]/g, "");
     }
 
     function render() {
@@ -609,6 +704,33 @@
             toast.hidden = true;
             toast.textContent = "";
         }, 3200);
+    }
+
+    function showTitleError(message) {
+        const error = document.getElementById("error-title");
+        const input = form.elements["title"];
+        if (!error) {
+            return;
+        }
+        error.hidden = false;
+        error.textContent = message;
+        if (input) {
+            input.classList.add("is-invalid");
+            input.setAttribute("aria-invalid", "true");
+        }
+    }
+
+    function clearTitleError() {
+        const error = document.getElementById("error-title");
+        const input = form.elements["title"];
+        if (error) {
+            error.hidden = true;
+            error.textContent = "";
+        }
+        if (input) {
+            input.classList.remove("is-invalid");
+            input.removeAttribute("aria-invalid");
+        }
     }
 
     function show(element, message) {

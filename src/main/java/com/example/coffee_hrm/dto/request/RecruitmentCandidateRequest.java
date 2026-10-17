@@ -25,6 +25,7 @@ public class RecruitmentCandidateRequest {
 
     @NotBlank(message = "Vui lòng nhập họ và tên")
     @Size(max = 100, message = "Họ và tên tối đa 100 ký tự")
+    @Pattern(regexp = "^\\p{L}+(?:\\s+\\p{L}+)*$", message = "Họ và tên chỉ được chứa chữ cái, không được nhập số")
     private String fullName;
 
     @NotNull(message = "Vui lòng chọn ngày sinh")

@@ -16,6 +16,14 @@ public interface RecruitmentCandidateRepository extends JpaRepository<Recruitmen
 
     boolean existsByEmailIgnoreCaseAndStatus(String email, RecruitmentStatus status);
 
+    @Query("""
+            SELECT CASE WHEN COUNT(c) > 0 THEN true ELSE false END
+            FROM RecruitmentCandidate c
+            WHERE LOWER(c.email) = LOWER(:email)
+              AND c.status = com.example.coffee_hrm.common.enums.RecruitmentStatus.APPROVED
+            """)
+    boolean existsApprovedByEmailIgnoreCase(@Param("email") String email);
+
     boolean existsByPhoneAndStatus(String phone, RecruitmentStatus status);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

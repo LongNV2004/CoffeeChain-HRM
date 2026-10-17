@@ -23,6 +23,8 @@ public interface EmployeeRepository extends JpaRepository<Employee, Integer> {
 
     boolean existsByEmailIgnoreCase(String email);
 
+    boolean existsByEmailIgnoreCaseAndStatusIn(String email, Collection<EmployeeStatus> statuses);
+
     @Query(
             value =
                     """
@@ -33,6 +35,18 @@ public interface EmployeeRepository extends JpaRepository<Employee, Integer> {
                     """,
             nativeQuery = true)
     int countByNormalizedPhone(@Param("phone") String phone);
+
+    @Query(
+            value =
+                    """
+                    SELECT COUNT(*)
+                    FROM dbo.Employees
+                    WHERE Status = :status
+                      AND Phone IS NOT NULL
+                      AND REPLACE(REPLACE(REPLACE(Phone, ' ', ''), '-', ''), '.', '') = :phone
+                    """,
+            nativeQuery = true)
+    int countByNormalizedPhoneAndStatus(@Param("phone") String phone, @Param("status") String status);
 
     List<Employee> findByStore_IdAndStatus(Integer storeId, EmployeeStatus status);
 

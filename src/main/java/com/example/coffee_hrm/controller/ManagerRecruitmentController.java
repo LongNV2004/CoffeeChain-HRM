@@ -5,11 +5,14 @@ import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.CreateRecruitmentRequest;
 import com.example.coffee_hrm.dto.request.RecruitmentCandidateRequest;
+import com.example.coffee_hrm.dto.response.ApiResponse;
+import com.example.coffee_hrm.dto.response.RecruitmentContactCheckResponse;
 import com.example.coffee_hrm.dto.response.RecruitmentRequestResponse;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.RecruitmentRequestService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
@@ -19,6 +22,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
@@ -64,6 +68,16 @@ public class ManagerRecruitmentController {
         }
         prepareCreatePage(user, model);
         return "manager/recruitment-create";
+    }
+
+    @GetMapping("/create/contact-check")
+    @ResponseBody
+    public ResponseEntity<ApiResponse<RecruitmentContactCheckResponse>> checkContact(
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) String phone,
+            @AuthenticationPrincipal AuthenticatedUser user) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                recruitmentRequestService.checkActiveEmployeeContact(user, email, phone)));
     }
 
     @PostMapping("/create")

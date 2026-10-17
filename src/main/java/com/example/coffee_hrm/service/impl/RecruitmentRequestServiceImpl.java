@@ -13,6 +13,7 @@ import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.CreateRecruitmentRequest;
 import com.example.coffee_hrm.dto.request.RecruitmentCandidateRequest;
 import com.example.coffee_hrm.dto.response.CandidateRejectionResult;
+import com.example.coffee_hrm.dto.response.RecruitmentContactCheckResponse;
 import com.example.coffee_hrm.dto.response.RecruitmentCandidateResponse;
 import com.example.coffee_hrm.dto.response.RecruitmentManagerOption;
 import com.example.coffee_hrm.dto.response.RecruitmentRequestResponse;
@@ -57,8 +58,13 @@ import java.util.regex.Pattern;
 public class RecruitmentRequestServiceImpl implements RecruitmentRequestService {
 
     static final String EMAIL_EXISTS = "Email đã tồn tại trong hệ thống.";
+    static final String EMAIL_APPROVED_OR_WORKING = "Email đã trùng với nhân viên đã được duyệt hoặc đang làm việc.";
+    static final String EMAIL_ACTIVE_EMPLOYEE = "Email đã trùng với nhân viên đang hoạt động trong hệ thống.";
+    static final String PHONE_ACTIVE_EMPLOYEE = "Số điện thoại đã trùng với nhân viên đang hoạt động trong hệ thống.";
     static final String EMAIL_PENDING = "Email này đang được dùng trong một đề xuất tuyển nhân sự đang chờ duyệt.";
     static final String EMAIL_INVALID = "Email không đúng định dạng.";
+    static final String NAME_NOT_LETTERS = "Họ và tên chỉ được chứa chữ cái, không được nhập số.";
+    static final String TITLE_EXISTS = "Tên đề xuất đã trùng với một đơn đã gửi cho Admin.";
     static final String PHONE_EXISTS = "Số điện thoại đã tồn tại trong hệ thống.";
     static final String PHONE_PENDING = "Số điện thoại này đang được dùng trong một đề xuất tuyển nhân sự đang chờ duyệt.";
     static final String ALREADY_APPROVED = "Nhân viên này đã được duyệt. Không tạo thêm tài khoản.";
@@ -66,6 +72,8 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
     private static final LocalDate EARLIEST_BIRTH_DATE = LocalDate.of(1900, 1, 1);
     private static final String RECRUITMENT_REF = "RECRUITMENT_REQUEST";
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
+    private static final Pattern PERSON_NAME_PATTERN = Pattern.compile("^[\\p{L}]+(?:\\s+[\\p{L}]+)*$");
+    private static final List<EmployeeStatus> WORKING_STATUSES = List.of(EmployeeStatus.ACTIVE, EmployeeStatus.ON_LEAVE);
 
     private final RecruitmentRequestRepository recruitmentRequestRepository;
     private final RecruitmentCandidateRepository recruitmentCandidateRepository;
@@ -158,6 +166,18 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
     @Transactional(readOnly = true)
     public String managedStoreLabel(AuthenticatedUser actor) {
         return requireManagedStore(actor).getStoreName();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public RecruitmentContactCheckResponse checkActiveEmployeeContact(AuthenticatedUser actor,
+                                                                       String email,
+                                                                       String phone) {
+        requireManager(actor);
+        return RecruitmentContactCheckResponse.builder()
+                .emailMessage(activeEmailMessage(email))
+                .phoneMessage(activePhoneMessage(phone))
+                .build();
     }
 
     @Override
@@ -399,12 +419,45 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
     }
 
     private void assertEmailAvailable(String email) {
+        if (usedByApprovedOrWorkingEmployee(email)) {
+            throw new BusinessException(EMAIL_APPROVED_OR_WORKING + " (" + email + ")");
+        }
         if (emailTaken(email)) {
             throw new BusinessException(EMAIL_EXISTS + " (" + email + ")");
         }
         if (recruitmentCandidateRepository.existsByEmailIgnoreCaseAndStatus(email, RecruitmentStatus.PENDING)) {
             throw new BusinessException(EMAIL_PENDING + " (" + email + ")");
         }
+    }
+
+    private String activeEmailMessage(String email) {
+        if (email == null || email.isBlank()) {
+            return null;
+        }
+        String normalized = email.trim().toLowerCase(Locale.ROOT);
+        if (!employeeRepository.existsByEmailIgnoreCaseAndStatusIn(normalized, List.of(EmployeeStatus.ACTIVE))) {
+            return null;
+        }
+        return EMAIL_ACTIVE_EMPLOYEE + " (" + normalized + ")";
+    }
+
+    private String activePhoneMessage(String phone) {
+        if (phone == null || phone.isBlank()) {
+            return null;
+        }
+        String normalized = phone.replaceAll("[\\s.\\-]", "");
+        if (!normalized.matches("^[0-9]{9,15}$")) {
+            return null;
+        }
+        if (employeeRepository.countByNormalizedPhoneAndStatus(normalized, EmployeeStatus.ACTIVE.getDbValue()) == 0) {
+            return null;
+        }
+        return PHONE_ACTIVE_EMPLOYEE + " (" + normalized + ")";
+    }
+
+    private boolean usedByApprovedOrWorkingEmployee(String email) {
+        return employeeRepository.existsByEmailIgnoreCaseAndStatusIn(email, WORKING_STATUSES)
+                || recruitmentCandidateRepository.existsApprovedByEmailIgnoreCase(email);
     }
 
     private void assertPhoneAvailable(String phone) {
@@ -447,9 +500,12 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
         if (fullName == null || fullName.isBlank()) {
             throw new BusinessException("Vui lòng nhập họ và tên.");
         }
-        String normalized = fullName.trim();
+        String normalized = fullName.trim().replaceAll("\\s+", " ");
         if (normalized.length() > 100) {
             throw new BusinessException("Họ và tên tối đa 100 ký tự.");
+        }
+        if (!PERSON_NAME_PATTERN.matcher(normalized).matches()) {
+            throw new BusinessException(NAME_NOT_LETTERS);
         }
         return normalized;
     }
@@ -461,6 +517,9 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
         String normalized = title.trim();
         if (normalized.length() > 150) {
             throw new BusinessException("Tên đề xuất tối đa 150 ký tự.");
+        }
+        if (recruitmentRequestRepository.existsByTitleIgnoreCase(normalized)) {
+            throw new BusinessException(TITLE_EXISTS);
         }
         return normalized;
     }
