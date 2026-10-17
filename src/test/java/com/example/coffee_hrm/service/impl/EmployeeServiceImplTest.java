@@ -1,16 +1,31 @@
 package com.example.coffee_hrm.service.impl;
 
+import com.example.coffee_hrm.common.enums.AssignmentStatus;
+import com.example.coffee_hrm.common.enums.AttendanceStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
+import com.example.coffee_hrm.common.enums.TrainingClassStatus;
+import com.example.coffee_hrm.common.enums.TrainingResult;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.dto.response.EmployeeResponse;
+import com.example.coffee_hrm.dto.response.ManagedEmployeeDetail;
+import com.example.coffee_hrm.dto.response.ManagedEmployeeDirectory;
+import com.example.coffee_hrm.entity.Attendance;
 import com.example.coffee_hrm.entity.Employee;
 import com.example.coffee_hrm.entity.Role;
+import com.example.coffee_hrm.entity.Shift;
+import com.example.coffee_hrm.entity.ShiftAssignment;
 import com.example.coffee_hrm.entity.Store;
+import com.example.coffee_hrm.entity.TrainingClass;
+import com.example.coffee_hrm.entity.TrainingClassEnrollment;
 import com.example.coffee_hrm.entity.User;
+import com.example.coffee_hrm.repository.AttendanceRepository;
 import com.example.coffee_hrm.repository.EmployeeRepository;
+import com.example.coffee_hrm.repository.EmployeeSkillTrainingFact;
 import com.example.coffee_hrm.repository.RoleRepository;
+import com.example.coffee_hrm.repository.ShiftAssignmentRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
+import com.example.coffee_hrm.repository.TrainingClassEnrollmentRepository;
 import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,6 +37,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -33,6 +51,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -50,6 +69,12 @@ class EmployeeServiceImplTest {
     private UserRepository userRepository;
     @Mock
     private RoleRepository roleRepository;
+    @Mock
+    private ShiftAssignmentRepository shiftAssignmentRepository;
+    @Mock
+    private AttendanceRepository attendanceRepository;
+    @Mock
+    private TrainingClassEnrollmentRepository trainingClassEnrollmentRepository;
 
     @InjectMocks
     private EmployeeServiceImpl employeeService;
@@ -342,6 +367,157 @@ class EmployeeServiceImplTest {
         when(storeRepository.findByIdWithManager(99)).thenReturn(Optional.empty());
 
         assertMessage(EmployeeServiceImpl.STORE_NOT_FOUND, () -> employeeService.getStoreEmployees(admin, 99));
+    }
+
+    @Test
+    void managerDirectoryUsesAssignedStoreAndCountsEachPersonOnce() {
+        Employee managerEmployee = employee(20, storeB, EmployeeStatus.ACTIVE);
+        managerEmployee.setFullName("Quản lý");
+        User managerUser = User.builder().id(20).username("mgr").passwordHash("SECRET-HASH")
+                .role(managerRole).employee(managerEmployee).isActive(true).build();
+        managerEmployee.setUser(managerUser);
+        storeA.setManager(managerEmployee);
+
+        staffEmployee.setFullName("An");
+        staffEmployee.setUser(staffUser);
+        staffUser.setIsActive(false);
+        staffUser.setPasswordHash("SECRET-HASH");
+
+        Employee former = employee(11, storeA, EmployeeStatus.TERMINATED);
+        former.setFullName("Bình");
+
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(storeA));
+        when(storeRepository.findByIdWithManager(1)).thenReturn(Optional.of(storeA));
+        when(employeeRepository.findByStoreIdWithAccount(1))
+                .thenReturn(List.of(former, staffEmployee, managerEmployee));
+
+        ManagedEmployeeDirectory directory = employeeService.getManagedDirectory(
+                AuthenticatedUser.from(managerUser));
+
+        assertEquals(List.of(20, 10, 11), directory.employees().stream().map(EmployeeResponse::getId).toList());
+        assertEquals(1, directory.storeId());
+        assertEquals("Store A", directory.storeName());
+        assertEquals(3, directory.totalCount());
+        assertEquals(2, directory.activeCount());
+        assertEquals(0, directory.onLeaveCount());
+        assertEquals(1, directory.terminatedCount());
+        assertEquals(1, directory.managerCount());
+        assertEquals(1, directory.staffCount());
+        assertEquals(1, directory.noAccountCount());
+        assertEquals(0, directory.otherCount());
+        assertEquals(Boolean.FALSE, directory.employees().get(1).getAccountActive());
+        assertFalse(directory.employees().stream().anyMatch(row -> "SECRET-HASH".equals(row.getEmail())));
+        verify(employeeRepository).findByStoreIdWithAccount(1);
+        verify(employeeRepository, never()).findByStoreIdWithAccount(2);
+    }
+
+    @Test
+    void managerDetailStaysInsideManagedStoreAndOmitsCredentials() {
+        Employee managerEmployee = employee(20, storeA, EmployeeStatus.ACTIVE);
+        User managerUser = User.builder().id(20).username("mgr").passwordHash("SECRET-HASH")
+                .role(managerRole).employee(managerEmployee).isActive(true).build();
+        managerEmployee.setUser(managerUser);
+        storeA.setManager(managerEmployee);
+        staffEmployee.setUser(staffUser);
+        staffUser.setPasswordHash("SECRET-HASH");
+
+        Shift shift = Shift.builder().id(3).shiftName("Ca sáng")
+                .startTime(LocalTime.of(8, 0)).endTime(LocalTime.of(12, 0)).build();
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(storeA));
+        when(storeRepository.findByIdWithManager(1)).thenReturn(Optional.of(storeA));
+        when(employeeRepository.findByIdWithStoreAccount(10)).thenReturn(Optional.of(staffEmployee));
+        when(shiftAssignmentRepository.findUpcomingByEmployee(
+                eq(10), any(), eq(AssignmentStatus.ASSIGNED), any()))
+                .thenReturn(List.of(ShiftAssignment.builder()
+                        .workDate(LocalDate.of(2026, 10, 20)).shift(shift).build()));
+        when(attendanceRepository.findRecentByEmployee(eq(10), any()))
+                .thenReturn(List.of(Attendance.builder()
+                        .workDate(LocalDate.of(2026, 10, 17))
+                        .status(AttendanceStatus.LATE)
+                        .shift(shift)
+                        .checkInTime(LocalDateTime.of(2026, 10, 17, 8, 15))
+                        .build()));
+        when(trainingClassEnrollmentRepository.findParticipatedByEmployee(10, TrainingClassStatus.REJECTED))
+                .thenReturn(List.of(TrainingClassEnrollment.builder()
+                        .trainingClass(TrainingClass.builder().className("Pha chế cơ bản")
+                                .startDate(LocalDate.of(2026, 10, 1))
+                                .endDate(LocalDate.of(2026, 10, 2))
+                                .status(TrainingClassStatus.APPROVED)
+                                .build())
+                        .result(TrainingResult.PASS)
+                        .build()));
+        when(trainingClassEnrollmentRepository.findSkillTrainingFacts(List.of(10), TrainingClassStatus.REJECTED))
+                .thenReturn(List.of(
+                        skillFact(TrainingResult.NOT_PASS),
+                        skillFact(TrainingResult.PASS)));
+
+        ManagedEmployeeDetail detail = employeeService.getManagedEmployee(
+                AuthenticatedUser.from(managerUser), 10);
+
+        assertEquals(10, detail.employee().getId());
+        assertEquals(Boolean.TRUE, detail.employee().getAccountActive());
+        assertEquals("Ca sáng", detail.shifts().get(0).shiftName());
+        assertEquals("08:00–12:00", detail.shifts().get(0).timeRange());
+        assertEquals("Đi muộn", detail.attendances().get(0).statusLabel());
+        assertEquals("Pha chế cơ bản", detail.trainings().get(0).className());
+        assertEquals("Đạt", detail.trainings().get(0).resultLabel());
+        assertEquals(1, detail.skills().size());
+        assertEquals("Đã đạt", detail.skills().get(0).statusLabel());
+        assertFalse("SECRET-HASH".equals(detail.employee().getFullName()));
+        assertFalse("SECRET-HASH".equals(detail.employee().getEmail()));
+    }
+
+    @Test
+    void managerCannotOpenEmployeeOutsideManagedStore() {
+        Employee managerEmployee = employee(20, storeB, EmployeeStatus.ACTIVE);
+        User managerUser = User.builder().id(20).username("mgr").passwordHash("x")
+                .role(managerRole).employee(managerEmployee).isActive(true).build();
+        storeB.setManager(managerEmployee);
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(storeB));
+        when(storeRepository.findByIdWithManager(2)).thenReturn(Optional.of(storeB));
+        when(employeeRepository.findByIdWithStoreAccount(10)).thenReturn(Optional.of(staffEmployee));
+
+        assertMessage(EmployeeServiceImpl.EMPLOYEE_NOT_IN_STORE,
+                () -> employeeService.getManagedEmployee(AuthenticatedUser.from(managerUser), 10));
+        verifyNoInteractions(attendanceRepository, shiftAssignmentRepository, trainingClassEnrollmentRepository);
+    }
+
+    @Test
+    void managerDetailHidesUnknownEmployee() {
+        Employee managerEmployee = employee(20, storeA, EmployeeStatus.ACTIVE);
+        User managerUser = User.builder().id(20).username("mgr").passwordHash("x")
+                .role(managerRole).employee(managerEmployee).isActive(true).build();
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(storeA));
+        when(storeRepository.findByIdWithManager(1)).thenReturn(Optional.of(storeA));
+        when(employeeRepository.findByIdWithStoreAccount(99)).thenReturn(Optional.empty());
+
+        assertMessage(EmployeeServiceImpl.MANAGED_EMPLOYEE_NOT_FOUND,
+                () -> employeeService.getManagedEmployee(AuthenticatedUser.from(managerUser), 99));
+    }
+
+    @Test
+    void staffAndUnassignedManagerCannotListStoreEmployees() {
+        assertMessage(EmployeeServiceImpl.ACCESS_DENIED,
+                () -> employeeService.getManagedDirectory(actor(RoleName.STAFF)));
+        assertMessage(EmployeeServiceImpl.ACCESS_DENIED,
+                () -> employeeService.getManagedDirectory(actor(RoleName.ADMIN)));
+        assertMessage(EmployeeServiceImpl.ACCESS_DENIED,
+                () -> employeeService.getManagedEmployee(actor(RoleName.STAFF), 10));
+
+        Employee managerEmployee = employee(20, storeA, EmployeeStatus.ACTIVE);
+        User managerUser = User.builder().id(20).username("mgr").passwordHash("x")
+                .role(managerRole).employee(managerEmployee).isActive(true).build();
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.empty());
+        assertMessage(EmployeeServiceImpl.STORE_NOT_ASSIGNED,
+                () -> employeeService.getManagedDirectory(AuthenticatedUser.from(managerUser)));
+        verify(employeeRepository, never()).findByStoreIdWithAccount(any());
+    }
+
+    private EmployeeSkillTrainingFact skillFact(TrainingResult result) {
+        return new EmployeeSkillTrainingFact(
+                10, 7, "Pha chế", result, null,
+                LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 2), null,
+                TrainingClassStatus.APPROVED);
     }
 
     private void assertMessage(String expected, org.junit.jupiter.api.function.Executable call) {

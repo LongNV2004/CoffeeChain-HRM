@@ -479,6 +479,11 @@ body.store-dialog-open { overflow:hidden; }
     margin-top:4px;
     font-size:14px;
 }
+.employee-table .employee-person strong {
+    display:block;
+    color:#36251b;
+    font-weight:600;
+}
 
 .employee-table .badge {
     display:inline-block;
@@ -741,6 +746,45 @@ body:has(.coffee-sidebar) .store-create-form input.is-invalid:focus {
     border: 1px solid rgba(92, 60, 46, .12);
 }
 .employee-detail-page .store-create-actions { margin-top: 16px; }
+.employee-related { margin-top: 16px; }
+.employee-related h2 { margin-bottom: 6px; }
+.employee-related > p { margin: 0 0 8px; color: var(--store-muted); font-size: 14px; }
+.employee-related-table {
+    width: 100%;
+    min-width: 640px;
+    border-collapse: collapse;
+}
+.employee-related-table th,
+.employee-related-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #f1eae1;
+    text-align: left;
+    font-size: 14px;
+    vertical-align: middle;
+}
+.employee-related-table th {
+    color: #76523c;
+    font-weight: 600;
+    background: #fdfaf6;
+    white-space: nowrap;
+}
+.employee-skill-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 12px 0 0;
+    padding: 0;
+    list-style: none;
+}
+.employee-skill-list li {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--store-border);
+    border-radius: 999px;
+    background: #fffdf9;
+}
 
 @media (max-width: 720px) {
     .store-create-head h1 { font-size: 26px; }

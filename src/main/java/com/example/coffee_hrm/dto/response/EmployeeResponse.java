@@ -31,6 +31,8 @@ public class EmployeeResponse {
     private Integer userId;
     /** Null khi nhân viên chưa có tài khoản đăng nhập. */
     private RoleName roleName;
+    /** Null khi chưa có tài khoản. Không bao gồm mật khẩu hay dữ liệu xác thực. */
+    private Boolean accountActive;
     private boolean hasCertificate;
     /** Nhân viên đang được gắn làm Manager của chính cửa hàng mình (Stores.ManagerId). */
     private boolean storeManager;

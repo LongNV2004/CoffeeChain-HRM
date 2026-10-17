@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Danh sách nhân sự — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
+    <link rel="stylesheet" th:href="@{/css/StoreManagement.css}">
+</head>
+<body>
+<header th:replace="~{fragments/navbar :: manager('employees')}"></header>
+
+<main id="employeePage" class="wrap dash-main store-page employee-page">
+    <section class="welcome">
+        <div class="eyebrow">Cửa hàng — Manager</div>
+        <h1>Danh sách nhân sự</h1>
+        <p th:if="${directory != null}">
+            Cửa hàng <strong th:text="${directory.storeName}">Cửa hàng</strong>
+            ·
+            <span th:text="${directory.storeAddress != null and !#strings.isEmpty(directory.storeAddress) ? directory.storeAddress : 'Địa chỉ chưa cập nhật'}">Địa chỉ</span>
+        </p>
+        <p th:if="${directory == null}">Nhân sự của cửa hàng bạn đang quản lý.</p>
+    </section>
+
+    <p class="flash success" th:if="${successMessage}" th:text="${successMessage}"></p>
+    <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}"></p>
+
+    <section class="store-stats" th:if="${directory != null}" aria-label="Thống kê nhân sự">
+        <article class="store-stat">
+            <div>
+                <span>Tổng nhân sự</span>
+                <strong th:text="${directory.totalCount}">0</strong>
+                <small>Mỗi người một hồ sơ</small>
+            </div>
+        </article>
+        <article class="store-stat">
+            <div>
+                <span>Đang làm việc</span>
+                <strong th:text="${directory.activeCount}">0</strong>
+            </div>
+        </article>
+        <article class="store-stat">
+            <div>
+                <span>Đang nghỉ phép</span>
+                <strong th:text="${directory.onLeaveCount}">0</strong>
+            </div>
+        </article>
+        <article class="store-stat">
+            <div>
+                <span>Đã nghỉ việc</span>
+                <strong th:text="${directory.terminatedCount}">0</strong>
+            </div>
+        </article>
+        <article class="store-stat">
+            <div>
+                <span>Manager</span>
+                <strong th:text="${directory.managerCount}">0</strong>
+            </div>
+        </article>
+        <article class="store-stat">
+            <div>
+                <span>Staff</span>
+                <strong th:text="${directory.staffCount}">0</strong>
+            </div>
+        </article>
+        <article class="store-stat">
+            <div>
+                <span>Chưa có tài khoản</span>
+                <strong th:text="${directory.noAccountCount}">0</strong>
+            </div>
+        </article>
+        <article class="store-stat" th:if="${directory.otherCount > 0}">
+            <div>
+                <span>Vai trò khác</span>
+                <strong th:text="${directory.otherCount}">0</strong>
+            </div>
+        </article>
+    </section>
+
+    <section class="store-panel employee-panel">
+        <div class="store-panel-top">
+            <div>
+                <h2>Nhân sự cửa hàng</h2>
+                <p>Gồm Manager, Staff, tài khoản bị khóa và nhân viên đã nghỉ việc. Tìm theo mã, họ tên hoặc email.</p>
+            </div>
+        </div>
+
+        <div class="store-toolbar employee-toolbar">
+            <label class="store-search employee-search">
+                <input id="employeeNameSearch" type="search" placeholder="Tìm theo mã nhân viên, họ tên hoặc email..." autocomplete="off">
+            </label>
+            <div class="employee-filters">
+                <select id="employeeRoleFilter" aria-label="Lọc theo chức vụ">
+                    <option value="ALL">Tất cả chức vụ</option>
+                    <option value="MANAGER">Manager</option>
+                    <option value="STAFF">Staff</option>
+                    <option value="NONE">Chưa có tài khoản</option>
+                </select>
+                <select id="employeeStatusFilter" aria-label="Lọc theo trạng thái nhân sự">
+                    <option value="ALL">Tất cả trạng thái</option>
+                    <option value="ACTIVE">Đang làm việc</option>
+                    <option value="ON_LEAVE">Đang nghỉ phép</option>
+                    <option value="TERMINATED">Đã nghỉ việc</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="store-table-scroll">
+            <table class="store-table employee-table">
+                <thead>
+                <tr>
+                    <th>STT</th>
+                    <th>Mã nhân viên</th>
+                    <th>Họ và tên</th>
+                    <th>Chức vụ</th>
+                    <th>Email</th>
+                    <th>Số điện thoại</th>
+                    <th>Trạng thái</th>
+                    <th>Hành động</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:if="${employees == null or #lists.isEmpty(employees)}">
+                    <td colspan="8" class="empty"
+                        th:text="${errorMessage != null} ? 'Không thể hiển thị danh sách nhân sự.' : 'Cửa hàng chưa có nhân sự.'">Cửa hàng chưa có nhân sự.</td>
+                </tr>
+                <tr th:each="employee : ${employees}" class="employee-row"
+                    th:with="roleKey=${(employee.storeManager or (employee.roleName != null and employee.roleName.name() == 'MANAGER')) ? 'MANAGER' : (employee.roleName != null ? employee.roleName.name() : 'NONE')}"
+                    th:attr="data-employee-id=${employee.id},
+                             data-employee-code=${employee.id},
+                             data-employee-name=${employee.fullName},
+                             data-employee-email=${employee.email ?: ''},
+                             data-employee-role=${roleKey},
+                             data-employee-status=${employee.status != null ? employee.status.name() : ''}">
+                    <td class="employee-index"></td>
+                    <td th:text="${employee.id}">1</td>
+                    <td class="employee-person">
+                        <strong th:text="${employee.fullName != null and !#strings.isEmpty(employee.fullName) ? employee.fullName : 'Chưa cập nhật'}">Nhân viên</strong>
+                    </td>
+                    <td>
+                        <span th:if="${roleKey == 'MANAGER'}" class="badge badge-manager">Manager</span>
+                        <span th:if="${roleKey == 'STAFF'}" class="badge">Staff</span>
+                        <span th:if="${roleKey == 'NONE'}" class="muted">Chưa có tài khoản</span>
+                        <span th:if="${roleKey != 'MANAGER' and roleKey != 'STAFF' and roleKey != 'NONE'}" class="badge" th:text="${roleKey}">Role</span>
+                    </td>
+                    <td th:text="${employee.email != null and !#strings.isEmpty(employee.email) ? employee.email : 'Chưa cập nhật'}">email</td>
+                    <td th:text="${employee.phone != null and !#strings.isEmpty(employee.phone) ? employee.phone : 'Chưa cập nhật'}">SĐT</td>
+                    <td>
+                        <span th:if="${employee.status != null and employee.status.name() == 'ACTIVE'}" class="badge badge-ok">Đang làm việc</span>
+                        <span th:if="${employee.status != null and employee.status.name() == 'ON_LEAVE'}" class="badge badge-wait">Đang nghỉ phép</span>
+                        <span th:if="${employee.status != null and employee.status.name() == 'TERMINATED'}" class="badge badge-off">Đã nghỉ việc</span>
+                        <span th:if="${employee.status == null}" class="muted">Chưa cập nhật</span>
+                    </td>
+                    <td>
+                        <a class="store-action store-action--view"
+                           th:href="@{/manager/employees/{id}(id=${employee.id})}"
+                           title="Xem chi tiết"
+                           th:attr="aria-label=|Xem chi tiết ${employee.fullName}|">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </a>
+                    </td>
+                </tr>
+                <tr id="employeeNoMatch" hidden>
+                    <td colspan="8" class="empty">Không tìm thấy nhân viên phù hợp.</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="employee-pagination">
+            <p id="employeePageInfo"></p>
+            <div>
+                <button id="employeePreviousPage" type="button" class="store-btn store-btn--secondary">← Trước</button>
+                <button id="employeeNextPage" type="button" class="store-btn store-btn--primary">Sau →</button>
+            </div>
+        </div>
+    </section>
+</main>
+<script th:src="@{/js/EmployeeManagement.js}" defer></script>
+</body>
+</html>

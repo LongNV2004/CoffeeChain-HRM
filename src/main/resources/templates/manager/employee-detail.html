@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chi tiết nhân sự — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
+    <link rel="stylesheet" th:href="@{/css/StoreManagement.css}">
+</head>
+<body>
+<header th:replace="~{fragments/navbar :: manager('employees')}"></header>
+
+<main class="wrap dash-main store-page store-form-page employee-detail-page">
+    <header class="store-create-head">
+        <nav class="store-create-crumb" aria-label="Đường dẫn">
+            <a class="back-link" th:href="@{/manager/employees}">Danh sách nhân sự</a>
+            <span aria-hidden="true">/</span>
+            <span aria-current="page">Chi tiết nhân viên</span>
+        </nav>
+        <h1 th:text="${detail.employee.fullName != null and !#strings.isEmpty(detail.employee.fullName) ? detail.employee.fullName : 'Nhân viên'}">Họ và tên</h1>
+        <p>Thông tin chỉ để xem, trong phạm vi cửa hàng bạn đang quản lý.</p>
+    </header>
+
+    <div class="employee-detail-grid">
+        <section class="store-create-card" aria-labelledby="employee-personal-title">
+            <h2 id="employee-personal-title">Thông tin cá nhân</h2>
+            <dl class="store-create-facts">
+                <div>
+                    <dt>Mã nhân viên</dt>
+                    <dd th:text="${detail.employee.id}">1</dd>
+                </div>
+                <div>
+                    <dt>Họ và tên</dt>
+                    <dd th:text="${detail.employee.fullName != null and !#strings.isEmpty(detail.employee.fullName) ? detail.employee.fullName : 'Chưa cập nhật'}"
+                        th:classappend="${detail.employee.fullName == null or #strings.isEmpty(detail.employee.fullName)} ? ' is-placeholder'">Tên</dd>
+                </div>
+                <div>
+                    <dt>Ảnh đại diện</dt>
+                    <dd th:if="${detail.employee.avatarUrl != null and !#strings.isEmpty(detail.employee.avatarUrl)}">
+                        <img class="employee-detail-avatar" th:src="${detail.employee.avatarUrl}" alt="">
+                    </dd>
+                    <dd th:if="${detail.employee.avatarUrl == null or #strings.isEmpty(detail.employee.avatarUrl)}" class="is-placeholder">Chưa cập nhật</dd>
+                </div>
+                <div>
+                    <dt>Email</dt>
+                    <dd th:text="${detail.employee.email != null and !#strings.isEmpty(detail.employee.email) ? detail.employee.email : 'Chưa cập nhật'}"
+                        th:classappend="${detail.employee.email == null or #strings.isEmpty(detail.employee.email)} ? ' is-placeholder'">Email</dd>
+                </div>
+                <div>
+                    <dt>Số điện thoại</dt>
+                    <dd th:text="${detail.employee.phone != null and !#strings.isEmpty(detail.employee.phone) ? detail.employee.phone : 'Chưa cập nhật'}"
+                        th:classappend="${detail.employee.phone == null or #strings.isEmpty(detail.employee.phone)} ? ' is-placeholder'">SĐT</dd>
+                </div>
+                <div>
+                    <dt>Địa chỉ</dt>
+                    <dd th:text="${detail.employee.address != null and !#strings.isEmpty(detail.employee.address) ? detail.employee.address : 'Chưa cập nhật'}"
+                        th:classappend="${detail.employee.address == null or #strings.isEmpty(detail.employee.address)} ? ' is-placeholder'">Địa chỉ</dd>
+                </div>
+            </dl>
+        </section>
+
+        <section class="store-create-card" aria-labelledby="employee-work-title">
+            <h2 id="employee-work-title">Thông tin công việc</h2>
+            <dl class="store-create-facts">
+                <div>
+                    <dt>Cửa hàng</dt>
+                    <dd th:text="${detail.employee.storeName != null and !#strings.isEmpty(detail.employee.storeName) ? detail.employee.storeName : 'Chưa cập nhật'}">Cửa hàng</dd>
+                </div>
+                <div>
+                    <dt>Chức vụ</dt>
+                    <dd th:if="${detail.employee.storeManager or detail.employee.roleName?.name() == 'MANAGER'}">Manager</dd>
+                    <dd th:if="${!detail.employee.storeManager and detail.employee.roleName?.name() == 'STAFF'}">Staff</dd>
+                    <dd th:if="${!detail.employee.storeManager and detail.employee.roleName == null}" class="is-placeholder">Chưa có tài khoản</dd>
+                    <dd th:if="${!detail.employee.storeManager and detail.employee.roleName != null and detail.employee.roleName.name() != 'STAFF' and detail.employee.roleName.name() != 'MANAGER'}"
+                        th:text="${detail.employee.roleName.name()}">Role</dd>
+                </div>
+                <div>
+                    <dt>Ngày vào làm</dt>
+                    <dd th:if="${detail.employee.hireDate != null}" th:text="${#temporals.format(detail.employee.hireDate, 'dd/MM/yyyy')}">01/01/2026</dd>
+                    <dd th:if="${detail.employee.hireDate == null}" class="is-placeholder">Chưa cập nhật</dd>
+                </div>
+                <div th:if="${detail.employee.terminationDate != null or (detail.employee.status != null and detail.employee.status.name() == 'TERMINATED')}">
+                    <dt>Ngày nghỉ việc</dt>
+                    <dd th:if="${detail.employee.terminationDate != null}" th:text="${#temporals.format(detail.employee.terminationDate, 'dd/MM/yyyy')}">01/01/2026</dd>
+                    <dd th:if="${detail.employee.terminationDate == null}" class="is-placeholder">Chưa cập nhật</dd>
+                </div>
+                <div>
+                    <dt>Trạng thái nhân sự</dt>
+                    <dd>
+                        <span th:if="${detail.employee.status != null and detail.employee.status.name() == 'ACTIVE'}" class="badge badge-ok">Đang làm việc</span>
+                        <span th:if="${detail.employee.status != null and detail.employee.status.name() == 'ON_LEAVE'}" class="badge badge-wait">Đang nghỉ phép</span>
+                        <span th:if="${detail.employee.status != null and detail.employee.status.name() == 'TERMINATED'}" class="badge badge-off">Đã nghỉ việc</span>
+                        <span th:if="${detail.employee.status == null}" class="is-placeholder">Chưa cập nhật</span>
+                    </dd>
+                </div>
+                <div>
+                    <dt>Trạng thái tài khoản</dt>
+                    <dd>
+                        <span th:if="${detail.employee.accountActive != null and detail.employee.accountActive}" class="badge badge-ok">Đang hoạt động</span>
+                        <span th:if="${detail.employee.accountActive != null and !detail.employee.accountActive}" class="badge badge-off">Bị khóa</span>
+                        <span th:if="${detail.employee.accountActive == null}" class="is-placeholder">Chưa có tài khoản</span>
+                    </dd>
+                </div>
+            </dl>
+            <div class="form-actions store-create-actions">
+                <a class="store-btn store-btn--secondary" th:href="@{/manager/employees}">Quay lại danh sách nhân sự</a>
+            </div>
+        </section>
+    </div>
+
+    <section class="store-create-card employee-related" aria-labelledby="employee-shift-title">
+        <h2 id="employee-shift-title">Lịch làm việc</h2>
+        <p>Các ca đã phân công từ hôm nay.</p>
+        <p th:if="${#lists.isEmpty(detail.shifts)}" class="is-placeholder">Chưa có lịch làm việc sắp tới.</p>
+        <div class="store-table-scroll" th:if="${!#lists.isEmpty(detail.shifts)}">
+            <table class="employee-related-table">
+                <thead>
+                <tr>
+                    <th>Ngày</th>
+                    <th>Ca</th>
+                    <th>Giờ</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="shift : ${detail.shifts}">
+                    <td th:text="${shift.workDate != null} ? ${#temporals.format(shift.workDate, 'dd/MM/yyyy')} : 'Chưa cập nhật'">01/01/2026</td>
+                    <td th:text="${shift.shiftName != null and !#strings.isEmpty(shift.shiftName) ? shift.shiftName : 'Chưa cập nhật'}">Ca sáng</td>
+                    <td th:text="${shift.timeRange != null ? shift.timeRange : 'Chưa cập nhật'}">08:00–12:00</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="store-create-card employee-related" aria-labelledby="employee-attendance-title">
+        <h2 id="employee-attendance-title">Lịch sử chấm công</h2>
+        <p>Các bản ghi chấm công gần nhất.</p>
+        <p th:if="${#lists.isEmpty(detail.attendances)}" class="is-placeholder">Chưa có lịch sử chấm công.</p>
+        <div class="store-table-scroll" th:if="${!#lists.isEmpty(detail.attendances)}">
+            <table class="employee-related-table">
+                <thead>
+                <tr>
+                    <th>Ngày</th>
+                    <th>Ca</th>
+                    <th>Trạng thái</th>
+                    <th>Giờ vào</th>
+                    <th>Giờ ra</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="row : ${detail.attendances}">
+                    <td th:text="${row.workDate != null} ? ${#temporals.format(row.workDate, 'dd/MM/yyyy')} : 'Chưa cập nhật'">01/01/2026</td>
+                    <td th:text="${row.shiftName != null and !#strings.isEmpty(row.shiftName) ? row.shiftName : 'Chưa cập nhật'}">Ca sáng</td>
+                    <td th:text="${row.statusLabel != null ? row.statusLabel : 'Chưa cập nhật'}">Có mặt</td>
+                    <td th:text="${row.checkInTime != null} ? ${#temporals.format(row.checkInTime, 'HH:mm')} : 'Chưa cập nhật'">08:00</td>
+                    <td th:text="${row.checkOutTime != null} ? ${#temporals.format(row.checkOutTime, 'HH:mm')} : 'Chưa cập nhật'">17:00</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="store-create-card employee-related" aria-labelledby="employee-training-title">
+        <h2 id="employee-training-title">Khóa đào tạo đã tham gia</h2>
+        <p th:if="${#lists.isEmpty(detail.trainings)}" class="is-placeholder">Chưa tham gia khóa đào tạo.</p>
+        <div class="store-table-scroll" th:if="${!#lists.isEmpty(detail.trainings)}">
+            <table class="employee-related-table">
+                <thead>
+                <tr>
+                    <th>Khóa học</th>
+                    <th>Bắt đầu</th>
+                    <th>Kết thúc</th>
+                    <th>Trạng thái lớp</th>
+                    <th>Kết quả</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="course : ${detail.trainings}">
+                    <td th:text="${course.className != null and !#strings.isEmpty(course.className) ? course.className : 'Chưa cập nhật'}">Pha chế</td>
+                    <td th:text="${course.startDate != null} ? ${#temporals.format(course.startDate, 'dd/MM/yyyy')} : 'Chưa cập nhật'">01/01/2026</td>
+                    <td th:text="${course.endDate != null} ? ${#temporals.format(course.endDate, 'dd/MM/yyyy')} : 'Chưa cập nhật'">02/01/2026</td>
+                    <td th:text="${course.statusLabel != null ? course.statusLabel : 'Chưa cập nhật'}">Đã duyệt</td>
+                    <td th:text="${course.resultLabel != null ? course.resultLabel : 'Chưa cập nhật'}">Đạt</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="store-create-card employee-related" aria-labelledby="employee-skill-title">
+        <h2 id="employee-skill-title">Kỹ năng và chứng chỉ</h2>
+        <dl class="store-create-facts">
+            <div>
+                <dt>Chứng chỉ</dt>
+                <dd>
+                    <span th:if="${detail.employee.hasCertificate}" class="badge badge-ok">Có</span>
+                    <span th:unless="${detail.employee.hasCertificate}" class="is-placeholder">Chưa có</span>
+                </dd>
+            </div>
+            <div>
+                <dt>Trạng thái chứng nhận</dt>
+                <dd th:text="${detail.certificationLabel != null ? detail.certificationLabel : 'Chưa cập nhật'}"
+                    th:classappend="${detail.certificationLabel == null} ? ' is-placeholder'">Chưa chứng nhận</dd>
+            </div>
+        </dl>
+        <p th:if="${#lists.isEmpty(detail.skills)}">Chưa có kỹ năng được ghi nhận từ các lớp đào tạo.</p>
+        <ul class="employee-skill-list" th:if="${!#lists.isEmpty(detail.skills)}">
+            <li th:each="skill : ${detail.skills}">
+                <strong th:text="${skill.skillName != null ? skill.skillName : 'Chưa cập nhật'}">Pha chế</strong>
+                <span class="badge" th:text="${skill.statusLabel}">Đã đạt</span>
+            </li>
+        </ul>
+    </section>
+</main>
+</body>
+</html>

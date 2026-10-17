@@ -1,31 +1,52 @@
 package com.example.coffee_hrm.service.impl;
 import com.example.coffee_hrm.dto.request.CreateEmployeeRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import com.example.coffee_hrm.common.enums.AssignmentStatus;
+import com.example.coffee_hrm.common.enums.AttendanceStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
+import com.example.coffee_hrm.common.enums.TrainingClassStatus;
+import com.example.coffee_hrm.common.enums.TrainingResult;
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.response.EmployeeResponse;
+import com.example.coffee_hrm.dto.response.ManagedEmployeeDetail;
+import com.example.coffee_hrm.dto.response.ManagedEmployeeDirectory;
+import com.example.coffee_hrm.entity.Attendance;
 import com.example.coffee_hrm.entity.Employee;
 import com.example.coffee_hrm.entity.Role;
+import com.example.coffee_hrm.entity.Shift;
+import com.example.coffee_hrm.entity.ShiftAssignment;
 import com.example.coffee_hrm.entity.Store;
+import com.example.coffee_hrm.entity.TrainingClass;
+import com.example.coffee_hrm.entity.TrainingClassEnrollment;
 import com.example.coffee_hrm.entity.User;
+import com.example.coffee_hrm.repository.AttendanceRepository;
 import com.example.coffee_hrm.repository.EmployeeRepository;
+import com.example.coffee_hrm.repository.EmployeeSkillTrainingFact;
 import com.example.coffee_hrm.repository.RoleRepository;
+import com.example.coffee_hrm.repository.ShiftAssignmentRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
+import com.example.coffee_hrm.repository.TrainingClassEnrollmentRepository;
 import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.EmployeeService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.example.coffee_hrm.dto.request.UpdateEmployeeRequest;
 import java.text.Collator;
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -47,6 +68,12 @@ public class EmployeeServiceImpl implements EmployeeService {
     static final String INACTIVE_ACCOUNT_CANNOT_BE_MANAGER =
             "Tài khoản của nhân viên đang bị khóa nên không thể chỉ định làm Manager";
     static final String ROLE_NOT_CONFIGURED = "Role %s chưa được cấu hình trong hệ thống";
+    static final String STORE_NOT_ASSIGNED = "Bạn chưa được phân công quản lý cửa hàng nào.";
+    static final String MANAGED_EMPLOYEE_NOT_FOUND = "Không tìm thấy nhân viên.";
+    private static final int UPCOMING_SHIFT_LIMIT = 8;
+    private static final int RECENT_ATTENDANCE_LIMIT = 10;
+    private static final DateTimeFormatter SHIFT_TIME = DateTimeFormatter.ofPattern("HH:mm");
+
     private final PasswordEncoder passwordEncoder;
     private static final Set<RoleName> ASSIGNABLE_ROLES = EnumSet.of(RoleName.MANAGER, RoleName.STAFF);
 
@@ -54,6 +81,9 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final StoreRepository storeRepository;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
+    private final ShiftAssignmentRepository shiftAssignmentRepository;
+    private final AttendanceRepository attendanceRepository;
+    private final TrainingClassEnrollmentRepository trainingClassEnrollmentRepository;
 
     @Override
     public List<EmployeeResponse> getAllEmployees(AuthenticatedUser actor) {
@@ -91,6 +121,37 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new BusinessException(EMPLOYEE_NOT_IN_STORE);
         }
         return toResponse(employee, employee.getUser(), store);
+    }
+
+    @Override
+    public ManagedEmployeeDirectory getManagedDirectory(AuthenticatedUser actor) {
+        Store store = requireManagedStore(actor);
+        List<EmployeeResponse> employees = orderedForStoreView(
+                employeeRepository.findByStoreIdWithAccount(store.getId()).stream()
+                        .map(employee -> toResponse(employee, employee.getUser(), store))
+                        .toList());
+        return toDirectory(store, employees);
+    }
+
+    @Override
+    public ManagedEmployeeDetail getManagedEmployee(AuthenticatedUser actor, Integer employeeId) {
+        Store store = requireManagedStore(actor);
+        Employee employee = employeeRepository.findByIdWithStoreAccount(employeeId)
+                .orElseThrow(() -> new BusinessException(MANAGED_EMPLOYEE_NOT_FOUND));
+        if (employee.getStore() == null || !store.getId().equals(employee.getStore().getId())) {
+            throw new BusinessException(EMPLOYEE_NOT_IN_STORE);
+        }
+        EmployeeResponse profile = toResponse(employee, employee.getUser(), store);
+        String certificationLabel = employee.getCertificationStatus() == null
+                ? null
+                : employee.getCertificationStatus().getLabel();
+        return new ManagedEmployeeDetail(
+                profile,
+                certificationLabel,
+                upcomingShifts(employee.getId()),
+                recentAttendances(employee.getId()),
+                participatedTrainings(employee.getId()),
+                skillLines(employee.getId()));
     }
 
     @Override
@@ -381,6 +442,181 @@ public class EmployeeServiceImpl implements EmployeeService {
     }
 
     /**
+     * Cửa hàng của Manager lấy từ {@code Stores.ManagerId}. Không dùng storeId trên request hay trong session.
+     */
+    private Store requireManagedStore(AuthenticatedUser actor) {
+        if (actor == null || actor.getRoleName() != RoleName.MANAGER || actor.getEmployeeId() == null) {
+            throw new BusinessException(ACCESS_DENIED);
+        }
+        Store managed = storeRepository.findByManager_Id(actor.getEmployeeId())
+                .orElseThrow(() -> new BusinessException(STORE_NOT_ASSIGNED));
+        return storeRepository.findByIdWithManager(managed.getId())
+                .orElseThrow(() -> new BusinessException(STORE_NOT_FOUND));
+    }
+
+    private ManagedEmployeeDirectory toDirectory(Store store, List<EmployeeResponse> employees) {
+        long managers = employees.stream().filter(EmployeeServiceImpl::isListedManager).count();
+        long staff = employees.stream().filter(EmployeeServiceImpl::isListedStaff).count();
+        long noAccount = employees.stream().filter(EmployeeServiceImpl::hasNoAccount).count();
+        return new ManagedEmployeeDirectory(
+                store.getId(),
+                store.getStoreName(),
+                store.getAddress(),
+                employees.size(),
+                countStatus(employees, EmployeeStatus.ACTIVE),
+                countStatus(employees, EmployeeStatus.ON_LEAVE),
+                countStatus(employees, EmployeeStatus.TERMINATED),
+                managers,
+                staff,
+                noAccount,
+                employees.size() - managers - staff - noAccount,
+                employees);
+    }
+
+    private static long countStatus(List<EmployeeResponse> employees, EmployeeStatus status) {
+        return employees.stream().filter(employee -> employee.getStatus() == status).count();
+    }
+
+    private static boolean isListedManager(EmployeeResponse employee) {
+        return storeViewRank(employee) == 0;
+    }
+
+    private static boolean isListedStaff(EmployeeResponse employee) {
+        return storeViewRank(employee) == 1;
+    }
+
+    private static boolean hasNoAccount(EmployeeResponse employee) {
+        return !isListedManager(employee) && employee.getRoleName() == null;
+    }
+
+    private List<ManagedEmployeeDetail.ShiftLine> upcomingShifts(Integer employeeId) {
+        return shiftAssignmentRepository.findUpcomingByEmployee(
+                        employeeId,
+                        VietnamTime.today(),
+                        AssignmentStatus.ASSIGNED,
+                        PageRequest.of(0, UPCOMING_SHIFT_LIMIT))
+                .stream()
+                .map(this::toShiftLine)
+                .toList();
+    }
+
+    private ManagedEmployeeDetail.ShiftLine toShiftLine(ShiftAssignment assignment) {
+        Shift shift = assignment.getShift();
+        return new ManagedEmployeeDetail.ShiftLine(
+                assignment.getWorkDate(),
+                shift == null ? null : shift.getShiftName(),
+                timeRange(shift == null ? null : shift.getStartTime(), shift == null ? null : shift.getEndTime()));
+    }
+
+    private List<ManagedEmployeeDetail.AttendanceLine> recentAttendances(Integer employeeId) {
+        return attendanceRepository.findRecentByEmployee(employeeId, PageRequest.of(0, RECENT_ATTENDANCE_LIMIT))
+                .stream()
+                .map(this::toAttendanceLine)
+                .toList();
+    }
+
+    private ManagedEmployeeDetail.AttendanceLine toAttendanceLine(Attendance attendance) {
+        Shift shift = attendance.getShift();
+        String shiftName = shift != null && shift.getShiftName() != null
+                ? shift.getShiftName()
+                : attendance.getScheduledShiftName();
+        return new ManagedEmployeeDetail.AttendanceLine(
+                attendance.getWorkDate(),
+                shiftName,
+                attendanceStatusLabel(attendance.getStatus()),
+                attendance.getCheckInTime(),
+                attendance.getCheckOutTime());
+    }
+
+    private List<ManagedEmployeeDetail.TrainingLine> participatedTrainings(Integer employeeId) {
+        return trainingClassEnrollmentRepository
+                .findParticipatedByEmployee(employeeId, TrainingClassStatus.REJECTED)
+                .stream()
+                .map(this::toTrainingLine)
+                .toList();
+    }
+
+    private ManagedEmployeeDetail.TrainingLine toTrainingLine(TrainingClassEnrollment enrollment) {
+        TrainingClass trainingClass = enrollment.getTrainingClass();
+        String resultLabel = enrollment.getResult() == null
+                ? "Chưa đánh giá"
+                : enrollment.getResult().getLabel();
+        String statusLabel = trainingClass.getStatus() == null
+                ? null
+                : trainingClass.getStatus().getLabel();
+        return new ManagedEmployeeDetail.TrainingLine(
+                trainingClass.getClassName(),
+                trainingClass.getStartDate(),
+                trainingClass.getEndDate(),
+                statusLabel,
+                resultLabel);
+    }
+
+    private List<ManagedEmployeeDetail.SkillLine> skillLines(Integer employeeId) {
+        Map<Integer, EmployeeSkillTrainingFact> bestBySkill = new LinkedHashMap<>();
+        for (EmployeeSkillTrainingFact fact : trainingClassEnrollmentRepository.findSkillTrainingFacts(
+                List.of(employeeId), TrainingClassStatus.REJECTED)) {
+            bestBySkill.merge(fact.getSkillId(), fact, EmployeeServiceImpl::preferSkillFact);
+        }
+        return bestBySkill.values().stream()
+                .map(fact -> new ManagedEmployeeDetail.SkillLine(fact.getSkillName(), skillStatusLabel(fact)))
+                .toList();
+    }
+
+    private static EmployeeSkillTrainingFact preferSkillFact(
+            EmployeeSkillTrainingFact current,
+            EmployeeSkillTrainingFact incoming) {
+        return skillRank(incoming) < skillRank(current) ? incoming : current;
+    }
+
+    private static int skillRank(EmployeeSkillTrainingFact fact) {
+        if (fact.getResult() == TrainingResult.PASS) {
+            return 0;
+        }
+        if (fact.getResult() == null) {
+            return 1;
+        }
+        return 2;
+    }
+
+    private static String skillStatusLabel(EmployeeSkillTrainingFact fact) {
+        if (fact.getResult() == TrainingResult.PASS) {
+            return "Đã đạt";
+        }
+        if (fact.getResult() == TrainingResult.NOT_PASS) {
+            return "Không đạt";
+        }
+        return "Đang học";
+    }
+
+    private static String attendanceStatusLabel(AttendanceStatus status) {
+        if (status == null) {
+            return null;
+        }
+        return switch (status) {
+            case PRESENT -> "Có mặt";
+            case ON_TIME -> "Đúng giờ";
+            case LATE -> "Đi muộn";
+            case EARLY_LEAVE -> "Về sớm";
+            case LATE_AND_EARLY -> "Đi muộn và về sớm";
+            case ABSENT -> "Vắng";
+        };
+    }
+
+    private static String timeRange(LocalTime start, LocalTime end) {
+        if (start == null && end == null) {
+            return null;
+        }
+        if (start == null) {
+            return SHIFT_TIME.format(end);
+        }
+        if (end == null) {
+            return SHIFT_TIME.format(start);
+        }
+        return SHIFT_TIME.format(start) + "–" + SHIFT_TIME.format(end);
+    }
+
+    /**
      * Manager của cửa hàng đứng trước Staff. Chỉ sắp xếp bản ghi trả về, không đổi role hay dữ liệu.
      */
     private List<EmployeeResponse> orderedForStoreView(List<EmployeeResponse> employees) {
@@ -420,7 +656,8 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .terminationDate(employee.getTerminationDate())
                 .createdAt(employee.getCreatedAt())
                 .userId(user != null ? user.getId() : null)
-                .roleName(user != null ? user.getRole().getRoleName() : null)
+                .roleName(user != null && user.getRole() != null ? user.getRole().getRoleName() : null)
+                .accountActive(user == null ? null : Boolean.TRUE.equals(user.getIsActive()))
                 .hasCertificate(Boolean.TRUE.equals(employee.getHasCertificate()))
                 .storeManager(manager != null && manager.getId().equals(employee.getId()))
                 .build();

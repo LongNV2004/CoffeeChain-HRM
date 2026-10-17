@@ -175,7 +175,7 @@
             </a>
         </div>
 
-        <!-- MANAGER: đúng 8 đường dẫn của navbar gốc. -->
+        <!-- MANAGER -->
         <div th:if="${role == 'manager'}" class="coffee-menu-section">
             <a class="coffee-menu-item" th:href="@{/dashboard/manager}"
                th:classappend="${active == 'dashboard'} ? ' is-active'" title="Tổng quan">
@@ -199,15 +199,16 @@
                     <a th:href="@{/manager/leaves}" th:classappend="${active == 'leave'} ? ' is-active'">Quản lý nghỉ phép</a>
                 </div>
             </div>
-            <div class="coffee-menu-group" th:classappend="${active == 'recruitment' or active == 'training'} ? ' is-open'">
+            <div class="coffee-menu-group" th:classappend="${active == 'employees' or active == 'recruitment' or active == 'training'} ? ' is-open'">
                 <button class="coffee-menu-item coffee-group-toggle" type="button"
                         data-group-toggle title="Nhân sự & đào tạo"
-                        th:attr="aria-expanded=${active == 'recruitment' or active == 'training'}">
+                        th:attr="aria-expanded=${active == 'employees' or active == 'recruitment' or active == 'training'}">
                     <svg class="coffee-icon"><use href="#coffee-i-people"/></svg>
                     <span class="coffee-side-label">Nhân sự &amp; đào tạo</span>
                     <svg class="coffee-icon coffee-chevron coffee-side-label"><use href="#coffee-i-chevron"/></svg>
                 </button>
                 <div class="coffee-group-children">
+                    <a th:href="@{/manager/employees}" th:classappend="${active == 'employees'} ? ' is-active'">Danh sách nhân sự</a>
                     <a th:href="@{/manager/recruitment}" th:classappend="${active == 'recruitment'} ? ' is-active'">Đề xuất tuyển nhân sự</a>
                     <a th:href="@{/training}" th:classappend="${active == 'training'} ? ' is-active'">Đào tạo</a>
                 </div>
