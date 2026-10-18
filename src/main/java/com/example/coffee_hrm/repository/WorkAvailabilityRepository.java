@@ -131,8 +131,10 @@ public interface WorkAvailabilityRepository extends JpaRepository<WorkAvailabili
     int deleteByIds(@Param("ids") Collection<Integer> ids);
 
     /**
-     * Đăng ký còn chiếm chỗ của một ca: chờ duyệt, hoặc đã duyệt và còn hiệu lực.
+     * Đăng ký còn có thể chiếm chỗ của một ca: chờ duyệt, hoặc đã duyệt và chưa hết hạn.
      * Bản từ chối không nằm trong {@code statuses}.
+     * Kết quả là tập ứng viên. Người gọi phải lọc thêm theo đúng ngày làm việc,
+     * vì một đăng ký của tuần này không chiếm chỗ của tuần khác.
      */
     @Query("""
             SELECT wa FROM WorkAvailability wa

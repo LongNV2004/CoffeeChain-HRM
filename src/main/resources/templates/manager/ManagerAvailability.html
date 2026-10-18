@@ -42,6 +42,9 @@
             Nhân viên xem lại các ca đó trên Lịch làm việc và nhận thông báo.
             Ca đã phân trùng đúng slot được giữ nguyên.
             Số lượng nhân viên tối đa của từng ca được cấu hình ở màn hình riêng.
+            Ô lịch chỉ liệt kê người đang chiếm chỗ trong
+            <strong th:text="${availabilityGrid.formattedWeekRange}">tuần kế tiếp</strong>.
+            Đăng ký của tuần khác không được tính vào tuần này.
         </p>
         <p class="muted" th:if="${#lists.isEmpty(availabilityGrid.shiftRows)}">
             Cửa hàng chưa có ca làm việc.

@@ -177,9 +177,14 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                 store.getId(), VietnamTime.today(), ApprovalStatus.PENDING);
 
         Map<String, List<WeeklyAvailabilityView.StaffProposal>> proposalsBySlot = new HashMap<>();
+        LocalDate weekStart = nextWeekMonday();
         for (WorkAvailability wa : visible) {
             Integer day = patternDay(wa);
-            if (day == null || wa.getShift() == null) {
+            if (day == null || wa.getShift() == null || wa.getShift().getId() == null) {
+                continue;
+            }
+            LocalDate occurrence = weekStart.plusDays(day - 1);
+            if (!occupiesSlot(wa, day, occurrence)) {
                 continue;
             }
             String key = slotKey(wa.getShift().getId(), day);
@@ -377,6 +382,22 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                         .shift(shift)
                         .dayOfWeek(dayOfWeek)
                         .build());
+        String label = slotLabel(shift, dayOfWeek);
+        List<WorkAvailability> rows = capacityCandidates(shiftId);
+        LocalDate nextOccurrence = nextWeekMonday().plusDays(dayOfWeek - 1);
+        UsageCount nextWeek = countOnDate(rows, dayOfWeek, nextOccurrence, Set.of(), null);
+        PeakOccupancy peak = peakOccupancy(rows, dayOfWeek, VietnamTime.today());
+        if (peak.occupied() > maxEmployees) {
+            throw new BusinessException(
+                    "Không lưu cấu hình. " + label + " ngày " + dateLabel(peak.date())
+                            + " đã có " + peak.occupied()
+                            + " đăng ký đang chiếm chỗ (đã duyệt " + peak.approved()
+                            + ", chờ duyệt " + peak.pending()
+                            + "), cao hơn mức " + maxEmployees
+                            + ". Hãy chọn sức chứa không thấp hơn số đăng ký đang chiếm chỗ. "
+                            + "Các đăng ký của nhân viên được giữ nguyên.");
+        }
+
         limit.setShift(shift);
         limit.setDayOfWeek(dayOfWeek);
         limit.setMaxEmployees(maxEmployees);
@@ -388,27 +409,18 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                     "Giới hạn cho ngày và ca này vừa được cập nhật. Hãy tải lại trang rồi thử lại.");
         }
 
-        UsageCount usage = countUsage(shiftId, dayOfWeek, Set.of());
-        String label = slotLabel(shift, dayOfWeek);
-        int occupied = usage.pending() + usage.approved();
-        if (occupied > maxEmployees) {
-            return new SlotLimitUpdateResult(
-                    "Đã cập nhật " + label + ": tối đa " + maxEmployees
-                            + " nhân viên. Hiện có " + occupied
-                            + " đăng ký hợp lệ (đã duyệt " + usage.approved()
-                            + ", chờ duyệt " + usage.pending()
-                            + "), cao hơn giới hạn mới. Các đăng ký đã duyệt và đang chờ được giữ nguyên. "
-                            + "Chưa nhận đăng ký mới cho đến khi số đăng ký hợp lệ thấp hơn giới hạn.",
-                    true);
+        int remaining = maxEmployees - nextWeek.pending() - nextWeek.approved();
+        String message = "Đã cập nhật " + label + ": tối đa " + maxEmployees
+                + " nhân viên cho mỗi tuần. Tuần kế tiếp ngày " + dateLabel(nextOccurrence)
+                + ": đã duyệt " + nextWeek.approved()
+                + ", chờ duyệt " + nextWeek.pending()
+                + ", còn " + remaining
+                + " chỗ. Sức chứa áp dụng riêng cho từng tuần.";
+        if (peak.date() != null && peak.occupied() > nextWeek.pending() + nextWeek.approved()) {
+            message += " Tuần đông nhất sắp tới (" + dateLabel(peak.date())
+                    + ") đang có " + peak.occupied() + " người.";
         }
-        int remaining = maxEmployees - occupied;
-        return new SlotLimitUpdateResult(
-                "Đã cập nhật " + label + ": tối đa " + maxEmployees
-                        + " nhân viên. Đã duyệt " + usage.approved()
-                        + ", chờ duyệt " + usage.pending()
-                        + ", còn " + remaining
-                        + " chỗ. Giới hạn được giữ cho các lần đăng ký sau, kể cả tuần và tháng tiếp theo, cho đến khi bạn đổi.",
-                false);
+        return new SlotLimitUpdateResult(message, false);
     }
 
     private void applyApprovedPattern(List<WorkAvailability> group, AuthenticatedUser manager) {
@@ -610,11 +622,14 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                                                     Set<String> selectedKeys,
                                                     Map<String, List<WeeklyAvailabilityView.StaffProposal>> proposalsBySlot,
                                                     Map<String, SlotUsage> usageBySlot) {
+        LocalDate weekStart = nextWeekMonday();
         List<WeeklyAvailabilityView.DayHeader> days = new ArrayList<>(7);
         for (int i = 0; i < 7; i++) {
+            LocalDate date = weekStart.plusDays(i);
             days.add(WeeklyAvailabilityView.DayHeader.builder()
+                    .date(date)
                     .dayOfWeekName(VI_DAYS[i])
-                    .formattedDate("Mỗi tuần")
+                    .formattedDate(date.format(FULL_DATE))
                     .build());
         }
 
@@ -623,9 +638,11 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
             List<WeeklyAvailabilityView.DayCell> cells = new ArrayList<>(7);
             for (int day = 1; day <= 7; day++) {
                 String key = slotKey(shift.getId(), day);
+                LocalDate occurrence = weekStart.plusDays(day - 1);
                 SlotUsage usage = usageBySlot.getOrDefault(key, new SlotUsage());
-                CellView capacity = describeCell(usage);
+                CellView capacity = describeCell(usage, occurrence);
                 cells.add(WeeklyAvailabilityView.DayCell.builder()
+                        .date(occurrence)
                         .shiftId(shift.getId())
                         .slotKey(key)
                         .dayOfWeek(day)
@@ -633,8 +650,8 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                         .selected(selectedKeys.contains(key))
                         .proposals(proposalsBySlot.getOrDefault(key, List.of()))
                         .maxEmployees(capacity.maxEmployees())
-                        .approvedCount(usage.approved)
-                        .pendingCount(usage.pending)
+                        .approvedCount(usage.approved())
+                        .pendingCount(usage.pending())
                         .remaining(capacity.remaining())
                         .remainingText(capacity.remainingText())
                         .configured(capacity.configured())
@@ -661,8 +678,10 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
         return WeeklyAvailabilityView.builder()
                 .storeId(store.getId())
                 .storeName(store.getStoreName())
-                .patternMode(true)
+                .weekStartDate(weekStart)
+                .weekEndDate(weekStart.plusDays(6))
                 .selectedCount(selectedCount)
+                .patternMode(false)
                 .days(days)
                 .shiftRows(rows)
                 .registrations(List.of())
@@ -935,8 +954,8 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
     }
 
     /**
-     * Số chỗ còn lại = tối đa − chờ duyệt − đã duyệt.
-     * Giá trị âm nghĩa là sau khi hạ giới hạn, số đăng ký hiện tại đang vượt mức mới.
+     * Số chỗ còn lại của một ngày = tối đa − chờ duyệt − đã duyệt của đúng ngày đó.
+     * Giá trị âm nghĩa là ngày đó đang có nhiều đăng ký hơn sức chứa.
      */
     static int remainingSeats(int maxEmployees, int pendingCount, int approvedCount) {
         return maxEmployees - pendingCount - approvedCount;
@@ -957,8 +976,16 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
         }
     }
 
-    static boolean occupiesSlot(WorkAvailability availability, int dayOfWeek, LocalDate today) {
-        if (availability == null || today == null || dayOfWeek < 1 || dayOfWeek > 7) {
+    /**
+     * Một đăng ký chiếm chỗ khi trạng thái là chờ duyệt hoặc đã duyệt
+     * và đúng ngày làm việc đó nằm trong thời hạn của đăng ký.
+     * Đăng ký từ chối, đã hết hạn, hoặc thuộc tuần khác không chiếm chỗ.
+     */
+    static boolean occupiesSlot(WorkAvailability availability, int dayOfWeek, LocalDate occurrenceDate) {
+        if (availability == null || occurrenceDate == null || dayOfWeek < 1 || dayOfWeek > 7) {
+            return false;
+        }
+        if (occurrenceDate.getDayOfWeek().getValue() != dayOfWeek) {
             return false;
         }
         ApprovalStatus status = availability.getStatus() != null ? availability.getStatus() : ApprovalStatus.PENDING;
@@ -966,22 +993,34 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
             return false;
         }
         if (availability.getDayOfWeek() != null) {
-            if (availability.getDayOfWeek() != dayOfWeek) {
+            if (!Objects.equals(availability.getDayOfWeek(), dayOfWeek)) {
                 return false;
             }
-            if (status == ApprovalStatus.PENDING) {
-                return true;
+            if (availability.getValidFrom() != null && occurrenceDate.isBefore(availability.getValidFrom())) {
+                return false;
             }
-            return availability.getValidTo() == null || !availability.getValidTo().isBefore(today);
+            return availability.getValidTo() == null || !occurrenceDate.isAfter(availability.getValidTo());
         }
-        LocalDate workDate = availability.getWorkDate();
-        if (workDate == null || workDate.getDayOfWeek().getValue() != dayOfWeek) {
-            return false;
+        return occurrenceDate.equals(availability.getWorkDate());
+    }
+
+    private void addSeat(Map<String, ApprovalStatus> seats, WorkAvailability row) {
+        ApprovalStatus status = resolveStatus(row.getStatus());
+        if (status != ApprovalStatus.PENDING && status != ApprovalStatus.APPROVED) {
+            return;
         }
-        if (status == ApprovalStatus.PENDING) {
-            return true;
+        String key = row.getEmployee() != null && row.getEmployee().getId() != null
+                ? employeeSeatKey(row.getEmployee().getId())
+                : "a:" + row.getId();
+        ApprovalStatus current = seats.get(key);
+        if (current == ApprovalStatus.APPROVED) {
+            return;
         }
-        return !workDate.isBefore(today);
+        seats.put(key, status == ApprovalStatus.APPROVED ? ApprovalStatus.APPROVED : ApprovalStatus.PENDING);
+    }
+
+    private static String employeeSeatKey(Integer employeeId) {
+        return "e:" + employeeId;
     }
 
     private void enforceSlotCapacity(PreparedRegistration prepared, Employee employee, boolean lockRows) {
@@ -1005,52 +1044,117 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                 throw new BusinessException(label
                         + " chưa có số lượng nhân viên tối đa. Bạn chưa thể đăng ký slot này.");
             }
-            UsageCount usage = countUsage(shiftId, slot.dayOfWeek(), replacedIds, employee.getId());
-            if (usage.duplicateEmployee()) {
-                throw new BusinessException("Bạn đã đăng ký " + label
-                        + ". Không tạo thêm đăng ký trùng cho slot này.");
+            List<WorkAvailability> rows = capacityCandidates(shiftId);
+            List<LocalDate> dates = AvailabilityCoverage.occurrences(
+                    slot.dayOfWeek(), prepared.validFrom(), prepared.validTo());
+            boolean checkedDate = false;
+            for (LocalDate date : dates) {
+                if (date.isBefore(VietnamTime.today())) {
+                    continue;
+                }
+                checkedDate = true;
+                UsageCount usage = countOnDate(rows, slot.dayOfWeek(), date, replacedIds, employee.getId());
+                if (usage.duplicateEmployee()) {
+                    throw new BusinessException("Bạn đã đăng ký " + label
+                            + " ngày " + date.format(FULL_DATE)
+                            + ". Không tạo thêm đăng ký trùng cho slot này.");
+                }
+                int occupied = usage.pending() + usage.approved();
+                if (occupied >= limit.getMaxEmployees()) {
+                    throw new BusinessException(label + " đã đủ số lượng nhân viên cho ngày "
+                            + date.format(FULL_DATE)
+                            + ". Tối đa " + limit.getMaxEmployees()
+                            + ", đã có " + usage.pending() + " đăng ký chờ duyệt và "
+                            + usage.approved() + " đăng ký đã duyệt. "
+                            + "Nếu bạn vừa thấy còn chỗ, người khác đã đăng ký trước.");
+                }
             }
-            int occupied = usage.pending() + usage.approved();
-            if (occupied >= limit.getMaxEmployees()) {
-                throw new BusinessException(label + " đã đủ người. Tối đa " + limit.getMaxEmployees()
-                        + ", đã có " + usage.pending() + " đăng ký chờ duyệt và "
-                        + usage.approved() + " đăng ký đã duyệt. "
-                        + "Nếu bạn vừa thấy còn chỗ, người khác đã đăng ký trước.");
+            if (!checkedDate) {
+                throw new BusinessException(label + " không có ngày nào trong thời hạn đã chọn.");
             }
         }
     }
 
-    private UsageCount countUsage(Integer shiftId, int dayOfWeek, Set<Integer> excludedIds) {
-        return countUsage(shiftId, dayOfWeek, excludedIds, null);
+    private List<WorkAvailability> capacityCandidates(Integer shiftId) {
+        return workAvailabilityRepository.findCapacityCandidatesByShift(
+                shiftId, VietnamTime.today(), ApprovalStatus.PENDING, OCCUPYING_STATUSES);
     }
 
-    private UsageCount countUsage(Integer shiftId,
-                                  int dayOfWeek,
-                                  Set<Integer> excludedIds,
-                                  Integer employeeId) {
-        LocalDate today = VietnamTime.today();
-        List<WorkAvailability> rows = workAvailabilityRepository.findCapacityCandidatesByShift(
-                shiftId, today, ApprovalStatus.PENDING, OCCUPYING_STATUSES);
-        int pending = 0;
-        int approved = 0;
-        boolean duplicateEmployee = false;
+    private UsageCount countOnDate(List<WorkAvailability> rows,
+                                   int dayOfWeek,
+                                   LocalDate date,
+                                   Set<Integer> excludedIds,
+                                   Integer employeeId) {
+        Map<String, ApprovalStatus> seats = new LinkedHashMap<>();
         for (WorkAvailability row : rows) {
             if (row.getId() != null && excludedIds.contains(row.getId())) {
                 continue;
             }
-            if (!occupiesSlot(row, dayOfWeek, today)) {
+            if (!occupiesSlot(row, dayOfWeek, date)) {
                 continue;
             }
-            if (resolveStatus(row.getStatus()) == ApprovalStatus.PENDING) {
-                pending++;
-            } else {
+            addSeat(seats, row);
+        }
+        int pending = 0;
+        int approved = 0;
+        for (ApprovalStatus status : seats.values()) {
+            if (status == ApprovalStatus.APPROVED) {
                 approved++;
-            }
-            if (employeeId != null && row.getEmployee() != null && employeeId.equals(row.getEmployee().getId())) {
-                duplicateEmployee = true;
+            } else {
+                pending++;
             }
         }
+        boolean duplicateEmployee = employeeId != null && seats.containsKey(employeeSeatKey(employeeId));
         return new UsageCount(pending, approved, duplicateEmployee);
+    }
+
+    private PeakOccupancy peakOccupancy(List<WorkAvailability> rows, int dayOfWeek, LocalDate fromDate) {
+        Map<LocalDate, Map<String, ApprovalStatus>> byDate = new HashMap<>();
+        for (WorkAvailability row : rows) {
+            for (LocalDate date : datesOccupied(row, dayOfWeek, fromDate)) {
+                addSeat(byDate.computeIfAbsent(date, ignored -> new LinkedHashMap<>()), row);
+            }
+        }
+        PeakOccupancy peak = new PeakOccupancy(null, 0, 0);
+        for (Map.Entry<LocalDate, Map<String, ApprovalStatus>> entry : byDate.entrySet()) {
+            int pending = 0;
+            int approved = 0;
+            for (ApprovalStatus status : entry.getValue().values()) {
+                if (status == ApprovalStatus.APPROVED) {
+                    approved++;
+                } else {
+                    pending++;
+                }
+            }
+            int occupied = pending + approved;
+            if (peak.date() == null || occupied > peak.occupied()
+                    || (occupied == peak.occupied() && entry.getKey().isBefore(peak.date()))) {
+                peak = new PeakOccupancy(entry.getKey(), pending, approved);
+            }
+        }
+        return peak;
+    }
+
+    private List<LocalDate> datesOccupied(WorkAvailability availability, int dayOfWeek, LocalDate fromDate) {
+        if (availability.getDayOfWeek() == null) {
+            LocalDate workDate = availability.getWorkDate();
+            if (workDate != null && !workDate.isBefore(fromDate) && occupiesSlot(availability, dayOfWeek, workDate)) {
+                return List.of(workDate);
+            }
+            return List.of();
+        }
+        if (!Objects.equals(availability.getDayOfWeek(), dayOfWeek)) {
+            return List.of();
+        }
+        LocalDate start = availability.getValidFrom();
+        if (start == null || start.isBefore(fromDate)) {
+            start = fromDate;
+        }
+        LocalDate end = availability.getValidTo() != null ? availability.getValidTo() : start.plusYears(2);
+        if (end.isBefore(start)) {
+            return List.of();
+        }
+        return AvailabilityCoverage.occurrences(dayOfWeek, start, end);
     }
 
     private Map<String, SlotUsage> loadSlotUsage(Integer storeId, Integer viewerEmployeeId) {
@@ -1062,44 +1166,44 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
             usage.computeIfAbsent(slotKey(limit.getShift().getId(), limit.getDayOfWeek()), ignored -> new SlotUsage())
                     .maxEmployees = limit.getMaxEmployees();
         }
-        LocalDate today = VietnamTime.today();
+        LocalDate weekStart = nextWeekMonday();
         List<WorkAvailability> rows = workAvailabilityRepository.findCapacityCandidatesByStore(
-                storeId, today, ApprovalStatus.PENDING, OCCUPYING_STATUSES);
+                storeId, VietnamTime.today(), ApprovalStatus.PENDING, OCCUPYING_STATUSES);
         for (WorkAvailability row : rows) {
             if (row.getShift() == null || row.getShift().getId() == null) {
                 continue;
             }
-            for (int day = 1; day <= 7; day++) {
-                if (!occupiesSlot(row, day, today)) {
-                    continue;
-                }
-                SlotUsage slot = usage.computeIfAbsent(slotKey(row.getShift().getId(), day), ignored -> new SlotUsage());
+            Integer day = patternDay(row);
+            if (day == null) {
+                continue;
+            }
+            LocalDate occurrence = weekStart.plusDays(day - 1);
+            if (!occupiesSlot(row, day, occurrence)) {
+                continue;
+            }
+            SlotUsage slot = usage.computeIfAbsent(slotKey(row.getShift().getId(), day), ignored -> new SlotUsage());
+            addSeat(slot.seats, row);
+            if (viewerEmployeeId != null && row.getEmployee() != null
+                    && viewerEmployeeId.equals(row.getEmployee().getId())) {
                 if (resolveStatus(row.getStatus()) == ApprovalStatus.PENDING) {
-                    slot.pending++;
+                    slot.viewerPending = true;
                 } else {
-                    slot.approved++;
-                }
-                if (viewerEmployeeId != null && row.getEmployee() != null
-                        && viewerEmployeeId.equals(row.getEmployee().getId())) {
-                    if (resolveStatus(row.getStatus()) == ApprovalStatus.PENDING) {
-                        slot.viewerPending = true;
-                    } else {
-                        slot.viewerApproved = true;
-                    }
+                    slot.viewerApproved = true;
                 }
             }
         }
         return usage;
     }
 
-    private CellView describeCell(SlotUsage usage) {
+    private CellView describeCell(SlotUsage usage, LocalDate occurrence) {
         boolean configured = usage.maxEmployees != null && usage.maxEmployees > 0;
-        int occupied = usage.pending + usage.approved;
-        int remaining = configured ? Math.max(0, remainingSeats(usage.maxEmployees, usage.pending, usage.approved)) : 0;
+        int occupied = usage.pending() + usage.approved();
+        int remaining = configured ? Math.max(0, remainingSeats(usage.maxEmployees, usage.pending(), usage.approved())) : 0;
         boolean over = configured && occupied > usage.maxEmployees;
         int occupiedAfterOwnReplacement = usage.viewerPending ? occupied - 1 : occupied;
         boolean fits = configured && occupiedAfterOwnReplacement < usage.maxEmployees;
         boolean closed = !configured || usage.viewerApproved || !fits;
+        String dateText = dateLabel(occurrence);
         String key;
         String label;
         String hint;
@@ -1113,15 +1217,15 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
             hint = usage.viewerApproved
                     ? "Bạn đã đăng ký slot này. Slot đang vượt giới hạn nên tạm ngưng nhận thêm."
                     : "Đã vượt " + (occupied - usage.maxEmployees)
-                    + " đăng ký so với giới hạn. Tạm ngưng nhận đăng ký mới.";
+                    + " đăng ký so với giới hạn ngày " + dateText + ". Tạm ngưng nhận đăng ký mới.";
         } else if (remaining == 0) {
             key = "full";
             label = "Đã đủ người";
             hint = usage.viewerApproved
                     ? "Bạn đã đăng ký slot này."
                     : usage.viewerPending
-                    ? "Slot đã đủ người. Bạn có thể gửi lại đăng ký đang chờ của mình."
-                    : "Đã đủ người.";
+                    ? "Slot đã đủ người cho ngày " + dateText + ". Bạn có thể gửi lại đăng ký đang chờ của mình."
+                    : "Đã đủ số lượng nhân viên cho ngày " + dateText + ".";
         } else if (usage.viewerApproved) {
             key = "open";
             label = "Còn chỗ";
@@ -1129,11 +1233,11 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
         } else if (usage.viewerPending) {
             key = "open";
             label = "Còn chỗ";
-            hint = "Đăng ký của bạn đang chờ duyệt. Còn " + remaining + " chỗ.";
+            hint = "Đăng ký của bạn đang chờ duyệt. Còn " + remaining + " chỗ cho ngày " + dateText + ".";
         } else {
             key = "open";
             label = "Còn chỗ";
-            hint = "Còn " + remaining + " chỗ.";
+            hint = "Còn " + remaining + " chỗ cho ngày " + dateText + ".";
         }
         return new CellView(
                 configured ? usage.maxEmployees : null,
@@ -1169,6 +1273,12 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
     private record UsageCount(int pending, int approved, boolean duplicateEmployee) {
     }
 
+    private record PeakOccupancy(LocalDate date, int pending, int approved) {
+        private int occupied() {
+            return pending + approved;
+        }
+    }
+
     private record CellView(Integer maxEmployees,
                             int remaining,
                             String remainingText,
@@ -1182,9 +1292,28 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
 
     private static final class SlotUsage {
         private Integer maxEmployees;
-        private int pending;
-        private int approved;
+        private final Map<String, ApprovalStatus> seats = new LinkedHashMap<>();
         private boolean viewerPending;
         private boolean viewerApproved;
+
+        private int pending() {
+            int count = 0;
+            for (ApprovalStatus status : seats.values()) {
+                if (status == ApprovalStatus.PENDING) {
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        private int approved() {
+            int count = 0;
+            for (ApprovalStatus status : seats.values()) {
+                if (status == ApprovalStatus.APPROVED) {
+                    count++;
+                }
+            }
+            return count;
+        }
     }
 }

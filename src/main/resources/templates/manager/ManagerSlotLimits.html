@@ -35,9 +35,12 @@
             </div>
         </div>
         <p>
-            Mỗi ô là một thứ và một ca của cửa hàng này. Giới hạn giữ nguyên cho các tuần và tháng sau
-            cho đến khi bạn đổi, kể cả khi các ca cùng tên. Nếu hạ giới hạn xuống thấp hơn số đăng ký
-            đã duyệt và đang chờ, đăng ký cũ được giữ nguyên và ô đó tạm ngưng nhận thêm.
+            Mỗi ô là một thứ và một ca. Sức chứa tối đa áp dụng cho từng tuần, không phải cho riêng tuần hiện tại.
+            Số đã duyệt, chờ duyệt và còn lại trên ô là của
+            <strong th:text="${availabilityGrid.formattedWeekRange}">tuần kế tiếp</strong>.
+            Đăng ký chờ duyệt và đã duyệt đều chiếm chỗ của đúng ngày đó; đăng ký từ chối không chiếm chỗ.
+            Nếu mức mới thấp hơn số đăng ký đang chiếm chỗ của một ngày từ hôm nay trở đi,
+            cấu hình không được lưu và đăng ký của nhân viên được giữ nguyên.
         </p>
         <p>
             Mỗi ca được cấu hình từ 1 đến
