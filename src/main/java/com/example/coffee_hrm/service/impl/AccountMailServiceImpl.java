@@ -11,6 +11,8 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.regex.Pattern;
 
 @Slf4j
@@ -18,7 +20,9 @@ import java.util.regex.Pattern;
 public class AccountMailServiceImpl implements AccountMailService {
 
     static final String REJECTION_SUBJECT = "Thông báo kết quả tuyển dụng – CoffeeHRM";
+    static final String RESIGNATION_DECISION_SUBJECT = "Thông báo quyết định nghỉ việc – CoffeeHRM";
     static final String MANAGER_SUBJECT = "Thông tin tài khoản quản lý CoffeeHRM.";
+    private static final DateTimeFormatter DECISION_TIME = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
     private static final String MANAGER_MAIL_FAILURE = "Không gửi được email thông tin tài khoản quản lý.";
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
 
@@ -129,6 +133,107 @@ public class AccountMailServiceImpl implements AccountMailService {
         }
     }
 
+    @Override
+    public boolean sendResignationNotice(String toEmail, String recipientName, String subject, String body) {
+        String recipient = normalizeRecipient(toEmail);
+        if (recipient == null) {
+            log.error("Không gửi email đề xuất nghỉ việc cho {}: địa chỉ email thiếu hoặc không hợp lệ [{}]",
+                    displayName(recipientName), toEmail);
+            return false;
+        }
+        JavaMailSender mailSender = mailSenders.getIfAvailable();
+        if (mailSender == null) {
+            log.error("Không gửi được email đề xuất nghỉ việc tới {}: chưa cấu hình spring.mail.host", recipient);
+            return false;
+        }
+        String from = resolveFrom();
+        if (from == null) {
+            log.error("Không gửi được email đề xuất nghỉ việc tới {}: thiếu địa chỉ người gửi", recipient);
+            return false;
+        }
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+            helper.setFrom(from);
+            helper.setTo(recipient);
+            helper.setSubject(subject == null || subject.isBlank() ? "CoffeeHRM - Đề xuất nghỉ việc" : subject.trim());
+            helper.setText(buildResignationBody(recipientName, body));
+            mailSender.send(message);
+            log.info("Đã gửi email đề xuất nghỉ việc tới {}", recipient);
+            return true;
+        } catch (MessagingException | RuntimeException ex) {
+            log.error("Gửi email đề xuất nghỉ việc thất bại tới {}", recipient, ex);
+            return false;
+        }
+    }
+
+    @Override
+    public boolean sendResignationDecision(String toEmail, String employeeName, String storeName, LocalDateTime decidedAt) {
+        String recipient = normalizeRecipient(toEmail);
+        if (recipient == null) {
+            log.error("Không gửi email quyết định nghỉ việc cho {}: địa chỉ email thiếu hoặc không hợp lệ",
+                    displayName(employeeName));
+            return false;
+        }
+        JavaMailSender mailSender = mailSenders.getIfAvailable();
+        if (mailSender == null) {
+            log.error("Không gửi được email quyết định nghỉ việc tới {}: chưa cấu hình spring.mail.host", recipient);
+            return false;
+        }
+        String from = resolveFrom();
+        if (from == null) {
+            log.error("Không gửi được email quyết định nghỉ việc tới {}: thiếu địa chỉ người gửi", recipient);
+            return false;
+        }
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+            helper.setFrom(from);
+            helper.setTo(recipient);
+            helper.setSubject(RESIGNATION_DECISION_SUBJECT);
+            helper.setText(buildResignationDecisionBody(employeeName, storeName, decidedAt));
+            mailSender.send(message);
+            log.info("Đã gửi email quyết định nghỉ việc tới {}", recipient);
+            return true;
+        } catch (MessagingException | RuntimeException ex) {
+            log.error("Gửi email quyết định nghỉ việc thất bại tới {}", recipient, ex);
+            return false;
+        }
+    }
+
+    private String buildResignationDecisionBody(String employeeName, String storeName, LocalDateTime decidedAt) {
+        String name = employeeName == null || employeeName.isBlank() ? "bạn" : employeeName.trim();
+        String store = storeName == null || storeName.isBlank() ? "cửa hàng" : storeName.trim();
+        String when = decidedAt == null ? "không xác định" : decidedAt.format(DECISION_TIME);
+        return """
+                Kính gửi %s,
+
+                Đề xuất nghỉ việc của bạn tại cửa hàng %s đã được Admin phê duyệt.
+
+                Thời điểm ghi nhận quyết định: %s.
+
+                Theo quyết định này, trạng thái làm việc của bạn được cập nhật thành đã nghỉ việc và tài khoản đăng nhập CoffeeHRM được vô hiệu hóa. Hồ sơ nhân sự cùng dữ liệu lịch sử vẫn được lưu trên hệ thống.
+
+                Cảm ơn bạn đã đồng hành cùng CoffeeHRM. Nếu cần hỗ trợ thêm, vui lòng liên hệ Manager cửa hàng hoặc bộ phận quản lý.
+
+                Trân trọng,
+                CoffeeHRM
+                """.formatted(name, store, when);
+    }
+
+    private String buildResignationBody(String recipientName, String body) {
+        String name = recipientName == null || recipientName.isBlank() ? "bạn" : recipientName.trim();
+        String content = body == null ? "" : body.trim();
+        return """
+                Xin chào %s,
+
+                %s
+
+                Trân trọng,
+                CoffeeHRM
+                """.formatted(name, content);
+    }
+
     private String resolveFrom() {
         if (fromAddress != null && !fromAddress.isBlank()) {
             return fromAddress.trim();
@@ -144,17 +249,16 @@ public class AccountMailServiceImpl implements AccountMailService {
                 Xin chào %s,
 
                 Chúc mừng bạn đã trúng tuyển !
-                Bạn đã được tạo tài khoản CoffeeHRM.
+                Tài khoản email bên dưới được dùng để đăng nhập CoffeeHRM.
+                Nếu bạn từng nghỉ việc, đây là mật khẩu mới: mật khẩu cũ không còn dùng được.
 
-                Thông tin đăng nhập:
-
-                Email:
+                Email đăng nhập:
                 %s
 
-                Mật khẩu:
+                Mật khẩu mới:
                 %s
 
-                Vui lòng sử dụng thông tin trên để đăng nhập vào hệ thống.
+                Hãy nhập đúng email và mật khẩu mới này trên trang đăng nhập.
                 Đăng nhập tại: %s
 
                 Trân trọng,

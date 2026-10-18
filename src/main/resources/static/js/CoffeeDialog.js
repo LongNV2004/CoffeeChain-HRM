@@ -35,7 +35,10 @@
     const reasonInput = document.createElement('textarea');
     reasonInput.rows = 3;
     reasonInput.maxLength = 500;
-    reasonWrap.append(reasonLabel, reasonInput);
+    const reasonError = document.createElement('small');
+    reasonError.className = 'coffee-confirm-reason-error';
+    reasonError.hidden = true;
+    reasonWrap.append(reasonLabel, reasonInput, reasonError);
 
     const actions = document.createElement('div');
     actions.className = 'coffee-confirm-actions';
@@ -67,6 +70,8 @@
         dialog.hidden = true;
         reasonWrap.hidden = true;
         reasonInput.value = '';
+        reasonError.hidden = true;
+        reasonInput.removeAttribute('data-required');
         document.body.classList.remove('coffee-dialog-open');
         const resolve = resolver;
         resolver = null;
@@ -93,6 +98,9 @@
             reasonInput.placeholder = settings.reasonPlaceholder || 'Nhập lý do nếu muốn';
             reasonInput.maxLength = settings.reasonMaxLength || 500;
             reasonInput.value = '';
+            reasonError.hidden = true;
+            if (settings.reasonRequired) reasonInput.setAttribute('data-required', 'true');
+            else reasonInput.removeAttribute('data-required');
             lastFocused = document.activeElement;
             dialog.hidden = false;
             document.body.classList.add('coffee-dialog-open');
@@ -136,6 +144,7 @@
             cancelText: attribute(submitter, 'data-coffee-cancel') || attribute(form, 'data-coffee-cancel') || 'Hủy',
             tone: attribute(submitter, 'data-coffee-tone') || attribute(form, 'data-coffee-tone') || undefined,
             reason: !!reasonName,
+            reasonRequired: (attribute(submitter, 'data-coffee-reason-required') || attribute(form, 'data-coffee-reason-required')) === 'true',
             reasonLabel: attribute(submitter, 'data-coffee-reason-label') || attribute(form, 'data-coffee-reason-label') || 'Lý do (không bắt buộc)',
             reasonPlaceholder: attribute(submitter, 'data-coffee-reason-placeholder') || attribute(form, 'data-coffee-reason-placeholder') || 'Nhập lý do nếu muốn'
         }).then(function (accepted) {
@@ -159,7 +168,16 @@
 
     backdrop.addEventListener('click', function () { finish(false); });
     cancelButton.addEventListener('click', function () { finish(false); });
-    confirmButton.addEventListener('click', function () { finish(true); });
+    reasonInput.addEventListener('input', function () { reasonError.hidden = true; });
+    confirmButton.addEventListener('click', function () {
+        if (reasonInput.getAttribute('data-required') === 'true' && reasonInput.value.trim() === '') {
+            reasonError.hidden = false;
+            reasonError.textContent = 'Vui lòng nhập lý do từ chối.';
+            reasonInput.focus();
+            return;
+        }
+        finish(true);
+    });
     dialog.addEventListener('keydown', function (event) {
         if (dialog.hidden) return;
         if (event.key === 'Escape') {

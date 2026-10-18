@@ -63,7 +63,10 @@
                     <td colspan="9" class="empty">Đề xuất chưa có nhân viên.</td>
                 </tr>
                 <tr th:each="candidate : ${request.candidates}">
-                    <td th:text="${candidate.fullName}">Nguyễn Văn A</td>
+                    <td>
+                        <div th:text="${candidate.fullName}">Nguyễn Văn A</div>
+                        <div class="muted" th:if="${candidate.kindLabel != null}" th:text="${candidate.kindLabel}">Tái tuyển dụng</div>
+                    </td>
                     <td class="nowrap" th:text="${candidate.dateOfBirth != null} ? ${#temporals.format(candidate.dateOfBirth, 'dd/MM/yyyy')} : '—'">—</td>
                     <td th:text="${candidate.genderLabel != null ? candidate.genderLabel : '—'}">—</td>
                     <td th:text="${candidate.email}">a@shop.vn</td>
@@ -79,7 +82,7 @@
                         <div th:if="${candidate.status.name() == 'PENDING'}" class="candidate-decide">
                             <form th:action="@{/admin/recruitment/{id}/candidates/{candidateId}/approve(id=${request.id}, candidateId=${candidate.id})}"
                                   method="post"
-                                  data-coffee-confirm="Duyệt nhân viên này, tạo tài khoản Staff và gửi mật khẩu qua email?"
+                                  th:attr="data-coffee-confirm=${candidate.rehire} ? 'Duyệt tuyển dụng lại, kích hoạt hồ sơ và tài khoản cũ, gán cửa hàng rồi gửi mật khẩu mới qua email?' : 'Duyệt nhân viên này, tạo tài khoản Staff và gửi mật khẩu qua email?'"
                                   data-coffee-title="Duyệt nhân viên"
                                   data-coffee-ok="Duyệt">
                                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
@@ -104,7 +107,7 @@
                 </tbody>
             </table>
         </div>
-        <p class="muted">Duyệt tạo nhân viên, tài khoản STAFF và gửi mật khẩu tạm thời tới email của đúng người đó. Nhân viên bị từ chối không được tạo tài khoản.</p>
+        <p class="muted">Duyệt ứng viên mới sẽ tạo hồ sơ và tài khoản STAFF. Duyệt tuyển dụng lại kích hoạt đúng hồ sơ và tài khoản cũ, không tạo tài khoản trùng, rồi gửi mật khẩu mới. Từ chối không mở lại tài khoản đã nghỉ việc.</p>
         <p class="muted"><a class="back-link" th:href="@{/admin/recruitment}">Quay lại danh sách</a></p>
     </section>
 </main>

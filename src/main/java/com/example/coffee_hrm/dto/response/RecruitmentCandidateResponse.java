@@ -29,4 +29,6 @@ public class RecruitmentCandidateResponse {
     private String rejectReason;
     private LocalDateTime reviewedAt;
     private Integer createdEmployeeId;
+    private boolean rehire;
+    private String kindLabel;
 }

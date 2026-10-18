@@ -11,8 +11,11 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import com.example.coffee_hrm.repository.UserRepository;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.authentication.rememberme.RememberMeAuthenticationFilter;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 
@@ -34,6 +37,11 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public EmploymentAccessFilter employmentAccessFilter(ObjectProvider<UserRepository> userRepositories) {
+        return new EmploymentAccessFilter(userRepositories);
     }
 
     @Bean
@@ -66,7 +74,8 @@ public class SecurityConfig {
             HttpSecurity http,
             CoffeeRememberMeServices rememberMeServices,
             SecurityContextRepository securityContextRepository,
-            AccessDeniedHandler accessDeniedHandler)
+            AccessDeniedHandler accessDeniedHandler,
+            EmploymentAccessFilter employmentAccessFilter)
             throws Exception {
 
         http.securityContext(context -> context.securityContextRepository(securityContextRepository))
@@ -130,6 +139,8 @@ public class SecurityConfig {
                                                 (request, response, authException) ->
                                                         response.sendRedirect(request.getContextPath() + "/login"))
                                         .accessDeniedHandler(accessDeniedHandler));
+
+        http.addFilterAfter(employmentAccessFilter, RememberMeAuthenticationFilter.class);
 
         return http.build();
     }

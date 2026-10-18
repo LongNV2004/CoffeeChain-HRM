@@ -145,10 +145,10 @@
                 <svg class="coffee-icon"><use href="#coffee-i-store"/></svg>
                 <span class="coffee-side-label">Quản lý cửa hàng</span>
             </a>
-            <div class="coffee-menu-group" th:classappend="${active == 'employees' or active == 'recruitment' or active == 'training'} ? ' is-open'">
+            <div class="coffee-menu-group" th:classappend="${active == 'employees' or active == 'recruitment' or active == 'resignation' or active == 'training'} ? ' is-open'">
                 <button type="button" class="coffee-menu-item coffee-group-toggle"
                         data-group-toggle title="Quản lý nhân sự"
-                        th:attr="aria-expanded=${active == 'employees' or active == 'recruitment' or active == 'training'}">
+                        th:attr="aria-expanded=${active == 'employees' or active == 'recruitment' or active == 'resignation' or active == 'training'}">
                     <svg class="coffee-icon"><use href="#coffee-i-people"/></svg>
                     <span class="coffee-side-label">Quản lý nhân sự</span>
                     <svg class="coffee-icon coffee-chevron coffee-side-label"><use href="#coffee-i-chevron"/></svg>
@@ -159,6 +159,11 @@
                         Duyệt đề xuất tuyển nhân sự
                         <span class="coffee-menu-count" th:if="${pendingRecruitments != null and pendingRecruitments > 0}"
                               th:text="'(' + ${pendingRecruitments} + ')'">(1)</span>
+                    </a>
+                    <a th:href="@{/admin/resignation}" th:classappend="${active == 'resignation'} ? ' is-active'">
+                        Duyệt đề xuất nghỉ việc
+                        <span class="coffee-menu-count" th:if="${pendingResignations != null and pendingResignations > 0}"
+                              th:text="'(' + ${pendingResignations} + ')'">(1)</span>
                     </a>
                     <a th:href="@{/admin/training}" th:classappend="${active == 'training'} ? ' is-active'">Đào tạo</a>
                 </div>
@@ -199,10 +204,10 @@
                     <a th:href="@{/manager/leaves}" th:classappend="${active == 'leave'} ? ' is-active'">Quản lý nghỉ phép</a>
                 </div>
             </div>
-            <div class="coffee-menu-group" th:classappend="${active == 'employees' or active == 'recruitment' or active == 'training'} ? ' is-open'">
+            <div class="coffee-menu-group" th:classappend="${active == 'employees' or active == 'recruitment' or active == 'resignation' or active == 'training'} ? ' is-open'">
                 <button class="coffee-menu-item coffee-group-toggle" type="button"
                         data-group-toggle title="Nhân sự & đào tạo"
-                        th:attr="aria-expanded=${active == 'employees' or active == 'recruitment' or active == 'training'}">
+                        th:attr="aria-expanded=${active == 'employees' or active == 'recruitment' or active == 'resignation' or active == 'training'}">
                     <svg class="coffee-icon"><use href="#coffee-i-people"/></svg>
                     <span class="coffee-side-label">Nhân sự &amp; đào tạo</span>
                     <svg class="coffee-icon coffee-chevron coffee-side-label"><use href="#coffee-i-chevron"/></svg>
@@ -210,6 +215,7 @@
                 <div class="coffee-group-children">
                     <a th:href="@{/manager/employees}" th:classappend="${active == 'employees'} ? ' is-active'">Danh sách nhân sự</a>
                     <a th:href="@{/manager/recruitment}" th:classappend="${active == 'recruitment'} ? ' is-active'">Đề xuất tuyển nhân sự</a>
+                    <a th:href="@{/manager/resignation}" th:classappend="${active == 'resignation'} ? ' is-active'">Đề xuất nghỉ việc nhân sự</a>
                     <a th:href="@{/training}" th:classappend="${active == 'training'} ? ' is-active'">Đào tạo</a>
                 </div>
             </div>
@@ -309,6 +315,7 @@
             <span th:case="'stores'">Cửa hàng</span>
             <span th:case="'employees'">Nhân sự</span>
             <span th:case="'recruitment'">Tuyển dụng</span>
+            <span th:case="'resignation'">Đề xuất nghỉ việc</span>
             <span th:case="'training'">Đào tạo</span>
             <span th:case="'attendance'">Chấm công</span>
             <span th:case="'reports'">Báo cáo</span>

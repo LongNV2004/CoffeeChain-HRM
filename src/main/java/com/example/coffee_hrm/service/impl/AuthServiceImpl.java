@@ -1,9 +1,11 @@
 package com.example.coffee_hrm.service.impl;
 
+import com.example.coffee_hrm.common.exception.EmploymentEndedException;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.LoginRequest;
 import com.example.coffee_hrm.dto.response.LoginResponse;
 import com.example.coffee_hrm.entity.User;
+import com.example.coffee_hrm.security.StaffEmploymentGuard;
 import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.security.CoffeeRememberMeServices;
@@ -38,10 +40,13 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public LoginResponse authenticate(LoginRequest request, HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
-        User user = userRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> new BadCredentialsException(LOGIN_FAILED_MESSAGE));
+        User user = resolveAccount(request.getUsername());
 
-        if (!Boolean.TRUE.equals(user.getIsActive())) {
+        StaffEmploymentGuard.Block block = StaffEmploymentGuard.assess(user);
+        if (block == StaffEmploymentGuard.Block.EMPLOYMENT_ENDED) {
+            throw new EmploymentEndedException();
+        }
+        if (block == StaffEmploymentGuard.Block.INACTIVE) {
             throw new DisabledException("Tài khoản đã bị vô hiệu hóa.");
         }
 
@@ -91,9 +96,26 @@ public class AuthServiceImpl implements AuthService {
         SecurityContextHolder.clearContext();
     }
 
+    private User resolveAccount(String login) {
+        return userRepository.findByUsername(login)
+                .or(() -> userRepository.findByEmployeeEmail(login).stream().findFirst())
+                .orElseThrow(() -> new BadCredentialsException(LOGIN_FAILED_MESSAGE));
+    }
+
     private boolean matchesPassword(String rawPassword, User user) {
+        if (matchesStored(rawPassword, user)) {
+            return true;
+        }
+        if (rawPassword == null) {
+            return false;
+        }
+        String trimmed = rawPassword.trim();
+        return !trimmed.equals(rawPassword) && !trimmed.isEmpty() && matchesStored(trimmed, user);
+    }
+
+    private boolean matchesStored(String rawPassword, User user) {
         String stored = user.getPasswordHash();
-        if (stored == null || stored.isBlank()) {
+        if (rawPassword == null || rawPassword.isEmpty() || stored == null || stored.isBlank()) {
             return false;
         }
         if (isBcryptHash(stored)) {

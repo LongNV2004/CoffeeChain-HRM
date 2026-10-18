@@ -55,12 +55,12 @@ class AccountMailServiceImplTest {
         String body = message.getContent().toString();
         assertTrue(body.contains("Xin chào An Nguyễn"));
         assertTrue(body.contains("Chúc mừng bạn đã trúng tuyển !"));
-        assertTrue(body.contains("Bạn đã được tạo tài khoản CoffeeHRM."));
-        assertTrue(body.contains("Email:"));
+        assertTrue(body.contains("mật khẩu cũ không còn dùng được"));
+        assertTrue(body.contains("Email đăng nhập:"));
         assertTrue(body.contains("staff@shop.vn"));
-        assertTrue(body.contains("Mật khẩu:"));
+        assertTrue(body.contains("Mật khẩu mới:"));
         assertTrue(body.contains("Abcd123!"));
-        assertTrue(body.contains("Vui lòng sử dụng thông tin trên để đăng nhập vào hệ thống."));
+        assertTrue(body.contains("Hãy nhập đúng email và mật khẩu mới này trên trang đăng nhập."));
         assertTrue(body.contains("http://localhost:8081/login"));
     }
 

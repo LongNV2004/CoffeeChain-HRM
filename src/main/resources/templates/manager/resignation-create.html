@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tạo đề xuất nghỉ việc — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
+</head>
+<body>
+<header th:replace="~{fragments/navbar :: manager('resignation')}"></header>
+<main class="wrap dash-main recruit-page">
+    <section class="welcome">
+        <div class="eyebrow">Cửa hàng — Manager</div>
+        <h1>Tạo đề xuất nghỉ việc</h1>
+        <p>Thêm một hoặc nhiều nhân sự của cửa hàng bạn đang quản lý. Mỗi người có lý do riêng. Gửi một lần cho Admin.</p>
+    </section>
+
+    <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}"></p>
+    <p class="recruit-empty" th:if="${storeName == null}">Bạn chưa được gán làm quản lý cửa hàng nên chưa thể gửi đề xuất.</p>
+
+    <form th:if="${storeName != null}"
+          id="resignation-form"
+          class="stack-form recruit-form"
+          th:action="@{/manager/resignation/create}"
+          th:object="${form}"
+          method="post"
+          data-coffee-confirm="Gửi toàn bộ danh sách nhân sự cho Admin xem xét? Sau khi gửi, bạn không sửa hoặc xóa đề xuất này."
+          data-coffee-title="Gửi đề xuất nghỉ việc"
+          data-coffee-ok="Gửi đề xuất">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+        <div id="item-fields"></div>
+
+        <section class="panel recruit-card">
+            <h2>Thông tin đề xuất</h2>
+            <div class="recruit-store">
+                <span>Cửa hàng</span>
+                <strong th:text="${storeName}">Cửa hàng</strong>
+            </div>
+            <div class="recruit-grid">
+                <label>
+                    <span class="field-label">Tên đề xuất <span class="req">*</span></span>
+                    <input type="text" th:field="*{title}" maxlength="150" placeholder="Điều chỉnh nhân sự tháng 10" required>
+                    <span class="field-error" id="error-title" hidden></span>
+                    <span class="field-error" th:if="${#fields.hasErrors('title')}" th:errors="*{title}"></span>
+                </label>
+                <label>
+                    <span class="field-label">Ghi chú chung</span>
+                    <input type="text" th:field="*{note}" maxlength="500" placeholder="Không bắt buộc">
+                    <span class="field-error" th:if="${#fields.hasErrors('note')}" th:errors="*{note}"></span>
+                </label>
+            </div>
+        </section>
+
+        <section class="panel recruit-card entry-panel" aria-labelledby="entry-title">
+            <div class="candidate-section-head">
+                <h2 id="entry-title">Thêm nhân sự</h2>
+                <p>Chọn nhân viên thuộc cửa hàng, nhập lý do, rồi bấm Thêm nhân sự. Có thể thêm nhiều người trong cùng một đề xuất.</p>
+            </div>
+            <p id="entry-status" class="entry-status" hidden>Đang sửa một dòng trong danh sách.</p>
+            <p id="draft-error" class="draft-error" role="alert" hidden></p>
+            <div class="recruit-grid">
+                <label for="draft-employee">
+                    <span class="field-label">Nhân viên <span class="req">*</span></span>
+                    <select id="draft-employee">
+                        <option value="">Chọn nhân viên</option>
+                    </select>
+                </label>
+                <label>
+                    <span class="field-label">Chức vụ</span>
+                    <input id="draft-position" type="text" readonly value="Chọn nhân viên để hiện chức vụ">
+                </label>
+                <label class="recruit-span" for="draft-reason">
+                    <span class="field-label">Lý do đề xuất nghỉ việc <span class="req">*</span></span>
+                    <textarea id="draft-reason" maxlength="500" rows="2" placeholder="Lý do riêng của nhân sự này"></textarea>
+                </label>
+                <label class="recruit-span" for="draft-note">
+                    <span class="field-label">Ghi chú riêng</span>
+                    <textarea id="draft-note" maxlength="500" rows="2" placeholder="Không bắt buộc"></textarea>
+                </label>
+            </div>
+            <div class="form-actions entry-actions">
+                <button id="add-item" class="primary-btn" type="button">Thêm nhân sự</button>
+                <button id="cancel-edit" class="ghost-btn" type="button" hidden>Hủy sửa</button>
+            </div>
+        </section>
+
+        <section class="panel recruit-card" aria-labelledby="list-title">
+            <div class="candidate-head">
+                <h2 id="list-title">Danh sách nhân sự</h2>
+                <span id="item-count" class="badge">Đang có 0 nhân sự trong danh sách</span>
+            </div>
+            <div th:if="${#fields.hasErrors('items*')}" class="draft-error">
+                <p th:each="err : ${#fields.errors('items*')}" th:text="${err}">Lỗi nhân sự</p>
+            </div>
+            <p id="list-error" class="draft-error" role="alert" hidden></p>
+            <div id="item-list"></div>
+        </section>
+
+        <div class="form-actions recruit-submit-bar">
+            <button id="submit-proposal" class="primary-btn" type="submit" disabled>Gửi đề xuất</button>
+            <a class="ghost-btn" th:href="@{/manager/resignation}">Quay lại</a>
+            <p id="submit-hint" class="muted submit-hint">Vui lòng thêm ít nhất một nhân sự vào danh sách.</p>
+        </div>
+    </form>
+
+    <p id="resign-toast" class="recruit-toast" role="status" aria-live="polite" hidden></p>
+    <dialog id="remove-dialog" class="recruit-dialog" aria-labelledby="remove-dialog-title">
+        <h3 id="remove-dialog-title">Xóa nhân sự</h3>
+        <p id="remove-dialog-text"></p>
+        <div class="form-actions">
+            <button id="remove-cancel" class="ghost-btn" type="button">Giữ lại</button>
+            <button id="remove-confirm" class="btn-danger" type="button">Xóa khỏi danh sách</button>
+        </div>
+    </dialog>
+</main>
+<script th:inline="javascript">
+(function () {
+    const employees = /*[[${employees}]]*/ [];
+    const initialItems = /*[[${itemPayload}]]*/ [];
+    const form = document.getElementById("resignation-form");
+    const list = document.getElementById("item-list");
+    const fields = document.getElementById("item-fields");
+    if (!form || !list || !fields) {
+        return;
+    }
+
+    const people = Array.isArray(employees) ? employees : [];
+    const rows = Array.isArray(initialItems) ? initialItems.map(normalizeRow).filter(function (row) { return row.employeeId; }) : [];
+    let editingIndex = -1;
+    let pendingRemove = -1;
+    let toastTimer = 0;
+    const employeeSelect = document.getElementById("draft-employee");
+    const positionInput = document.getElementById("draft-position");
+    const reasonInput = document.getElementById("draft-reason");
+    const noteInput = document.getElementById("draft-note");
+    const addButton = document.getElementById("add-item");
+    const cancelButton = document.getElementById("cancel-edit");
+    const entryStatus = document.getElementById("entry-status");
+    const draftError = document.getElementById("draft-error");
+    const listError = document.getElementById("list-error");
+    const countBadge = document.getElementById("item-count");
+    const submitButton = document.getElementById("submit-proposal");
+    const submitHint = document.getElementById("submit-hint");
+    const toast = document.getElementById("resign-toast");
+    const removeDialog = document.getElementById("remove-dialog");
+    const titleInput = form.elements["title"];
+
+    function personById(id) {
+        return people.find(function (person) { return String(person.id) === String(id); }) || null;
+    }
+
+    function normalizeRow(row) {
+        const person = personById(row.employeeId);
+        return {
+            employeeId: row.employeeId ? String(row.employeeId) : "",
+            fullName: person ? person.fullName : ("Nhân viên #" + row.employeeId),
+            positionLabel: person ? person.positionLabel : "Nhân viên",
+            reason: row.reason || "",
+            note: row.note || ""
+        };
+    }
+
+    function fillEmployeeOptions() {
+        const selected = employeeSelect.value;
+        employeeSelect.replaceChildren();
+        const blank = document.createElement("option");
+        blank.value = "";
+        blank.textContent = people.length ? "Chọn nhân viên" : "Không còn nhân sự phù hợp";
+        employeeSelect.appendChild(blank);
+        people.forEach(function (person) {
+            const used = rows.some(function (row, index) {
+                return String(row.employeeId) === String(person.id) && index !== editingIndex;
+            });
+            const option = document.createElement("option");
+            option.value = String(person.id);
+            option.textContent = person.fullName + " — " + person.positionLabel
+                + (person.statusLabel && person.statusLabel !== "Đang làm việc" ? " (" + person.statusLabel + ")" : "");
+            option.disabled = used;
+            employeeSelect.appendChild(option);
+        });
+        employeeSelect.value = selected;
+    }
+
+    function showError(target, message) {
+        target.hidden = !message;
+        target.textContent = message || "";
+    }
+
+    function showToast(message) {
+        if (!toast) {
+            return;
+        }
+        toast.hidden = false;
+        toast.textContent = message;
+        window.clearTimeout(toastTimer);
+        toastTimer = window.setTimeout(function () { toast.hidden = true; }, 2800);
+    }
+
+    function syncPosition() {
+        const person = personById(employeeSelect.value);
+        positionInput.value = person ? person.positionLabel : "Chọn nhân viên để hiện chức vụ";
+    }
+
+    function clearDraft() {
+        employeeSelect.value = "";
+        reasonInput.value = "";
+        noteInput.value = "";
+        syncPosition();
+        showError(draftError, "");
+    }
+
+    function setEditing(index) {
+        editingIndex = index;
+        const editing = index >= 0;
+        addButton.textContent = editing ? "Cập nhật dòng" : "Thêm nhân sự";
+        cancelButton.hidden = !editing;
+        entryStatus.hidden = !editing;
+        fillEmployeeOptions();
+    }
+
+    function render() {
+        list.replaceChildren();
+        fields.replaceChildren();
+        if (!rows.length) {
+            const empty = document.createElement("p");
+            empty.className = "empty";
+            empty.textContent = "Chưa có nhân sự trong danh sách.";
+            list.appendChild(empty);
+        }
+        rows.forEach(function (row, index) {
+            const card = document.createElement("article");
+            card.className = "candidate-card";
+            const title = document.createElement("h3");
+            title.textContent = row.fullName;
+            const meta = document.createElement("p");
+            meta.className = "muted";
+            meta.textContent = row.positionLabel;
+            const reason = document.createElement("p");
+            reason.textContent = row.reason;
+            card.append(title, meta, reason);
+            if (row.note) {
+                const note = document.createElement("p");
+                note.className = "muted";
+                note.textContent = "Ghi chú: " + row.note;
+                card.appendChild(note);
+            }
+            const actions = document.createElement("div");
+            actions.className = "form-actions";
+            const edit = document.createElement("button");
+            edit.type = "button";
+            edit.className = "ghost-btn btn-sm";
+            edit.dataset.edit = String(index);
+            edit.textContent = "Sửa";
+            const remove = document.createElement("button");
+            remove.type = "button";
+            remove.className = "btn-danger btn-sm";
+            remove.dataset.remove = String(index);
+            remove.textContent = "Xóa";
+            actions.append(edit, remove);
+            card.appendChild(actions);
+            list.appendChild(card);
+
+            ["employeeId", "reason", "note"].forEach(function (key) {
+                const input = document.createElement("input");
+                input.type = "hidden";
+                input.name = "items[" + index + "]." + key;
+                input.value = row[key] || "";
+                fields.appendChild(input);
+            });
+        });
+        countBadge.textContent = "Đang có " + rows.length + " nhân sự trong danh sách";
+        const titleReady = titleInput && titleInput.value.trim().length > 0;
+        submitButton.disabled = rows.length === 0 || !titleReady;
+        submitHint.hidden = rows.length > 0 && titleReady;
+        submitHint.textContent = rows.length === 0
+            ? "Vui lòng thêm ít nhất một nhân sự vào danh sách."
+            : "Vui lòng nhập tên đề xuất.";
+    }
+
+    function validateDraft() {
+        const person = personById(employeeSelect.value);
+        if (!person) {
+            return "Vui lòng chọn nhân viên thuộc cửa hàng.";
+        }
+        if (rows.some(function (row, index) {
+            return String(row.employeeId) === String(person.id) && index !== editingIndex;
+        })) {
+            return "Nhân viên này đã có trong danh sách.";
+        }
+        if (!reasonInput.value.trim()) {
+            return "Vui lòng nhập lý do đề xuất nghỉ việc.";
+        }
+        if (reasonInput.value.trim().length > 500) {
+            return "Lý do đề xuất nghỉ việc tối đa 500 ký tự.";
+        }
+        if (noteInput.value.trim().length > 500) {
+            return "Ghi chú riêng tối đa 500 ký tự.";
+        }
+        return "";
+    }
+
+    function addOrUpdate() {
+        const message = validateDraft();
+        if (message) {
+            showError(draftError, message);
+            return;
+        }
+        const person = personById(employeeSelect.value);
+        const row = {
+            employeeId: String(person.id),
+            fullName: person.fullName,
+            positionLabel: person.positionLabel,
+            reason: reasonInput.value.trim(),
+            note: noteInput.value.trim()
+        };
+        if (editingIndex >= 0) {
+            rows[editingIndex] = row;
+            showToast("Đã cập nhật thông tin nhân sự.");
+        } else {
+            rows.push(row);
+            showToast("Đã thêm nhân sự vào danh sách.");
+        }
+        showError(listError, "");
+        setEditing(-1);
+        clearDraft();
+        render();
+    }
+
+    addButton.addEventListener("click", addOrUpdate);
+    cancelButton.addEventListener("click", function () {
+        setEditing(-1);
+        clearDraft();
+    });
+    employeeSelect.addEventListener("change", function () {
+        syncPosition();
+        showError(draftError, "");
+    });
+    if (titleInput) {
+        titleInput.addEventListener("input", function () {
+            document.getElementById("error-title").hidden = true;
+            render();
+        });
+    }
+    list.addEventListener("click", function (event) {
+        const edit = event.target.closest("[data-edit]");
+        const remove = event.target.closest("[data-remove]");
+        if (edit) {
+            const index = Number(edit.dataset.edit);
+            const row = rows[index];
+            setEditing(index);
+            employeeSelect.value = row.employeeId;
+            syncPosition();
+            reasonInput.value = row.reason;
+            noteInput.value = row.note;
+            showError(draftError, "");
+            document.getElementById("entry-title").scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+        if (remove && removeDialog) {
+            pendingRemove = Number(remove.dataset.remove);
+            document.getElementById("remove-dialog-text").textContent =
+                "Xóa " + rows[pendingRemove].fullName + " khỏi danh sách trước khi gửi?";
+            removeDialog.showModal();
+        }
+    });
+    if (removeDialog) {
+        document.getElementById("remove-cancel").addEventListener("click", function () {
+            pendingRemove = -1;
+            removeDialog.close();
+        });
+        document.getElementById("remove-confirm").addEventListener("click", function () {
+            if (pendingRemove >= 0) {
+                rows.splice(pendingRemove, 1);
+                if (editingIndex === pendingRemove) {
+                    setEditing(-1);
+                    clearDraft();
+                } else if (editingIndex > pendingRemove) {
+                    editingIndex -= 1;
+                }
+                showToast("Đã xóa nhân sự khỏi danh sách.");
+                render();
+            }
+            pendingRemove = -1;
+            removeDialog.close();
+        });
+    }
+    form.addEventListener("submit", function (event) {
+        if (form.dataset.coffeeConfirmed === "true") {
+            if (!rows.length) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                delete form.dataset.coffeeConfirmed;
+                showError(listError, "Vui lòng thêm ít nhất một nhân sự vào danh sách.");
+                return;
+            }
+            if (!titleInput || !titleInput.value.trim()) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                delete form.dataset.coffeeConfirmed;
+                const titleError = document.getElementById("error-title");
+                titleError.hidden = false;
+                titleError.textContent = "Vui lòng nhập tên đề xuất.";
+            }
+            return;
+        }
+        if (!rows.length || !titleInput || !titleInput.value.trim()) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            if (!titleInput || !titleInput.value.trim()) {
+                const titleError = document.getElementById("error-title");
+                titleError.hidden = false;
+                titleError.textContent = "Vui lòng nhập tên đề xuất.";
+            }
+            if (!rows.length) {
+                showError(listError, "Vui lòng thêm ít nhất một nhân sự vào danh sách.");
+            }
+        }
+    }, true);
+
+    fillEmployeeOptions();
+    syncPosition();
+    render();
+})();
+</script>
+</body>
+</html>

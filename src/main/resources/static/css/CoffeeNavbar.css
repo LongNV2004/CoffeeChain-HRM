@@ -644,6 +644,11 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
     outline: 2px solid #C1793A;
     outline-offset: 1px;
 }
+.coffee-confirm-reason-error {
+    color: #8E2F2F;
+    font-size: 13px;
+}
+.coffee-confirm-reason-error[hidden] { display: none !important; }
 .coffee-confirm-actions {
     display: flex;
     justify-content: flex-end;

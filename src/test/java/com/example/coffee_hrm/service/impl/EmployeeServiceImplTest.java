@@ -7,6 +7,7 @@ import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.enums.TrainingClassStatus;
 import com.example.coffee_hrm.common.enums.TrainingResult;
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.dto.request.UpdateEmployeeRequest;
 import com.example.coffee_hrm.dto.response.EmployeeResponse;
 import com.example.coffee_hrm.dto.response.ManagedEmployeeDetail;
 import com.example.coffee_hrm.dto.response.ManagedEmployeeDirectory;
@@ -242,6 +243,28 @@ class EmployeeServiceImplTest {
 
         assertMessage(EmployeeServiceImpl.ADMIN_ROLE_LOCKED,
                 () -> employeeService.changeEmployeeRole(admin, 1, 10, "STAFF"));
+    }
+
+    @Test
+    void profileUpdateCannotReactivateATerminatedEmployee() {
+        staffEmployee.setStatus(EmployeeStatus.TERMINATED);
+        staffUser.setIsActive(false);
+        when(employeeRepository.findByIdWithStoreAndManager(10)).thenReturn(Optional.of(staffEmployee));
+        UpdateEmployeeRequest request = UpdateEmployeeRequest.builder()
+                .fullName("An")
+                .phone("0900000000")
+                .email("an@shop.vn")
+                .storeId(1)
+                .status(EmployeeStatus.ACTIVE)
+                .hireDate(LocalDate.of(2020, 1, 1))
+                .role("STAFF")
+                .build();
+
+        assertMessage(EmployeeServiceImpl.REHIRE_THROUGH_RECRUITMENT,
+                () -> employeeService.updateEmployee(admin, 1, 10, request));
+
+        assertEquals(EmployeeStatus.TERMINATED, staffEmployee.getStatus());
+        assertFalse(staffUser.getIsActive());
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.example.coffee_hrm.controller;
 
+import com.example.coffee_hrm.common.exception.EmploymentEndedException;
 import com.example.coffee_hrm.dto.request.LoginRequest;
 import com.example.coffee_hrm.dto.response.LoginResponse;
 import com.example.coffee_hrm.security.RoleBasedRedirector;
@@ -73,6 +74,11 @@ public class AuthController {
                 return "LandingPage";
             }
             return "redirect:" + dashboard;
+        } catch (EmploymentEndedException ex) {
+            loginRequest.setPassword(null);
+            model.addAttribute("loginError", true);
+            model.addAttribute("errorCode", "terminated");
+            return "LandingPage";
         } catch (DisabledException ex) {
             loginRequest.setPassword(null);
             model.addAttribute("loginError", true);

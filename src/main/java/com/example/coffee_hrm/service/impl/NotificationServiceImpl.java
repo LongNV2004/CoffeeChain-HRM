@@ -130,6 +130,15 @@ public class NotificationServiceImpl implements NotificationService {
                         : "/manager/recruitment/" + notification.getReferenceId();
                 case STAFF -> null;
             };
+            case "RESIGNATION_PROPOSAL" -> switch (user.getRoleName()) {
+                case ADMIN -> notification.getReferenceId() == null
+                        ? "/admin/resignation"
+                        : "/admin/resignation/" + notification.getReferenceId();
+                case MANAGER -> notification.getReferenceId() == null
+                        ? "/manager/resignation"
+                        : "/manager/resignation/" + notification.getReferenceId();
+                case STAFF -> null;
+            };
             default -> null;
         };
     }

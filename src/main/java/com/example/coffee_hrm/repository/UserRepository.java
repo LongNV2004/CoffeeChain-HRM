@@ -20,6 +20,15 @@ public interface UserRepository extends JpaRepository<User, Integer> {
             """)
     Optional<User> findByUsername(@Param("username") String username);
 
+    @Query("""
+            SELECT u FROM User u
+            JOIN FETCH u.role
+            JOIN FETCH u.employee e
+            LEFT JOIN FETCH e.store
+            WHERE LOWER(e.email) = LOWER(:email)
+            """)
+    List<User> findByEmployeeEmail(@Param("email") String email);
+
     boolean existsByUsernameIgnoreCase(String username);
 
     Optional<User> findByEmployee_Id(Integer employeeId);

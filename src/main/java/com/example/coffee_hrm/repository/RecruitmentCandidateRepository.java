@@ -26,6 +26,8 @@ public interface RecruitmentCandidateRepository extends JpaRepository<Recruitmen
 
     boolean existsByPhoneAndStatus(String phone, RecruitmentStatus status);
 
+    boolean existsByRehireEmployee_IdAndStatus(Integer employeeId, RecruitmentStatus status);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             SELECT c FROM RecruitmentCandidate c

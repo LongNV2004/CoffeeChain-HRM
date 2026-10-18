@@ -65,6 +65,8 @@ public class EmployeeServiceImpl implements EmployeeService {
     static final String ADMIN_ROLE_LOCKED = "Không thể thay đổi role của tài khoản Admin";
     static final String ROLE_UNCHANGED = "Nhân viên đã có role %s";
     static final String TERMINATED_CANNOT_BE_MANAGER = "Nhân viên đã nghỉ việc không thể được chỉ định làm Manager";
+    static final String REHIRE_THROUGH_RECRUITMENT =
+            "Nhân viên đã nghỉ việc chỉ được trở lại làm việc khi Admin duyệt đề xuất tuyển dụng lại.";
     static final String INACTIVE_ACCOUNT_CANNOT_BE_MANAGER =
             "Tài khoản của nhân viên đang bị khóa nên không thể chỉ định làm Manager";
     static final String ROLE_NOT_CONFIGURED = "Role %s chưa được cấu hình trong hệ thống";
@@ -294,6 +296,11 @@ public class EmployeeServiceImpl implements EmployeeService {
             );
         }
 
+        if (employee.getStatus() == EmployeeStatus.TERMINATED
+                && request.getStatus() != EmployeeStatus.TERMINATED) {
+            throw new BusinessException(REHIRE_THROUGH_RECRUITMENT);
+        }
+
         if (request.getStatus() == EmployeeStatus.TERMINATED) {
             LocalDate terminationDate = request.getTerminationDate();
 
@@ -336,6 +343,13 @@ public class EmployeeServiceImpl implements EmployeeService {
                 request.getStatus() == EmployeeStatus.TERMINATED
                         ? request.getTerminationDate() : null
         );
+        if (employee.getStatus() == EmployeeStatus.TERMINATED
+                && account != null
+                && account.getRole() != null
+                && account.getRole().getRoleName() != RoleName.ADMIN
+                && account.getRole().getRoleName() != RoleName.MANAGER) {
+            account.setIsActive(false);
+        }
 
         if (targetRole == RoleName.MANAGER
                 && !targetStore.getId().equals(

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chi tiết đề xuất nghỉ việc — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
+</head>
+<body>
+<header th:replace="~{fragments/navbar :: manager('resignation')}"></header>
+<main class="wrap dash-main">
+    <section class="welcome">
+        <div class="eyebrow">Cửa hàng — Manager</div>
+        <h1 th:text="${request.title}">Đề xuất</h1>
+        <p>Đề xuất đã gửi. Bạn xem kết quả từng nhân sự và không sửa hoặc xóa đề xuất này.</p>
+    </section>
+
+    <p class="flash success" th:if="${successMessage}" th:text="${successMessage}"></p>
+    <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}"></p>
+
+    <section class="panel">
+        <dl class="info-list recruit-summary">
+            <div><dt>Mã đề xuất</dt><dd th:text="${request.id}">1</dd></div>
+            <div><dt>Cửa hàng</dt><dd th:text="${request.storeName}">Store</dd></div>
+            <div><dt>Ngày gửi</dt><dd th:text="${request.createdAt != null} ? ${#temporals.format(request.createdAt, 'dd/MM/yyyy HH:mm')} : '—'">—</dd></div>
+            <div>
+                <dt>Trạng thái đề xuất</dt>
+                <dd>
+                    <span class="badge"
+                          th:classappend="${request.status.name() == 'COMPLETED'} ? ' badge-ok' : (${request.status.name() == 'PARTIALLY_PROCESSED'} ? ' badge-partial' : ' badge-wait')"
+                          th:text="${request.statusLabel}">Chờ duyệt</span>
+                    <span class="badge" th:if="${request.outcomeLabel != null}" th:text="${request.outcomeLabel}">Xử lý hỗn hợp</span>
+                </dd>
+            </div>
+            <div th:if="${request.note != null}"><dt>Ghi chú chung</dt><dd th:text="${request.note}">Ghi chú</dd></div>
+        </dl>
+        <div class="recruit-counts">
+            <span class="badge">Tổng <strong th:text="${request.totalCount}">0</strong></span>
+            <span class="badge badge-wait">Chờ duyệt <strong th:text="${request.pendingCount}">0</strong></span>
+            <span class="badge badge-ok">Đã duyệt <strong th:text="${request.approvedCount}">0</strong></span>
+            <span class="badge badge-off">Từ chối <strong th:text="${request.rejectedCount}">0</strong></span>
+        </div>
+
+        <h2>Nhân sự trong đề xuất</h2>
+        <div class="table-scroll">
+            <table>
+                <thead>
+                <tr>
+                    <th>Nhân viên</th>
+                    <th>Chức vụ</th>
+                    <th>Ngày nghỉ dự kiến</th>
+                    <th>Ngày nghỉ được duyệt</th>
+                    <th>Lý do đề xuất</th>
+                    <th>Ghi chú</th>
+                    <th>Trạng thái</th>
+                    <th>Kết quả xử lý</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:if="${request.items == null or #lists.isEmpty(request.items)}">
+                    <td colspan="8" class="empty">Đề xuất chưa có nhân sự.</td>
+                </tr>
+                <tr th:each="item : ${request.items}">
+                    <td>
+                        <a class="row-link" th:href="@{/manager/employees/{id}(id=${item.employeeId})}" th:text="${item.employeeName}">An</a>
+                        <div class="muted" th:text="${item.currentStatusLabel}">Đang làm việc</div>
+                    </td>
+                    <td th:text="${item.positionLabel}">Nhân viên</td>
+                    <td class="nowrap" th:text="${item.proposedTerminationDate != null} ? ${#temporals.format(item.proposedTerminationDate, 'dd/MM/yyyy')} : '—'">—</td>
+                    <td class="nowrap" th:text="${item.approvedTerminationDate != null} ? ${#temporals.format(item.approvedTerminationDate, 'dd/MM/yyyy')} : '—'">—</td>
+                    <td th:text="${item.reason}">Lý do</td>
+                    <td th:text="${item.note != null ? item.note : '—'}">—</td>
+                    <td>
+                        <span class="badge"
+                              th:classappend="${item.status.name() == 'APPROVED'} ? ' badge-ok' : (${item.status.name() == 'REJECTED'} ? ' badge-off' : ' badge-wait')"
+                              th:text="${item.statusLabel}">Chờ duyệt</span>
+                    </td>
+                    <td>
+                        <span th:if="${item.status.name() == 'PENDING'}">Đang chờ Admin xử lý.</span>
+                        <span th:if="${item.status.name() == 'APPROVED' and item.applied}">Đã chuyển sang nghỉ việc.</span>
+                        <span th:if="${item.status.name() == 'APPROVED' and !item.applied}">Vẫn làm việc đến trước ngày hiệu lực.</span>
+                        <span th:if="${item.status.name() == 'REJECTED'}" th:text="${item.rejectReason != null ? item.rejectReason : 'Không có lý do từ chối.'}">Lý do</span>
+                        <div class="muted" th:if="${item.reviewedByName != null}"
+                             th:text="${item.reviewedByName + (item.reviewedAt != null ? ' · ' + #temporals.format(item.reviewedAt, 'dd/MM/yyyy HH:mm') : '')}">Admin</div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="muted"><a class="back-link" th:href="@{/manager/resignation}">Quay lại danh sách</a></p>
+    </section>
+</main>
+</body>
+</html>

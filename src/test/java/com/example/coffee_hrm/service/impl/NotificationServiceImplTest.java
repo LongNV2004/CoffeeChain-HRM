@@ -200,4 +200,24 @@ class NotificationServiceImplTest {
         assertEquals(Boolean.FALSE, saved.getIsRead());
         assertEquals(22, saved.getReferenceId());
     }
+
+    @Test
+    void resignationNotificationOpensTheMatchingProposal() {
+        when(notificationRepository.findByRecipient_IdOrderByCreatedAtDesc(2)).thenReturn(List.of(
+                Notification.builder()
+                        .id(21)
+                        .recipient(ownerEntity)
+                        .title("Đề xuất nghỉ việc đã được duyệt")
+                        .message("Nhân sự An trong đề xuất mã 7 đã được duyệt.")
+                        .type(NotificationType.RESIGNATION_PROPOSAL_APPROVED)
+                        .isRead(false)
+                        .referenceType("RESIGNATION_PROPOSAL")
+                        .referenceId(7)
+                        .createdAt(LocalDateTime.now())
+                        .build()));
+
+        var items = notificationService.listMine(owner);
+
+        assertEquals("/manager/resignation/7", items.getFirst().getActionUrl());
+    }
 }

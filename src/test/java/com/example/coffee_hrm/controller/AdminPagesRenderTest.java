@@ -18,6 +18,7 @@ import com.example.coffee_hrm.security.SecurityConfig;
 import com.example.coffee_hrm.service.EmployeeService;
 import com.example.coffee_hrm.service.NotificationService;
 import com.example.coffee_hrm.service.RecruitmentRequestService;
+import com.example.coffee_hrm.service.ResignationProposalService;
 import com.example.coffee_hrm.service.StoreService;
 import com.example.coffee_hrm.service.TrainingService;
 import org.junit.jupiter.api.Test;
@@ -59,6 +60,8 @@ class AdminPagesRenderTest {
     private EmployeeService employeeService;
     @MockitoBean
     private RecruitmentRequestService recruitmentRequestService;
+    @MockitoBean
+    private ResignationProposalService resignationProposalService;
     @MockitoBean
     private DatabaseUserDetailsService userDetailsService;
     @MockitoBean
