@@ -3,6 +3,7 @@ package com.example.coffee_hrm.service.impl;
 import com.example.coffee_hrm.common.enums.ApprovalStatus;
 import com.example.coffee_hrm.common.enums.AssignmentStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
+import com.example.coffee_hrm.common.enums.NotificationType;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.AssignShiftRequest;
@@ -11,7 +12,9 @@ import com.example.coffee_hrm.dto.response.WeeklyScheduleView;
 import com.example.coffee_hrm.entity.*;
 import com.example.coffee_hrm.repository.*;
 import com.example.coffee_hrm.security.AuthenticatedUser;
+import com.example.coffee_hrm.service.NotificationService;
 import com.example.coffee_hrm.service.ScheduleService;
+import com.example.coffee_hrm.service.support.ApprovedLeaveCoverage;
 import com.example.coffee_hrm.service.support.AvailabilityCoverage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -36,9 +39,12 @@ public class ScheduleServiceImpl implements ScheduleService {
     private final ShiftAssignmentRepository shiftAssignmentRepository;
     private final ShiftChangeRequestRepository shiftChangeRequestRepository;
     private final LeaveRequestRepository leaveRequestRepository;
+    private final ApprovedLeaveCoverage approvedLeaveCoverage;
     private final EmployeeRepository employeeRepository;
     private final UserRepository userRepository;
     private final WorkAvailabilityRepository workAvailabilityRepository;
+    private final NotificationService notificationService;
+    private static final String SHIFT_CHANGE_REF = "SHIFT_CHANGE";
     @Override
     @Transactional(readOnly = true)
     public WeeklyScheduleView getWeeklyScheduleForManager(AuthenticatedUser user, LocalDate dateInWeek) {
@@ -96,7 +102,7 @@ public class ScheduleServiceImpl implements ScheduleService {
         if (!isShiftStillUpcoming(request.getWorkDate(), shift.getStartTime())) {
             throw new BusinessException("Không thể phân ca cho thời gian đã qua.");
         }
-        ensureNoApprovedLeave(employee.getId(), request.getWorkDate());
+        ensureNoApprovedLeave(employee.getId(), shift.getId(), request.getWorkDate());
         if (shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus( employee.getId(), shift.getId(), request.getWorkDate(), AssignmentStatus.ASSIGNED)) {
             if (skipIfAlreadyAssigned) {
                 return;
@@ -203,6 +209,7 @@ public class ScheduleServiceImpl implements ScheduleService {
         LocalDateTime targetAgreedAt = "MANAGER_ASSIGN".equalsIgnoreCase(changeType) ? VietnamTime.now() : null;
         ShiftChangeRequest changeRequest = ShiftChangeRequest.builder() .assignment(assignment) .employee(currentEmployee) .targetAssignment(targetAssignment) .targetEmployee(targetEmployee) .isTargetAgreed(isTargetAgreed) .targetAgreedAt(targetAgreedAt) .reason(fullReason) .status(ApprovalStatus.PENDING) .build();
         shiftChangeRequestRepository.save(changeRequest);
+        notifyStoreManager(currentEmployee, changeRequest);
     }
 
     @Override
@@ -244,6 +251,7 @@ public class ScheduleServiceImpl implements ScheduleService {
             changeRequest.setResolvedBy(managerUser);
             changeRequest.setResolvedDate(VietnamTime.now());
             shiftChangeRequestRepository.save(changeRequest);
+            notifyShiftChangeResult(changeRequest, false);
             return;
         }
         ShiftAssignment assignment = changeRequest.getAssignment();
@@ -325,7 +333,7 @@ public class ScheduleServiceImpl implements ScheduleService {
             if (targetEmp.getStatus() != com.example.coffee_hrm.common.enums.EmployeeStatus.ACTIVE) {
                 throw new BusinessException("Nhân viên thay thế hiện không ở trạng thái làm việc.");
             }
-            ensureNoApprovedLeave(targetEmp.getId(), assignment.getWorkDate());
+            ensureNoApprovedLeave(targetEmp.getId(), assignment.getShift().getId(), assignment.getWorkDate());
             if (!Objects.equals(targetEmp.getId(), requester.getId()) && shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus( targetEmp.getId(), assignment.getShift().getId(), assignment.getWorkDate(), AssignmentStatus.ASSIGNED)) {
                 throw new BusinessException("Nhân viên " + targetEmp.getFullName() + " đã có ca làm việc này trên lịch rồi.");
             }
@@ -356,7 +364,7 @@ public class ScheduleServiceImpl implements ScheduleService {
             if (replacementEmp.getStatus() != com.example.coffee_hrm.common.enums.EmployeeStatus.ACTIVE) {
                 throw new BusinessException("Nhân viên thay thế hiện không ở trạng thái làm việc.");
             }
-            ensureNoApprovedLeave(replacementEmp.getId(), assignment.getWorkDate());
+            ensureNoApprovedLeave(replacementEmp.getId(), assignment.getShift().getId(), assignment.getWorkDate());
             if (shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus( replacementEmp.getId(), assignment.getShift().getId(), assignment.getWorkDate(), AssignmentStatus.ASSIGNED)) {
                 throw new BusinessException("Nhân viên " + replacementEmp.getFullName() + " đã có ca làm việc này trên lịch rồi.");
             }
@@ -381,6 +389,7 @@ public class ScheduleServiceImpl implements ScheduleService {
         changeRequest.setResolvedBy(managerUser);
         changeRequest.setResolvedDate(VietnamTime.now());
         shiftChangeRequestRepository.save(changeRequest);
+        notifyShiftChangeResult(changeRequest, true);
     }
 
     private WeeklyScheduleView buildWeeklyScheduleView( Store store, LocalDate monday, LocalDate sunday, List<Shift> shifts, List<ShiftAssignment> assignments, List<Employee> activeEmployees, List<ShiftChangeRequest> requests, List<ShiftChangeRequest> incomingRequests, AuthenticatedUser user, boolean isManagerView) {
@@ -471,6 +480,68 @@ public class ScheduleServiceImpl implements ScheduleService {
         return WeeklyScheduleView.ShiftChangeItem.builder() .requestId(req.getId()) .assignmentId(req.getAssignment().getId()) .employeeId(req.getEmployee().getId()) .employeeName(req.getEmployee().getFullName()) .shiftName(req.getAssignment().getShift().getShiftName()) .workDate(req.getAssignment().getWorkDate()) .timeRange(req.getAssignment().getShift().getStartTime().format(TIME_FORMATTER) + " – " + req.getAssignment().getShift().getEndTime().format(TIME_FORMATTER)) .reason(req.getReason()) .status(req.getStatus().getDbValue()) .requestDate(req.getRequestDate() != null ? req.getRequestDate().format(DATE_TIME_FORMATTER) : "—") .resolvedByName(req.getResolvedBy() != null ? req.getResolvedBy().getUsername() : null) .resolvedDate(req.getResolvedDate() != null ? req.getResolvedDate().format(DATE_TIME_FORMATTER) : null) .targetEmployeeId(req.getTargetEmployee() != null ? req.getTargetEmployee().getId() : null) .targetEmployeeName(req.getTargetEmployee() != null ? req.getTargetEmployee().getFullName() : null) .targetAssignmentId(req.getTargetAssignment() != null ? req.getTargetAssignment().getId() : null) .targetShiftName(req.getTargetAssignment() != null ? req.getTargetAssignment().getShift().getShiftName() : null) .targetWorkDate(req.getTargetAssignment() != null ? req.getTargetAssignment().getWorkDate() : null) .targetTimeRange(req.getTargetAssignment() != null ? (req.getTargetAssignment().getShift().getStartTime().format(TIME_FORMATTER) + " – " + req.getTargetAssignment().getShift().getEndTime().format(TIME_FORMATTER)) : null) .changeType(changeType) .changeTypeLabel(changeTypeLabel) .proposalSummary(proposalSummary) .isTargetAgreed(req.getIsTargetAgreed()) .targetAgreedAt(req.getTargetAgreedAt() != null ? req.getTargetAgreedAt().format(DATE_TIME_FORMATTER) : null) .stageLabel(stageLabel) .build();
     }
 
+    private void notifyStoreManager(Employee staff, ShiftChangeRequest request) {
+        if (staff == null || staff.getStore() == null || request == null) {
+            return;
+        }
+        Employee manager = staff.getStore().getManager();
+        if (manager == null || manager.getId() == null || Objects.equals(manager.getId(), staff.getId())) {
+            return;
+        }
+        notifyUser(manager.getId(),
+                "Nhân viên đăng ký đổi ca",
+                staff.getFullName() + " gửi yêu cầu đổi " + shiftLabel(request) + ". Đơn đang chờ duyệt.",
+                NotificationType.SHIFT_CHANGE_SUBMITTED,
+                request.getId());
+    }
+
+    private void notifyShiftChangeResult(ShiftChangeRequest request, boolean approved) {
+        if (request == null || request.getEmployee() == null) {
+            return;
+        }
+        Employee staff = request.getEmployee();
+        String label = shiftLabel(request);
+        notifyUser(staff.getId(),
+                approved ? "Yêu cầu đổi ca đã được duyệt" : "Yêu cầu đổi ca bị từ chối",
+                approved
+                        ? "Quản lý đã duyệt yêu cầu đổi " + label + "."
+                        : "Quản lý đã từ chối yêu cầu đổi " + label + ".",
+                approved ? NotificationType.SHIFT_CHANGE_APPROVED : NotificationType.SHIFT_CHANGE_REJECTED,
+                request.getId());
+        Employee other = request.getTargetEmployee();
+        if (approved && other != null && other.getId() != null && !Objects.equals(other.getId(), staff.getId())) {
+            notifyUser(other.getId(),
+                    "Bạn được xếp vào ca đổi",
+                    "Quản lý đã duyệt đổi ca liên quan tới bạn: " + label + ".",
+                    NotificationType.SHIFT_CHANGE_APPROVED,
+                    request.getId());
+        }
+    }
+
+    private String shiftLabel(ShiftChangeRequest request) {
+        ShiftAssignment assignment = request.getAssignment();
+        if (assignment == null || assignment.getShift() == null) {
+            return "ca làm";
+        }
+        String date = assignment.getWorkDate() == null ? "" : " ngày " + assignment.getWorkDate().format(DATE_FORMATTER);
+        return assignment.getShift().getShiftName() + date;
+    }
+
+    private void notifyUser(Integer employeeId, String title, String message, NotificationType type, Integer referenceId) {
+        if (employeeId == null) {
+            return;
+        }
+        Optional<User> found = userRepository.findByEmployee_Id(employeeId);
+        if (found == null || found.isEmpty()) {
+            return;
+        }
+        User user = found.get();
+        if (user.getId() == null || !Boolean.TRUE.equals(user.getIsActive())) {
+            return;
+        }
+        notificationService.notifyUsers(List.of(user), title, message, type, SHIFT_CHANGE_REF, referenceId);
+    }
+
     private Store resolveManagerStore(AuthenticatedUser user) {
         if (user.getEmployeeId() == null) {
             throw new BusinessException("Tài khoản quản lý chưa được gắn hồ sơ nhân viên.");
@@ -509,6 +580,10 @@ public class ScheduleServiceImpl implements ScheduleService {
         Map<Integer, List<LeaveRequest>> approvedLeavesByEmployee = leaveRequestRepository.findByStoreAndStatusOverlapping(
                 store.getId(), ApprovalStatus.APPROVED, monday, sunday).stream()
                 .collect(java.util.stream.Collectors.groupingBy(leave -> leave.getEmployee().getId()));
+        ApprovedLeaveCoverage.WeekIndex loadedIndex = approvedLeaveCoverage.index(store.getId(), monday, sunday);
+        ApprovedLeaveCoverage.WeekIndex leaveIndex = loadedIndex == null
+                ? new ApprovedLeaveCoverage.WeekIndex(Set.of(), Set.of())
+                : loadedIndex;
 
         List<ShiftChangeRequest> approvedChanges = shiftChangeRequestRepository.findApprovedCoveringWeek(
                 store.getId(), ApprovalStatus.APPROVED, monday, sunday);
@@ -543,9 +618,9 @@ public class ScheduleServiceImpl implements ScheduleService {
                     continue;
                 }
 
-                boolean approvedLeaveDay = approvedLeavesByEmployee.getOrDefault(employeeId, List.of()).stream()
-                        .anyMatch(leave -> !workDate.isBefore(leave.getStartDate()) && !workDate.isAfter(leave.getEndDate()));
-                if (approvedLeaveDay) {
+                boolean approvedLeaveSlot = approvedLeavesByEmployee.getOrDefault(employeeId, List.of()).stream()
+                        .anyMatch(leave -> leaveIndex.blocks(leave, employeeId, shiftId, workDate));
+                if (approvedLeaveSlot) {
                     continue;
                 }
 
@@ -590,22 +665,28 @@ public class ScheduleServiceImpl implements ScheduleService {
         }
     }
 
-    /** Manager không được phân/đổi ca trùng ngày nghỉ đã được duyệt. */ private void ensureNoApprovedLeave(Integer employeeId, LocalDate workDate) {
-        // Same employee lock used by leave approval and leave submission.
-        employeeRepository.lockByIdForLeaveRequest(employeeId) .orElseThrow(() -> new BusinessException("Không tìm thấy nhân viên nhận ca."));
-        if (leaveRequestRepository.existsByEmployee_IdAndStatusAndStartDateLessThanEqualAndEndDateGreaterThanEqual( employeeId, ApprovalStatus.APPROVED, workDate, workDate)) {
-            throw new BusinessException("Nhân viên đã được duyệt nghỉ ngày " + workDate.format(DATE_FORMATTER) + ", không thể xếp ca.");
+    /** Chỉ chặn đúng ca đã được duyệt nghỉ. Đơn cũ không có slot vẫn chặn cả ngày. */
+    private void ensureNoApprovedLeave(Integer employeeId, Integer shiftId, LocalDate workDate) {
+        employeeRepository.lockByIdForLeaveRequest(employeeId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy nhân viên nhận ca."));
+        if (shiftId == null || workDate == null) {
+            return;
+        }
+        if (approvedLeaveCoverage.blocksShift(employeeId, shiftId, workDate)) {
+            throw new BusinessException("Nhân viên đã được duyệt nghỉ ca này ngày "
+                    + workDate.format(DATE_FORMATTER) + ", không thể xếp ca.");
         }
     }
 
     private void guardShiftSwapAgainstApprovedLeave(Employee requester, Employee target, ShiftAssignment source, ShiftAssignment targetAssignment) {
-        // Lock in employee-id order, consistent across two-way swaps.
+        Integer sourceShiftId = source.getShift() == null ? null : source.getShift().getId();
+        Integer targetShiftId = targetAssignment.getShift() == null ? null : targetAssignment.getShift().getId();
         if (requester.getId() < target.getId()) {
-            ensureNoApprovedLeave(requester.getId(), targetAssignment.getWorkDate());
-            ensureNoApprovedLeave(target.getId(), source.getWorkDate());
+            ensureNoApprovedLeave(requester.getId(), targetShiftId, targetAssignment.getWorkDate());
+            ensureNoApprovedLeave(target.getId(), sourceShiftId, source.getWorkDate());
         } else {
-            ensureNoApprovedLeave(target.getId(), source.getWorkDate());
-            ensureNoApprovedLeave(requester.getId(), targetAssignment.getWorkDate());
+            ensureNoApprovedLeave(target.getId(), sourceShiftId, source.getWorkDate());
+            ensureNoApprovedLeave(requester.getId(), targetShiftId, targetAssignment.getWorkDate());
         }
     }
 

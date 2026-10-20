@@ -579,7 +579,7 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
 .coffee-confirm {
     position: fixed;
     inset: 0;
-    z-index: 120;
+    z-index: 4000;
     display: grid;
     place-items: center;
     padding: 24px;
@@ -617,6 +617,8 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
     color: #4A3324;
     font-size: 15px;
     line-height: 1.5;
+    white-space: normal;
+    overflow-wrap: break-word;
 }
 .coffee-confirm-reason {
     display: grid;

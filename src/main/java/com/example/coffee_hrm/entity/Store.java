@@ -42,6 +42,10 @@ public class Store {
     @Builder.Default
     private Integer totalLeaveDays = 12;
 
+    /** Annual allowance in work slots. Null means admin has not set it; never copied from TotalLeaveDays. */
+    @Column(name = "TotalLeaveSlots")
+    private Integer totalLeaveSlots;
+
     @Column(name = "IsActive", nullable = false)
     @Builder.Default
     private Boolean isActive = true;

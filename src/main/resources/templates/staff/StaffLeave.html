@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đơn xin nghỉ phép — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/StaffDashboard.css}">
+    <link rel="stylesheet" th:href="@{/css/StaffLeaveRequest.css}">
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+</head>
+<body>
+<header th:replace="~{fragments/navbar :: staff('leave')}"></header>
+<main class="wrap dash-main" id="staffLeave"
+      th:attr="data-preview-url=@{/staff/leave/preview},data-slots-url=@{/staff/leave/slots},data-history-url=@{/staff/leave/history},data-detail-url=@{/staff/leave}">
+    <section class="welcome">
+        <div class="eyebrow">Cá nhân — Staff</div>
+        <h1>Đơn xin nghỉ phép</h1>
+        <p>Gửi đơn, theo dõi trạng thái và hủy khi đơn còn chờ duyệt.</p>
+    </section>
+
+    <p class="leave-alert leave-alert-success" th:if="${leaveSuccess != null}" th:text="${leaveSuccess}"></p>
+    <p class="leave-alert leave-alert-error" th:if="${leaveError != null}" th:text="${leaveError}"></p>
+    <p class="leave-alert leave-alert-error" th:if="${pageError != null}" th:text="${pageError}"></p>
+
+    <section class="panel" th:if="${context != null}">
+        <h2>Thông tin nhân viên</h2>
+        <div class="leave-identity">
+            <div><small>Họ tên</small><strong th:text="${context.employeeName}">Nguyễn Văn A</strong></div>
+            <div><small>Mã nhân viên</small><strong th:text="${context.employeeId}">12</strong></div>
+            <div><small>Cửa hàng</small><strong th:text="${context.storeName}">Cửa hàng</strong></div>
+            <div><small>Manager phụ trách</small><strong th:text="${context.managerName}">Manager</strong></div>
+            <div><small>Slot phép năm còn lại</small>
+                <strong th:if="${context.quotaConfigured}" th:text="${context.annualAvailableDays + ' / ' + context.annualTotalDays + ' slot ca'}">0 / 0 slot ca</strong>
+                <strong th:unless="${context.quotaConfigured}">Chưa thiết lập</strong>
+            </div>
+        </div>
+        <p class="leave-note" th:text="${context.scheduleNote}">Nghỉ theo ngày.</p>
+    </section>
+
+    <section class="panel leave-create" th:if="${context != null}">
+        <div class="leave-split">
+            <form class="leave-dialog-form" id="leaveCreateForm" method="post" th:action="@{/staff/leave}">
+                <h2>Tạo đơn</h2>
+                <label>
+                    Loại nghỉ
+                    <span>*</span>
+                    <select id="leaveType" name="leaveType" required>
+                        <option value="">Chọn loại nghỉ</option>
+                        <option th:each="type : ${leaveTypes}"
+                                th:value="${type}"
+                                th:text="${type.label}"
+                                th:selected="${leaveFormType != null and leaveFormType == type}">Nghỉ phép năm</option>
+                    </select>
+                </label>
+                <div class="leave-slot-filters">
+                    <button class="leave-btn leave-btn-outline" id="leaveThisWeek" type="button">Tuần này</button>
+                    <button class="leave-btn leave-btn-outline" id="leaveNextWeek" type="button">Tuần sau</button>
+                </div>
+                <div class="leave-table-wrap">
+                    <table class="leave-table">
+                        <thead>
+                        <tr>
+                            <th></th>
+                            <th>Ngày</th>
+                            <th>Thứ</th>
+                            <th>Ca</th>
+                            <th>Giờ</th>
+                            <th>Cửa hàng</th>
+                            <th>Lịch</th>
+                            <th>Đơn nghỉ</th>
+                        </tr>
+                        </thead>
+                        <tbody id="leaveSlotBody">
+                        <tr><td colspan="8" class="leave-empty">Đang tải ca làm việc...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="leave-note">Chọn một hoặc nhiều ca cần nghỉ. Tuần này và tuần sau chỉ để xem các ca đã được phân.</p>
+                <label>
+                    Lý do xin nghỉ
+                    <span>*</span>
+                    <textarea id="leaveReason" maxlength="255" name="reason" placeholder="Nhập lý do nghỉ..." required rows="4" th:text="${leaveFormReason}"></textarea>
+                </label>
+                <label>
+                    Người bàn giao công việc
+                    <select id="leaveHandover" name="handoverEmployeeId">
+                        <option value="">Không chọn</option>
+                        <option th:each="person : ${context.colleagues}"
+                                th:value="${person.id}"
+                                th:text="${person.fullName + ' · NV' + person.id}"
+                                th:selected="${leaveFormHandover != null and leaveFormHandover == person.id}">Đồng nghiệp</option>
+                    </select>
+                </label>
+                <label>
+                    Số điện thoại liên hệ
+                    <input id="leavePhone" inputmode="numeric" maxlength="20" name="contactPhone"
+                           placeholder="Không bắt buộc" th:value="${leaveFormPhone}" type="tel">
+                </label>
+                <div class="leave-form-actions">
+                    <button class="leave-btn leave-btn-primary" id="leaveSubmit" type="submit">Gửi đơn</button>
+                </div>
+            </form>
+            <aside class="leave-summary" aria-live="polite">
+                <h2>Tóm tắt</h2>
+                <div class="leave-preview" id="leavePreview">Chọn loại nghỉ và ít nhất một ca.</div>
+                <ul class="leave-policy">
+                    <li>Trạng thái ban đầu sau khi gửi: <strong>Chờ duyệt</strong>.</li>
+                    <li th:if="${context.quotaConfigured}">Slot phép năm còn lại: <strong th:text="${context.annualAvailableDays + ' slot'}">0 slot</strong> (đã dùng <span th:text="${context.annualUsedDays}">0</span>, đang chờ <span th:text="${context.annualPendingDays}">0</span>).</li>
+                    <li th:unless="${context.quotaConfigured}">Admin chưa thiết lập số slot phép năm. Nghỉ phép năm chưa gửi được.</li>
+                    <li>Đơn chờ duyệt hoặc bị từ chối không trừ phép. Phép năm chỉ trừ khi được duyệt.</li>
+                    <li>Quản lý cửa hàng là người duyệt. Admin không duyệt từng đơn.</li>
+                </ul>
+            </aside>
+        </div>
+    </section>
+
+    <section class="panel" id="history">
+        <div class="leave-heading">
+            <h2>Lịch sử đơn đã gửi</h2>
+        </div>
+        <form class="leave-filters" id="leaveFilters">
+            <label>Trạng thái
+                <select id="historyStatus">
+                    <option value="">Tất cả</option>
+                    <option value="PENDING">Chờ duyệt</option>
+                    <option value="APPROVED">Đã duyệt</option>
+                    <option value="REJECTED">Đã từ chối</option>
+                    <option value="CANCELLED">Đã hủy</option>
+                </select>
+            </label>
+            <button class="leave-btn leave-btn-outline" type="submit">Lọc</button>
+        </form>
+        <div class="leave-table-wrap">
+            <table class="leave-table">
+                <thead>
+                <tr>
+                    <th>Mã đơn</th>
+                    <th>Loại nghỉ</th>
+                    <th>Ca xin nghỉ</th>
+                    <th>Số slot</th>
+                    <th>Ngày gửi</th>
+                    <th>Trạng thái</th>
+                    <th>Người xử lý</th>
+                    <th>Lý do từ chối</th>
+                    <th>Thao tác</th>
+                </tr>
+                </thead>
+                <tbody id="leaveHistoryBody">
+                <tr><td colspan="9" class="leave-empty">Đang tải danh sách...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="leave-history-footer">
+            <span id="leavePageLabel">Trang 1</span>
+            <button class="leave-btn leave-btn-outline" id="leavePrev" type="button">Trước</button>
+            <button class="leave-btn leave-btn-outline" id="leaveNext" type="button">Sau</button>
+        </div>
+        <p class="leave-toast" id="leaveToast" hidden role="status"></p>
+    </section>
+</main>
+
+<div aria-hidden="true" class="leave-overlay" id="leaveDetailOverlay">
+    <section aria-labelledby="leaveDetailTitle" aria-modal="true" class="leave-dialog" role="dialog">
+        <header class="leave-dialog-header">
+            <div>
+                <h2 id="leaveDetailTitle">Chi tiết đơn</h2>
+                <p>Thông tin đơn của bạn.</p>
+            </div>
+            <button aria-label="Đóng" class="leave-close" id="leaveCloseDetail" type="button">×</button>
+        </header>
+        <div class="leave-detail-body" id="leaveDetailBody"></div>
+    </section>
+</div>
+<script defer th:src="@{/js/StaffLeaveRequest.js}"></script>
+</body>
+</html>

@@ -12,6 +12,7 @@ import com.example.coffee_hrm.dto.response.WeeklyScheduleView;
 import com.example.coffee_hrm.entity.*;
 import com.example.coffee_hrm.repository.*;
 import com.example.coffee_hrm.security.AuthenticatedUser;
+import com.example.coffee_hrm.service.support.ApprovedLeaveCoverage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -48,6 +49,8 @@ class ScheduleServiceImplTest {
     private WorkAvailabilityRepository workAvailabilityRepository;
     @Mock
     private LeaveRequestRepository leaveRequestRepository;
+    @Mock
+    private ApprovedLeaveCoverage approvedLeaveCoverage;
 
     @InjectMocks
     private ScheduleServiceImpl scheduleService;
@@ -67,6 +70,9 @@ class ScheduleServiceImplTest {
         empManager = Employee.builder().id(10).fullName("Manager A").store(store).status(EmployeeStatus.ACTIVE).build();
         empTuan = Employee.builder().id(20).fullName("Trần Văn Tuấn").store(store).status(EmployeeStatus.ACTIVE).build();
         empThu = Employee.builder().id(30).fullName("Lê Thị Thu").store(store).status(EmployeeStatus.ACTIVE).build();
+
+        lenient().when(approvedLeaveCoverage.index(any(), any(), any()))
+                .thenReturn(new ApprovedLeaveCoverage.WeekIndex(java.util.Set.of(), java.util.Set.of()));
 
         managerUser = AuthenticatedUser.from(buildUser(2, "manager1", RoleName.MANAGER, empManager));
         staffUser = AuthenticatedUser.from(buildUser(3, "tuanth", RoleName.STAFF, empTuan));

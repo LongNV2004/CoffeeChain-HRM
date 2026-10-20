@@ -72,7 +72,7 @@ class StoreControllerCreateTest {
                 .andExpect(status().isOk())
                 .andExpect(view().name("admin/store-create"))
                 .andExpect(model().attribute("storeForm", allOf(
-                        hasProperty("totalLeaveDays", is(12)),
+                        hasProperty("totalLeaveSlots", nullValue()),
                         hasProperty("openingDate", nullValue()))))
                 .andExpect(content().string(containsString("Tạo cửa hàng mới")))
                 .andExpect(content().string(containsString("Ngày khai trương")))
@@ -99,7 +99,7 @@ class StoreControllerCreateTest {
             mockMvc.perform(post("/admin/stores/create").with(user(actor(role))).with(csrf())
                             .param("storeName", "Store X")
                             .param("address", "X")
-                            .param("totalLeaveDays", "12")
+                            .param("totalLeaveSlots", "12")
                             .param("openingDate", "20/10/2026"))
                     .andExpect(status().is3xxRedirection());
         }
@@ -111,7 +111,7 @@ class StoreControllerCreateTest {
         mockMvc.perform(post("/admin/stores/create").with(user(actor(RoleName.ADMIN)))
                         .param("storeName", "Store X")
                         .param("address", "X")
-                        .param("totalLeaveDays", "12")
+                        .param("totalLeaveSlots", "12")
                         .param("openingDate", "20/10/2026"))
                 .andExpect(status().is3xxRedirection());
         verify(storeService, never()).createStore(any(), any());
@@ -126,7 +126,7 @@ class StoreControllerCreateTest {
         mockMvc.perform(post("/admin/stores/create").with(user(actor(RoleName.ADMIN))).with(csrf())
                         .param("storeName", "   Coffee Nguyễn Trãi   ")
                         .param("address", "  12 Nguyễn Trãi ")
-                        .param("totalLeaveDays", "12")
+                        .param("totalLeaveSlots", "12")
                         .param("openingDate", "20/10/2026")
                         .param("latitude", " 21.028511 ")
                         .param("longitude", " 105.854167 "))
@@ -147,7 +147,7 @@ class StoreControllerCreateTest {
         mockMvc.perform(post("/admin/stores/create").with(user(actor(RoleName.ADMIN))).with(csrf())
                         .param("storeName", "   ")
                         .param("address", "")
-                        .param("totalLeaveDays", "12")
+                        .param("totalLeaveSlots", "12")
                         .param("openingDate", "20/10/2026"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("admin/store-create"))
@@ -161,10 +161,10 @@ class StoreControllerCreateTest {
         mockMvc.perform(post("/admin/stores/create").with(user(actor(RoleName.ADMIN))).with(csrf())
                         .param("storeName", "a".repeat(101))
                         .param("address", "X")
-                        .param("totalLeaveDays", "-1")
+                        .param("totalLeaveSlots", "-1")
                         .param("openingDate", "20/10/2026"))
                 .andExpect(status().isOk())
-                .andExpect(model().attributeHasFieldErrors("storeForm", "storeName", "totalLeaveDays"));
+                .andExpect(model().attributeHasFieldErrors("storeForm", "storeName", "totalLeaveSlots"));
         verify(storeService, never()).createStore(any(), any());
     }
 
@@ -175,7 +175,7 @@ class StoreControllerCreateTest {
         mockMvc.perform(post("/admin/stores/create").with(user(actor(RoleName.ADMIN))).with(csrf())
                         .param("storeName", "Store A")
                         .param("address", "X")
-                        .param("totalLeaveDays", "12")
+                        .param("totalLeaveSlots", "12")
                         .param("openingDate", "20/10/2026")
                         .param("latitude", "21.028511")
                         .param("longitude", "105.854167"))
@@ -190,7 +190,7 @@ class StoreControllerCreateTest {
         mockMvc.perform(post("/admin/stores/create").with(user(actor(RoleName.ADMIN))).with(csrf())
                         .param("storeName", "Store A")
                         .param("address", "12 Nguyễn Trãi")
-                        .param("totalLeaveDays", "12")
+                        .param("totalLeaveSlots", "12")
                         .param("latitude", "21.028511")
                         .param("longitude", "105.854167"))
                 .andExpect(status().isOk())

@@ -7,11 +7,13 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum ApprovalStatus {
 
-    PENDING("Pending"),
-    APPROVED("Approved"),
-    REJECTED("Rejected");
+    PENDING("Pending", "Chờ duyệt"),
+    APPROVED("Approved", "Đã duyệt"),
+    REJECTED("Rejected", "Đã từ chối"),
+    CANCELLED("Cancelled", "Đã hủy");
 
     private final String dbValue;
+    private final String label;
 
     public static ApprovalStatus fromDbValue(String dbValue) {
         for (ApprovalStatus status : values()) {

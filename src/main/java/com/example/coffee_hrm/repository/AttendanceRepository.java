@@ -19,6 +19,23 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Integer>
     Optional<Attendance> findByEmployee_IdAndShift_IdAndWorkDate(Integer employeeId, Integer shiftId, LocalDate workDate);
 
     @Query("""
+            SELECT a.shift.id AS shiftId, a.workDate AS workDate
+            FROM Attendance a
+            WHERE a.employee.id = :employeeId
+              AND a.shift IS NOT NULL
+              AND a.workDate >= :fromDate
+              AND a.workDate <= :toDate
+            """)
+    List<ShiftWorkDate> findShiftDates(@Param("employeeId") Integer employeeId,
+                                       @Param("fromDate") LocalDate fromDate,
+                                       @Param("toDate") LocalDate toDate);
+
+    interface ShiftWorkDate {
+        Integer getShiftId();
+        LocalDate getWorkDate();
+    }
+
+    @Query("""
             SELECT a FROM Attendance a
             LEFT JOIN FETCH a.store
             LEFT JOIN FETCH a.shift

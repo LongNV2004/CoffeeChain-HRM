@@ -146,17 +146,21 @@
             <div class="leave-heading">
                 <h2>Đơn nghỉ phép</h2>
                 <div class="leave-actions">
-                    <button class="leave-btn leave-btn-outline" id="openLeaveHistory" type="button">Xem lịch sử</button>
-                    <button class="leave-btn leave-btn-primary" id="openLeaveModal" type="button">+ Tạo đơn</button>
+                    <a class="leave-btn leave-btn-outline" th:href="@{/staff/leave#history}">Xem lịch sử</a>
+                    <a class="leave-btn leave-btn-primary" th:href="@{/staff/leave}">+ Tạo đơn</a>
                 </div>
             </div>
-            <p class="leave-alert leave-alert-success" th:if="${leaveSuccess != null}" th:text="${leaveSuccess}"></p>
-            <p class="leave-alert leave-alert-error" th:if="${leaveError != null}" th:text="${leaveError}"></p>
             <p class="empty" th:if="${#lists.isEmpty(dashboard.leaveRequests)}">Chưa có đơn nghỉ phép.</p>
             <ul class="request-list" th:if="${!#lists.isEmpty(dashboard.leaveRequests)}">
                 <li th:each="item : ${dashboard.leaveRequests}">
                     <strong th:text="${#temporals.format(item.startDate, 'dd/MM/yyyy') + ' → ' + #temporals.format(item.endDate, 'dd/MM/yyyy')}">date</strong>
-                    <span th:text="${item.status}">Pending</span>
+                    <span th:switch="${item.status}">
+                        <span th:case="'Pending'">Chờ duyệt</span>
+                        <span th:case="'Approved'">Đã duyệt</span>
+                        <span th:case="'Rejected'">Đã từ chối</span>
+                        <span th:case="'Cancelled'">Đã hủy</span>
+                        <span th:case="*" th:text="${item.status}">Pending</span>
+                    </span>
                     <p th:text="${item.reason != null} ? ${item.reason} : 'Không có lý do'">reason</p>
                 </li>
             </ul>
@@ -210,60 +214,6 @@
         </article>
     </section>
 </main>
-
-<div aria-hidden="true" class="leave-overlay" id="leaveModal" th:attr="data-open-on-error=${leaveError != null}" th:data-preview-url="@{/staff/leave/preview}">
-    <section aria-labelledby="leaveModalTitle" aria-modal="true" class="leave-dialog" role="dialog">
-        <header class="leave-dialog-header">
-            <div>
-                <h2 id="leaveModalTitle">Tạo đơn xin nghỉ phép</h2>
-                <p>Ngày nghỉ được tính theo ngày có ca đã phân công.</p>
-            </div>
-            <button aria-label="Đóng" class="leave-close" data-leave-close type="button">×</button>
-        </header>
-        <form class="leave-dialog-form" id="leaveCreateForm" method="post" th:action="@{/staff/leave}">
-            <div class="leave-date-grid">
-                <label>
-                    Ngày bắt đầu
-                    <span>*</span>
-                    <input id="leaveStartDate" name="startDate" required th:value="${leaveFormStart}" type="date"/>
-                </label>
-                <label>
-                    Ngày kết thúc
-                    <span>*</span>
-                    <input id="leaveEndDate" name="endDate" required th:value="${leaveFormEnd}" type="date"/>
-                </label>
-            </div>
-            <label>
-                Lý do xin nghỉ
-                <span>*</span>
-                <textarea maxlength="255" name="reason" placeholder="Nhập lý do nghỉ phép..." required rows="4" th:text="${leaveFormReason}"></textarea>
-            </label>
-            <div aria-live="polite" class="leave-preview" id="leavePreview" role="status">
-                Chọn ngày để kiểm tra số ngày nghỉ và quỹ phép.
-            </div>
-            <div class="leave-form-actions">
-                <button class="leave-btn leave-btn-outline" data-leave-close type="button">Hủy</button>
-                <button class="leave-btn leave-btn-primary" id="leaveSubmit" type="submit">Gửi đơn</button>
-            </div>
-        </form>
-    </section>
-</div>
-<div aria-hidden="true" class="leave-overlay leave-overlay-drawer" id="leaveHistoryDrawer" th:data-history-url="@{/staff/leave/history}">
-    <section aria-labelledby="leaveHistoryTitle" aria-modal="true" class="leave-drawer" role="dialog">
-        <header class="leave-dialog-header">
-            <div>
-                <h2 id="leaveHistoryTitle">Lịch sử xin nghỉ phép</h2>
-                <p>Toàn bộ đơn đã gửi của bạn.</p>
-            </div>
-            <button aria-label="Đóng" class="leave-close" data-leave-close type="button">×</button>
-        </header>
-        <div aria-live="polite" class="leave-history-list" id="leaveHistoryList"></div>
-        <div class="leave-history-footer">
-            <button class="leave-btn leave-btn-outline" hidden id="leaveLoadMore" type="button">Tải thêm</button>
-        </div>
-    </section>
-</div>
 <script th:src="@{/js/StaffDashboard.js}"></script>
-<script defer th:src="@{/js/StaffLeaveRequest.js}"></script>
 </body>
 </html>

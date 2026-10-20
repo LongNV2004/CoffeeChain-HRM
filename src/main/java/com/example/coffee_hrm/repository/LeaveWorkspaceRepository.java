@@ -14,11 +14,18 @@ public interface LeaveWorkspaceRepository extends JpaRepository<LeaveRequest, In
             SELECT lr FROM LeaveRequest lr JOIN lr.employee e
             WHERE e.store.id = :storeId
               AND (:status IS NULL OR lr.status = :status)
-              AND (:keyword = '' OR LOWER(e.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')))
+              AND (:fromDate IS NULL OR lr.endDate >= :fromDate)
+              AND (:toDate IS NULL OR lr.startDate <= :toDate)
+              AND (:keyword = ''
+                   OR LOWER(e.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                   OR cast(e.id as string) LIKE CONCAT('%', :keyword, '%'))
             """)
     Page<LeaveRequest> findInStore(@Param("storeId") Integer storeId,
                                    @Param("status") ApprovalStatus status,
-                                   @Param("keyword") String keyword, Pageable pageable);
+                                   @Param("keyword") String keyword,
+                                   @Param("fromDate") LocalDate fromDate,
+                                   @Param("toDate") LocalDate toDate,
+                                   Pageable pageable);
 
     long countByEmployee_Store_IdAndStatus(Integer storeId, ApprovalStatus status);
 

@@ -262,6 +262,9 @@ td form{margin:0;}
 .store-inactive-card .form-actions { margin-top:18px; flex-wrap:wrap; }
 .store-inactive-card form { margin:0; }
 
+.leave-admin-stats{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:16px}
+.leave-admin-stats span{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+
 @media (max-width:900px){
   .wrap,.dash-nav .wrap,.dash-main{padding-left:22px;padding-right:22px;}
   .dash-nav nav{display:none;}
