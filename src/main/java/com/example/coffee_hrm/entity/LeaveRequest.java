@@ -1,6 +1,7 @@
 package com.example.coffee_hrm.entity;
 
 import com.example.coffee_hrm.common.enums.ApprovalStatus;
+import com.example.coffee_hrm.common.enums.LeaveType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -16,7 +17,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-@ToString(exclude = {"employee", "approvedBy"})
+@ToString(exclude = {"employee", "approvedBy", "handoverEmployee"})
 public class LeaveRequest {
 
     @Id
@@ -34,6 +35,21 @@ public class LeaveRequest {
 
     @Column(name = "EndDate", nullable = false)
     private LocalDate endDate;
+
+    @Column(name = "LeaveType", nullable = false, length = 20)
+    @Builder.Default
+    private LeaveType leaveType = LeaveType.ANNUAL;
+
+    /** Số slot ca được chọn. Không còn là số ngày lịch. */
+    @Column(name = "RequestedWorkDays")
+    private Integer requestedWorkDays;
+
+    @Column(name = "ContactPhone", length = 15)
+    private String contactPhone;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "HandoverEmployeeId")
+    private Employee handoverEmployee;
 
     @Column(name = "Reason", length = 255)
     private String reason;

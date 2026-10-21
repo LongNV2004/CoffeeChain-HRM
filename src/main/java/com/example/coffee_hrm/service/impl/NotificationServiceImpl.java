@@ -121,6 +121,11 @@ public class NotificationServiceImpl implements NotificationService {
                         : "/schedule/staff";
                 case ADMIN -> null;
             };
+            case "SHIFT_CHANGE" -> switch (user.getRoleName()) {
+                case MANAGER -> "/schedule/manager";
+                case STAFF -> "/schedule/staff";
+                case ADMIN -> null;
+            };
             case "RECRUITMENT_REQUEST" -> switch (user.getRoleName()) {
                 case ADMIN -> notification.getReferenceId() == null
                         ? "/admin/recruitment"
@@ -138,6 +143,11 @@ public class NotificationServiceImpl implements NotificationService {
                         ? "/manager/resignation"
                         : "/manager/resignation/" + notification.getReferenceId();
                 case STAFF -> null;
+            };
+            case "LEAVE_REQUEST" -> switch (user.getRoleName()) {
+                case ADMIN -> "/admin/leaves";
+                case MANAGER -> "/manager/leaves";
+                case STAFF -> "/staff/leave";
             };
             default -> null;
         };

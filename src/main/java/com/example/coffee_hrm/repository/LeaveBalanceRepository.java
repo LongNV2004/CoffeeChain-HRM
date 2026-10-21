@@ -16,6 +16,13 @@ public interface LeaveBalanceRepository extends JpaRepository<LeaveBalance, Inte
     Optional<Integer> findUsedDays(@Param("employeeId") Integer employeeId,
                                    @Param("year") int year);
 
+    @Query(value = """
+            SELECT UsedSlots FROM dbo.LeaveBalances
+            WHERE EmployeeId = :employeeId AND [Year] = :year
+            """, nativeQuery = true)
+    Optional<Integer> findUsedSlots(@Param("employeeId") Integer employeeId,
+                                    @Param("year") int year);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT b FROM LeaveBalance b WHERE b.employee.id = :employeeId AND b.year = :year")
     Optional<LeaveBalance> lockByEmployeeIdAndYear(@Param("employeeId") Integer employeeId,

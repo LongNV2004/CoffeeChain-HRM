@@ -482,7 +482,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
             }
             notificationService.notifyUsers(
                     List.of(user),
-                    approved ? "Lịch làm việc đã được duyệt" : "Lịch làm việc bị từ chối",
+                    approved ? "Đăng ký ca làm đã được duyệt" : "Đăng ký ca làm bị từ chối",
                     message,
                     approved ? NotificationType.WORK_AVAILABILITY_APPROVED : NotificationType.WORK_AVAILABILITY_REJECTED,
                     AVAILABILITY_REF,
@@ -779,7 +779,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                     staffEmployee.getStore().getStoreName());
             notificationService.notifyUsers(
                     List.of(managerUser),
-                    "STAFF đăng ký lịch làm việc định kỳ",
+                    "Nhân viên đăng ký ca làm",
                     message,
                     NotificationType.WORK_AVAILABILITY_SUBMITTED,
                     AVAILABILITY_REF,
@@ -942,6 +942,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
             case PENDING -> "pending";
             case APPROVED -> "approved";
             case REJECTED -> "rejected";
+            case CANCELLED -> "cancelled";
         };
     }
 
@@ -950,6 +951,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
             case PENDING -> "Chờ duyệt";
             case APPROVED -> "Đã duyệt";
             case REJECTED -> "Từ chối";
+            case CANCELLED -> "Đã hủy";
         };
     }
 

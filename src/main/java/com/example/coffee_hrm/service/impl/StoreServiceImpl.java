@@ -92,8 +92,8 @@ public class StoreServiceImpl implements StoreService {
                 .status(status)
                 .isActive(status != StoreStatus.INACTIVE)
                 .build();
-        if (request.getTotalLeaveDays() != null) {
-            store.setTotalLeaveDays(request.getTotalLeaveDays());
+        if (request.getTotalLeaveSlots() != null) {
+            store.setTotalLeaveSlots(request.getTotalLeaveSlots());
         }
         applyLocation(store, request.getLatitude(), request.getLongitude(), true);
         Store saved = storeRepository.save(store);
@@ -112,7 +112,7 @@ public class StoreServiceImpl implements StoreService {
         }
         store.setStoreName(storeName);
         store.setAddress(request.getAddress().trim());
-        store.setTotalLeaveDays(request.getTotalLeaveDays());
+        store.setTotalLeaveSlots(request.getTotalLeaveSlots());
         store.setOpeningDate(requireOpeningDate(request.getOpeningDate()));
         if (effectiveStatus(store) != StoreStatus.INACTIVE) {
             store.assignStatus(StoreStatus.fromOpeningDate(store.getOpeningDate(), VietnamTime.today()));
@@ -228,6 +228,7 @@ public class StoreServiceImpl implements StoreService {
                 .storeName(store.getStoreName())
                 .address(store.getAddress())
                 .totalLeaveDays(store.getTotalLeaveDays())
+                .totalLeaveSlots(store.getTotalLeaveSlots())
                 .isActive(status != StoreStatus.INACTIVE)
                 .status(status)
                 .statusLabel(status.getLabel())

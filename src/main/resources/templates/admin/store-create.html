@@ -94,11 +94,11 @@
                     <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h5"/></svg>
                     Thông tin bổ sung
                 </h2>
-                <p class="store-create-lead">Số ngày phép năm áp dụng cho nhân sự của cửa hàng này.</p>
+                <p class="store-create-lead">Số slot phép năm là số ca làm được nghỉ phép năm. Không quy đổi từ số ngày phép đang lưu.</p>
                 <div class="store-create-fields">
-                    <label>Số ngày phép / năm <span class="req" aria-hidden="true">*</span>
-                        <input type="number" th:field="*{totalLeaveDays}" min="0" required>
-                        <span class="field-error" th:if="${#fields.hasErrors('totalLeaveDays')}" th:errors="*{totalLeaveDays}">Error</span>
+                    <label>Số slot phép / năm <span class="req" aria-hidden="true">*</span>
+                        <input type="number" th:field="*{totalLeaveSlots}" min="0" required>
+                        <span class="field-error" th:if="${#fields.hasErrors('totalLeaveSlots')}" th:errors="*{totalLeaveSlots}">Error</span>
                     </label>
                 </div>
             </section>
@@ -159,9 +159,9 @@
                             th:text="${storeForm.openingDate != null} ? ${#temporals.format(storeForm.openingDate, 'dd/MM/yyyy')} : 'Chưa chọn'">Chưa chọn</dd>
                     </div>
                     <div>
-                        <dt>Số ngày phép / năm</dt>
+                        <dt>Số slot phép / năm</dt>
                         <dd data-preview-leave
-                            th:text="${storeForm.totalLeaveDays != null} ? ${storeForm.totalLeaveDays + ' ngày'} : 'Chưa nhập'">12 ngày</dd>
+                            th:text="${storeForm.totalLeaveSlots != null} ? ${storeForm.totalLeaveSlots + ' slot ca'} : 'Chưa nhập'">Chưa nhập</dd>
                     </div>
                     <div>
                         <dt>Vị trí chấm công</dt>

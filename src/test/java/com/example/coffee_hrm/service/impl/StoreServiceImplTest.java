@@ -75,7 +75,8 @@ class StoreServiceImplTest {
 
         assertEquals("Store B", store.getStoreName());
         assertEquals("12 Lê Lợi", store.getAddress());
-        assertEquals(15, store.getTotalLeaveDays());
+        assertEquals(12, store.getTotalLeaveDays());
+        assertEquals(15, store.getTotalLeaveSlots());
         assertEquals(openingDate, store.getOpeningDate());
         assertEquals(StoreStatus.PRE_OPENING, store.getStatus());
         assertTrue(store.getIsActive());
@@ -130,7 +131,8 @@ class StoreServiceImplTest {
         Store saved = captor.getValue();
         assertEquals("Coffee Nguyễn Trãi", saved.getStoreName());
         assertEquals("12 Nguyễn Trãi, Hà Nội", saved.getAddress());
-        assertEquals(14, saved.getTotalLeaveDays());
+        assertEquals(12, saved.getTotalLeaveDays());
+        assertEquals(14, saved.getTotalLeaveSlots());
         assertEquals(VietnamTime.today(), saved.getOpeningDate());
         assertEquals(StoreStatus.ACTIVE, saved.getStatus());
         assertTrue(saved.getIsActive());
@@ -333,7 +335,7 @@ class StoreServiceImplTest {
         return CreateStoreRequest.builder()
                 .storeName(storeName)
                 .address(address)
-                .totalLeaveDays(totalLeaveDays)
+                .totalLeaveSlots(totalLeaveDays)
                 .openingDate(openingDate)
                 .latitude("21.028511")
                 .longitude("105.854167")
@@ -349,7 +351,7 @@ class StoreServiceImplTest {
         return UpdateStoreRequest.builder()
                 .storeName(storeName)
                 .address(address)
-                .totalLeaveDays(totalLeaveDays)
+                .totalLeaveSlots(totalLeaveDays)
                 .openingDate(openingDate)
                 .latitude(latitude)
                 .longitude(longitude)

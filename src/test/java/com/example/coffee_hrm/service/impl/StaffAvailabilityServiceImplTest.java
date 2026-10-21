@@ -235,6 +235,29 @@ class StaffAvailabilityServiceImplTest {
     }
 
     @Test
+    void submitNotifiesStoreManager() {
+        Employee manager = Employee.builder().id(10).fullName("Manager A").store(store)
+                .status(EmployeeStatus.ACTIVE).build();
+        store.setManager(manager);
+        User managerAccount = buildUser(2, "manager1", RoleName.MANAGER, manager);
+        AuthenticatedUser staffUser = AuthenticatedUser.from(buildUser(3, "staff1", RoleName.STAFF, staff));
+        when(employeeRepository.findByIdWithStoreAndManager(20)).thenReturn(Optional.of(staff));
+        when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shift));
+        when(userRepository.findByEmployee_Id(10)).thenReturn(Optional.of(managerAccount));
+        stubOpenLimit(4);
+
+        service.submitNextWeekAvailability(nextWeekRequest(), staffUser);
+
+        verify(notificationService).notifyUsers(
+                eq(List.of(managerAccount)),
+                eq("Nhân viên đăng ký ca làm"),
+                anyString(),
+                eq(NotificationType.WORK_AVAILABILITY_SUBMITTED),
+                eq("WORK_AVAILABILITY"),
+                eq(20));
+    }
+
+    @Test
     void submitAllowsCertifiedStaff() {
         AuthenticatedUser staffUser = AuthenticatedUser.from(buildUser(3, "staff1", RoleName.STAFF, staff));
         when(employeeRepository.findByIdWithStoreAndManager(20)).thenReturn(Optional.of(staff));
@@ -362,7 +385,7 @@ class StaffAvailabilityServiceImplTest {
         verify(workAvailabilityRepository).saveAll(List.of(availability));
         verify(notificationService).notifyUsers(
                 eq(List.of(staffAccount)),
-                eq("Lịch làm việc đã được duyệt"),
+                eq("Đăng ký ca làm đã được duyệt"),
                 anyString(),
                 eq(NotificationType.WORK_AVAILABILITY_APPROVED),
                 eq("WORK_AVAILABILITY"),
@@ -390,7 +413,7 @@ class StaffAvailabilityServiceImplTest {
         verify(scheduleService, never()).assignShiftFromApprovedAvailability(any(), any());
         verify(notificationService).notifyUsers(
                 eq(List.of(staffAccount)),
-                eq("Lịch làm việc bị từ chối"),
+                eq("Đăng ký ca làm bị từ chối"),
                 anyString(),
                 eq(NotificationType.WORK_AVAILABILITY_REJECTED),
                 eq("WORK_AVAILABILITY"),

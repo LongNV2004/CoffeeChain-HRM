@@ -64,10 +64,7 @@ public class StoreController {
     // UC 1.3 - Admin Create Cafe Location
     @GetMapping("/create")
     public String createStoreForm(Model model) {
-        Store defaults = Store.builder().build();
-        model.addAttribute("storeForm", CreateStoreRequest.builder()
-                .totalLeaveDays(defaults.getTotalLeaveDays())
-                .build());
+        model.addAttribute("storeForm", CreateStoreRequest.builder().build());
         return STORE_CREATE_VIEW;
     }
 
@@ -107,6 +104,7 @@ public class StoreController {
             model.addAttribute("storeForm", UpdateStoreRequest.builder()
                     .storeName(store.getStoreName())
                     .address(store.getAddress())
+                    .totalLeaveSlots(store.getTotalLeaveSlots())
                     .totalLeaveDays(store.getTotalLeaveDays())
                     .openingDate(store.getOpeningDate())
                     .latitude(plainCoordinate(store.getLatitude()))

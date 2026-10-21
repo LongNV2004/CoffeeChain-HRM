@@ -3,6 +3,7 @@ package com.example.coffee_hrm.service.impl;
 import com.example.coffee_hrm.common.enums.ApprovalStatus;
 import com.example.coffee_hrm.common.enums.AssignmentStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
+import com.example.coffee_hrm.common.enums.LeaveType;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.response.*;
@@ -35,6 +36,7 @@ public class LeaveReplacementServiceImpl implements LeaveReplacementService {
     private final ShiftAssignmentRepository shiftAssignmentRepository;
     private final WorkAvailabilityRepository workAvailabilityRepository;
     private final EmployeeRepository employeeRepository;
+    private final LeaveRequestSlotRepository leaveRequestSlotRepository;
 
     @Override
     public LeaveWorkspaceSummary summary(AuthenticatedUser manager) {
@@ -48,20 +50,29 @@ public class LeaveReplacementServiceImpl implements LeaveReplacementService {
 
     @Override
     public LeaveWorkspacePage search(AuthenticatedUser manager, int page, ApprovalStatus status,
-                                     String keyword) {
+                                     String keyword, LocalDate fromDate, LocalDate toDate) {
         Store store = managedStore(manager);
         if (page < 0 || page > 100_000) {
             throw new BusinessException("Trang danh sách không hợp lệ.");
+        }
+        if (fromDate != null && toDate != null && toDate.isBefore(fromDate)) {
+            throw new BusinessException("Ngày kết thúc bộ lọc phải từ ngày bắt đầu trở đi.");
         }
         String search = keyword == null ? "" : keyword.trim();
         if (search.length() > 100) {
             throw new BusinessException("Tên tìm kiếm không được vượt quá 100 ký tự.");
         }
         Page<LeaveRequest> result = leaveRepository.findInStore(store.getId(), status, search,
+                fromDate, toDate,
                 PageRequest.of(page, PAGE_SIZE, Sort.by(Sort.Direction.DESC, "createdAt", "id")));
         List<LeaveWorkspaceRow> rows = result.getContent().stream()
-                .map(r -> new LeaveWorkspaceRow(r.getId(), r.getEmployee().getFullName(),
-                        r.getStartDate(), r.getEndDate(), r.getReason(), r.getStatus(), r.getCreatedAt()))
+                .map(r -> {
+                    LeaveType type = r.getLeaveType() == null ? LeaveType.ANNUAL : r.getLeaveType();
+                    return new LeaveWorkspaceRow(r.getId(), r.getEmployee().getFullName(),
+                            String.valueOf(r.getEmployee().getId()),
+                            r.getStartDate(), r.getEndDate(), r.getReason(), r.getStatus(),
+                            r.getCreatedAt(), type.getLabel(), r.getRequestedWorkDays());
+                })
                 .toList();
         return new LeaveWorkspacePage(rows, result.getTotalElements(), result.getTotalPages(), page);
     }
@@ -130,8 +141,30 @@ public class LeaveReplacementServiceImpl implements LeaveReplacementService {
                 storeId, monday, sunday, AssignmentStatus.ASSIGNED);
         List<WorkAvailability> available = workAvailabilityRepository.findApprovedCovering(
                 storeId, date, date, ApprovalStatus.APPROVED);
-        Set<Integer> onLeave = leaveRepository.findApprovedOnDate(storeId, ApprovalStatus.APPROVED, date)
-                .stream().map(r -> r.getEmployee().getId()).collect(Collectors.toSet());
+        List<LeaveRequest> covering = leaveRepository.findApprovedOnDate(storeId, ApprovalStatus.APPROVED, date);
+        Set<Integer> requestIds = covering.stream().map(LeaveRequest::getId).filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        List<LeaveRequestSlot> linked = requestIds.isEmpty() || leaveRequestSlotRepository == null
+                ? List.of()
+                : leaveRequestSlotRepository.findByLeaveRequest_IdIn(requestIds);
+        if (linked == null) {
+            linked = List.of();
+        }
+        Map<Integer, List<LeaveRequestSlot>> slotsByRequest = linked.stream()
+                .filter(slot -> slot.getLeaveRequest() != null && slot.getLeaveRequest().getId() != null)
+                .collect(Collectors.groupingBy(slot -> slot.getLeaveRequest().getId()));
+        Set<Integer> onLeave = new HashSet<>();
+        for (LeaveRequest coveringLeave : covering) {
+            List<LeaveRequestSlot> slots = coveringLeave.getId() == null
+                    ? List.of() : slotsByRequest.getOrDefault(coveringLeave.getId(), List.of());
+            boolean sameShift = slots.stream().anyMatch(slot -> slot.getAssignment() != null
+                    && slot.getAssignment().getShift() != null
+                    && Objects.equals(slot.getAssignment().getShift().getId(), gap.getShift().getId())
+                    && date.equals(slot.getAssignment().getWorkDate()));
+            if (slots.isEmpty() || sameShift) {
+                onLeave.add(coveringLeave.getEmployee().getId());
+            }
+        }
 
         Map<Integer, Long> weeklyShiftCounts = weekly.stream()
                 .collect(Collectors.groupingBy(a -> a.getEmployee().getId(), Collectors.counting()));

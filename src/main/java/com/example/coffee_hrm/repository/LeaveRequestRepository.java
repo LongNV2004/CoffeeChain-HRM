@@ -3,6 +3,7 @@ package com.example.coffee_hrm.repository;
 import com.example.coffee_hrm.common.enums.ApprovalStatus;
 import com.example.coffee_hrm.entity.LeaveRequest;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.EntityGraph;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
@@ -60,4 +61,46 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Inte
 
     boolean existsByEmployee_IdAndStatusAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
             Integer employeeId, ApprovalStatus status, LocalDate workDateEnd, LocalDate workDateStart);
+
+    @Query("""
+            SELECT COUNT(lr) > 0 FROM LeaveRequest lr
+            WHERE lr.employee.id = :employeeId
+              AND lr.status = :status
+              AND lr.startDate <= :workDate
+              AND lr.endDate >= :workDate
+              AND NOT EXISTS (
+                  SELECT 1 FROM LeaveRequestSlot s WHERE s.leaveRequest = lr
+              )
+            """)
+    boolean existsApprovedWithoutSlots(@Param("employeeId") Integer employeeId,
+                                       @Param("status") ApprovalStatus status,
+                                       @Param("workDate") LocalDate workDate);
+
+    @EntityGraph(attributePaths = {"employee", "approvedBy", "approvedBy.employee", "handoverEmployee"})
+    @Query("""
+            SELECT lr FROM LeaveRequest lr
+            WHERE lr.employee.id = :employeeId
+              AND (:status IS NULL OR lr.status = :status)
+              AND (:fromDate IS NULL OR lr.endDate >= :fromDate)
+              AND (:toDate IS NULL OR lr.startDate <= :toDate)
+            """)
+    Page<LeaveRequest> searchByEmployee(@Param("employeeId") Integer employeeId,
+                                        @Param("status") ApprovalStatus status,
+                                        @Param("fromDate") LocalDate fromDate,
+                                        @Param("toDate") LocalDate toDate,
+                                        Pageable pageable);
+
+    long countByStatus(ApprovalStatus status);
+
+    @EntityGraph(attributePaths = {"employee", "employee.store"})
+    @Query("""
+            SELECT lr FROM LeaveRequest lr
+            WHERE (:status IS NULL OR lr.status = :status)
+              AND (:fromDate IS NULL OR lr.endDate >= :fromDate)
+              AND (:toDate IS NULL OR lr.startDate <= :toDate)
+            """)
+    Page<LeaveRequest> searchForAdmin(@Param("status") ApprovalStatus status,
+                                      @Param("fromDate") LocalDate fromDate,
+                                      @Param("toDate") LocalDate toDate,
+                                      Pageable pageable);
 }

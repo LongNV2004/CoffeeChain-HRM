@@ -20,6 +20,7 @@ public class StoreResponse {
     private String storeName;
     private String address;
     private Integer totalLeaveDays;
+    private Integer totalLeaveSlots;
     private Boolean isActive;
     private StoreStatus status;
     private String statusLabel;
