@@ -2,6 +2,7 @@ package com.example.coffee_hrm.service.impl;
 
 import com.example.coffee_hrm.common.enums.ApprovalStatus;
 import com.example.coffee_hrm.common.enums.AssignmentStatus;
+import com.example.coffee_hrm.common.enums.CertificationStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.NotificationType;
 import com.example.coffee_hrm.common.exception.BusinessException;
@@ -99,6 +100,7 @@ public class ScheduleServiceImpl implements ScheduleService {
         if (employee.getStatus() != EmployeeStatus.ACTIVE) {
             throw new BusinessException("Chỉ có thể phân ca cho nhân viên đang hoạt động (Active).");
         }
+        requireCertifiedForSharedSchedule(employee);
         if (!isShiftStillUpcoming(request.getWorkDate(), shift.getStartTime())) {
             throw new BusinessException("Không thể phân ca cho thời gian đã qua.");
         }
@@ -196,6 +198,7 @@ public class ScheduleServiceImpl implements ScheduleService {
             if (!Objects.equals(targetEmployee.getStore().getId(), currentEmployee.getStore().getId())) {
                 throw new BusinessException("Đồng nghiệp được chọn không cùng cửa hàng.");
             }
+            requireCertifiedForSharedSchedule(targetEmployee);
             reasonPrefix = "[Chuyển ca cho: " + targetEmployee.getFullName() + " nhận thay] ";
         } else {
             reasonPrefix = "[Nhờ Quản lý sắp xếp người thay thế] ";
@@ -333,6 +336,7 @@ public class ScheduleServiceImpl implements ScheduleService {
             if (targetEmp.getStatus() != com.example.coffee_hrm.common.enums.EmployeeStatus.ACTIVE) {
                 throw new BusinessException("Nhân viên thay thế hiện không ở trạng thái làm việc.");
             }
+            requireCertifiedForSharedSchedule(targetEmp);
             ensureNoApprovedLeave(targetEmp.getId(), assignment.getShift().getId(), assignment.getWorkDate());
             if (!Objects.equals(targetEmp.getId(), requester.getId()) && shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus( targetEmp.getId(), assignment.getShift().getId(), assignment.getWorkDate(), AssignmentStatus.ASSIGNED)) {
                 throw new BusinessException("Nhân viên " + targetEmp.getFullName() + " đã có ca làm việc này trên lịch rồi.");
@@ -364,6 +368,7 @@ public class ScheduleServiceImpl implements ScheduleService {
             if (replacementEmp.getStatus() != com.example.coffee_hrm.common.enums.EmployeeStatus.ACTIVE) {
                 throw new BusinessException("Nhân viên thay thế hiện không ở trạng thái làm việc.");
             }
+            requireCertifiedForSharedSchedule(replacementEmp);
             ensureNoApprovedLeave(replacementEmp.getId(), assignment.getShift().getId(), assignment.getWorkDate());
             if (shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus( replacementEmp.getId(), assignment.getShift().getId(), assignment.getWorkDate(), AssignmentStatus.ASSIGNED)) {
                 throw new BusinessException("Nhân viên " + replacementEmp.getFullName() + " đã có ca làm việc này trên lịch rồi.");
@@ -439,7 +444,7 @@ public class ScheduleServiceImpl implements ScheduleService {
             }
             shiftRows.add(WeeklyScheduleView.ShiftRow.builder() .shiftId(shift.getId()) .shiftName(shift.getShiftName()) .startTime(shift.getStartTime()) .endTime(shift.getEndTime()) .formattedTime(shift.getStartTime().format(TIME_FORMATTER) + " – " + shift.getEndTime().format(TIME_FORMATTER)) .dayCells(cells) .build());
         }
-        List<WeeklyScheduleView.EmployeeOption> employeeOptions = activeEmployees.stream() .map(emp -> WeeklyScheduleView.EmployeeOption.builder() .employeeId(emp.getId()) .fullName(emp.getFullName()) .email(emp.getEmail()) .build()) .toList();
+        List<WeeklyScheduleView.EmployeeOption> employeeOptions = activeEmployees.stream() .map(emp -> WeeklyScheduleView.EmployeeOption.builder() .employeeId(emp.getId()) .fullName(emp.getFullName()) .email(emp.getEmail()) .certified(emp.getCertificationStatus() == CertificationStatus.CERTIFIED) .build()) .toList();
         List<WeeklyScheduleView.ShiftChangeItem> changeItems = requests.stream() .map(this::mapToShiftChangeItem) .toList();
         List<WeeklyScheduleView.ShiftChangeItem> incomingItems = incomingRequests != null ? incomingRequests.stream().map(this::mapToShiftChangeItem).toList() : List.of();
         return WeeklyScheduleView.builder() .storeId(store.getId()) .storeName(store.getStoreName()) .storeAddress(store.getAddress()) .weekStartDate(monday) .weekEndDate(sunday) .prevWeekDate(monday.minusWeeks(1)) .nextWeekDate(monday.plusWeeks(1)) .days(dayHeaders) .shiftRows(shiftRows) .storeEmployees(employeeOptions) .colleagueShifts(colleagueShifts) .pendingShiftChanges(changeItems) .incomingRequests(incomingItems) .totalAssignments(totalCount) .publishedAssignments(publishedCount) .draftAssignments(draftCount) .fullyPublished(totalCount > 0 && draftCount == 0) .build();
@@ -662,6 +667,17 @@ public class ScheduleServiceImpl implements ScheduleService {
                         .appliedFromRegistration(true)
                         .build());
             }
+        }
+    }
+
+    private void requireCertifiedForSharedSchedule(Employee employee) {
+        if (employee == null || employee.getCertificationStatus() != CertificationStatus.CERTIFIED) {
+            String name = employee != null && employee.getFullName() != null && !employee.getFullName().isBlank()
+                    ? employee.getFullName()
+                    : "này";
+            throw new BusinessException("Nhân viên " + name
+                    + " chưa có chứng chỉ nên không thể thêm vào lịch làm việc chung. "
+                    + "Vui lòng hoàn thành khóa đào tạo và đạt yêu cầu để được cấp chứng chỉ.");
         }
     }
 

@@ -88,13 +88,6 @@
                             </label>
                             <span class="muted">Staff hiện có: <strong th:text="${staffSlotCapacity}">0</strong></span>
                             <p class="slot-warning limit-client-error" hidden></p>
-                            <p class="slot-warning"
-                               th:if="${cell.configured and cell.maxEmployees != null and cell.maxEmployees > staffSlotCapacity}">
-                                Sức chứa đang lưu (<strong th:text="${cell.maxEmployees}">11</strong>)
-                                lớn hơn số nhân viên Staff hiện có
-                                (<strong th:text="${staffSlotCapacity}">10</strong>).
-                                Hãy điều chỉnh khi cập nhật. Cấu hình cũ, đăng ký đã duyệt và lịch làm việc được giữ nguyên.
-                            </p>
                             <span>Đã duyệt: <strong th:text="${cell.approvedCount}">0</strong></span>
                             <span>Chờ duyệt: <strong th:text="${cell.pendingCount}">0</strong></span>
                             <span>Còn lại: <strong th:text="${cell.remainingText}">—</strong></span>
@@ -114,8 +107,6 @@
 <script th:if="${availabilityGrid != null}" th:inline="javascript">
 (function () {
     var staffCount = /*[[${staffSlotCapacity}]]*/ 0;
-    var overLimit = "Số lượng nhân viên trong ca không được vượt quá số nhân viên Staff hiện có tại cửa hàng ("
-        + staffCount + " nhân viên).";
     var mustBePositive = "Vui lòng nhập số lượng nhân viên lớn hơn 0.";
     document.querySelectorAll(".limit-form").forEach(function (form) {
         var input = form.querySelector('input[name="maxEmployees"]');
@@ -127,19 +118,18 @@
         function validate(showMessage) {
             var raw = input.value.trim();
             var message = "";
+            var overStaff = /^\d+$/.test(raw) && Number(raw) > staffCount;
             if (raw !== "" && (!/^\d+$/.test(raw) || Number(raw) < 1)) {
                 message = mustBePositive;
-            } else if (raw !== "" && Number(raw) > staffCount) {
-                message = overLimit;
             }
-            var blocked = message !== "" || raw === "";
+            var blocked = message !== "" || raw === "" || overStaff;
             error.hidden = !showMessage || message === "";
             error.textContent = showMessage ? message : "";
             input.classList.toggle("is-invalid", showMessage && message !== "");
             button.disabled = blocked;
         }
         var raw = input.value.trim();
-        var alreadyInvalid = raw !== "" && (!/^\d+$/.test(raw) || Number(raw) < 1 || Number(raw) > staffCount);
+        var alreadyInvalid = raw !== "" && (!/^\d+$/.test(raw) || Number(raw) < 1);
         validate(alreadyInvalid);
         input.addEventListener("input", function () { validate(true); });
     });

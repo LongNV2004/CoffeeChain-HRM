@@ -145,10 +145,10 @@
                 <svg class="coffee-icon"><use href="#coffee-i-store"/></svg>
                 <span class="coffee-side-label">Quản lý cửa hàng</span>
             </a>
-            <div class="coffee-menu-group" th:classappend="${active == 'employees' or active == 'recruitment' or active == 'resignation' or active == 'training' or active == 'leave'} ? ' is-open'">
+            <div class="coffee-menu-group" th:classappend="${active == 'employees' or active == 'recruitment' or active == 'resignation' or active == 'training'} ? ' is-open'">
                 <button type="button" class="coffee-menu-item coffee-group-toggle"
                         data-group-toggle title="Quản lý nhân sự"
-                        th:attr="aria-expanded=${active == 'employees' or active == 'recruitment' or active == 'resignation' or active == 'training' or active == 'leave'}">
+                        th:attr="aria-expanded=${active == 'employees' or active == 'recruitment' or active == 'resignation' or active == 'training'}">
                     <svg class="coffee-icon"><use href="#coffee-i-people"/></svg>
                     <span class="coffee-side-label">Quản lý nhân sự</span>
                     <svg class="coffee-icon coffee-chevron coffee-side-label"><use href="#coffee-i-chevron"/></svg>
@@ -166,7 +166,6 @@
                               th:text="'(' + ${pendingResignations} + ')'">(1)</span>
                     </a>
                     <a th:href="@{/admin/training}" th:classappend="${active == 'training'} ? ' is-active'">Đào tạo</a>
-                    <a th:href="@{/admin/leaves}" th:classappend="${active == 'leave'} ? ' is-active'">Báo cáo nghỉ phép</a>
                 </div>
             </div>
             <a class="coffee-menu-item" th:href="@{/attendance/admin}"

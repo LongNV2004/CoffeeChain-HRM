@@ -2,6 +2,7 @@ package com.example.coffee_hrm.service.impl;
 
 import com.example.coffee_hrm.common.enums.ApprovalStatus;
 import com.example.coffee_hrm.common.enums.AssignmentStatus;
+import com.example.coffee_hrm.common.enums.CertificationStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.LeaveType;
 import com.example.coffee_hrm.common.exception.BusinessException;
@@ -180,6 +181,9 @@ public class LeaveReplacementServiceImpl implements LeaveReplacementService {
         for (Employee candidate : employeeRepository.findByStore_IdAndStatus(storeId, EmployeeStatus.ACTIVE)) {
             Integer id = candidate.getId();
             if (Objects.equals(id, leave.getEmployee().getId()) || onLeave.contains(id)) {
+                continue;
+            }
+            if (candidate.getCertificationStatus() != CertificationStatus.CERTIFIED) {
                 continue;
             }
             if (assignedToday.stream().anyMatch(a -> Objects.equals(a.getEmployee().getId(), id)

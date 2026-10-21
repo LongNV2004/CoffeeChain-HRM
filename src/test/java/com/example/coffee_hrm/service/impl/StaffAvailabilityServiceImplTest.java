@@ -819,8 +819,7 @@ class StaffAvailabilityServiceImplTest {
         assertFalse(eight.isWarning());
         assertFalse(ten.isWarning());
         assertEquals(10, existing.getMaxEmployees());
-        assertEquals("Số lượng nhân viên trong ca không được vượt quá số nhân viên Staff hiện có tại cửa hàng (10 nhân viên).",
-                over.getMessage());
+        assertEquals(StaffAvailabilityServiceImpl.SLOT_LIMIT_HEADCOUNT_MESSAGE, over.getMessage());
         verify(employeeRepository, times(3)).countSchedulableStaff(
                 1, EmployeeStatus.ACTIVE, RoleName.STAFF, 10);
         verify(shiftSlotLimitRepository, times(2)).saveAndFlush(existing);
