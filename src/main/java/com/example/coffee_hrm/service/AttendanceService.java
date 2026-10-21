@@ -18,9 +18,17 @@ public interface AttendanceService {
 
     void previewCheckOut(AuthenticatedUser user, AttendanceLocation location);
 
+    void previewCheckIn(AuthenticatedUser user, AttendanceLocation location, Integer assignmentId);
+
+    void previewCheckOut(AuthenticatedUser user, AttendanceLocation location, Integer assignmentId);
+
     void checkInWithPhoto(AuthenticatedUser user, AttendanceLocation location, byte[] photo);
 
     void checkOutWithPhoto(AuthenticatedUser user, AttendanceLocation location, byte[] photo);
+
+    void checkInWithPhoto(AuthenticatedUser user, AttendanceLocation location, byte[] photo, Integer assignmentId);
+
+    void checkOutWithPhoto(AuthenticatedUser user, AttendanceLocation location, byte[] photo, Integer assignmentId);
 
     byte[] readShiftPhoto(AuthenticatedUser user, Integer attendanceId, boolean checkIn);
 

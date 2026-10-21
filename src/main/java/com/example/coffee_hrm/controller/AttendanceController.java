@@ -40,44 +40,50 @@ public class AttendanceController {
     @PreAuthorize("hasRole('STAFF')")
     @ResponseBody
     public ResponseEntity<Map<String, String>> staffCheckInPreview(@AuthenticationPrincipal AuthenticatedUser user,
+                                                                   @RequestParam Integer assignmentId,
                                                                    @RequestParam(required = false) String latitude,
                                                                    @RequestParam(required = false) String longitude,
                                                                    @RequestParam(required = false) String accuracy) {
         return preview(() -> attendanceService.previewCheckIn(
-                user, AttendanceLocation.parse(latitude, longitude, accuracy)));
+                user, AttendanceLocation.parse(latitude, longitude, accuracy), assignmentId));
     }
 
     @PostMapping("/staff/check-in")
     @PreAuthorize("hasRole('STAFF')")
     public String staffCheckIn(@AuthenticationPrincipal AuthenticatedUser user,
+                               @RequestParam Integer assignmentId,
                                @RequestParam(required = false) String latitude,
                                @RequestParam(required = false) String longitude,
                                @RequestParam(required = false) String accuracy,
                                @RequestParam(required = false) MultipartFile photo,
                                RedirectAttributes redirectAttributes) {
-        return submitCheckIn(user, latitude, longitude, accuracy, photo, redirectAttributes, "redirect:/attendance/staff");
+        return submitCheckIn(user, assignmentId, latitude, longitude, accuracy, photo, redirectAttributes,
+                "redirect:/attendance/staff");
     }
 
     @PostMapping("/staff/check-out/preview")
     @PreAuthorize("hasRole('STAFF')")
     @ResponseBody
     public ResponseEntity<Map<String, String>> staffCheckOutPreview(@AuthenticationPrincipal AuthenticatedUser user,
+                                                                    @RequestParam Integer assignmentId,
                                                                     @RequestParam(required = false) String latitude,
                                                                     @RequestParam(required = false) String longitude,
                                                                     @RequestParam(required = false) String accuracy) {
         return preview(() -> attendanceService.previewCheckOut(
-                user, AttendanceLocation.parse(latitude, longitude, accuracy)));
+                user, AttendanceLocation.parse(latitude, longitude, accuracy), assignmentId));
     }
 
     @PostMapping("/staff/check-out")
     @PreAuthorize("hasRole('STAFF')")
     public String staffCheckOut(@AuthenticationPrincipal AuthenticatedUser user,
+                                @RequestParam Integer assignmentId,
                                 @RequestParam(required = false) String latitude,
                                 @RequestParam(required = false) String longitude,
                                 @RequestParam(required = false) String accuracy,
                                 @RequestParam(required = false) MultipartFile photo,
                                 RedirectAttributes redirectAttributes) {
-        return submitCheckOut(user, latitude, longitude, accuracy, photo, redirectAttributes, "redirect:/attendance/staff");
+        return submitCheckOut(user, assignmentId, latitude, longitude, accuracy, photo, redirectAttributes,
+                "redirect:/attendance/staff");
     }
 
     @GetMapping("/manager")
@@ -166,9 +172,20 @@ public class AttendanceController {
                                  MultipartFile photo,
                                  RedirectAttributes redirectAttributes,
                                  String redirect) {
+        return submitCheckIn(user, null, latitude, longitude, accuracy, photo, redirectAttributes, redirect);
+    }
+
+    private String submitCheckIn(AuthenticatedUser user,
+                                 Integer assignmentId,
+                                 String latitude,
+                                 String longitude,
+                                 String accuracy,
+                                 MultipartFile photo,
+                                 RedirectAttributes redirectAttributes,
+                                 String redirect) {
         try {
             attendanceService.checkInWithPhoto(
-                    user, AttendanceLocation.parse(latitude, longitude, accuracy), photoBytes(photo));
+                    user, AttendanceLocation.parse(latitude, longitude, accuracy), photoBytes(photo), assignmentId);
             redirectAttributes.addFlashAttribute("pageMessage", "Check-in thành công.");
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("pageError", ex.getMessage());
@@ -183,9 +200,20 @@ public class AttendanceController {
                                   MultipartFile photo,
                                   RedirectAttributes redirectAttributes,
                                   String redirect) {
+        return submitCheckOut(user, null, latitude, longitude, accuracy, photo, redirectAttributes, redirect);
+    }
+
+    private String submitCheckOut(AuthenticatedUser user,
+                                  Integer assignmentId,
+                                  String latitude,
+                                  String longitude,
+                                  String accuracy,
+                                  MultipartFile photo,
+                                  RedirectAttributes redirectAttributes,
+                                  String redirect) {
         try {
             attendanceService.checkOutWithPhoto(
-                    user, AttendanceLocation.parse(latitude, longitude, accuracy), photoBytes(photo));
+                    user, AttendanceLocation.parse(latitude, longitude, accuracy), photoBytes(photo), assignmentId);
             redirectAttributes.addFlashAttribute("pageMessage", "Check-out thành công.");
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("pageError", ex.getMessage());

@@ -272,4 +272,35 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
             @Param("pendingStatus") com.example.coffee_hrm.common.enums.ApprovalStatus pendingStatus,
             @Param("excludingRequestId") Integer excludingRequestId,
             @Param("annualType") com.example.coffee_hrm.common.enums.LeaveType annualType);
+
+    @Query("""
+            SELECT sa FROM ShiftAssignment sa
+            JOIN FETCH sa.shift s
+            JOIN FETCH sa.employee e
+            WHERE s.store.id = :storeId
+              AND sa.workDate = :workDate
+              AND sa.status = :status
+              AND sa.isPublished = true
+            ORDER BY s.startTime ASC, e.fullName ASC, sa.id ASC
+            """)
+    List<ShiftAssignment> findPublishedAssignedForStoreOnDate(
+            @Param("storeId") Integer storeId,
+            @Param("workDate") LocalDate workDate,
+            @Param("status") AssignmentStatus status);
+
+    @Query("""
+            SELECT sa FROM ShiftAssignment sa
+            JOIN FETCH sa.shift s
+            JOIN FETCH sa.employee e
+            WHERE s.store.id = :storeId
+              AND sa.workDate >= :startDate
+              AND sa.workDate <= :endDate
+              AND sa.status = :status
+              AND sa.isPublished = true
+            """)
+    List<ShiftAssignment> findPublishedAssignedForStoreBetween(
+            @Param("storeId") Integer storeId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("status") AssignmentStatus status);
 }

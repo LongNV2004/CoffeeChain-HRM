@@ -59,7 +59,8 @@
                 <span th:text="${item.timeLabel}">08:00 - 17:05</span>
             </li>
         </ul>
-        <a class="link-btn" th:href="@{/attendance/manager/history}">Xem lịch sử</a>
+        <a class="link-btn" th:href="@{/attendance/manager/day}">Theo dõi chấm công</a>
+        <a class="link-btn" th:href="@{/attendance/manager/history(self=true)}">Xem lịch sử</a>
     </section>
 </main>
 <script th:src="@{/js/attendance-gps.js(v=7)}"></script>

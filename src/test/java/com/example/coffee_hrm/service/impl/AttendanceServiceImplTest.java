@@ -624,6 +624,99 @@ class AttendanceServiceImplTest {
     }
 
     @Test
+    void checkInTargetsTheRequestedSlotWhenAnotherSlotIsAlsoEligible() {
+        Shift afternoon = Shift.builder()
+                .id(2).shiftName("Ca chiều").store(store)
+                .startTime(LocalTime.of(13, 0)).endTime(LocalTime.of(17, 0))
+                .build();
+        ShiftAssignment afternoonAssignment = ShiftAssignment.builder()
+                .id(10).employee(staffEmployee).shift(afternoon).workDate(WORK_DATE)
+                .status(AssignmentStatus.ASSIGNED).isPublished(true)
+                .build();
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
+        when(shiftAssignmentRepository.findByIdWithDetails(10)).thenReturn(Optional.of(afternoonAssignment));
+        when(attendanceRepository.findByEmployee_IdAndShift_IdAndWorkDate(20, 2, WORK_DATE))
+                .thenReturn(Optional.empty());
+        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
+        when(attendanceRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        attendanceService.checkIn(staffUser, here(10), WORK_DATE.atTime(13, 30), null, 10);
+
+        ArgumentCaptor<Attendance> captor = ArgumentCaptor.forClass(Attendance.class);
+        verify(attendanceRepository).saveAndFlush(captor.capture());
+        Attendance saved = captor.getValue();
+        assertEquals(2, saved.getShift().getId());
+        assertEquals("Ca chiều", saved.getScheduledShiftName());
+        assertEquals(LocalTime.of(13, 0), saved.getScheduledStartTime());
+        assertEquals(LocalTime.of(17, 0), saved.getScheduledEndTime());
+        assertEquals(30, saved.getLateMinutes());
+        assertEquals(AttendanceStatus.LATE, saved.getStatus());
+    }
+
+    @Test
+    void checkInRejectsASlotThatBelongsToSomeoneElse() {
+        Employee other = Employee.builder().id(99).fullName("Người khác").store(store).build();
+        ShiftAssignment foreign = ShiftAssignment.builder()
+                .id(11).employee(other).shift(morning).workDate(WORK_DATE)
+                .status(AssignmentStatus.ASSIGNED).isPublished(true)
+                .build();
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
+        when(shiftAssignmentRepository.findByIdWithDetails(11)).thenReturn(Optional.of(foreign));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> attendanceService.checkIn(staffUser, here(10), WORK_DATE.atTime(8, 0), null, 11));
+
+        assertEquals(AttendanceServiceImpl.SLOT_FORBIDDEN, ex.getMessage());
+        verify(attendanceRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void checkInRejectsAnUnpublishedSlot() {
+        morningAssignment.setIsPublished(false);
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
+        when(shiftAssignmentRepository.findByIdWithDetails(9)).thenReturn(Optional.of(morningAssignment));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> attendanceService.checkIn(staffUser, here(10), WORK_DATE.atTime(8, 0), null, 9));
+
+        assertEquals(AttendanceServiceImpl.NO_SHIFT, ex.getMessage());
+        verify(attendanceRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void checkOutClosesOnlyTheChosenSlot() {
+        Shift afternoon = Shift.builder()
+                .id(2).shiftName("Ca chiều").store(store)
+                .startTime(LocalTime.of(13, 0)).endTime(LocalTime.of(17, 0))
+                .build();
+        ShiftAssignment afternoonAssignment = ShiftAssignment.builder()
+                .id(10).employee(staffEmployee).shift(afternoon).workDate(WORK_DATE)
+                .status(AssignmentStatus.ASSIGNED).isPublished(true)
+                .build();
+        Attendance morningOpen = openAttendance(0);
+        Attendance afternoonOpen = Attendance.builder()
+                .id(102).employee(staffEmployee).store(store).shift(afternoon).workDate(WORK_DATE)
+                .scheduledShiftName("Ca chiều")
+                .scheduledStartTime(LocalTime.of(13, 0))
+                .scheduledEndTime(LocalTime.of(17, 0))
+                .checkInTime(WORK_DATE.atTime(13, 10))
+                .lateMinutes(0).earlyLeaveMinutes(0).status(AttendanceStatus.PRESENT)
+                .build();
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
+        when(shiftAssignmentRepository.findByIdWithDetails(10)).thenReturn(Optional.of(afternoonAssignment));
+        when(attendanceRepository.findByEmployee_IdAndShift_IdAndWorkDate(20, 2, WORK_DATE))
+                .thenReturn(Optional.of(afternoonOpen));
+        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
+
+        attendanceService.checkOut(staffUser, here(10), WORK_DATE.atTime(15, 30), null, 10);
+
+        assertNull(morningOpen.getCheckOutTime());
+        assertEquals(WORK_DATE.atTime(15, 30), afternoonOpen.getCheckOutTime());
+        assertEquals(140, afternoonOpen.getWorkingMinutes());
+        verify(attendanceRepository).save(afternoonOpen);
+    }
+
+    @Test
     void staffClockShowsShiftWorkDate() {
         Attendance open = Attendance.builder()
                 .id(4)

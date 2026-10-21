@@ -47,7 +47,7 @@ public class TrainingAttendanceController {
         model.addAttribute("navbarRole", "manager");
         model.addAttribute("shiftUrl", "/attendance/manager");
         model.addAttribute("trainingUrl", "/attendance/manager/training");
-        model.addAttribute("historyUrl", "/attendance/manager/history");
+        model.addAttribute("historyUrl", "/attendance/manager/history?self=true");
         model.addAttribute("eyebrow", "Cửa hàng — Manager");
         return "attendance/AttendanceChoice";
     }
@@ -111,7 +111,7 @@ public class TrainingAttendanceController {
     @GetMapping("/manager/training")
     @PreAuthorize("hasRole('MANAGER')")
     public String managerClock(@AuthenticationPrincipal AuthenticatedUser user, Model model) {
-        return clock(user, model, "/attendance/manager/training", "/attendance/manager/history", "manager");
+        return clock(user, model, "/attendance/manager/training", "/attendance/manager/history?self=true", "manager");
     }
 
     @PostMapping("/manager/training/check-in/preview")

@@ -32,6 +32,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -55,6 +56,9 @@ public class AttendanceServiceImpl implements AttendanceService {
     static final String MANAGER_ALREADY_OUT = "Bạn đã Check-out trong ngày hôm nay.";
     static final String MANAGER_NOT_IN = "Bạn chưa Check-in trong ngày hôm nay.";
     static final String MANAGER_OPEN_RECORD = "Bạn chưa Check-out bản ghi chấm công đang mở.";
+    static final String SLOT_REQUIRED = "Hãy chọn slot cần chấm công.";
+    static final String SLOT_FORBIDDEN = "Bạn không có quyền chấm công slot này.";
+    static final String SLOT_CLOSED = "Đã hết giờ Check-in của slot này.";
 
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -88,27 +92,53 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Override
     @Transactional(readOnly = true)
     public void previewCheckIn(AuthenticatedUser user, AttendanceLocation location) {
-        previewCheckIn(user, location, VietnamTime.now());
+        previewCheckIn(user, location, VietnamTime.now(), null);
     }
 
     @Override
     @Transactional(readOnly = true)
     public void previewCheckOut(AuthenticatedUser user, AttendanceLocation location) {
-        previewCheckOut(user, location, VietnamTime.now());
+        previewCheckOut(user, location, VietnamTime.now(), null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void previewCheckIn(AuthenticatedUser user, AttendanceLocation location, Integer assignmentId) {
+        previewCheckIn(user, location, VietnamTime.now(), assignmentId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void previewCheckOut(AuthenticatedUser user, AttendanceLocation location, Integer assignmentId) {
+        previewCheckOut(user, location, VietnamTime.now(), assignmentId);
     }
 
     @Override
     @Transactional
     public void checkInWithPhoto(AuthenticatedUser user, AttendanceLocation location, byte[] photo) {
         requirePhoto(photo);
-        checkIn(user, location, VietnamTime.now(), photo);
+        checkIn(user, location, VietnamTime.now(), photo, null);
     }
 
     @Override
     @Transactional
     public void checkOutWithPhoto(AuthenticatedUser user, AttendanceLocation location, byte[] photo) {
         requirePhoto(photo);
-        checkOut(user, location, VietnamTime.now(), photo);
+        checkOut(user, location, VietnamTime.now(), photo, null);
+    }
+
+    @Override
+    @Transactional
+    public void checkInWithPhoto(AuthenticatedUser user, AttendanceLocation location, byte[] photo, Integer assignmentId) {
+        requirePhoto(photo);
+        checkIn(user, location, VietnamTime.now(), photo, assignmentId);
+    }
+
+    @Override
+    @Transactional
+    public void checkOutWithPhoto(AuthenticatedUser user, AttendanceLocation location, byte[] photo, Integer assignmentId) {
+        requirePhoto(photo);
+        checkOut(user, location, VietnamTime.now(), photo, assignmentId);
     }
 
     @Override
@@ -135,47 +165,83 @@ public class AttendanceServiceImpl implements AttendanceService {
     }
 
     void checkIn(AuthenticatedUser user, AttendanceLocation location, LocalDateTime rawNow, byte[] photo) {
+        checkIn(user, location, rawNow, photo, null);
+    }
+
+    void checkIn(AuthenticatedUser user, AttendanceLocation location, LocalDateTime rawNow,
+                 byte[] photo, Integer assignmentId) {
         Employee employee = resolveCheckEmployee(user);
-        LocalDateTime now = truncate(rawNow);
+        LocalDateTime now = exactTime(rawNow);
         if (user.getRoleName() == RoleName.MANAGER) {
             checkInManager(user, employee, location, now, photo);
             return;
         }
-        checkInStaff(user, employee, location, now, photo);
+        if (assignmentId == null) {
+            checkInStaff(user, employee, location, now, photo);
+            return;
+        }
+        checkInStaffSlot(user, employee, assignmentId, location, now, photo);
     }
 
     void previewCheckIn(AuthenticatedUser user, AttendanceLocation location, LocalDateTime rawNow) {
+        previewCheckIn(user, location, rawNow, null);
+    }
+
+    void previewCheckIn(AuthenticatedUser user, AttendanceLocation location, LocalDateTime rawNow,
+                        Integer assignmentId) {
         Employee employee = resolveCheckEmployee(user);
         LocalDateTime now = truncate(rawNow);
         if (user.getRoleName() == RoleName.MANAGER) {
             planManagerCheckIn(user, employee, location, now);
             return;
         }
-        planStaffCheckIn(user, employee, location, now);
+        if (assignmentId == null) {
+            planStaffCheckIn(user, employee, location, now);
+            return;
+        }
+        planStaffSlot(user, employee, assignmentId, location, now);
     }
 
     void checkOut(AuthenticatedUser user, AttendanceLocation location, LocalDateTime rawNow) {
-        checkOut(user, location, rawNow, null);
+        checkOut(user, location, rawNow, null, null);
     }
 
     void checkOut(AuthenticatedUser user, AttendanceLocation location, LocalDateTime rawNow, byte[] photo) {
+        checkOut(user, location, rawNow, photo, null);
+    }
+
+    void checkOut(AuthenticatedUser user, AttendanceLocation location, LocalDateTime rawNow,
+                  byte[] photo, Integer assignmentId) {
         Employee employee = resolveCheckEmployee(user);
-        LocalDateTime now = truncate(rawNow);
+        LocalDateTime now = exactTime(rawNow);
         if (user.getRoleName() == RoleName.MANAGER) {
             checkOutManager(employee, location, now, photo);
             return;
         }
-        checkOutStaff(employee, location, now, photo);
+        if (assignmentId == null) {
+            checkOutStaff(employee, location, now, photo);
+            return;
+        }
+        checkOutStaffSlot(user, employee, assignmentId, location, now, photo);
     }
 
     void previewCheckOut(AuthenticatedUser user, AttendanceLocation location, LocalDateTime rawNow) {
+        previewCheckOut(user, location, rawNow, null);
+    }
+
+    void previewCheckOut(AuthenticatedUser user, AttendanceLocation location, LocalDateTime rawNow,
+                         Integer assignmentId) {
         Employee employee = resolveCheckEmployee(user);
         LocalDateTime now = truncate(rawNow);
         if (user.getRoleName() == RoleName.MANAGER) {
             assertCheckoutReady(locateManagerCheckout(employee, now), now, location);
             return;
         }
-        assertCheckoutReady(locateStaffCheckout(employee, now), now, location);
+        if (assignmentId == null) {
+            assertCheckoutReady(locateStaffCheckout(employee, now), now, location);
+            return;
+        }
+        assertCheckoutReady(locateStaffSlot(user, employee, assignmentId), now, location);
     }
 
     void markAbsences(LocalDate workDate, LocalDateTime rawNow) {
@@ -249,6 +315,45 @@ public class AttendanceServiceImpl implements AttendanceService {
         return new StaffCheckInPlan(chosen, store, lateMinutes(chosen.shiftStart(), now));
     }
 
+    private void checkInStaffSlot(AuthenticatedUser user, Employee employee, Integer assignmentId,
+                                  AttendanceLocation location, LocalDateTime now, byte[] photo) {
+        StaffCheckInPlan plan = planStaffSlot(user, employee, assignmentId, location, now);
+        ShiftAssignment assignment = plan.chosen().assignment();
+        Attendance attendance = Attendance.builder()
+                .employee(employee)
+                .store(plan.store())
+                .shift(assignment.getShift())
+                .workDate(assignment.getWorkDate())
+                .scheduledShiftName(assignment.getShift().getShiftName())
+                .scheduledStartTime(assignment.getShift().getStartTime())
+                .scheduledEndTime(assignment.getShift().getEndTime())
+                .checkInTime(now)
+                .checkInLatitude(location.latitude())
+                .checkInLongitude(location.longitude())
+                .lateMinutes(plan.lateMinutes())
+                .earlyLeaveMinutes(0)
+                .status(plan.lateMinutes() > 0 ? AttendanceStatus.LATE : AttendanceStatus.PRESENT)
+                .build();
+        attachPhoto(saveNew(attendance, ALREADY_IN), true, photo);
+    }
+
+    private StaffCheckInPlan planStaffSlot(AuthenticatedUser user, Employee employee, Integer assignmentId,
+                                           AttendanceLocation location, LocalDateTime now) {
+        ShiftWindow chosen = requireStaffSlot(employee, assignmentId);
+        if (now.isBefore(chosen.windowOpen())) {
+            throw new BusinessException(TOO_EARLY);
+        }
+        if (!now.isBefore(chosen.shiftEnd())) {
+            throw new BusinessException(SLOT_CLOSED);
+        }
+        if (findAttendance(employee.getId(), chosen).isPresent()) {
+            throw new BusinessException(ALREADY_IN);
+        }
+        Store store = storeForShift(user, employee, chosen.assignment().getShift());
+        assertInsideStore(store, location);
+        return new StaffCheckInPlan(chosen, store, lateMinutes(chosen.shiftStart(), now));
+    }
+
     private void checkInManager(AuthenticatedUser user, Employee employee,
                                 AttendanceLocation location, LocalDateTime now, byte[] photo) {
         Store store = planManagerCheckIn(user, employee, location, now);
@@ -276,6 +381,44 @@ public class AttendanceServiceImpl implements AttendanceService {
 
     private void checkOutStaff(Employee employee, AttendanceLocation location, LocalDateTime now, byte[] photo) {
         completeCheckout(locateStaffCheckout(employee, now), now, location, photo);
+    }
+
+    private void checkOutStaffSlot(AuthenticatedUser user, Employee employee, Integer assignmentId,
+                                   AttendanceLocation location, LocalDateTime now, byte[] photo) {
+        completeCheckout(locateStaffSlot(user, employee, assignmentId), now, location, photo);
+    }
+
+    private Attendance locateStaffSlot(AuthenticatedUser user, Employee employee, Integer assignmentId) {
+        ShiftWindow chosen = requireStaffSlot(employee, assignmentId);
+        storeForShift(user, employee, chosen.assignment().getShift());
+        Attendance attendance = findAttendance(employee.getId(), chosen)
+                .orElseThrow(() -> new BusinessException(NOT_CHECKED_IN));
+        if (attendance.getCheckInTime() == null) {
+            throw new BusinessException(NOT_CHECKED_IN);
+        }
+        if (attendance.getCheckOutTime() != null) {
+            throw new BusinessException(ALREADY_OUT);
+        }
+        return attendance;
+    }
+
+    private ShiftWindow requireStaffSlot(Employee employee, Integer assignmentId) {
+        if (assignmentId == null) {
+            throw new BusinessException(SLOT_REQUIRED);
+        }
+        ShiftAssignment assignment = shiftAssignmentRepository.findByIdWithDetails(assignmentId)
+                .orElseThrow(() -> new BusinessException(NO_SHIFT));
+        if (assignment.getEmployee() == null || !employee.getId().equals(assignment.getEmployee().getId())) {
+            throw new BusinessException(SLOT_FORBIDDEN);
+        }
+        if (assignment.getStatus() != AssignmentStatus.ASSIGNED
+                || Boolean.FALSE.equals(assignment.getIsPublished())
+                || assignment.getShift() == null
+                || assignment.getShift().getStartTime() == null
+                || assignment.getShift().getEndTime() == null) {
+            throw new BusinessException(NO_SHIFT);
+        }
+        return windowOf(assignment);
     }
 
     private Attendance locateStaffCheckout(Employee employee, LocalDateTime now) {
@@ -342,9 +485,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 lateCheckoutMinutes = (int) afterEnd;
             }
         }
-        LocalDateTime checkIn = attendance.getCheckInTime() == null
-                ? now
-                : truncate(attendance.getCheckInTime());
+        LocalDateTime checkIn = attendance.getCheckInTime() == null ? now : attendance.getCheckInTime();
         int workingMinutes = (int) Math.max(0, ChronoUnit.MINUTES.between(checkIn, now));
         int lateMinutes = attendance.getLateMinutes() == null ? 0 : attendance.getLateMinutes();
         attendance.setCheckOutTime(now);
@@ -410,6 +551,9 @@ public class AttendanceServiceImpl implements AttendanceService {
         String endLabel = "—";
         String statusLabel = manager ? "Chưa Check-in" : NO_SHIFT;
         boolean canCheckOut = true;
+        boolean canCheckIn = manager;
+        String checkInNotice = manager ? null : NO_SHIFT;
+        String checkOutNotice = null;
         if (manager) {
             statusLabel = managerStatus(employee.getId(), now.toLocalDate());
         } else {
@@ -417,6 +561,13 @@ public class AttendanceServiceImpl implements AttendanceService {
             if (!openRecords.isEmpty()) {
                 Attendance open = openRecords.getFirst();
                 canCheckOut = checkoutAllowed(open, now);
+                canCheckIn = false;
+                checkInNotice = canCheckOut
+                        ? ALREADY_IN
+                        : "Bạn đã Check-in. Check-out mở sau 2 tiếng kể từ giờ vào ca.";
+                if (!canCheckOut) {
+                    checkOutNotice = "Check-out mở sau 2 tiếng kể từ giờ vào ca.";
+                }
                 shiftName = open.getScheduledShiftName();
                 workDateLabel = formatDate(open.getWorkDate());
                 startLabel = formatTime(open.getScheduledStartTime());
@@ -432,9 +583,15 @@ public class AttendanceServiceImpl implements AttendanceService {
                     startLabel = formatTime(window.assignment().getShift().getStartTime());
                     endLabel = formatTime(window.assignment().getShift().getEndTime());
                     Optional<Attendance> existing = findAttendance(employee.getId(), window);
-                    statusLabel = existing.isPresent()
-                            ? statusText(existing.get().getStatus())
-                            : "Chưa Check-in";
+                    if (existing.isPresent()) {
+                        statusLabel = statusText(existing.get().getStatus());
+                        canCheckIn = false;
+                        checkInNotice = existing.get().getCheckOutTime() == null ? ALREADY_IN : ALREADY_OUT;
+                    } else {
+                        statusLabel = "Chưa Check-in";
+                        canCheckIn = true;
+                        checkInNotice = null;
+                    }
                 } else {
                     Optional<ShiftWindow> upcoming = windows.stream()
                             .filter(window -> now.isBefore(window.windowOpen()))
@@ -446,6 +603,8 @@ public class AttendanceServiceImpl implements AttendanceService {
                         startLabel = formatTime(shift.getStartTime());
                         endLabel = formatTime(shift.getEndTime());
                         statusLabel = TOO_EARLY;
+                        canCheckIn = false;
+                        checkInNotice = TOO_EARLY;
                     }
                 }
             }
@@ -456,6 +615,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .stream()
                 .map(this::toRecentItem)
                 .toList();
+        List<AttendanceClockView.Slot> slots = manager ? List.of() : staffSlots(employee, now);
 
         return AttendanceClockView.builder()
                 .employeeName(employee.getFullName())
@@ -466,8 +626,114 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .scheduledEndLabel(endLabel)
                 .statusLabel(statusLabel)
                 .manager(manager)
+                .canCheckIn(canCheckIn)
+                .checkInNotice(checkInNotice)
                 .canCheckOut(canCheckOut)
+                .checkOutNotice(checkOutNotice)
                 .recent(recent)
+                .slots(slots)
+                .build();
+    }
+
+    private List<AttendanceClockView.Slot> staffSlots(Employee employee, LocalDateTime now) {
+        LocalDate today = now.toLocalDate();
+        List<ShiftWindow> windows = loadWindows(employee.getId(), today);
+        List<Attendance> openRecords = attendanceRepository.findOpenByEmployeeId(employee.getId());
+        List<ShiftWindow> visible = new ArrayList<>();
+        for (ShiftWindow window : windows) {
+            LocalDate workDate = window.assignment().getWorkDate();
+            if (workDate.isAfter(today)) {
+                continue;
+            }
+            boolean stillOpen = openRecords.stream().anyMatch(attendance -> sameSlot(attendance, window));
+            if (workDate.equals(today) || stillOpen || now.isBefore(window.shiftEnd())) {
+                visible.add(window);
+            }
+        }
+        visible.sort(Comparator.comparing(ShiftWindow::shiftStart));
+        List<AttendanceClockView.Slot> slots = new ArrayList<>();
+        for (ShiftWindow window : visible) {
+            Attendance attendance = findAttendance(employee.getId(), window).orElse(null);
+            slots.add(toClockSlot(window, attendance, now));
+        }
+        return slots;
+    }
+
+    private boolean sameSlot(Attendance attendance, ShiftWindow window) {
+        return attendance.getShift() != null
+                && window.assignment().getShift() != null
+                && attendance.getShift().getId().equals(window.assignment().getShift().getId())
+                && window.assignment().getWorkDate().equals(attendance.getWorkDate());
+    }
+
+    private AttendanceClockView.Slot toClockSlot(ShiftWindow window, Attendance attendance, LocalDateTime now) {
+        boolean checkedOut = attendance != null && attendance.getCheckOutTime() != null;
+        boolean checkedIn = attendance != null && attendance.getCheckInTime() != null;
+        boolean absent = attendance != null && attendance.getStatus() == AttendanceStatus.ABSENT;
+        boolean tooEarly = now.isBefore(window.windowOpen());
+        boolean closed = !now.isBefore(window.shiftEnd());
+        boolean canCheckIn = attendance == null && !tooEarly && !closed;
+        String checkInNotice = null;
+        if (!canCheckIn) {
+            if (checkedIn && !checkedOut) {
+                checkInNotice = ALREADY_IN;
+            } else if (checkedOut) {
+                checkInNotice = ALREADY_OUT;
+            } else if (absent) {
+                checkInNotice = "Ca này đã được ghi nhận vắng.";
+            } else if (tooEarly) {
+                checkInNotice = TOO_EARLY;
+            } else if (closed) {
+                checkInNotice = SLOT_CLOSED;
+            } else {
+                checkInNotice = ALREADY_IN;
+            }
+        }
+        boolean canCheckOut = checkedIn && !checkedOut && checkoutAllowed(attendance, now);
+        String checkOutNotice = null;
+        if (!canCheckOut) {
+            if (!checkedIn) {
+                checkOutNotice = NOT_CHECKED_IN;
+            } else if (checkedOut) {
+                checkOutNotice = ALREADY_OUT;
+            } else {
+                checkOutNotice = "Check-out mở sau 2 tiếng kể từ giờ vào ca.";
+            }
+        }
+        String statusKey;
+        String statusLabel;
+        if (checkedOut) {
+            statusKey = "done";
+            statusLabel = "Đã hoàn thành";
+        } else if (checkedIn) {
+            statusKey = "working";
+            statusLabel = "Đang làm";
+        } else if (absent) {
+            statusKey = "absent";
+            statusLabel = "Vắng";
+        } else if (tooEarly) {
+            statusKey = "upcoming";
+            statusLabel = "Chưa đến giờ";
+        } else if (closed) {
+            statusKey = "closed";
+            statusLabel = "Đã hết giờ";
+        } else {
+            statusKey = "ready";
+            statusLabel = "Chưa Check-in";
+        }
+        Shift shift = window.assignment().getShift();
+        return AttendanceClockView.Slot.builder()
+                .assignmentId(window.assignment().getId())
+                .shiftName(shift.getShiftName())
+                .scheduleLabel(formatTime(shift.getStartTime()) + " – " + formatTime(shift.getEndTime()))
+                .statusKey(statusKey)
+                .statusLabel(statusLabel)
+                .checkInLabel(checkedIn ? attendance.getCheckInTime().format(TIME_FORMATTER) : "—")
+                .checkOutLabel(checkedOut ? attendance.getCheckOutTime().format(TIME_FORMATTER) : "—")
+                .canCheckIn(canCheckIn)
+                .checkInNotice(checkInNotice)
+                .canCheckOut(canCheckOut)
+                .checkOutNotice(checkOutNotice)
                 .build();
     }
 
@@ -486,10 +752,10 @@ public class AttendanceServiceImpl implements AttendanceService {
     private AttendanceClockView.RecentItem toRecentItem(Attendance attendance) {
         String checkIn = attendance.getCheckInTime() == null
                 ? "—"
-                : truncate(attendance.getCheckInTime()).format(TIME_FORMATTER);
+                : attendance.getCheckInTime().format(TIME_FORMATTER);
         String checkOut = attendance.getCheckOutTime() == null
                 ? "—"
-                : truncate(attendance.getCheckOutTime()).format(TIME_FORMATTER);
+                : attendance.getCheckOutTime().format(TIME_FORMATTER);
         return AttendanceClockView.RecentItem.builder()
                 .workDate(attendance.getWorkDate())
                 .timeLabel(checkIn + " - " + checkOut)
@@ -750,6 +1016,10 @@ public class AttendanceServiceImpl implements AttendanceService {
 
     private double radiusMeters() {
         return Math.max(policy.getRadiusMeters(), 0);
+    }
+
+    private LocalDateTime exactTime(LocalDateTime value) {
+        return value.withNano(0);
     }
 
     private LocalDateTime truncate(LocalDateTime value) {

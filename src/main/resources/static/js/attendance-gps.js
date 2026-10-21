@@ -52,6 +52,14 @@
         box.querySelector(".gps-dialog-close").hidden = false;
     }
 
+    function showNotice(message) {
+        var box = dialog();
+        box.hidden = false;
+        box.querySelector(".gps-dialog-title").textContent = "Thông báo";
+        box.querySelector(".gps-dialog-body").textContent = message;
+        box.querySelector(".gps-dialog-close").hidden = false;
+    }
+
     function showDialogError(message) {
         var box = dialog();
         box.hidden = false;
@@ -138,6 +146,10 @@
         var classId = form.querySelector("[name=classId]");
         if (classId) {
             body.set("classId", classId.value);
+        }
+        var assignmentId = form.querySelector("[name=assignmentId]");
+        if (assignmentId) {
+            body.set("assignmentId", assignmentId.value);
         }
         var csrf = form.querySelector("[name=_csrf]");
         if (csrf) {
@@ -243,17 +255,25 @@
         });
     }
 
+    document.querySelectorAll("[data-check-notice]").forEach(function (button) {
+        button.addEventListener("click", function () {
+            showNotice(button.getAttribute("data-check-notice") || "Chưa thể Check-in.");
+        });
+    });
+
     var forms = document.querySelectorAll("form.gps-form");
     if (!forms.length) {
         return;
     }
 
-    showLocating();
-    locate().then(function (position) {
-        showCoordinates(position);
-    }).catch(function (error) {
-        showDialogError(error && error.message ? error.message : unknownMessage);
-    });
+    if (!document.body.hasAttribute("data-gps-manual")) {
+        showLocating();
+        locate().then(function (position) {
+            showCoordinates(position);
+        }).catch(function (error) {
+            showDialogError(error && error.message ? error.message : unknownMessage);
+        });
+    }
 
     forms.forEach(function (form) {
         form.addEventListener("submit", function (event) {

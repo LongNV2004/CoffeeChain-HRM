@@ -3,125 +3,175 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lịch sử chấm công — CoffeeHRM</title>
+    <title>Lịch sử chấm công của tôi — CoffeeHRM</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/AttendanceHistory.css}">
 </head>
 <body>
 <header th:replace="~{fragments/navbar :: staff('attendance')}"></header>
 
-<main class="wrap dash-main">
-    <section class="welcome">
-        <div class="eyebrow">Cá nhân — Staff</div>
-        <h1>Lịch sử chấm công</h1>
-        <p>
-            <span th:text="${history.employeeName}">Nhân viên</span>
-            <span th:if="${history.employeeId != null}" th:text="'· #' + ${history.employeeId}">· #1</span>
-            <span th:if="${history.storeName != null}" th:text="'· ' + ${history.storeName}">· Cửa hàng</span>
-        </p>
-    </section>
+<main class="wrap dash-main attn-screen">
+    <section class="day-board mine-board">
+        <h1>Lịch sử chấm công của tôi</h1>
+        <p class="flash" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
 
-    <p class="flash" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
-
-    <section class="summary">
-        <article>
-            <div class="label">Số bản ghi</div>
-            <div class="value" th:text="${history.recordCount}">0</div>
-        </article>
-        <article>
-            <div class="label">Tổng thời gian làm việc</div>
-            <div class="value" th:text="${history.totalHoursLabel}">0 giờ</div>
-        </article>
-    </section>
-
-    <section class="panel">
-        <h2>Lọc theo thời gian</h2>
-        <p class="note">Chỉ hiển thị dữ liệu chấm công của chính bạn. Giờ ca được lưu tại thời điểm check-in. Tổng thời gian chỉ cộng các ca đã check-out.</p>
-        <form class="filter-form" method="get" th:action="@{/attendance/staff/history}">
-            <label>Loại
-                <select name="kind">
-                    <option value="all" th:selected="${history.filterKind == null or history.filterKind == 'all'}">Tất cả chấm công</option>
-                    <option value="shift" th:selected="${history.filterKind == 'shift'}">Chấm công ca làm</option>
-                    <option value="training" th:selected="${history.filterKind == 'training'}">Chấm công đào tạo</option>
-                </select>
+        <form method="get" th:action="@{/attendance/staff/history}">
+            <label class="mine-field">Chọn ngày
+                <span class="mine-date">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>
+                    <input type="date" name="date" th:max="${vietnamToday}"
+                           th:value="${#temporals.format(board.workDate, 'yyyy-MM-dd')}"
+                           onchange="this.form.submit()" aria-label="Chọn ngày">
+                </span>
             </label>
-            <label>Từ ngày
-                <input type="date" name="from" th:max="${vietnamToday}" th:value="${#temporals.format(history.fromDate, 'yyyy-MM-dd')}">
-            </label>
-            <label>Đến ngày
-                <input type="date" name="to" th:max="${vietnamToday}" th:value="${#temporals.format(history.toDate, 'yyyy-MM-dd')}">
-            </label>
-            <button class="primary-btn" type="submit">Xem lịch sử</button>
         </form>
-        <a class="link-btn" th:href="@{/attendance/staff/choose}">Quay lại chấm công</a>
-    </section>
 
-    <section class="panel">
-        <h2>Chi tiết chấm công</h2>
-        <p class="empty" th:if="${#lists.isEmpty(history.rows)}">Không có dữ liệu chấm công trong khoảng thời gian này.</p>
-        <div class="table-wrap" th:if="${!#lists.isEmpty(history.rows)}">
-            <table>
-                <thead>
-                <tr>
-                    <th>Ngày</th>
-                    <th>Nhân viên</th>
-                    <th>Cửa hàng</th>
-                    <th>Loại</th>
-                    <th>Ca</th>
-                    <th>Bắt đầu ca</th>
-                    <th>Kết thúc ca</th>
-                    <th>Check-in</th>
-                    <th>Check-out</th>
-                    <th>Thời gian làm</th>
-                    <th>Đi muộn</th>
-                    <th>Về sớm</th>
-                    <th>Còn thiếu</th>
-                    <th>Vị trí Check-in</th>
-                    <th>Ảnh Check-in</th>
-                    <th>Vị trí Check-out</th>
-                    <th>Ảnh Check-out</th>
-                    <th>Trạng thái</th>
-                </tr>
-                </thead>
-                <tbody>
-                <tr th:each="row : ${history.rows}">
-                    <td th:text="${#temporals.format(row.workDate, 'dd/MM/yyyy')}">01/09/2026</td>
-                    <td>
-                        <span th:text="${row.employeeName}">Tên</span>
-                        <span th:text="'#' + ${row.employeeId}">#1</span>
-                    </td>
-                    <td th:text="${row.storeName}">Cửa hàng</td>
-                    <td th:text="${row.kindLabel}">Chấm công ca làm</td>
-                    <td th:text="${row.shiftLabel}">Ca sáng</td>
-                    <td th:text="${row.scheduledStartLabel}">08:00</td>
-                    <td th:text="${row.scheduledEndLabel}">17:00</td>
-                    <td th:text="${row.checkInLabel}">08:00</td>
-                    <td th:text="${row.checkOutLabel}">17:00</td>
-                    <td th:text="${row.totalHoursLabel}">8 giờ</td>
-                    <td th:text="${row.lateLabel}">0 phút</td>
-                    <td th:text="${row.earlyLabel}">0 phút</td>
-                    <td th:text="${row.missingLabel}">0 phút</td>
-                    <td th:text="${row.checkInLocation}">—</td>
-                    <td>
-                        <img class="attendance-photo" th:if="${row.hasCheckInPhoto}"
-                             th:src="@{|${row.photoBase}/${row.attendanceId}/in|}" alt="Ảnh check-in">
-                        <span th:unless="${row.hasCheckInPhoto}">—</span>
-                    </td>
-                    <td th:text="${row.checkOutLocation}">—</td>
-                    <td>
-                        <img class="attendance-photo" th:if="${row.hasCheckOutPhoto}"
-                             th:src="@{|${row.photoBase}/${row.attendanceId}/out|}" alt="Ảnh check-out">
-                        <span th:unless="${row.hasCheckOutPhoto}">—</span>
-                    </td>
-                    <td>
-                        <span class="status-tag" th:classappend="${row.statusCss}" th:text="${row.statusLabel}">Có mặt</span>
-                    </td>
-                </tr>
-                </tbody>
-            </table>
+        <div class="mine-filter">
+            <span>Các slot trong ngày</span>
+            <select id="slotFilter" aria-label="Các slot trong ngày">
+                <option value="">Tất cả slot</option>
+                <option th:each="slot : ${board.slots}" th:value="${slot.slotKey}" th:text="${slot.shiftName}">Ca sáng</option>
+            </select>
+        </div>
+
+        <p class="day-empty" th:if="${#lists.isEmpty(board.slots)}">Không có slot trong ngày này.</p>
+        <p class="day-empty" id="slotFilteredEmpty" hidden>Không có slot khớp bộ lọc.</p>
+
+        <div class="slot-list" th:if="${!#lists.isEmpty(board.slots)}">
+            <article class="slot-card mine-card" th:each="slot : ${board.slots}" th:attr="data-shift=${slot.slotKey}">
+                <div class="slot-top">
+                    <h3 th:text="${slot.shiftName}">Ca sáng</h3>
+                    <span class="day-badge" th:classappend="${slot.statusKey}" th:text="${slot.statusLabel}">Đã hoàn thành</span>
+                </div>
+                <p class="slot-schedule">Giờ theo lịch: <span th:text="${slot.scheduleLabel}">07:00 – 11:00</span></p>
+                <div class="slot-times">
+                    <div>
+                        <span>Check-in</span>
+                        <strong th:text="${slot.checkInLabel}">07:10</strong>
+                    </div>
+                    <div>
+                        <span>Check-out</span>
+                        <strong th:text="${slot.checkOutLabel}">11:00</strong>
+                    </div>
+                </div>
+                <div class="slot-times slot-minutes">
+                    <div>
+                        <span>Đi muộn</span>
+                        <strong th:classappend="${slot.late} ? 'is-alert' : ''" th:text="${slot.lateLabel}">10 phút</strong>
+                    </div>
+                    <div>
+                        <span>Về sớm</span>
+                        <strong th:text="${slot.earlyLabel}">0 phút</strong>
+                    </div>
+                </div>
+                <div class="mine-hours">
+                    <span>Giờ công</span>
+                    <strong th:text="${slot.workedLabel}">3 giờ 50 phút</strong>
+                </div>
+                <button type="button" class="detail-btn"
+                        th:data-title="${slot.shiftName}"
+                        th:data-status="${slot.statusLabel}"
+                        th:data-schedule="${slot.scheduleLabel}"
+                        th:data-in="${slot.checkInLabel}"
+                        th:data-out="${slot.checkOutLabel}"
+                        th:data-late="${slot.lateLabel}"
+                        th:data-early="${slot.earlyLabel}"
+                        th:data-worked="${slot.workedLabel}"
+                        th:data-in-photo="${slot.hasCheckInPhoto} ? @{|${slot.photoBase}/${slot.attendanceId}/in|} : ''"
+                        th:data-out-photo="${slot.hasCheckOutPhoto} ? @{|${slot.photoBase}/${slot.attendanceId}/out|} : ''">
+                    Xem chi tiết
+                </button>
+            </article>
         </div>
     </section>
 </main>
+<dialog class="detail-dialog" id="slotDetail">
+    <form method="dialog" class="detail-card">
+        <div class="slot-top">
+            <h3 id="detailTitle">Ca sáng</h3>
+            <span class="day-badge" id="detailStatus">Đã hoàn thành</span>
+        </div>
+        <p class="slot-schedule">Giờ theo lịch: <span id="detailSchedule">07:00 – 11:00</span></p>
+        <div class="slot-times">
+            <div><span>Check-in</span><strong id="detailIn">07:10</strong></div>
+            <div><span>Check-out</span><strong id="detailOut">11:00</strong></div>
+        </div>
+        <div class="slot-times slot-minutes">
+            <div><span>Đi muộn</span><strong id="detailLate">10 phút</strong></div>
+            <div><span>Về sớm</span><strong id="detailEarly">0 phút</strong></div>
+        </div>
+        <div class="mine-hours"><span>Giờ công</span><strong id="detailWorked">3 giờ 50 phút</strong></div>
+        <div class="detail-photos">
+            <figure>
+                <figcaption>Ảnh check-in</figcaption>
+                <img id="detailInPhoto" alt="Ảnh check-in" hidden>
+                <p id="detailInEmpty">Chưa có ảnh</p>
+            </figure>
+            <figure>
+                <figcaption>Ảnh check-out</figcaption>
+                <img id="detailOutPhoto" alt="Ảnh check-out" hidden>
+                <p id="detailOutEmpty">Chưa có ảnh</p>
+            </figure>
+        </div>
+        <button class="primary-btn" value="close">Đóng</button>
+    </form>
+</dialog>
+<script>
+(function () {
+    var filter = document.getElementById("slotFilter");
+    var cards = Array.prototype.slice.call(document.querySelectorAll(".mine-card"));
+    var empty = document.getElementById("slotFilteredEmpty");
+    if (!filter || cards.length === 0) {
+        return;
+    }
+    filter.addEventListener("change", function () {
+        var shiftId = filter.value;
+        var shown = 0;
+        cards.forEach(function (card) {
+            var visible = !shiftId || card.getAttribute("data-shift") === shiftId;
+            card.hidden = !visible;
+            if (visible) {
+                shown += 1;
+            }
+        });
+        if (empty) {
+            empty.hidden = shown !== 0;
+        }
+    });
+})();
+(function () {
+    var dialog = document.getElementById("slotDetail");
+    if (!dialog) {
+        return;
+    }
+    function showPhoto(img, empty, src) {
+        if (src) {
+            img.src = src;
+            img.hidden = false;
+            empty.hidden = true;
+        } else {
+            img.removeAttribute("src");
+            img.hidden = true;
+            empty.hidden = false;
+        }
+    }
+    document.querySelectorAll(".detail-btn").forEach(function (button) {
+        button.addEventListener("click", function () {
+            document.getElementById("detailTitle").textContent = button.getAttribute("data-title") || "";
+            document.getElementById("detailStatus").textContent = button.getAttribute("data-status") || "";
+            document.getElementById("detailSchedule").textContent = button.getAttribute("data-schedule") || "—";
+            document.getElementById("detailIn").textContent = button.getAttribute("data-in") || "—";
+            document.getElementById("detailOut").textContent = button.getAttribute("data-out") || "—";
+            document.getElementById("detailLate").textContent = button.getAttribute("data-late") || "—";
+            document.getElementById("detailEarly").textContent = button.getAttribute("data-early") || "—";
+            document.getElementById("detailWorked").textContent = button.getAttribute("data-worked") || "—";
+            showPhoto(document.getElementById("detailInPhoto"), document.getElementById("detailInEmpty"), button.getAttribute("data-in-photo"));
+            showPhoto(document.getElementById("detailOutPhoto"), document.getElementById("detailOutEmpty"), button.getAttribute("data-out-photo"));
+            dialog.showModal();
+        });
+    });
+})();
+</script>
 </body>
 </html>

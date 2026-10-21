@@ -3,60 +3,94 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lịch sử chấm công — CoffeeHRM</title>
+    <title th:text="${historyNav == 'attendance-training-history'} ? 'Theo dõi chấm công — CoffeeHRM' : 'Lịch sử chấm công — CoffeeHRM'">Lịch sử chấm công — CoffeeHRM</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/AttendanceHistory.css}">
 </head>
 <body>
-<header th:replace="~{fragments/navbar :: manager('attendance')}"></header>
+<header th:replace="~{fragments/navbar :: manager(${historyNav})}"></header>
 
 <main class="wrap dash-main">
-    <section class="welcome">
-        <div class="eyebrow">Cửa hàng — Manager</div>
-        <h1>Lịch sử chấm công</h1>
-        <p>
-            <span th:text="${history.employeeName}">Manager</span>
-            <span th:if="${history.storeName != null}" th:text="'· ' + ${history.storeName}">· Cửa hàng</span>
-        </p>
+    <section class="attn-screen track-head" th:if="${historyNav == 'attendance-training-history'}">
+        <h1>Theo dõi chấm công</h1>
+        <nav class="track-tabs" aria-label="Theo dõi chấm công">
+            <a th:href="@{/attendance/manager/day}">Theo ngày</a>
+            <a th:href="@{/attendance/manager/month}">Theo tháng</a>
+            <a class="is-on" th:href="@{/attendance/manager/history(kind='training')}">Đào tạo</a>
+        </nav>
     </section>
+    <p class="hist-context">
+        <span th:text="${history.storeName != null ? history.storeName : 'Cửa hàng đang quản lý'}">Cửa hàng</span>
+        <span th:text="' · ' + ${#temporals.format(history.fromDate, 'dd/MM/yyyy')} + ' – ' + ${#temporals.format(history.toDate, 'dd/MM/yyyy')}"> · kỳ</span>
+    </p>
 
     <p class="flash" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
 
-    <section class="summary">
+    <section class="summary" th:if="${history.filterKind == 'training'}">
+        <article>
+            <div class="label">Số lớp</div>
+            <div class="value" th:text="${#lists.size(history.trainingClasses)}">0</div>
+        </article>
+        <article>
+            <div class="label">Đi muộn</div>
+            <div class="value" th:text="${history.trainingLateCount}">0</div>
+        </article>
+        <article>
+            <div class="label">Vắng</div>
+            <div class="value" th:text="${history.trainingAbsentCount}">0</div>
+        </article>
+        <article>
+            <div class="label">Số học viên</div>
+            <div class="value" th:text="${history.trainingLearnerCount}">0</div>
+        </article>
+    </section>
+
+    <section class="summary" th:unless="${history.filterKind == 'training'}">
         <article>
             <div class="label">Số bản ghi</div>
             <div class="value" th:text="${history.recordCount}">0</div>
         </article>
         <article>
-            <div class="label">Tổng thời gian làm việc</div>
+            <div class="label">Tổng giờ công</div>
             <div class="value" th:text="${history.totalHoursLabel}">0 giờ</div>
+        </article>
+        <article>
+            <div class="label">Đi muộn</div>
+            <div class="value" th:text="${#lists.size(history.rows.?[lateLabel != '0 phút' and lateLabel != '—'])}">0</div>
+        </article>
+        <article>
+            <div class="label">Về sớm</div>
+            <div class="value" th:text="${#lists.size(history.rows.?[earlyLabel != '0 phút' and earlyLabel != '—'])}">0</div>
         </article>
     </section>
 
     <section class="panel">
         <h2>Bộ lọc</h2>
-        <p class="note">Chỉ xem bản thân và nhân viên thuộc cửa hàng bạn quản lý. Giờ ca là giờ đã lưu lúc chấm công.</p>
         <form class="filter-form" method="get" th:action="@{/attendance/manager/history}">
             <label>Loại
                 <select name="kind">
-                    <option value="all" th:selected="${history.filterKind == null or history.filterKind == 'all'}">Tất cả chấm công</option>
-                    <option value="shift" th:selected="${history.filterKind == 'shift'}">Chấm công ca làm</option>
-                    <option value="training" th:selected="${history.filterKind == 'training'}">Chấm công đào tạo</option>
+                    <option value="all" th:selected="${history.filterKind == null or history.filterKind == 'all'}">Tất cả</option>
+                    <option value="shift" th:selected="${history.filterKind == 'shift'}">Ca làm</option>
+                    <option value="training" th:selected="${history.filterKind == 'training'}">Đào tạo</option>
                 </select>
             </label>
-            <label>Nhân viên
+            <input type="hidden" name="self" value="true" th:if="${selfHistory}">
+            <label th:if="${selfHistory and history.filterKind != 'training'}">Nhân viên
+                <input type="text" th:value="${history.employeeName}" readonly>
+            </label>
+            <label th:unless="${selfHistory or history.filterKind == 'training'}">Nhân viên
                 <select name="employeeId">
                     <option value="">Tất cả</option>
                     <option th:each="emp : ${history.employees}"
                             th:value="${emp.employeeId}"
-                            th:text="${emp.fullName + ' (#' + emp.employeeId + ')'}"
+                            th:text="${emp.fullName}"
                             th:selected="${history.filterEmployeeId != null and history.filterEmployeeId.equals(emp.employeeId)}">
                         Nhân viên
                     </option>
                 </select>
             </label>
-            <label>Ca
+            <label th:if="${history.filterKind != 'training'}">Ca
                 <select name="shiftId">
                     <option value="">Tất cả</option>
                     <option th:each="shift : ${history.shifts}"
@@ -67,7 +101,7 @@
                     </option>
                 </select>
             </label>
-            <label>Trạng thái
+            <label th:if="${history.filterKind != 'training'}">Trạng thái
                 <select name="status">
                     <option value="">Tất cả</option>
                     <option th:each="st : ${history.statuses}"
@@ -84,76 +118,98 @@
             <label>Đến ngày
                 <input type="date" name="to" th:max="${vietnamToday}" th:value="${#temporals.format(history.toDate, 'yyyy-MM-dd')}">
             </label>
-            <label>Đi muộn
-                <input type="checkbox" name="late" value="true" th:checked="${history.lateOnly}">
-            </label>
-            <label>Về sớm
-                <input type="checkbox" name="early" value="true" th:checked="${history.earlyOnly}">
-            </label>
-            <button class="primary-btn" type="submit">Xem lịch sử</button>
+            <div class="hist-flags" th:if="${history.filterKind != 'training'}">
+                <label><input type="checkbox" name="late" value="true" th:checked="${history.lateOnly}"> Chỉ đi muộn</label>
+                <label><input type="checkbox" name="early" value="true" th:checked="${history.earlyOnly}"> Chỉ về sớm</label>
+            </div>
+            <button class="primary-btn" type="submit">Áp dụng</button>
         </form>
-        <a class="link-btn" th:href="@{/attendance/manager/choose}">Quay lại chấm công</a>
     </section>
 
-    <section class="panel">
-        <h2>Chi tiết</h2>
-        <p class="empty" th:if="${#lists.isEmpty(history.rows)}">Không có dữ liệu chấm công trong khoảng thời gian này.</p>
+    <section class="panel" th:if="${history.filterKind == 'training'}">
+        <div class="hist-head">
+            <h2>Danh sách lớp</h2>
+            <label class="hist-search">
+                <input id="classSearch" type="search" placeholder="Tìm lớp học..." autocomplete="off">
+            </label>
+        </div>
+        <p class="empty" th:if="${#lists.isEmpty(history.trainingClasses)}">Không có lớp đào tạo trong khoảng thời gian này.</p>
+        <p class="empty" id="classFilteredEmpty" hidden>Không có lớp khớp từ khóa.</p>
+        <div class="train-list" th:if="${!#lists.isEmpty(history.trainingClasses)}">
+            <article class="train-card" th:each="lesson, stat : ${history.trainingClasses}"
+                     th:attr="data-search=${#strings.toLowerCase(lesson.className + ' ' + lesson.dateLabel + ' ' + lesson.scheduleLabel)}">
+                <div>
+                    <h3 th:text="${lesson.className}">Pha chế</h3>
+                    <p th:text="${lesson.dateLabel + ' · ' + lesson.scheduleLabel}">21/10/2026 · 08:00 – 12:00</p>
+                </div>
+                <div class="train-counts">
+                    <span><strong th:text="${lesson.lateCount}">0</strong> đi muộn</span>
+                    <span><strong th:text="${lesson.absentCount}">0</strong> vắng</span>
+                </div>
+                <button class="primary-btn class-detail" type="button" th:attr="data-dialog=|class-${stat.index}|">Xem chi tiết</button>
+            </article>
+        </div>
+    </section>
+
+    <section class="panel" th:unless="${history.filterKind == 'training'}">
+        <div class="hist-head">
+            <h2>Danh sách</h2>
+            <label class="hist-search">
+                <input id="histSearch" type="search" placeholder="Tìm trong danh sách..." autocomplete="off">
+            </label>
+        </div>
+        <p class="empty" id="histEmpty" th:if="${#lists.isEmpty(history.rows)}">Không có bản ghi trong khoảng thời gian này.</p>
+        <p class="empty" id="histFilteredEmpty" hidden>Không có bản ghi khớp từ khóa.</p>
         <div class="table-wrap" th:if="${!#lists.isEmpty(history.rows)}">
-            <table>
+            <table class="hist-table">
                 <thead>
                 <tr>
                     <th>Ngày</th>
-                    <th>Nhân viên</th>
-                    <th>Cửa hàng</th>
-                    <th>Loại</th>
-                    <th>Ca</th>
-                    <th>Bắt đầu ca</th>
-                    <th>Kết thúc ca</th>
+                    <th th:unless="${selfHistory}">Nhân viên</th>
+                    <th>Slot</th>
+                    <th>Theo lịch</th>
                     <th>Check-in</th>
                     <th>Check-out</th>
-                    <th>Thời gian làm</th>
-                    <th>Đi muộn</th>
-                    <th>Về sớm</th>
-                    <th>Còn thiếu</th>
-                    <th>Vị trí Check-in</th>
-                    <th>Ảnh Check-in</th>
-                    <th>Vị trí Check-out</th>
-                    <th>Ảnh Check-out</th>
+                    <th>Giờ công</th>
                     <th>Trạng thái</th>
+                    <th></th>
                 </tr>
                 </thead>
                 <tbody>
-                <tr th:each="row : ${history.rows}">
-                    <td th:text="${#temporals.format(row.workDate, 'dd/MM/yyyy')}">01/09/2026</td>
-                    <td>
-                        <span th:text="${row.employeeName}">Tên</span>
-                        <span th:text="'#' + ${row.employeeId}">#1</span>
-                    </td>
-                    <td th:text="${row.storeName}">Cửa hàng</td>
-                    <td th:text="${row.kindLabel}">Chấm công ca làm</td>
-                    <td th:text="${row.shiftLabel}">Ca sáng</td>
-                    <td th:text="${row.scheduledStartLabel}">08:00</td>
-                    <td th:text="${row.scheduledEndLabel}">17:00</td>
-                    <td th:text="${row.checkInLabel}">08:00</td>
-                    <td th:text="${row.checkOutLabel}">17:00</td>
-                    <td th:text="${row.totalHoursLabel}">8 giờ</td>
-                    <td th:text="${row.lateLabel}">0 phút</td>
-                    <td th:text="${row.earlyLabel}">0 phút</td>
-                    <td th:text="${row.missingLabel}">0 phút</td>
-                    <td th:text="${row.checkInLocation}">—</td>
-                    <td>
-                        <img class="attendance-photo" th:if="${row.hasCheckInPhoto}"
-                             th:src="@{|${row.photoBase}/${row.attendanceId}/in|}" alt="Ảnh check-in">
-                        <span th:unless="${row.hasCheckInPhoto}">—</span>
-                    </td>
-                    <td th:text="${row.checkOutLocation}">—</td>
-                    <td>
-                        <img class="attendance-photo" th:if="${row.hasCheckOutPhoto}"
-                             th:src="@{|${row.photoBase}/${row.attendanceId}/out|}" alt="Ảnh check-out">
-                        <span th:unless="${row.hasCheckOutPhoto}">—</span>
+                <tr th:each="row : ${history.rows}"
+                    th:attr="data-search=${(row.employeeName + ' ' + row.shiftLabel + ' ' + row.kindLabel).toLowerCase()}">
+                    <td th:text="${#temporals.format(row.workDate, 'dd/MM/yyyy')}">21/10/2026</td>
+                    <td th:unless="${selfHistory}">
+                        <strong th:text="${row.employeeName}">Lê Thị Thu</strong>
+                        <small th:text="${'NV' + #numbers.formatInteger(row.employeeId, 3)}">NV003</small>
                     </td>
                     <td>
-                        <span class="status-tag" th:classappend="${row.statusCss}" th:text="${row.statusLabel}">Có mặt</span>
+                        <span th:text="${#strings.contains(row.shiftLabel, ' (') ? #strings.substringBefore(row.shiftLabel, ' (') : row.shiftLabel}">Ca chiều</span>
+                        <small th:if="${(history.filterKind == null or history.filterKind == 'all') and #strings.contains(row.kindLabel, 'đào tạo')}">Đào tạo</small>
+                    </td>
+                    <td th:text="${row.scheduledStartLabel + ' – ' + row.scheduledEndLabel}">07:00 – 11:00</td>
+                    <td th:text="${row.checkInLabel}">07:10</td>
+                    <td th:text="${row.checkOutLabel}">11:00</td>
+                    <td th:text="${row.totalHoursLabel}">3 giờ 50 phút</td>
+                    <td><span class="status-tag" th:classappend="${row.statusCss}" th:text="${row.statusLabel}">Đi muộn</span></td>
+                    <td>
+                        <button type="button" class="row-detail"
+                                th:data-name="${row.employeeName}"
+                                th:data-code="${'NV' + #numbers.formatInteger(row.employeeId, 3)}"
+                                th:data-date="${#temporals.format(row.workDate, 'dd/MM/yyyy')}"
+                                th:data-kind="${row.kindLabel}"
+                                th:data-shift="${#strings.contains(row.shiftLabel, ' (') ? #strings.substringBefore(row.shiftLabel, ' (') : row.shiftLabel}"
+                                th:data-schedule="${row.scheduledStartLabel + ' – ' + row.scheduledEndLabel}"
+                                th:data-in="${row.checkInLabel}"
+                                th:data-out="${row.checkOutLabel}"
+                                th:data-worked="${row.totalHoursLabel}"
+                                th:data-late="${row.lateLabel}"
+                                th:data-early="${row.earlyLabel}"
+                                th:data-status="${row.statusLabel}"
+                                th:data-in-photo="${row.hasCheckInPhoto} ? @{|${row.photoBase}/${row.attendanceId}/in|} : ''"
+                                th:data-out-photo="${row.hasCheckOutPhoto} ? @{|${row.photoBase}/${row.attendanceId}/out|} : ''">
+                            Xem chi tiết
+                        </button>
                     </td>
                 </tr>
                 </tbody>
@@ -161,5 +217,252 @@
         </div>
     </section>
 </main>
+
+<dialog class="detail-dialog class-dialog" th:each="lesson, stat : ${history.trainingClasses}" th:id="|class-${stat.index}|">
+    <form method="dialog" class="detail-card">
+        <div class="class-list">
+            <div class="slot-top">
+                <div>
+                    <h3 th:text="${lesson.className}">Lớp</h3>
+                    <p class="slot-schedule" th:text="${lesson.dateLabel + ' · ' + lesson.scheduleLabel}">Ngày</p>
+                </div>
+                <span class="day-badge" th:text="${#lists.size(lesson.learners) + ' người'}">0 người</span>
+            </div>
+            <div class="detail-filters">
+                <button type="button" class="is-on" data-filter="">Tất cả</button>
+                <button type="button" data-filter="late">Đi muộn</button>
+                <button type="button" data-filter="absent">Vắng</button>
+                <button type="button" data-filter="present">Có mặt</button>
+            </div>
+            <p class="empty learner-empty" hidden>Không có nhân viên khớp bộ lọc.</p>
+            <div class="learner-list">
+                <article class="learner-row" th:each="person : ${lesson.learners}"
+                         th:attr="data-late=${person.late},data-absent=${person.absent},data-present=${person.present}">
+                    <div>
+                        <strong th:text="${person.employeeName}">Tên</strong>
+                        <span th:text="${person.employeeCode}">NV000</span>
+                    </div>
+                    <span class="day-badge" th:text="${person.statusLabel}">Có mặt</span>
+                    <button class="primary-btn learner-detail" type="button"
+                            th:attr="data-name=${person.employeeName},data-code=${person.employeeCode},data-class=${lesson.className},data-when=${lesson.dateLabel + ' · ' + lesson.scheduleLabel},data-in=${person.checkInLabel},data-out=${person.checkOutLabel},data-late=${person.lateLabel},data-status=${person.statusLabel},data-in-photo=${person.checkInPhotoUrl},data-out-photo=${person.checkOutPhotoUrl}">
+                        Xem chi tiết
+                    </button>
+                </article>
+            </div>
+        </div>
+        <div class="learner-panel" hidden>
+            <div class="slot-top">
+                <div>
+                    <h3 class="learner-name">Nhân viên</h3>
+                    <p class="slot-schedule learner-meta">NV000</p>
+                </div>
+                <span class="day-badge learner-status">Có mặt</span>
+            </div>
+            <p class="slot-schedule learner-when">Lớp</p>
+            <div class="slot-times">
+                <div><span>Check-in</span><strong class="learner-in">—</strong></div>
+                <div><span>Check-out</span><strong class="learner-out">—</strong></div>
+            </div>
+            <div class="slot-times slot-minutes">
+                <div><span>Đi muộn</span><strong class="learner-late">—</strong></div>
+            </div>
+            <div class="detail-photos">
+                <figure>
+                    <figcaption>Ảnh check-in</figcaption>
+                    <img class="learner-in-photo" alt="Ảnh check-in" hidden>
+                    <p class="learner-in-empty">Chưa có ảnh</p>
+                </figure>
+                <figure>
+                    <figcaption>Ảnh check-out</figcaption>
+                    <img class="learner-out-photo" alt="Ảnh check-out" hidden>
+                    <p class="learner-out-empty">Chưa có ảnh</p>
+                </figure>
+            </div>
+            <button class="primary-btn learner-back" type="button">Quay lại danh sách</button>
+        </div>
+        <button class="primary-btn" value="close">Đóng</button>
+    </form>
+</dialog>
+<dialog class="detail-dialog" id="histDetail">
+    <form method="dialog" class="detail-card">
+        <div class="slot-top">
+            <div>
+                <h3 id="histName">Lê Thị Thu</h3>
+                <p class="slot-schedule" id="histMeta">NV003 · 21/10/2026</p>
+            </div>
+            <span class="day-badge" id="histStatus">Đi muộn</span>
+        </div>
+        <p class="slot-schedule" id="histShift">Ca sáng · Ca làm</p>
+        <p class="slot-schedule">Giờ theo lịch: <span id="histSchedule">07:00 – 11:00</span></p>
+        <div class="slot-times">
+            <div><span>Check-in</span><strong id="histIn">07:10</strong></div>
+            <div><span>Check-out</span><strong id="histOut">11:00</strong></div>
+        </div>
+        <div class="slot-times slot-minutes">
+            <div><span>Đi muộn</span><strong id="histLate">10 phút</strong></div>
+            <div><span>Về sớm</span><strong id="histEarly">0 phút</strong></div>
+        </div>
+        <div class="mine-hours"><span>Giờ công</span><strong id="histWorked">3 giờ 50 phút</strong></div>
+        <div class="detail-photos">
+            <figure>
+                <figcaption>Ảnh check-in</figcaption>
+                <img id="histInPhoto" alt="Ảnh check-in" hidden>
+                <p id="histInEmpty">Chưa có ảnh</p>
+            </figure>
+            <figure>
+                <figcaption>Ảnh check-out</figcaption>
+                <img id="histOutPhoto" alt="Ảnh check-out" hidden>
+                <p id="histOutEmpty">Chưa có ảnh</p>
+            </figure>
+        </div>
+        <button class="primary-btn" value="close">Đóng</button>
+    </form>
+</dialog>
+<script>
+(function () {
+    var input = document.getElementById("histSearch");
+    var rows = Array.prototype.slice.call(document.querySelectorAll(".hist-table tbody tr"));
+    var empty = document.getElementById("histFilteredEmpty");
+    if (input && rows.length) {
+        input.addEventListener("input", function () {
+            var query = input.value.trim().toLowerCase();
+            var shown = 0;
+            rows.forEach(function (row) {
+                var visible = !query || (row.getAttribute("data-search") || "").indexOf(query) >= 0;
+                row.hidden = !visible;
+                if (visible) {
+                    shown += 1;
+                }
+            });
+            if (empty) {
+                empty.hidden = shown !== 0;
+            }
+        });
+    }
+    var classSearch = document.getElementById("classSearch");
+    var classCards = Array.prototype.slice.call(document.querySelectorAll(".train-card"));
+    var classEmpty = document.getElementById("classFilteredEmpty");
+    if (classSearch && classCards.length) {
+        classSearch.addEventListener("input", function () {
+            var query = classSearch.value.trim().toLowerCase();
+            var shown = 0;
+            classCards.forEach(function (card) {
+                var visible = !query || (card.getAttribute("data-search") || "").indexOf(query) >= 0;
+                card.hidden = !visible;
+                if (visible) {
+                    shown += 1;
+                }
+            });
+            if (classEmpty) {
+                classEmpty.hidden = shown !== 0;
+            }
+        });
+    }
+    function applyLearnerFilter(dialog, filter) {
+        var shown = 0;
+        dialog.querySelectorAll(".learner-row").forEach(function (row) {
+            var visible = !filter || row.getAttribute("data-" + filter) === "true";
+            row.hidden = !visible;
+            if (visible) {
+                shown += 1;
+            }
+        });
+        var empty = dialog.querySelector(".learner-empty");
+        if (empty) {
+            empty.hidden = shown !== 0;
+        }
+    }
+    function showLearnerPhoto(img, placeholder, src) {
+        if (!img || !placeholder) {
+            return;
+        }
+        if (src) {
+            img.src = src;
+            img.hidden = false;
+            placeholder.hidden = true;
+        } else {
+            img.removeAttribute("src");
+            img.hidden = true;
+            placeholder.hidden = false;
+        }
+    }
+    document.querySelectorAll(".class-detail").forEach(function (button) {
+        button.addEventListener("click", function () {
+            var dialog = document.getElementById(button.getAttribute("data-dialog"));
+            if (!dialog) {
+                return;
+            }
+            dialog.querySelector(".class-list").hidden = false;
+            dialog.querySelector(".learner-panel").hidden = true;
+            dialog.querySelectorAll(".detail-filters button").forEach(function (chip) {
+                chip.classList.toggle("is-on", chip.getAttribute("data-filter") === "");
+            });
+            applyLearnerFilter(dialog, "");
+            dialog.showModal();
+        });
+    });
+    document.querySelectorAll(".class-dialog").forEach(function (dialog) {
+        dialog.querySelectorAll(".detail-filters button").forEach(function (chip) {
+            chip.addEventListener("click", function () {
+                dialog.querySelectorAll(".detail-filters button").forEach(function (item) {
+                    item.classList.toggle("is-on", item === chip);
+                });
+                applyLearnerFilter(dialog, chip.getAttribute("data-filter") || "");
+            });
+        });
+        dialog.querySelectorAll(".learner-detail").forEach(function (button) {
+            button.addEventListener("click", function () {
+                dialog.querySelector(".learner-name").textContent = button.getAttribute("data-name") || "";
+                dialog.querySelector(".learner-meta").textContent = button.getAttribute("data-code") || "";
+                dialog.querySelector(".learner-when").textContent = (button.getAttribute("data-class") || "") + " · " + (button.getAttribute("data-when") || "");
+                dialog.querySelector(".learner-in").textContent = button.getAttribute("data-in") || "—";
+                dialog.querySelector(".learner-out").textContent = button.getAttribute("data-out") || "—";
+                dialog.querySelector(".learner-late").textContent = button.getAttribute("data-late") || "—";
+                dialog.querySelector(".learner-status").textContent = button.getAttribute("data-status") || "";
+                showLearnerPhoto(dialog.querySelector(".learner-in-photo"), dialog.querySelector(".learner-in-empty"), button.getAttribute("data-in-photo"));
+                showLearnerPhoto(dialog.querySelector(".learner-out-photo"), dialog.querySelector(".learner-out-empty"), button.getAttribute("data-out-photo"));
+                dialog.querySelector(".class-list").hidden = true;
+                dialog.querySelector(".learner-panel").hidden = false;
+            });
+        });
+        dialog.querySelector(".learner-back").addEventListener("click", function () {
+            dialog.querySelector(".learner-panel").hidden = true;
+            dialog.querySelector(".class-list").hidden = false;
+        });
+    });
+    var dialog = document.getElementById("histDetail");
+    if (!dialog) {
+        return;
+    }
+    function showPhoto(img, placeholder, src) {
+        if (src) {
+            img.src = src;
+            img.hidden = false;
+            placeholder.hidden = true;
+        } else {
+            img.removeAttribute("src");
+            img.hidden = true;
+            placeholder.hidden = false;
+        }
+    }
+    document.querySelectorAll(".row-detail").forEach(function (button) {
+        button.addEventListener("click", function () {
+            document.getElementById("histName").textContent = button.getAttribute("data-name") || "";
+            document.getElementById("histMeta").textContent = (button.getAttribute("data-code") || "") + " · " + (button.getAttribute("data-date") || "");
+            document.getElementById("histShift").textContent = (button.getAttribute("data-shift") || "—") + " · " + (button.getAttribute("data-kind") || "");
+            document.getElementById("histSchedule").textContent = button.getAttribute("data-schedule") || "—";
+            document.getElementById("histIn").textContent = button.getAttribute("data-in") || "—";
+            document.getElementById("histOut").textContent = button.getAttribute("data-out") || "—";
+            document.getElementById("histLate").textContent = button.getAttribute("data-late") || "—";
+            document.getElementById("histEarly").textContent = button.getAttribute("data-early") || "—";
+            document.getElementById("histWorked").textContent = button.getAttribute("data-worked") || "—";
+            document.getElementById("histStatus").textContent = button.getAttribute("data-status") || "";
+            showPhoto(document.getElementById("histInPhoto"), document.getElementById("histInEmpty"), button.getAttribute("data-in-photo"));
+            showPhoto(document.getElementById("histOutPhoto"), document.getElementById("histOutEmpty"), button.getAttribute("data-out-photo"));
+            dialog.showModal();
+        });
+    });
+})();
+</script>
 </body>
 </html>

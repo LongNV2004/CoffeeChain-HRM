@@ -28,6 +28,11 @@ public class AttendanceHistoryView {
     private final List<ShiftOption> shifts;
     private final List<StatusOption> statuses;
     private final List<AttendanceRow> rows;
+    @Builder.Default
+    private final List<TrainingClassCard> trainingClasses = List.of();
+    private final int trainingLateCount;
+    private final int trainingAbsentCount;
+    private final int trainingLearnerCount;
     private final int recordCount;
     private final BigDecimal totalHours;
     private final String totalHoursLabel;
@@ -85,5 +90,36 @@ public class AttendanceHistoryView {
         private final String statusCss;
         private final String shiftLabel;
         private final String kindLabel;
+    }
+
+    @Getter
+    @Builder
+    public static class TrainingClassCard {
+        private final String className;
+        private final String dateLabel;
+        private final String scheduleLabel;
+        private final int lateCount;
+        private final int absentCount;
+        @Builder.Default
+        private final List<TrainingLearner> learners = List.of();
+    }
+
+    @Getter
+    @Builder
+    public static class TrainingLearner {
+        private final Integer attendanceId;
+        private final String employeeName;
+        private final String employeeCode;
+        private final String checkInLabel;
+        private final String checkOutLabel;
+        private final String lateLabel;
+        private final String statusLabel;
+        private final boolean late;
+        private final boolean absent;
+        private final boolean present;
+        private final boolean hasCheckInPhoto;
+        private final boolean hasCheckOutPhoto;
+        private final String checkInPhotoUrl;
+        private final String checkOutPhotoUrl;
     }
 }

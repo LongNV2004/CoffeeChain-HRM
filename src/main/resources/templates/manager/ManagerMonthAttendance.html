@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Theo dõi chấm công — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/AttendanceHistory.css}">
+</head>
+<body>
+<header th:replace="~{fragments/navbar :: manager('attendance-month')}"></header>
+
+<main class="wrap dash-main attn-screen">
+    <section class="day-board">
+        <div class="day-head">
+            <div>
+                <h1>Theo dõi chấm công</h1>
+                <p class="day-date" th:text="'Cửa hàng đang quản lý · ' + ${board.monthLabel}">Cửa hàng đang quản lý · Tháng 10/2026</p>
+            </div>
+            <form method="get" th:action="@{/attendance/manager/month}">
+                <label class="month-cal">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>
+                    <input type="month" name="month" th:value="${board.monthValue}"
+                           onchange="this.form.submit()" aria-label="Chọn tháng">
+                </label>
+            </form>
+        </div>
+
+        <nav class="track-tabs" aria-label="Theo dõi chấm công">
+            <a th:href="@{/attendance/manager/day}">Theo ngày</a>
+            <a class="is-on" th:href="@{/attendance/manager/month}">Theo tháng</a>
+            <a th:href="@{/attendance/manager/history(kind='training')}">Đào tạo</a>
+        </nav>
+
+        <p class="flash" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
+
+        <div class="day-stats">
+            <article>
+                <div class="day-stat-name">Tổng nhân viên</div>
+                <div class="day-stat-value" th:text="${board.employeeCount}">0</div>
+            </article>
+            <article>
+                <div class="day-stat-name">Tổng slot theo lịch</div>
+                <div class="day-stat-value" th:text="${board.scheduledSlots}">0</div>
+            </article>
+        </div>
+
+        <label class="day-search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg>
+            <input id="monthSearch" type="search" placeholder="Tìm mã hoặc tên nhân viên..." autocomplete="off">
+        </label>
+        <div class="type-filters" role="radiogroup" aria-label="Loại nhân viên">
+            <label><input type="radio" name="employment" value="" checked><span></span>Tất cả</label>
+            <label><input type="radio" name="employment" value="full-time"><span></span>Full-time</label>
+            <label><input type="radio" name="employment" value="part-time"><span></span>Part-time</label>
+        </div>
+
+        <p class="day-empty" th:if="${#lists.isEmpty(board.employees)}">Không có nhân viên đang làm tại cửa hàng.</p>
+        <p class="day-empty" id="monthFilteredEmpty" hidden>Không có nhân viên khớp từ khóa.</p>
+
+        <div class="slot-list month-list" th:if="${!#lists.isEmpty(board.employees)}">
+            <article class="slot-card month-card" th:each="card : ${board.employees}"
+                     th:attr="data-search=${card.searchText},data-type=${card.employmentKey}">
+                <h3 th:text="${card.employeeName}">Nguyễn Minh Anh</h3>
+                <p class="slot-meta" th:text="${card.employeeCode + ' · ' + card.roleLabel}">NV001 · Full-time</p>
+                <div class="slot-times">
+                    <div>
+                        <span>Slot theo lịch</span>
+                        <strong th:text="${card.scheduledSlots}">0</strong>
+                    </div>
+                    <div>
+                        <span>Slot đã làm</span>
+                        <strong th:text="${card.workedSlots}">0</strong>
+                    </div>
+                </div>
+                <div class="slot-times slot-minutes">
+                    <div>
+                        <span>Đi muộn</span>
+                        <strong th:classappend="${card.late} ? 'is-alert' : ''"
+                                th:text="${card.lateSlots + ' slot'}">0 slot</strong>
+                        <small th:text="${card.lateDurationLabel}">0 phút tổng cộng</small>
+                    </div>
+                    <div>
+                        <span>Về sớm</span>
+                        <strong th:classappend="${card.early} ? 'is-alert' : ''"
+                                th:text="${card.earlySlots + ' slot'}">0 slot</strong>
+                        <small th:text="${card.earlyDurationLabel}">0 phút tổng cộng</small>
+                    </div>
+                </div>
+                <div class="slot-absent">
+                    <span>Vắng mặt</span>
+                    <strong th:text="${card.absentSlots + ' slot'}">0 slot</strong>
+                </div>
+                <button type="button" class="month-detail" th:attr="data-dialog=|month-emp-${card.employeeId}|">Xem chi tiết</button>
+            </article>
+        </div>
+        <dialog class="detail-dialog month-dialog" th:each="card : ${board.employees}" th:id="|month-emp-${card.employeeId}|">
+            <form method="dialog" class="detail-card">
+                <div class="slot-top">
+                    <div>
+                        <h3 th:text="${card.employeeName}">Nguyễn Minh Anh</h3>
+                        <p class="slot-schedule" th:text="${card.employeeCode + ' · ' + board.monthLabel}">NV001 · Tháng 10/2026</p>
+                    </div>
+                </div>
+                <div class="slot-times">
+                    <div><span>Slot theo lịch</span><strong th:text="${card.scheduledSlots}">0</strong></div>
+                    <div><span>Slot đã làm</span><strong th:text="${card.workedSlots}">0</strong></div>
+                </div>
+                <div class="slot-times slot-minutes">
+                    <div>
+                        <span>Đi muộn</span>
+                        <strong th:text="${card.lateSlots + ' slot'}">0 slot</strong>
+                        <small th:text="${card.lateDurationLabel}">0 phút</small>
+                    </div>
+                    <div>
+                        <span>Về sớm</span>
+                        <strong th:text="${card.earlySlots + ' slot'}">0 slot</strong>
+                        <small th:text="${card.earlyDurationLabel}">0 phút</small>
+                    </div>
+                </div>
+                <p class="slot-schedule">Vắng mặt: <span th:text="${card.absentSlots + ' slot'}">0 slot</span></p>
+                <div class="detail-filters" th:if="${!#lists.isEmpty(card.days)}" role="group" aria-label="Lọc ca trong tháng">
+                    <button type="button" class="is-on" data-filter="">Tất cả</button>
+                    <button type="button" data-filter="late">Đi muộn</button>
+                    <button type="button" data-filter="early-out">Về sớm</button>
+                    <button type="button" data-filter="absent">Vắng</button>
+                </div>
+                <p class="day-empty" th:if="${#lists.isEmpty(card.days)}">Chưa có bản ghi chấm công trong tháng này.</p>
+                <p class="day-empty detail-filter-empty" hidden>Không có ca khớp bộ lọc.</p>
+                <div class="month-lines" th:if="${!#lists.isEmpty(card.days)}">
+                    <article class="month-line" th:each="line : ${card.days}"
+                             th:attr="data-late=${line.late},data-early-out=${line.earlyLeave},data-absent=${line.absent}">
+                        <div class="slot-top">
+                            <h4 th:text="${line.dateLabel + ' · ' + line.shiftName}">21/10/2026 · Ca sáng</h4>
+                            <span class="day-badge" th:text="${line.statusLabel}">Đi muộn</span>
+                        </div>
+                        <p class="slot-schedule">Giờ theo lịch: <span th:text="${line.scheduleLabel}">07:00 – 11:00</span></p>
+                        <div class="slot-times">
+                            <div><span>Check-in</span><strong th:text="${line.checkInLabel}">07:10</strong></div>
+                            <div><span>Check-out</span><strong th:text="${line.checkOutLabel}">11:00</strong></div>
+                        </div>
+                        <div class="slot-times slot-minutes">
+                            <div><span>Đi muộn</span><strong th:text="${line.lateLabel}">10 phút</strong></div>
+                            <div><span>Về sớm</span><strong th:text="${line.earlyLabel}">0 phút</strong></div>
+                        </div>
+                        <div class="mine-hours"><span>Giờ công</span><strong th:text="${line.workedLabel}">3 giờ 40 phút</strong></div>
+                        <div class="detail-photos">
+                            <figure>
+                                <figcaption>Ảnh check-in</figcaption>
+                                <img th:if="${line.hasCheckInPhoto}" th:src="@{|/attendance/photos/${line.attendanceId}/in|}" alt="Ảnh check-in">
+                                <p th:unless="${line.hasCheckInPhoto}">Chưa có ảnh</p>
+                            </figure>
+                            <figure>
+                                <figcaption>Ảnh check-out</figcaption>
+                                <img th:if="${line.hasCheckOutPhoto}" th:src="@{|/attendance/photos/${line.attendanceId}/out|}" alt="Ảnh check-out">
+                                <p th:unless="${line.hasCheckOutPhoto}">Chưa có ảnh</p>
+                            </figure>
+                        </div>
+                    </article>
+                </div>
+                <button class="primary-btn" value="close">Đóng</button>
+            </form>
+        </dialog>
+    </section>
+</main>
+<script>
+(function () {
+    var search = document.getElementById("monthSearch");
+    var cards = Array.prototype.slice.call(document.querySelectorAll(".month-card"));
+    var filteredEmpty = document.getElementById("monthFilteredEmpty");
+    var types = Array.prototype.slice.call(document.querySelectorAll(".type-filters input"));
+    if (!search || cards.length === 0) {
+        return;
+    }
+    function selectedType() {
+        var chosen = types.find(function (input) { return input.checked; });
+        return chosen ? chosen.value : "";
+    }
+    function apply() {
+        var text = search.value.trim().toLowerCase();
+        var type = selectedType();
+        var shown = 0;
+        cards.forEach(function (card) {
+            var matchesText = !text || (card.getAttribute("data-search") || "").indexOf(text) >= 0;
+            var matchesType = !type || card.getAttribute("data-type") === type;
+            var visible = matchesText && matchesType;
+            card.hidden = !visible;
+            if (visible) {
+                shown += 1;
+            }
+        });
+        if (filteredEmpty) {
+            filteredEmpty.hidden = shown !== 0;
+        }
+    }
+    search.addEventListener("input", apply);
+    types.forEach(function (input) { input.addEventListener("change", apply); });
+})();
+(function () {
+    function applyFilter(dialog, filter) {
+        var lines = Array.prototype.slice.call(dialog.querySelectorAll(".month-line"));
+        var shown = 0;
+        lines.forEach(function (line) {
+            var visible = !filter || line.getAttribute("data-" + filter) === "true";
+            line.hidden = !visible;
+            if (visible) {
+                shown += 1;
+            }
+        });
+        var empty = dialog.querySelector(".detail-filter-empty");
+        if (empty) {
+            empty.hidden = !filter || shown !== 0;
+        }
+    }
+    document.querySelectorAll(".month-dialog").forEach(function (dialog) {
+        dialog.querySelectorAll(".detail-filters button").forEach(function (chip) {
+            chip.addEventListener("click", function () {
+                dialog.querySelectorAll(".detail-filters button").forEach(function (other) {
+                    other.classList.toggle("is-on", other === chip);
+                });
+                applyFilter(dialog, chip.getAttribute("data-filter") || "");
+            });
+        });
+    });
+    document.querySelectorAll(".month-detail").forEach(function (button) {
+        button.addEventListener("click", function () {
+            var dialog = document.getElementById(button.getAttribute("data-dialog"));
+            if (!dialog) {
+                return;
+            }
+            dialog.querySelectorAll(".detail-filters button").forEach(function (chip) {
+                chip.classList.toggle("is-on", !chip.getAttribute("data-filter"));
+            });
+            applyFilter(dialog, "");
+            dialog.showModal();
+        });
+    });
+})();
+</script>
+</body>
+</html>

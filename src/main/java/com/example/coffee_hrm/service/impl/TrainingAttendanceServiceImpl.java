@@ -192,7 +192,7 @@ public class TrainingAttendanceServiceImpl implements TrainingAttendanceService 
     void checkOut(AuthenticatedUser user, Integer classId, AttendanceLocation location, LocalDateTime rawNow, byte[] photo) {
         CheckOutPlan plan = planCheckOut(user, classId, location, rawNow);
         TrainingAttendance attendance = plan.attendance();
-        LocalDateTime checkIn = attendance.getCheckInTime() == null ? plan.now() : truncate(attendance.getCheckInTime());
+        LocalDateTime checkIn = attendance.getCheckInTime() == null ? plan.now() : attendance.getCheckInTime();
         int workingMinutes = (int) Math.max(0, ChronoUnit.MINUTES.between(checkIn, plan.now()));
         int lateMinutes = attendance.getLateMinutes() == null ? 0 : attendance.getLateMinutes();
         attendance.setCheckOutTime(plan.now());
@@ -207,7 +207,7 @@ public class TrainingAttendanceServiceImpl implements TrainingAttendanceService 
 
     private CheckInPlan planCheckIn(AuthenticatedUser user, Integer classId, AttendanceLocation location, LocalDateTime rawNow) {
         Employee employee = resolveEmployee(user);
-        LocalDateTime now = truncate(rawNow);
+        LocalDateTime now = exactTime(rawNow);
         LocalDate today = now.toLocalDate();
         TrainingClass trainingClass = requireAssignedClass(user, employee, classId);
         if (openByClass(employee.getId()).containsKey(trainingClass.getId())) {
@@ -241,7 +241,7 @@ public class TrainingAttendanceServiceImpl implements TrainingAttendanceService 
 
     private CheckOutPlan planCheckOut(AuthenticatedUser user, Integer classId, AttendanceLocation location, LocalDateTime rawNow) {
         Employee employee = resolveEmployee(user);
-        LocalDateTime now = truncate(rawNow);
+        LocalDateTime now = exactTime(rawNow);
         TrainingClass trainingClass = requireAssignedClass(user, employee, classId);
         List<TrainingAttendance> openRecords = trainingAttendanceRepository
                 .findOpenByEmployeeAndClass(employee.getId(), trainingClass.getId());
@@ -286,15 +286,53 @@ public class TrainingAttendanceServiceImpl implements TrainingAttendanceService 
             inWindow = !now.isBefore(start.minusMinutes(leadMinutes())) && now.isBefore(end);
         }
         boolean canCheckIn = open == null && !checkedOutToday && scheduleValid && covers(trainingClass, today) && inWindow;
+        TrainingAttendance shown = open != null ? open : todayRecord.orElse(null);
+        boolean checkedIn = shown != null && shown.getCheckInTime() != null;
+        boolean checkedOut = shown != null && shown.getCheckOutTime() != null;
+        String statusKey = checkedOut ? "done" : (checkedIn ? "working" : (canCheckIn ? "ready" : "upcoming"));
+        String checkInNotice = null;
+        if (!canCheckIn) {
+            if (open != null && !openToday) {
+                checkInNotice = OPEN_RECORD;
+            } else if (open != null) {
+                checkInNotice = ALREADY_IN;
+            } else if (checkedOutToday) {
+                checkInNotice = ALREADY_OUT;
+            } else if (!covers(trainingClass, today)) {
+                checkInNotice = OUTSIDE_DATES;
+            } else if (!scheduleValid) {
+                checkInNotice = BAD_SCHEDULE;
+            } else if (scheduleValid && now.isBefore(truncate(LocalDateTime.of(today, trainingClass.getStartTime())).minusMinutes(leadMinutes()))) {
+                checkInNotice = TOO_EARLY;
+            } else {
+                checkInNotice = SESSION_ENDED;
+            }
+        }
+        String checkOutNotice = null;
+        if (!canCheckOut) {
+            if (awaitingCheckout) {
+                checkOutNotice = CHECKOUT_NOT_OPEN;
+            } else if (checkedOut) {
+                checkOutNotice = ALREADY_OUT;
+            } else {
+                checkOutNotice = NOT_CHECKED_IN;
+            }
+        }
         return TrainingClockView.Session.builder()
                 .classId(trainingClass.getId())
                 .className(trainingClass.getClassName())
                 .typeLabel(typeLabel(trainingClass))
                 .dateLabel(dateLabel(trainingClass, today))
                 .timeLabel(timeLabel(trainingClass))
-                .statusLabel(sessionStatus(trainingClass, open, checkedOutToday, openToday, today, now, scheduleValid))
+                .statusKey(statusKey)
+                .statusLabel(checkedOut ? "Đã hoàn thành" : (checkedIn ? "Đang làm" : sessionStatus(
+                        trainingClass, open, checkedOutToday, openToday, today, now, scheduleValid)))
+                .checkInLabel(checkedIn ? shown.getCheckInTime().format(TIME_FORMAT) : "—")
+                .checkOutLabel(checkedOut ? shown.getCheckOutTime().format(TIME_FORMAT) : "—")
                 .canCheckIn(canCheckIn)
+                .checkInNotice(checkInNotice)
                 .canCheckOut(canCheckOut)
+                .checkOutNotice(checkOutNotice)
                 .checkoutHint(awaitingCheckout ? CHECKOUT_NOT_OPEN : null)
                 .build();
     }
@@ -624,6 +662,10 @@ public class TrainingAttendanceServiceImpl implements TrainingAttendanceService 
 
     private double radiusMeters() {
         return Math.max(policy.getRadiusMeters(), 0);
+    }
+
+    private LocalDateTime exactTime(LocalDateTime value) {
+        return value.withNano(0);
     }
 
     private LocalDateTime truncate(LocalDateTime value) {
