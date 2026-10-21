@@ -103,6 +103,12 @@ public class TrainingAttendance {
     @Column(name = "CheckOutLongitude", precision = 10, scale = 7)
     private BigDecimal checkOutLongitude;
 
+    @Column(name = "CheckInPhotoName", length = 255)
+    private String checkInPhotoName;
+
+    @Column(name = "CheckOutPhotoName", length = 255)
+    private String checkOutPhotoName;
+
     @CreationTimestamp
     @Column(name = "CreatedAt", nullable = false, updatable = false)
     private LocalDateTime createdAt;

@@ -24,5 +24,6 @@ public class TrainingClockView {
         private final String statusLabel;
         private final boolean canCheckIn;
         private final boolean canCheckOut;
+        private final String checkoutHint;
     }
 }

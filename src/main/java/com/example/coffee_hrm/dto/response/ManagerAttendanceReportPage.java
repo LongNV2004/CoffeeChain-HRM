@@ -19,6 +19,9 @@ public class ManagerAttendanceReportPage {
     private final String periodLabel;
     private final String statusCode;
     private final String statusLabel;
+    private final String statusCss;
+    private final boolean stale;
+    private final String reviewNote;
     private final LocalDateTime lastGeneratedAt;
     private final LocalDateTime lastSubmittedAt;
     private final Integer versionNumber;
@@ -27,7 +30,9 @@ public class ManagerAttendanceReportPage {
     private final List<AttendanceReportWorkbook.SummaryRow> employees;
     private final Integer selectedEmployeeId;
     private final String selectedEmployeeName;
+    private final String historyKind;
     private final List<AttendanceReportWorkbook.ShiftRow> days;
+    private final List<AttendanceReportWorkbook.TrainingRow> trainingDays;
 
     @Getter
     @Builder

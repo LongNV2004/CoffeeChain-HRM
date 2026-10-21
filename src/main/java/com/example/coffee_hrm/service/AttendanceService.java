@@ -14,5 +14,15 @@ public interface AttendanceService {
 
     void checkOut(AuthenticatedUser user, AttendanceLocation location);
 
+    void previewCheckIn(AuthenticatedUser user, AttendanceLocation location);
+
+    void previewCheckOut(AuthenticatedUser user, AttendanceLocation location);
+
+    void checkInWithPhoto(AuthenticatedUser user, AttendanceLocation location, byte[] photo);
+
+    void checkOutWithPhoto(AuthenticatedUser user, AttendanceLocation location, byte[] photo);
+
+    byte[] readShiftPhoto(AuthenticatedUser user, Integer attendanceId, boolean checkIn);
+
     void markAbsences(LocalDate workDate);
 }

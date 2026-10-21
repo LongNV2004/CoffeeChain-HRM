@@ -60,6 +60,8 @@ class AttendanceServiceImplTest {
     private EmployeeRepository employeeRepository;
     @Mock
     private StoreRepository storeRepository;
+    @Mock
+    private AttendancePhotoStore photoStore;
 
     private AttendancePolicyProperties policy;
     private AttendanceServiceImpl attendanceService;
@@ -81,6 +83,7 @@ class AttendanceServiceImplTest {
                 shiftAssignmentRepository,
                 employeeRepository,
                 storeRepository,
+                photoStore,
                 policy);
 
         store = Store.builder().id(1).storeName("Cửa hàng 1").latitude(LAT).longitude(LNG).build();
@@ -119,6 +122,27 @@ class AttendanceServiceImplTest {
         assertEquals(0, saved.getLateMinutes());
         assertEquals(AttendanceStatus.PRESENT, saved.getStatus());
         assertNull(saved.getCheckOutTime());
+    }
+
+    @Test
+    void checkInWithPhotoStoresTheFileName() {
+        stubShift(List.of(morningAssignment));
+        when(attendanceRepository.findByEmployee_IdAndShift_IdAndWorkDate(20, 1, WORK_DATE))
+                .thenReturn(Optional.empty());
+        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
+        when(attendanceRepository.saveAndFlush(any())).thenAnswer(invocation -> {
+            Attendance attendance = invocation.getArgument(0);
+            attendance.setId(101);
+            return attendance;
+        });
+        byte[] jpeg = new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF};
+        when(photoStore.save(101, "in", jpeg)).thenReturn("101-in.jpg");
+
+        attendanceService.checkIn(staffUser, here(10), WORK_DATE.atTime(7, 30), jpeg);
+
+        ArgumentCaptor<Attendance> captor = ArgumentCaptor.forClass(Attendance.class);
+        verify(attendanceRepository).save(captor.capture());
+        assertEquals("101-in.jpg", captor.getValue().getCheckInPhotoName());
     }
 
     @Test
@@ -249,6 +273,36 @@ class AttendanceServiceImplTest {
     }
 
     @Test
+    void checkOutBeforeTwoHoursAfterShiftStartIsRejected() {
+        Attendance open = openAttendance(0);
+        open.setCheckInTime(WORK_DATE.atTime(7, 0));
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
+        when(attendanceRepository.findOpenByEmployeeId(20)).thenReturn(List.of(open));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> attendanceService.checkOut(staffUser, here(10), WORK_DATE.atTime(9, 59)));
+
+        assertEquals(AttendanceServiceImpl.CHECKOUT_TOO_SOON, ex.getMessage());
+        assertNull(open.getCheckOutTime());
+        verify(attendanceRepository, never()).save(any());
+    }
+
+    @Test
+    void checkOutIsAllowedTwoHoursAfterShiftStart() {
+        Attendance open = openAttendance(0);
+        open.setCheckInTime(WORK_DATE.atTime(7, 0));
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
+        when(attendanceRepository.findOpenByEmployeeId(20)).thenReturn(List.of(open));
+        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
+
+        attendanceService.checkOut(staffUser, here(10), WORK_DATE.atTime(10, 0));
+
+        assertEquals(WORK_DATE.atTime(10, 0), open.getCheckOutTime());
+        assertEquals(180, open.getWorkingMinutes());
+        verify(attendanceRepository).save(open);
+    }
+
+    @Test
     void checkOutUpdatesTheSameRecordAndStoresEarlyLeave() {
         Attendance open = openAttendance(0);
         when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
@@ -279,6 +333,35 @@ class AttendanceServiceImplTest {
         assertEquals(540, open.getWorkingMinutes());
         assertEquals(0, open.getEarlyLeaveMinutes());
         assertEquals(AttendanceStatus.PRESENT, open.getStatus());
+    }
+
+    @Test
+    void checkOutTwoHoursAfterShiftEndIsLateCheckout() {
+        Attendance open = openAttendance(0);
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
+        when(attendanceRepository.findOpenByEmployeeId(20)).thenReturn(List.of(open));
+        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
+
+        attendanceService.checkOut(staffUser, here(10), WORK_DATE.atTime(18, 59));
+        assertEquals(AttendanceStatus.PRESENT, open.getStatus());
+
+        open.setCheckOutTime(null);
+        attendanceService.checkOut(staffUser, here(10), WORK_DATE.atTime(19, 0));
+
+        assertEquals(AttendanceStatus.LATE_CHECKOUT, open.getStatus());
+        assertEquals(0, open.getEarlyLeaveMinutes());
+    }
+
+    @Test
+    void lateArrivalAndLateCheckoutAreBothRecorded() {
+        Attendance open = openAttendance(30);
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
+        when(attendanceRepository.findOpenByEmployeeId(20)).thenReturn(List.of(open));
+        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
+
+        attendanceService.checkOut(staffUser, here(10), WORK_DATE.atTime(19, 0));
+
+        assertEquals(AttendanceStatus.LATE_AND_LATE_CHECKOUT, open.getStatus());
     }
 
     @Test

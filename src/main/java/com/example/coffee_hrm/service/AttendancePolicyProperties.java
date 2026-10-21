@@ -21,5 +21,20 @@ public class AttendancePolicyProperties {
      */
     private boolean allowEarlyCheckout = true;
 
-    private int radiusMeters = 200;
+    /** Số phút sau giờ vào ca thì nhân viên mới được Check-out. */
+    private int minimumShiftMinutesBeforeCheckout = 120;
+
+    /** Check-out sau giờ kết thúc ca từ số phút này thì tính check-out muộn. */
+    private int lateCheckoutThresholdMinutes = 120;
+
+    /** Đào tạo: check-in sau giờ bắt đầu từ số phút này thì tính check-in muộn. */
+    private int trainingLateThresholdMinutes = 10;
+
+    /** Đào tạo: check-in sau giờ bắt đầu từ số phút này thì tính không tham gia. */
+    private int trainingAbsentThresholdMinutes = 20;
+
+    /** Đào tạo: Check-out mở trước giờ kết thúc buổi số phút này. */
+    private int trainingCheckoutLeadMinutes = 5;
+
+    private int radiusMeters = 500;
 }

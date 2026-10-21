@@ -96,6 +96,9 @@ public final class AttendanceReportCalculator {
                     .statusLabel(statusLabel(attendance.getStatus()))
                     .note(facts.note)
                     .needsReview(facts.needsReview)
+                    .attendanceId(attendance.getId())
+                    .hasCheckInPhoto(hasText(attendance.getCheckInPhotoName()))
+                    .hasCheckOutPhoto(hasText(attendance.getCheckOutPhotoName()))
                     .build());
         }
 
@@ -138,9 +141,12 @@ public final class AttendanceReportCalculator {
                     .checkOut(training.getCheckOutTime())
                     .lateMinutes(zero(training.getLateMinutes()))
                     .earlyMinutes(zero(training.getEarlyLeaveMinutes()))
-                    .statusLabel(statusLabel(training.getStatus()))
+                    .statusLabel(trainingStatusLabel(training.getStatus()))
                     .note(note)
                     .needsReview(review)
+                    .attendanceId(training.getId())
+                    .hasCheckInPhoto(hasText(training.getCheckInPhotoName()))
+                    .hasCheckOutPhoto(hasText(training.getCheckOutPhotoName()))
                     .build());
         }
 
@@ -334,6 +340,16 @@ public final class AttendanceReportCalculator {
         return status == AttendanceStatus.EARLY_LEAVE || status == AttendanceStatus.LATE_AND_EARLY;
     }
 
+    private static String trainingStatusLabel(AttendanceStatus status) {
+        if (status == AttendanceStatus.LATE) {
+            return "Check-in muộn";
+        }
+        if (status == AttendanceStatus.LATE_AND_EARLY) {
+            return "Check-in muộn và về sớm";
+        }
+        return statusLabel(status);
+    }
+
     static String statusLabel(AttendanceStatus status) {
         if (status == null) {
             return "";
@@ -344,6 +360,9 @@ public final class AttendanceReportCalculator {
             case LATE -> "Đi muộn";
             case EARLY_LEAVE -> "Về sớm";
             case LATE_AND_EARLY -> "Đi muộn và về sớm";
+            case LATE_CHECKOUT -> "Check-out muộn";
+            case LATE_AND_LATE_CHECKOUT -> "Đi muộn và check-out muộn";
+            case NOT_PARTICIPATED -> "Không tham gia";
             case ABSENT -> "Vắng";
         };
     }
@@ -430,6 +449,10 @@ public final class AttendanceReportCalculator {
 
     private static int zero(Integer value) {
         return value == null ? 0 : value;
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private static String text(String value) {

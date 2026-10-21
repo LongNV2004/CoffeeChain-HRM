@@ -1,5 +1,6 @@
 package com.example.coffee_hrm.service.impl;
 
+import com.example.coffee_hrm.common.enums.AttendanceReportStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.time.VietnamTime;
@@ -164,7 +165,7 @@ class AttendanceReportServiceImplTest {
     @Test
     void staffCannotCreateOrSubmit() {
         assertThrows(BusinessException.class, () -> service.submit(staff, 2026, 10));
-        assertThrows(BusinessException.class, () -> service.adminDetail(staff, 99, null));
+        assertThrows(BusinessException.class, () -> service.adminDetail(staff, 99, null, null));
         verify(storeRepository, never()).findByManager_Id(any());
         verify(reportRepository, never()).findByIdDetailed(any());
     }
@@ -172,7 +173,7 @@ class AttendanceReportServiceImplTest {
     @Test
     void managerCannotOpenAdminReport() {
         BusinessException error = assertThrows(BusinessException.class,
-                () -> service.adminDetail(manager, 99, null));
+                () -> service.adminDetail(manager, 99, null, null));
 
         assertTrue(error.getMessage().contains("quyền"));
         verify(reportRepository, never()).findByIdDetailed(any());
@@ -213,7 +214,8 @@ class AttendanceReportServiceImplTest {
                 .filter(row -> row.getStoreId() == 1)
                 .findFirst()
                 .orElseThrow();
-        assertEquals("Đã gửi", submitted.getStatusLabel());
+        assertEquals("Đang chờ", submitted.getStatusLabel());
+        assertEquals("status-waiting", submitted.getStatusCss());
         assertEquals(2, submitted.getVersionNumber());
     }
 
@@ -224,14 +226,46 @@ class AttendanceReportServiceImplTest {
         when(attendanceRepository.findMonthlyReportChanges(any(), any())).thenReturn(List.of());
         when(trainingAttendanceRepository.findMonthlyReportChanges(any(), any())).thenReturn(List.of());
 
-        ManagerAttendanceReportPage page = service.managerPage(manager, 2026, 10, null);
+        ManagerAttendanceReportPage page = service.managerPage(manager, 2026, 10, null, null);
 
         assertEquals(1, page.getStoreId());
         assertTrue(page.getEmployees().isEmpty());
         assertTrue(page.getDays().isEmpty());
         BusinessException error = assertThrows(BusinessException.class,
-                () -> service.managerPage(manager, 2026, 10, 99));
+                () -> service.managerPage(manager, 2026, 10, 99, null));
         assertTrue(error.getMessage().contains("cửa hàng"));
+    }
+
+    @Test
+    void adminApprovalAndRevisionStayVisibleToTheManager() {
+        MonthlyAttendanceReport report = MonthlyAttendanceReport.builder()
+                .id(4)
+                .store(store)
+                .reportYear(2026)
+                .reportMonth(10)
+                .status(AttendanceReportStatus.SUBMITTED)
+                .versionNumber(1)
+                .submittedAt(LocalDateTime.of(2026, 10, 9, 8, 0))
+                .build();
+        when(reportRepository.findByIdDetailed(4)).thenReturn(Optional.of(report));
+        when(reportRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.approve(admin, 4);
+        assertEquals(AttendanceReportStatus.APPROVED, report.getStatus());
+
+        service.requestRevision(admin, 4, "Thiếu ảnh check-out");
+        assertEquals(AttendanceReportStatus.REVISION, report.getStatus());
+        assertEquals("Thiếu ảnh check-out", report.getReviewNote());
+
+        stubStoreData();
+        when(reportRepository.findCurrent(1, 2026, 10)).thenReturn(Optional.of(report));
+        when(attendanceRepository.findMonthlyReportChanges(any(), any())).thenReturn(List.of());
+        when(trainingAttendanceRepository.findMonthlyReportChanges(any(), any())).thenReturn(List.of());
+
+        ManagerAttendanceReportPage page = service.managerPage(manager, 2026, 10, null, null);
+        assertEquals("Yêu cầu làm lại", page.getStatusLabel());
+        assertEquals("status-revision", page.getStatusCss());
+        assertEquals("Thiếu ảnh check-out", page.getReviewNote());
     }
 
     private void stubStoreData() {

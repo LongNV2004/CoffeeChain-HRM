@@ -11,4 +11,14 @@ public interface TrainingAttendanceService {
     void checkIn(AuthenticatedUser user, Integer classId, AttendanceLocation location);
 
     void checkOut(AuthenticatedUser user, Integer classId, AttendanceLocation location);
+
+    void previewCheckIn(AuthenticatedUser user, Integer classId, AttendanceLocation location);
+
+    void previewCheckOut(AuthenticatedUser user, Integer classId, AttendanceLocation location);
+
+    void checkInWithPhoto(AuthenticatedUser user, Integer classId, AttendanceLocation location, byte[] photo);
+
+    void checkOutWithPhoto(AuthenticatedUser user, Integer classId, AttendanceLocation location, byte[] photo);
+
+    byte[] readPhoto(AuthenticatedUser user, Integer attendanceId, boolean checkIn);
 }

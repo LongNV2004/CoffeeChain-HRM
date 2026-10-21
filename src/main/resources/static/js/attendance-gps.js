@@ -122,6 +122,127 @@
         });
     }
 
+    function hideDialog() {
+        var box = document.getElementById("gps-dialog");
+        if (box) {
+            box.hidden = true;
+        }
+    }
+
+    function previewAttendance(form) {
+        var url = form.getAttribute("data-preview-url");
+        var body = new URLSearchParams();
+        body.set("latitude", form.querySelector("[name=latitude]").value);
+        body.set("longitude", form.querySelector("[name=longitude]").value);
+        body.set("accuracy", form.querySelector("[name=accuracy]").value);
+        var classId = form.querySelector("[name=classId]");
+        if (classId) {
+            body.set("classId", classId.value);
+        }
+        var csrf = form.querySelector("[name=_csrf]");
+        if (csrf) {
+            body.set(csrf.name, csrf.value);
+        }
+        return fetch(url, {
+            method: "POST",
+            headers: { "Accept": "application/json" },
+            body: body,
+            credentials: "same-origin"
+        }).then(function (response) {
+            return response.json().catch(function () {
+                return {};
+            }).then(function (data) {
+                if (!response.ok) {
+                    throw new Error(data.message || "Chưa đủ điều kiện chấm công.");
+                }
+            });
+        });
+    }
+
+    function cameraDialog() {
+        var box = document.getElementById("camera-dialog");
+        if (box) {
+            return box;
+        }
+        box = document.createElement("div");
+        box.id = "camera-dialog";
+        box.className = "camera-dialog";
+        box.hidden = true;
+        box.innerHTML = '<div class="camera-card"><p class="gps-dialog-title">Chụp ảnh nhân viên</p><video autoplay playsinline muted></video><div class="camera-actions"><button type="button" class="primary-btn camera-capture">Chụp ảnh</button><button type="button" class="secondary-btn camera-cancel">Hủy</button></div></div>';
+        document.body.appendChild(box);
+        return box;
+    }
+
+    function stopCamera(stream) {
+        if (!stream) {
+            return;
+        }
+        stream.getTracks().forEach(function (track) {
+            track.stop();
+        });
+    }
+
+    function requestCamera() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            return Promise.reject(new Error("Máy này không có camera."));
+        }
+        return navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false })
+            .catch(function (error) {
+                if (error && (error.name === "NotAllowedError" || error.name === "PermissionDeniedError")) {
+                    throw new Error("Hãy cho phép truy cập camera để chụp ảnh nhân viên.");
+                }
+                return navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            });
+    }
+
+    function capturePhoto(form) {
+        return requestCamera().then(function (stream) {
+            return new Promise(function (resolve, reject) {
+                var box = cameraDialog();
+                var video = box.querySelector("video");
+                var capture = box.querySelector(".camera-capture");
+                var cancel = box.querySelector(".camera-cancel");
+                box.hidden = false;
+                video.srcObject = stream;
+                function cleanup() {
+                    stopCamera(stream);
+                    video.srcObject = null;
+                    box.hidden = true;
+                    capture.removeEventListener("click", onCapture);
+                    cancel.removeEventListener("click", onCancel);
+                }
+                function onCancel() {
+                    cleanup();
+                    reject(new Error("Đã hủy chụp ảnh."));
+                }
+                function onCapture() {
+                    var width = video.videoWidth || 640;
+                    var height = video.videoHeight || 480;
+                    var scale = Math.min(1, 640 / width);
+                    var canvas = document.createElement("canvas");
+                    canvas.width = Math.max(1, Math.round(width * scale));
+                    canvas.height = Math.max(1, Math.round(height * scale));
+                    canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+                    canvas.toBlob(function (blob) {
+                        cleanup();
+                        if (!blob) {
+                            reject(new Error("Không chụp được ảnh. Hãy thử lại."));
+                            return;
+                        }
+                        var input = form.querySelector("[name=photo]");
+                        var file = new File([blob], "attendance.jpg", { type: "image/jpeg" });
+                        var transfer = new DataTransfer();
+                        transfer.items.add(file);
+                        input.files = transfer.files;
+                        resolve();
+                    }, "image/jpeg", 0.85);
+                }
+                capture.addEventListener("click", onCapture);
+                cancel.addEventListener("click", onCancel);
+            });
+        });
+    }
+
     var forms = document.querySelectorAll("form.gps-form");
     if (!forms.length) {
         return;
@@ -156,9 +277,25 @@
                 form.querySelector("[name=latitude]").value = String(position.coords.latitude);
                 form.querySelector("[name=longitude]").value = String(position.coords.longitude);
                 form.querySelector("[name=accuracy]").value = String(position.coords.accuracy);
-                window.setTimeout(function () {
+                if (!form.hasAttribute("data-require-photo")) {
+                    window.setTimeout(function () {
+                        HTMLFormElement.prototype.submit.call(form);
+                    }, 700);
+                    return;
+                }
+                hideDialog();
+                previewAttendance(form).then(function () {
+                    return capturePhoto(form);
+                }).then(function () {
                     HTMLFormElement.prototype.submit.call(form);
-                }, 700);
+                }).catch(function (error) {
+                    if (button) {
+                        button.disabled = false;
+                    }
+                    var message = error && error.message ? error.message : "Không chụp được ảnh nhân viên.";
+                    showInlineError(form, message);
+                    showDialogError(message);
+                });
             }).catch(function (error) {
                 if (button) {
                     button.disabled = false;

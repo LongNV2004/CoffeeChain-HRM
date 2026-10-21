@@ -78,6 +78,9 @@ public class AttendanceHistoryView {
         private final String missingLabel;
         private final String checkInLocation;
         private final String checkOutLocation;
+        private final boolean hasCheckInPhoto;
+        private final boolean hasCheckOutPhoto;
+        private final String photoBase;
         private final String statusLabel;
         private final String statusCss;
         private final String shiftLabel;

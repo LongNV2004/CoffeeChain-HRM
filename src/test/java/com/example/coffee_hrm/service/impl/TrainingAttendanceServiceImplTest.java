@@ -60,6 +60,8 @@ class TrainingAttendanceServiceImplTest {
     private EmployeeRepository employeeRepository;
     @Mock
     private StoreRepository storeRepository;
+    @Mock
+    private AttendancePhotoStore photoStore;
 
     private TrainingAttendanceServiceImpl service;
     private Store store;
@@ -85,6 +87,7 @@ class TrainingAttendanceServiceImplTest {
                 trainingClassEnrollmentRepository,
                 employeeRepository,
                 storeRepository,
+                photoStore,
                 policy);
         store = Store.builder().id(1).storeName("Cửa hàng 1").latitude(LAT).longitude(LNG).build();
         otherStore = Store.builder().id(2).storeName("Cửa hàng 2").latitude(LAT).longitude(LNG).build();
@@ -108,7 +111,7 @@ class TrainingAttendanceServiceImplTest {
         stubNoExistingRecord(20, 7);
         when(trainingAttendanceRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        service.checkIn(staffUser, 7, here(10), today.atTime(8, 10));
+        service.checkIn(staffUser, 7, here(10), today.atTime(8, 0));
 
         ArgumentCaptor<TrainingAttendance> captor = ArgumentCaptor.forClass(TrainingAttendance.class);
         verify(trainingAttendanceRepository).saveAndFlush(captor.capture());
@@ -210,15 +213,33 @@ class TrainingAttendanceServiceImplTest {
         stubStore();
         when(trainingAttendanceRepository.findOpenByEmployeeAndClass(20, 7)).thenReturn(List.of(open));
 
-        service.checkOut(staffUser, 7, here(10), today.atTime(11, 0));
+        service.checkOut(staffUser, 7, here(10), today.atTime(11, 55));
 
-        assertEquals(today.atTime(11, 0), open.getCheckOutTime());
-        assertEquals(180, open.getWorkingMinutes());
-        assertEquals(60, open.getEarlyLeaveMinutes());
-        assertEquals(AttendanceStatus.EARLY_LEAVE, open.getStatus());
+        assertEquals(today.atTime(11, 55), open.getCheckOutTime());
+        assertEquals(235, open.getWorkingMinutes());
+        assertEquals(0, open.getEarlyLeaveMinutes());
+        assertEquals(AttendanceStatus.PRESENT, open.getStatus());
         assertEquals(null, other.getCheckOutTime());
         verify(trainingAttendanceRepository).save(open);
         verify(trainingAttendanceRepository, never()).save(other);
+    }
+
+    @Test
+    void checkOutOpensFiveMinutesBeforeTheSessionEnds() {
+        TrainingClass trainingClass = approvedClass(7, trainer);
+        TrainingAttendance open = openRecord(trainingClass, today.atTime(8, 0));
+        stubStaff(trainingClass);
+        stubStore();
+        when(trainingAttendanceRepository.findOpenByEmployeeAndClass(20, 7)).thenReturn(List.of(open));
+
+        BusinessException tooSoon = assertThrows(BusinessException.class,
+                () -> service.checkOut(staffUser, 7, here(10), today.atTime(11, 54)));
+        assertEquals(TrainingAttendanceServiceImpl.CHECKOUT_NOT_OPEN, tooSoon.getMessage());
+        assertEquals(null, open.getCheckOutTime());
+
+        service.checkOut(staffUser, 7, here(10), today.atTime(11, 55));
+        assertEquals(today.atTime(11, 55), open.getCheckOutTime());
+        assertEquals(AttendanceStatus.PRESENT, open.getStatus());
     }
 
     @Test
@@ -287,14 +308,11 @@ class TrainingAttendanceServiceImplTest {
 
         service.checkIn(staffUser, 7, north(199, 50), today.atTime(8, 0));
         service.checkIn(staffUser, 7, north(200, 50), today.atTime(8, 5));
+        service.checkIn(staffUser, 7, here(107), today.atTime(8, 10));
 
         BusinessException tooFar = assertThrows(BusinessException.class,
                 () -> service.checkIn(staffUser, 7, north(201, 10), today.atTime(8, 0)));
         assertEquals(TrainingAttendanceServiceImpl.OUTSIDE_RADIUS, tooFar.getMessage());
-
-        BusinessException coarse = assertThrows(BusinessException.class,
-                () -> service.checkIn(staffUser, 7, here(50.1), today.atTime(8, 0)));
-        assertEquals(TrainingAttendanceServiceImpl.LOCATION_INACCURATE, coarse.getMessage());
     }
 
     @Test
@@ -373,22 +391,73 @@ class TrainingAttendanceServiceImplTest {
     }
 
     @Test
-    void lateThresholdStartsAtTwentyMinutes() {
+    void trainingCheckInIsLateAfterTenMinutesAndNotParticipatingAfterTwenty() {
         TrainingClass trainingClass = approvedClass(7, trainer);
         stubStaff(trainingClass);
         stubStore();
         stubNoExistingRecord(20, 7);
         when(trainingAttendanceRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
+        service.checkIn(staffUser, 7, here(10), today.atTime(8, 9));
+        service.checkIn(staffUser, 7, here(10), today.atTime(8, 10));
         service.checkIn(staffUser, 7, here(10), today.atTime(8, 19));
         service.checkIn(staffUser, 7, here(10), today.atTime(8, 20));
 
         ArgumentCaptor<TrainingAttendance> captor = ArgumentCaptor.forClass(TrainingAttendance.class);
-        verify(trainingAttendanceRepository, org.mockito.Mockito.times(2)).saveAndFlush(captor.capture());
+        verify(trainingAttendanceRepository, org.mockito.Mockito.times(4)).saveAndFlush(captor.capture());
         assertEquals(AttendanceStatus.PRESENT, captor.getAllValues().get(0).getStatus());
         assertEquals(0, captor.getAllValues().get(0).getLateMinutes());
         assertEquals(AttendanceStatus.LATE, captor.getAllValues().get(1).getStatus());
-        assertEquals(20, captor.getAllValues().get(1).getLateMinutes());
+        assertEquals(10, captor.getAllValues().get(1).getLateMinutes());
+        assertEquals(AttendanceStatus.LATE, captor.getAllValues().get(2).getStatus());
+        assertEquals(AttendanceStatus.NOT_PARTICIPATED, captor.getAllValues().get(3).getStatus());
+        assertEquals(20, captor.getAllValues().get(3).getLateMinutes());
+    }
+
+    @Test
+    void notParticipatingStaysNotParticipatingAfterCheckOut() {
+        TrainingClass trainingClass = approvedClass(7, trainer);
+        TrainingAttendance open = openRecord(trainingClass, today.atTime(8, 20));
+        open.setLateMinutes(20);
+        open.setStatus(AttendanceStatus.NOT_PARTICIPATED);
+        stubStaff(trainingClass);
+        stubStore();
+        when(trainingAttendanceRepository.findOpenByEmployeeAndClass(20, 7)).thenReturn(List.of(open));
+
+        service.checkOut(staffUser, 7, here(10), today.atTime(12, 0));
+
+        assertEquals(AttendanceStatus.NOT_PARTICIPATED, open.getStatus());
+        assertEquals(0, open.getEarlyLeaveMinutes());
+    }
+
+    @Test
+    void checkInPhotoIsStoredSeparatelyFromShiftPhotos() {
+        TrainingClass trainingClass = approvedClass(7, trainer);
+        stubStaff(trainingClass);
+        stubStore();
+        stubNoExistingRecord(20, 7);
+        byte[] jpeg = new byte[] {(byte) 0xFF, (byte) 0xD8, 1};
+        when(trainingAttendanceRepository.saveAndFlush(any())).thenAnswer(invocation -> {
+            TrainingAttendance row = invocation.getArgument(0);
+            row.setId(44);
+            return row;
+        });
+        when(photoStore.saveTraining(44, "in", jpeg)).thenReturn("t44-in.jpg");
+
+        service.checkIn(staffUser, 7, here(10), today.atTime(8, 0), jpeg);
+
+        ArgumentCaptor<TrainingAttendance> captor = ArgumentCaptor.forClass(TrainingAttendance.class);
+        verify(trainingAttendanceRepository).save(captor.capture());
+        assertEquals("t44-in.jpg", captor.getValue().getCheckInPhotoName());
+    }
+
+    @Test
+    void webCheckInWithoutPhotoIsRejected() {
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.checkInWithPhoto(staffUser, 7, here(10), null));
+
+        assertEquals(TrainingAttendanceServiceImpl.PHOTO_REQUIRED, ex.getMessage());
+        verify(trainingAttendanceRepository, never()).saveAndFlush(any());
     }
 
     private void stubStaff(TrainingClass trainingClass) {

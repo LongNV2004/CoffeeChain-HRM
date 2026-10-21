@@ -613,6 +613,9 @@ public class EmployeeServiceImpl implements EmployeeService {
             case LATE -> "Đi muộn";
             case EARLY_LEAVE -> "Về sớm";
             case LATE_AND_EARLY -> "Đi muộn và về sớm";
+            case LATE_CHECKOUT -> "Check-out muộn";
+            case LATE_AND_LATE_CHECKOUT -> "Đi muộn và check-out muộn";
+            case NOT_PARTICIPATED -> "Không tham gia";
             case ABSENT -> "Vắng";
         };
     }

@@ -18,6 +18,7 @@ public class AttendanceClockView {
     private final String scheduledEndLabel;
     private final String statusLabel;
     private final boolean manager;
+    private final boolean canCheckOut;
     private final List<RecentItem> recent;
 
     @Getter

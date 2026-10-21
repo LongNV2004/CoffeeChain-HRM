@@ -24,8 +24,11 @@
         <h2 th:text="${report.storeId + ' — ' + report.storeName}">Cửa hàng</h2>
         <p class="note">
             Kỳ <span th:text="${report.periodLabel}">10/2026</span>
-            · <span th:text="${report.statusLabel}">Đã gửi</span>
+            · <span class="status-tag" th:classappend="${report.statusCss}" th:text="${report.statusLabel}">Đang chờ</span>
         </p>
+        <p class="note" th:if="${report.reviewNote != null and !#strings.isEmpty(report.reviewNote)}"
+           th:text="${report.reviewNote}">Lý do</p>
+        <p class="note" th:if="${report.stale}">Dữ liệu chấm công đã thay đổi sau lần gửi.</p>
     </section>
 
     <section class="panel" th:if="${pageError == null}">
@@ -81,7 +84,7 @@
                     <td th:text="${employee.earlyRecords}">0</td>
                     <td th:text="${employee.absentRecords}">0</td>
                     <td>
-                        <a th:href="@{|/attendance/manager/reports/detail?year=${report.year}&month=${report.month}&employeeId=${employee.employeeId}#lich-ngay|}">Xem chi tiết</a>
+                        <a th:href="@{|/attendance/manager/reports/detail?year=${report.year}&month=${report.month}&employeeId=${employee.employeeId}&kind=${report.historyKind}#lich-ngay|}">Xem chi tiết</a>
                     </td>
                 </tr>
                 </tbody>
@@ -91,9 +94,19 @@
 
     <section class="panel" id="lich-ngay" th:if="${pageError == null and report.selectedEmployeeId != null}">
         <h2 th:text="${'Lịch ngày của ' + report.selectedEmployeeName}">Lịch ngày</h2>
-        <p class="note" th:text="${'Các bản ghi ca làm trong tháng ' + report.periodLabel + '. Ngày không có bản ghi không hiện ở đây.'}">Tháng</p>
-        <p class="empty" th:if="${report.days.isEmpty()}">Không có bản ghi chấm công ca làm trong tháng này.</p>
-        <div class="table-wrap" th:if="${!report.days.isEmpty()}">
+        <div class="clock-actions">
+            <a th:class="${report.historyKind == 'all'} ? 'primary-btn' : 'secondary-btn'"
+               th:href="@{|/attendance/manager/reports/detail?year=${report.year}&month=${report.month}&employeeId=${report.selectedEmployeeId}&kind=all#lich-ngay|}">Xem tất cả</a>
+            <a th:class="${report.historyKind == 'shift'} ? 'primary-btn' : 'secondary-btn'"
+               th:href="@{|/attendance/manager/reports/detail?year=${report.year}&month=${report.month}&employeeId=${report.selectedEmployeeId}&kind=shift#lich-ngay|}">Xem báo cáo chấm công</a>
+            <a th:class="${report.historyKind == 'training'} ? 'primary-btn' : 'secondary-btn'"
+               th:href="@{|/attendance/manager/reports/detail?year=${report.year}&month=${report.month}&employeeId=${report.selectedEmployeeId}&kind=training#lich-ngay|}">Xem báo cáo đào tạo</a>
+        </div>
+        <h3 th:if="${report.historyKind != 'training'}">Chấm công ca làm</h3>
+        <p class="note" th:if="${report.historyKind != 'training'}"
+           th:text="${'Các bản ghi ca làm trong tháng ' + report.periodLabel + '. Ngày không có bản ghi không hiện ở đây.'}">Tháng</p>
+        <p class="empty" th:if="${report.historyKind != 'training' and report.days.isEmpty()}">Không có bản ghi chấm công ca làm trong tháng này.</p>
+        <div class="table-wrap" th:if="${report.historyKind != 'training' and !report.days.isEmpty()}">
             <table>
                 <thead>
                 <tr>
@@ -104,6 +117,8 @@
                     <th>Check-out</th>
                     <th>Đi muộn</th>
                     <th>Về sớm</th>
+                    <th>Ảnh Check-in</th>
+                    <th>Ảnh Check-out</th>
                     <th>Trạng thái</th>
                     <th>Ghi chú</th>
                 </tr>
@@ -121,8 +136,68 @@
                     <td th:text="${day.checkOut == null ? '—' : #temporals.format(day.checkOut, 'HH:mm')}">—</td>
                     <td th:text="${day.lateMinutes + ' phút'}">0 phút</td>
                     <td th:text="${day.earlyMinutes + ' phút'}">0 phút</td>
+                    <td>
+                        <img class="attendance-photo" th:if="${day.hasCheckInPhoto}"
+                             th:src="@{|/attendance/photos/${day.attendanceId}/in|}" alt="Ảnh check-in">
+                        <span th:unless="${day.hasCheckInPhoto}">—</span>
+                    </td>
+                    <td>
+                        <img class="attendance-photo" th:if="${day.hasCheckOutPhoto}"
+                             th:src="@{|/attendance/photos/${day.attendanceId}/out|}" alt="Ảnh check-out">
+                        <span th:unless="${day.hasCheckOutPhoto}">—</span>
+                    </td>
                     <td th:text="${day.statusLabel == null or #strings.isEmpty(day.statusLabel) ? '—' : day.statusLabel}">Có mặt</td>
                     <td th:text="${day.note == null or #strings.isEmpty(day.note) ? '—' : day.note}">—</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <h3 th:if="${report.historyKind != 'shift'}">Chấm công đào tạo</h3>
+        <p class="note" th:if="${report.historyKind != 'shift'}"
+           th:text="${'Các buổi đào tạo trong tháng ' + report.periodLabel + '. Ngày không có bản ghi không hiện ở đây.'}">Tháng</p>
+        <p class="empty" th:if="${report.historyKind != 'shift' and report.trainingDays.isEmpty()}">Không có bản ghi chấm công đào tạo trong tháng này.</p>
+        <div class="table-wrap" th:if="${report.historyKind != 'shift' and !report.trainingDays.isEmpty()}">
+            <table>
+                <thead>
+                <tr>
+                    <th>Ngày</th>
+                    <th>Lớp đào tạo</th>
+                    <th>Giờ học</th>
+                    <th>Check-in</th>
+                    <th>Check-out</th>
+                    <th>Check-in muộn</th>
+                    <th>Về sớm</th>
+                    <th>Ảnh Check-in</th>
+                    <th>Ảnh Check-out</th>
+                    <th>Trạng thái</th>
+                    <th>Ghi chú</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="lesson : ${report.trainingDays}">
+                    <td th:text="${#temporals.format(lesson.workDate, 'dd/MM/yyyy')}">01/10/2026</td>
+                    <td th:text="${lesson.className == null or #strings.isEmpty(lesson.className) ? 'Đào tạo' : lesson.className}">Lớp</td>
+                    <td>
+                        <span th:text="${lesson.scheduledStart == null ? '—' : #temporals.format(lesson.scheduledStart, 'HH:mm')}">08:00</span>
+                        —
+                        <span th:text="${lesson.scheduledEnd == null ? '—' : #temporals.format(lesson.scheduledEnd, 'HH:mm')}">12:00</span>
+                    </td>
+                    <td th:text="${lesson.checkIn == null ? '—' : #temporals.format(lesson.checkIn, 'HH:mm')}">—</td>
+                    <td th:text="${lesson.checkOut == null ? '—' : #temporals.format(lesson.checkOut, 'HH:mm')}">—</td>
+                    <td th:text="${lesson.lateMinutes + ' phút'}">0 phút</td>
+                    <td th:text="${lesson.earlyMinutes + ' phút'}">0 phút</td>
+                    <td>
+                        <img class="attendance-photo" th:if="${lesson.hasCheckInPhoto}"
+                             th:src="@{|/attendance/training-photos/${lesson.attendanceId}/in|}" alt="Ảnh check-in">
+                        <span th:unless="${lesson.hasCheckInPhoto}">—</span>
+                    </td>
+                    <td>
+                        <img class="attendance-photo" th:if="${lesson.hasCheckOutPhoto}"
+                             th:src="@{|/attendance/training-photos/${lesson.attendanceId}/out|}" alt="Ảnh check-out">
+                        <span th:unless="${lesson.hasCheckOutPhoto}">—</span>
+                    </td>
+                    <td th:text="${lesson.statusLabel == null or #strings.isEmpty(lesson.statusLabel) ? '—' : lesson.statusLabel}">Có mặt</td>
+                    <td th:text="${lesson.note == null or #strings.isEmpty(lesson.note) ? '—' : lesson.note}">—</td>
                 </tr>
                 </tbody>
             </table>

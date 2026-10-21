@@ -21,6 +21,10 @@ public class AdminAttendanceReportDetail {
     private final String periodLabel;
     private final boolean submitted;
     private final boolean stale;
+    private final String statusCode;
+    private final String statusLabel;
+    private final String statusCss;
+    private final String reviewNote;
     private final String senderName;
     private final String authorName;
     private final LocalDateTime submittedAt;
@@ -32,7 +36,9 @@ public class AdminAttendanceReportDetail {
     private final List<AttendanceReportWorkbook.SummaryRow> employees;
     private final Integer selectedEmployeeId;
     private final String selectedEmployeeName;
+    private final String historyKind;
     private final List<AttendanceReportWorkbook.ShiftRow> days;
+    private final List<AttendanceReportWorkbook.TrainingRow> trainingDays;
     private final List<VersionItem> versions;
 
     @Getter

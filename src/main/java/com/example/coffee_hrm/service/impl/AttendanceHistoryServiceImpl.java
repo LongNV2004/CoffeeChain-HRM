@@ -259,6 +259,9 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
                     .missingLabel(missingLabel(attendance))
                     .checkInLocation(formatCoordinates(attendance.getCheckInLatitude(), attendance.getCheckInLongitude()))
                     .checkOutLocation(formatCoordinates(attendance.getCheckOutLatitude(), attendance.getCheckOutLongitude()))
+                    .hasCheckInPhoto(hasPhoto(attendance.getCheckInPhotoName()))
+                    .hasCheckOutPhoto(hasPhoto(attendance.getCheckOutPhotoName()))
+                    .photoBase("/attendance/photos")
                     .statusLabel(statusLabel(attendance.getStatus()))
                     .statusCss(statusCss(attendance.getStatus()))
                     .shiftLabel(snapshotShiftLabel(attendance, shifts.getOrDefault(shiftKey, "Chưa phân ca")))
@@ -318,6 +321,10 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
         return query == null || query.getKind() == null || query.getKind() != AttendanceHistoryKind.SHIFT;
     }
 
+    private boolean hasPhoto(String name) {
+        return name != null && !name.isBlank();
+    }
+
     private String kindValue(AttendanceHistoryQuery query) {
         if (query == null || query.getKind() == null || query.getKind() == AttendanceHistoryKind.ALL) {
             return "all";
@@ -349,11 +356,24 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
                 .missingLabel(completed ? formatMinuteValue(training.getEarlyLeaveMinutes()) : "—")
                 .checkInLocation(formatCoordinates(training.getCheckInLatitude(), training.getCheckInLongitude()))
                 .checkOutLocation(formatCoordinates(training.getCheckOutLatitude(), training.getCheckOutLongitude()))
-                .statusLabel(statusLabel(training.getStatus()))
+                .hasCheckInPhoto(hasPhoto(training.getCheckInPhotoName()))
+                .hasCheckOutPhoto(hasPhoto(training.getCheckOutPhotoName()))
+                .photoBase("/attendance/training-photos")
+                .statusLabel(trainingStatusLabel(training.getStatus()))
                 .statusCss(statusCss(training.getStatus()))
                 .shiftLabel(trainingShiftLabel(training))
                 .kindLabel("Chấm công đào tạo")
                 .build();
+    }
+
+    private String trainingStatusLabel(AttendanceStatus status) {
+        if (status == AttendanceStatus.LATE) {
+            return "Check-in muộn";
+        }
+        if (status == AttendanceStatus.LATE_AND_EARLY) {
+            return "Check-in muộn và về sớm";
+        }
+        return statusLabel(status);
     }
 
     private String trainingShiftLabel(TrainingAttendance training) {
@@ -701,6 +721,9 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
             case LATE -> "Đi muộn";
             case EARLY_LEAVE -> "Về sớm";
             case LATE_AND_EARLY -> "Đi muộn và về sớm";
+            case LATE_CHECKOUT -> "Check-out muộn";
+            case LATE_AND_LATE_CHECKOUT -> "Đi muộn và check-out muộn";
+            case NOT_PARTICIPATED -> "Không tham gia";
             case ABSENT -> "Vắng";
         };
     }
@@ -711,10 +734,10 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
         }
         return switch (status) {
             case PRESENT, ON_TIME -> "status-on-time";
-            case LATE -> "status-late";
+            case LATE, LATE_CHECKOUT -> "status-late";
             case EARLY_LEAVE -> "status-early";
-            case LATE_AND_EARLY -> "status-late-early";
-            case ABSENT -> "status-absent";
+            case LATE_AND_EARLY, LATE_AND_LATE_CHECKOUT -> "status-late-early";
+            case NOT_PARTICIPATED, ABSENT -> "status-absent";
         };
     }
 

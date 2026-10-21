@@ -97,6 +97,9 @@ public class AttendanceReportWorkbook {
         private final String statusLabel;
         private final String note;
         private final boolean needsReview;
+        private final Integer attendanceId;
+        private final boolean hasCheckInPhoto;
+        private final boolean hasCheckOutPhoto;
 
         public BigDecimal workedHours() {
             return workedMinutes == null ? null : hours(workedMinutes);
@@ -124,6 +127,9 @@ public class AttendanceReportWorkbook {
         private final String statusLabel;
         private final String note;
         private final boolean needsReview;
+        private final Integer attendanceId;
+        private final boolean hasCheckInPhoto;
+        private final boolean hasCheckOutPhoto;
     }
 
     public static BigDecimal hours(int minutes) {

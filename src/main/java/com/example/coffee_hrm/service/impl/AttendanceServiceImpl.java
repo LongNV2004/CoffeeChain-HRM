@@ -46,6 +46,8 @@ public class AttendanceServiceImpl implements AttendanceService {
     static final String NOT_CHECKED_IN = "Bạn chưa Check-in cho ca làm việc này.";
     static final String ALREADY_OUT = "Bạn đã Check-out cho ca làm việc này.";
     static final String EARLY_CHECKOUT_BLOCKED = "Chưa đến giờ kết thúc ca. Không thể Check-out sớm.";
+    static final String CHECKOUT_TOO_SOON = "Chưa đủ 2 tiếng kể từ giờ vào ca. Chưa thể Check-out.";
+    static final String PHOTO_REQUIRED = "Hãy chụp ảnh nhân viên trước khi lưu.";
     static final String OUTSIDE_RADIUS = "Bạn đang ở ngoài phạm vi chấm công của cửa hàng.";
     static final String LOCATION_UNKNOWN = "Không thể xác định vị trí của bạn.";
     static final String STORE_LOCATION_MISSING = "Cửa hàng chưa được thiết lập vị trí chấm công.";
@@ -62,6 +64,7 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final ShiftAssignmentRepository shiftAssignmentRepository;
     private final EmployeeRepository employeeRepository;
     private final StoreRepository storeRepository;
+    private final AttendancePhotoStore photoStore;
     private final AttendancePolicyProperties policy;
 
     @Override
@@ -73,13 +76,52 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Override
     @Transactional
     public void checkIn(AuthenticatedUser user, AttendanceLocation location) {
-        checkIn(user, location, VietnamTime.now());
+        checkIn(user, location, VietnamTime.now(), null);
     }
 
     @Override
     @Transactional
     public void checkOut(AuthenticatedUser user, AttendanceLocation location) {
-        checkOut(user, location, VietnamTime.now());
+        checkOut(user, location, VietnamTime.now(), null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void previewCheckIn(AuthenticatedUser user, AttendanceLocation location) {
+        previewCheckIn(user, location, VietnamTime.now());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void previewCheckOut(AuthenticatedUser user, AttendanceLocation location) {
+        previewCheckOut(user, location, VietnamTime.now());
+    }
+
+    @Override
+    @Transactional
+    public void checkInWithPhoto(AuthenticatedUser user, AttendanceLocation location, byte[] photo) {
+        requirePhoto(photo);
+        checkIn(user, location, VietnamTime.now(), photo);
+    }
+
+    @Override
+    @Transactional
+    public void checkOutWithPhoto(AuthenticatedUser user, AttendanceLocation location, byte[] photo) {
+        requirePhoto(photo);
+        checkOut(user, location, VietnamTime.now(), photo);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] readShiftPhoto(AuthenticatedUser user, Integer attendanceId, boolean checkIn) {
+        Attendance attendance = attendanceRepository.findById(attendanceId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy ảnh."));
+        assertCanViewPhoto(user, attendance);
+        String name = checkIn ? attendance.getCheckInPhotoName() : attendance.getCheckOutPhotoName();
+        if (name == null || name.isBlank()) {
+            throw new BusinessException("Không tìm thấy ảnh.");
+        }
+        return photoStore.read(name);
     }
 
     @Override
@@ -89,23 +131,51 @@ public class AttendanceServiceImpl implements AttendanceService {
     }
 
     void checkIn(AuthenticatedUser user, AttendanceLocation location, LocalDateTime rawNow) {
+        checkIn(user, location, rawNow, null);
+    }
+
+    void checkIn(AuthenticatedUser user, AttendanceLocation location, LocalDateTime rawNow, byte[] photo) {
         Employee employee = resolveCheckEmployee(user);
         LocalDateTime now = truncate(rawNow);
         if (user.getRoleName() == RoleName.MANAGER) {
-            checkInManager(user, employee, location, now);
+            checkInManager(user, employee, location, now, photo);
             return;
         }
-        checkInStaff(user, employee, location, now);
+        checkInStaff(user, employee, location, now, photo);
+    }
+
+    void previewCheckIn(AuthenticatedUser user, AttendanceLocation location, LocalDateTime rawNow) {
+        Employee employee = resolveCheckEmployee(user);
+        LocalDateTime now = truncate(rawNow);
+        if (user.getRoleName() == RoleName.MANAGER) {
+            planManagerCheckIn(user, employee, location, now);
+            return;
+        }
+        planStaffCheckIn(user, employee, location, now);
     }
 
     void checkOut(AuthenticatedUser user, AttendanceLocation location, LocalDateTime rawNow) {
+        checkOut(user, location, rawNow, null);
+    }
+
+    void checkOut(AuthenticatedUser user, AttendanceLocation location, LocalDateTime rawNow, byte[] photo) {
         Employee employee = resolveCheckEmployee(user);
         LocalDateTime now = truncate(rawNow);
         if (user.getRoleName() == RoleName.MANAGER) {
-            checkOutManager(employee, location, now);
+            checkOutManager(employee, location, now, photo);
             return;
         }
-        checkOutStaff(employee, location, now);
+        checkOutStaff(employee, location, now, photo);
+    }
+
+    void previewCheckOut(AuthenticatedUser user, AttendanceLocation location, LocalDateTime rawNow) {
+        Employee employee = resolveCheckEmployee(user);
+        LocalDateTime now = truncate(rawNow);
+        if (user.getRoleName() == RoleName.MANAGER) {
+            assertCheckoutReady(locateManagerCheckout(employee, now), now, location);
+            return;
+        }
+        assertCheckoutReady(locateStaffCheckout(employee, now), now, location);
     }
 
     void markAbsences(LocalDate workDate, LocalDateTime rawNow) {
@@ -147,7 +217,28 @@ public class AttendanceServiceImpl implements AttendanceService {
     }
 
     private void checkInStaff(AuthenticatedUser user, Employee employee,
-                              AttendanceLocation location, LocalDateTime now) {
+                              AttendanceLocation location, LocalDateTime now, byte[] photo) {
+        StaffCheckInPlan plan = planStaffCheckIn(user, employee, location, now);
+        Attendance attendance = Attendance.builder()
+                .employee(employee)
+                .store(plan.store())
+                .shift(plan.chosen().assignment().getShift())
+                .workDate(plan.chosen().assignment().getWorkDate())
+                .scheduledShiftName(plan.chosen().assignment().getShift().getShiftName())
+                .scheduledStartTime(plan.chosen().assignment().getShift().getStartTime())
+                .scheduledEndTime(plan.chosen().assignment().getShift().getEndTime())
+                .checkInTime(now)
+                .checkInLatitude(location.latitude())
+                .checkInLongitude(location.longitude())
+                .lateMinutes(plan.lateMinutes())
+                .earlyLeaveMinutes(0)
+                .status(plan.lateMinutes() > 0 ? AttendanceStatus.LATE : AttendanceStatus.PRESENT)
+                .build();
+        attachPhoto(saveNew(attendance, ALREADY_IN), true, photo);
+    }
+
+    private StaffCheckInPlan planStaffCheckIn(AuthenticatedUser user, Employee employee,
+                                              AttendanceLocation location, LocalDateTime now) {
         List<ShiftWindow> windows = loadWindows(employee.getId(), now.toLocalDate());
         ShiftWindow chosen = selectCheckInWindow(windows, now, employee.getId());
         if (findAttendance(employee.getId(), chosen).isPresent()) {
@@ -155,36 +246,16 @@ public class AttendanceServiceImpl implements AttendanceService {
         }
         Store store = storeForShift(user, employee, chosen.assignment().getShift());
         assertInsideStore(store, location);
-
-        int lateMinutes = lateMinutes(chosen.shiftStart(), now);
-        Attendance attendance = Attendance.builder()
-                .employee(employee)
-                .store(store)
-                .shift(chosen.assignment().getShift())
-                .workDate(chosen.assignment().getWorkDate())
-                .scheduledShiftName(chosen.assignment().getShift().getShiftName())
-                .scheduledStartTime(chosen.assignment().getShift().getStartTime())
-                .scheduledEndTime(chosen.assignment().getShift().getEndTime())
-                .checkInTime(now)
-                .checkInLatitude(location.latitude())
-                .checkInLongitude(location.longitude())
-                .lateMinutes(lateMinutes)
-                .earlyLeaveMinutes(0)
-                .status(lateMinutes > 0 ? AttendanceStatus.LATE : AttendanceStatus.PRESENT)
-                .build();
-        saveNew(attendance, ALREADY_IN);
+        return new StaffCheckInPlan(chosen, store, lateMinutes(chosen.shiftStart(), now));
     }
 
     private void checkInManager(AuthenticatedUser user, Employee employee,
-                                AttendanceLocation location, LocalDateTime now) {
-        LocalDate today = now.toLocalDate();
-        assertManagerCanCheckIn(employee.getId(), today);
-        Store store = latestStore(resolveManagedStore(user).getId(), STORE_LOCATION_MISSING);
-        assertInsideStore(store, location);
+                                AttendanceLocation location, LocalDateTime now, byte[] photo) {
+        Store store = planManagerCheckIn(user, employee, location, now);
         Attendance attendance = Attendance.builder()
                 .employee(employee)
                 .store(store)
-                .workDate(today)
+                .workDate(now.toLocalDate())
                 .checkInTime(now)
                 .checkInLatitude(location.latitude())
                 .checkInLongitude(location.longitude())
@@ -192,14 +263,25 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .earlyLeaveMinutes(0)
                 .status(AttendanceStatus.PRESENT)
                 .build();
-        saveNew(attendance, MANAGER_ALREADY_IN);
+        attachPhoto(saveNew(attendance, MANAGER_ALREADY_IN), true, photo);
     }
 
-    private void checkOutStaff(Employee employee, AttendanceLocation location, LocalDateTime now) {
+    private Store planManagerCheckIn(AuthenticatedUser user, Employee employee,
+                                     AttendanceLocation location, LocalDateTime now) {
+        assertManagerCanCheckIn(employee.getId(), now.toLocalDate());
+        Store store = latestStore(resolveManagedStore(user).getId(), STORE_LOCATION_MISSING);
+        assertInsideStore(store, location);
+        return store;
+    }
+
+    private void checkOutStaff(Employee employee, AttendanceLocation location, LocalDateTime now, byte[] photo) {
+        completeCheckout(locateStaffCheckout(employee, now), now, location, photo);
+    }
+
+    private Attendance locateStaffCheckout(Employee employee, LocalDateTime now) {
         List<Attendance> openRecords = attendanceRepository.findOpenByEmployeeId(employee.getId());
         if (!openRecords.isEmpty()) {
-            completeCheckout(openRecords.getFirst(), now, location);
-            return;
+            return openRecords.getFirst();
         }
 
         List<ShiftWindow> windows = loadWindows(employee.getId(), now.toLocalDate());
@@ -214,11 +296,14 @@ public class AttendanceServiceImpl implements AttendanceService {
         throw new BusinessException(NOT_CHECKED_IN);
     }
 
-    private void checkOutManager(Employee employee, AttendanceLocation location, LocalDateTime now) {
+    private void checkOutManager(Employee employee, AttendanceLocation location, LocalDateTime now, byte[] photo) {
+        completeCheckout(locateManagerCheckout(employee, now), now, location, photo);
+    }
+
+    private Attendance locateManagerCheckout(Employee employee, LocalDateTime now) {
         List<Attendance> openRecords = attendanceRepository.findOpenByEmployeeId(employee.getId());
         if (!openRecords.isEmpty()) {
-            completeCheckout(openRecords.getFirst(), now, location);
-            return;
+            return openRecords.getFirst();
         }
         boolean checkedOutToday = attendanceRepository
                 .findByEmployee_IdAndWorkDateOrderByIdDesc(employee.getId(), now.toLocalDate())
@@ -244,19 +329,18 @@ public class AttendanceServiceImpl implements AttendanceService {
         }
     }
 
-    private void completeCheckout(Attendance attendance, LocalDateTime now, AttendanceLocation location) {
-        if (attendance.getCheckOutTime() != null) {
-            throw new BusinessException(attendance.getShift() == null ? MANAGER_ALREADY_OUT : ALREADY_OUT);
-        }
-        Store store = storeOf(attendance, attendance.getEmployee());
-        assertInsideStore(store, location);
-        LocalDateTime scheduledEnd = scheduledEnd(attendance);
-        if (!policy.isAllowEarlyCheckout() && scheduledEnd != null && now.isBefore(scheduledEnd)) {
-            throw new BusinessException(EARLY_CHECKOUT_BLOCKED);
-        }
+    private void completeCheckout(Attendance attendance, LocalDateTime now, AttendanceLocation location, byte[] photo) {
+        assertCheckoutReady(attendance, now, location);
         int earlyMinutes = 0;
+        int lateCheckoutMinutes = 0;
+        LocalDateTime scheduledEnd = scheduledEnd(attendance);
         if (scheduledEnd != null && now.isBefore(scheduledEnd)) {
             earlyMinutes = (int) ChronoUnit.MINUTES.between(now, scheduledEnd);
+        } else if (scheduledEnd != null) {
+            long afterEnd = ChronoUnit.MINUTES.between(scheduledEnd, now);
+            if (afterEnd >= lateCheckoutThreshold()) {
+                lateCheckoutMinutes = (int) afterEnd;
+            }
         }
         LocalDateTime checkIn = attendance.getCheckInTime() == null
                 ? now
@@ -268,8 +352,28 @@ public class AttendanceServiceImpl implements AttendanceService {
         attendance.setCheckOutLongitude(location.longitude());
         attendance.setWorkingMinutes(workingMinutes);
         attendance.setEarlyLeaveMinutes(Math.max(earlyMinutes, 0));
-        attendance.setStatus(resolveStatus(lateMinutes, earlyMinutes));
+        attendance.setStatus(resolveStatus(lateMinutes, earlyMinutes, lateCheckoutMinutes));
+        if (photo != null && attendance.getId() != null) {
+            attendance.setCheckOutPhotoName(photoStore.save(attendance.getId(), "out", photo));
+        }
         attendanceRepository.save(attendance);
+    }
+
+    private void assertCheckoutReady(Attendance attendance, LocalDateTime now, AttendanceLocation location) {
+        if (attendance.getCheckOutTime() != null) {
+            throw new BusinessException(attendance.getShift() == null ? MANAGER_ALREADY_OUT : ALREADY_OUT);
+        }
+        if (!checkoutAllowed(attendance, now)) {
+            throw new BusinessException(CHECKOUT_TOO_SOON);
+        }
+        Store store = storeOf(attendance, attendance.getEmployee());
+        assertInsideStore(store, location);
+        if (!policy.isAllowEarlyCheckout()) {
+            LocalDateTime scheduledEnd = scheduledEnd(attendance);
+            if (scheduledEnd != null && now.isBefore(scheduledEnd)) {
+                throw new BusinessException(EARLY_CHECKOUT_BLOCKED);
+            }
+        }
     }
 
     private void assertInsideStore(Store store, AttendanceLocation location) {
@@ -305,12 +409,14 @@ public class AttendanceServiceImpl implements AttendanceService {
         String startLabel = "—";
         String endLabel = "—";
         String statusLabel = manager ? "Chưa Check-in" : NO_SHIFT;
+        boolean canCheckOut = true;
         if (manager) {
             statusLabel = managerStatus(employee.getId(), now.toLocalDate());
         } else {
             List<Attendance> openRecords = attendanceRepository.findOpenByEmployeeId(employee.getId());
             if (!openRecords.isEmpty()) {
                 Attendance open = openRecords.getFirst();
+                canCheckOut = checkoutAllowed(open, now);
                 shiftName = open.getScheduledShiftName();
                 workDateLabel = formatDate(open.getWorkDate());
                 startLabel = formatTime(open.getScheduledStartTime());
@@ -360,6 +466,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .scheduledEndLabel(endLabel)
                 .statusLabel(statusLabel)
                 .manager(manager)
+                .canCheckOut(canCheckOut)
                 .recent(recent)
                 .build();
     }
@@ -492,12 +599,59 @@ public class AttendanceServiceImpl implements AttendanceService {
         return storeRepository.findById(storeId).orElseThrow(() -> new BusinessException(missingMessage));
     }
 
-    private void saveNew(Attendance attendance, String duplicateMessage) {
+    private Attendance saveNew(Attendance attendance, String duplicateMessage) {
         try {
-            attendanceRepository.saveAndFlush(attendance);
+            return attendanceRepository.saveAndFlush(attendance);
         } catch (DataIntegrityViolationException ex) {
             throw new BusinessException(duplicateMessage);
         }
+    }
+
+    private void attachPhoto(Attendance attendance, boolean checkIn, byte[] photo) {
+        if (photo == null || attendance == null || attendance.getId() == null) {
+            return;
+        }
+        String name = photoStore.save(attendance.getId(), checkIn ? "in" : "out", photo);
+        if (checkIn) {
+            attendance.setCheckInPhotoName(name);
+        } else {
+            attendance.setCheckOutPhotoName(name);
+        }
+        attendanceRepository.save(attendance);
+    }
+
+    private void requirePhoto(byte[] photo) {
+        if (!AttendancePhotoStore.isJpeg(photo)) {
+            throw new BusinessException(photo == null || photo.length == 0 ? PHOTO_REQUIRED : AttendancePhotoStore.PHOTO_INVALID);
+        }
+    }
+
+    private void assertCanViewPhoto(AuthenticatedUser user, Attendance attendance) {
+        if (user == null || attendance.getEmployee() == null) {
+            throw new BusinessException("Không tìm thấy ảnh.");
+        }
+        if (user.getRoleName() == RoleName.ADMIN) {
+            return;
+        }
+        if (user.getRoleName() == RoleName.STAFF) {
+            if (user.getEmployeeId() != null && user.getEmployeeId().equals(attendance.getEmployee().getId())) {
+                return;
+            }
+            throw new BusinessException("Không tìm thấy ảnh.");
+        }
+        if (user.getRoleName() == RoleName.MANAGER) {
+            Store managed = resolveManagedStore(user);
+            Integer storeId = attendance.getStore() != null
+                    ? attendance.getStore().getId()
+                    : (attendance.getEmployee().getStore() != null ? attendance.getEmployee().getStore().getId() : null);
+            if (managed.getId().equals(storeId)) {
+                return;
+            }
+        }
+        throw new BusinessException("Không tìm thấy ảnh.");
+    }
+
+    private record StaffCheckInPlan(ShiftWindow chosen, Store store, int lateMinutes) {
     }
 
     private int lateMinutes(LocalDateTime shiftStart, LocalDateTime checkIn) {
@@ -508,19 +662,49 @@ public class AttendanceServiceImpl implements AttendanceService {
         return (int) minutes;
     }
 
-    private AttendanceStatus resolveStatus(int lateMinutes, int earlyMinutes) {
+    private AttendanceStatus resolveStatus(int lateMinutes, int earlyMinutes, int lateCheckoutMinutes) {
         boolean late = lateMinutes > 0;
         boolean early = earlyMinutes > 0;
+        boolean lateCheckout = lateCheckoutMinutes > 0;
         if (late && early) {
             return AttendanceStatus.LATE_AND_EARLY;
-        }
-        if (late) {
-            return AttendanceStatus.LATE;
         }
         if (early) {
             return AttendanceStatus.EARLY_LEAVE;
         }
+        if (late && lateCheckout) {
+            return AttendanceStatus.LATE_AND_LATE_CHECKOUT;
+        }
+        if (lateCheckout) {
+            return AttendanceStatus.LATE_CHECKOUT;
+        }
+        if (late) {
+            return AttendanceStatus.LATE;
+        }
         return AttendanceStatus.PRESENT;
+    }
+
+    private int lateCheckoutThreshold() {
+        return Math.max(policy.getLateCheckoutThresholdMinutes(), 0);
+    }
+
+    private boolean checkoutAllowed(Attendance attendance, LocalDateTime now) {
+        LocalDateTime shiftStart = scheduledStart(attendance);
+        if (shiftStart == null) {
+            return true;
+        }
+        return !now.isBefore(shiftStart.plusMinutes(minimumShiftMinutes()));
+    }
+
+    private int minimumShiftMinutes() {
+        return Math.max(policy.getMinimumShiftMinutesBeforeCheckout(), 0);
+    }
+
+    private LocalDateTime scheduledStart(Attendance attendance) {
+        if (attendance.getWorkDate() == null || attendance.getScheduledStartTime() == null) {
+            return null;
+        }
+        return truncate(LocalDateTime.of(attendance.getWorkDate(), attendance.getScheduledStartTime()));
     }
 
     private LocalDateTime scheduledEnd(Attendance attendance) {
@@ -589,6 +773,9 @@ public class AttendanceServiceImpl implements AttendanceService {
             case LATE -> "Đi muộn";
             case EARLY_LEAVE -> "Về sớm";
             case LATE_AND_EARLY -> "Đi muộn và về sớm";
+            case LATE_CHECKOUT -> "Check-out muộn";
+            case LATE_AND_LATE_CHECKOUT -> "Đi muộn và check-out muộn";
+            case NOT_PARTICIPATED -> "Không tham gia";
             case ABSENT -> "Vắng";
         };
     }

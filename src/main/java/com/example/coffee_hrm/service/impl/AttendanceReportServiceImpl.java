@@ -56,7 +56,11 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
     private final Clock clock;
 
     @Override
-    public ManagerAttendanceReportPage managerPage(AuthenticatedUser user, Integer year, Integer month, Integer employeeId) {
+    public ManagerAttendanceReportPage managerPage(AuthenticatedUser user,
+                                                   Integer year,
+                                                   Integer month,
+                                                   Integer employeeId,
+                                                   String historyKind) {
         assertManager(user);
         Store store = resolveManagerStore(user);
         LocalDate today = LocalDate.now(clock);
@@ -69,7 +73,7 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
         AttendanceReportWorkbook workbook = loadWorkbook(
                 store, reportYear, reportMonth, user.getDisplayName(), today);
         LocalDateTime changedAt = changedAt(store.getId(), reportYear, reportMonth);
-        return managerPage(store, user, report, workbook, changedAt, employeeId);
+        return managerPage(store, user, report, workbook, changedAt, employeeId, historyKind(historyKind));
     }
 
     @Override
@@ -93,6 +97,9 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
         report.setSubmittedBy(sender);
         report.setSubmittedByName(user.getDisplayName());
         report.setPreparedByName(user.getDisplayName());
+        report.setReviewedAt(null);
+        report.setReviewedByName(null);
+        report.setReviewNote(null);
         applySnapshot(report, workbook.getPreview());
         MonthlyAttendanceReport saved = saveReport(report);
 
@@ -115,6 +122,32 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
         } catch (DataIntegrityViolationException ex) {
             throw new BusinessException("Báo cáo vừa được gửi. Hãy tải lại trang.");
         }
+    }
+
+    @Override
+    @Transactional
+    public void approve(AuthenticatedUser user, int reportId) {
+        MonthlyAttendanceReport report = requireSubmitted(user, reportId);
+        report.setStatus(AttendanceReportStatus.APPROVED);
+        report.setReviewedAt(LocalDateTime.now(clock));
+        report.setReviewedByName(user.getDisplayName());
+        report.setReviewNote(null);
+        saveReport(report);
+    }
+
+    @Override
+    @Transactional
+    public void requestRevision(AuthenticatedUser user, int reportId, String note) {
+        MonthlyAttendanceReport report = requireSubmitted(user, reportId);
+        String clean = note == null ? "" : note.trim();
+        if (clean.length() > 500) {
+            clean = clean.substring(0, 500);
+        }
+        report.setStatus(AttendanceReportStatus.REVISION);
+        report.setReviewedAt(LocalDateTime.now(clock));
+        report.setReviewedByName(user.getDisplayName());
+        report.setReviewNote(clean.isEmpty() ? null : clean);
+        saveReport(report);
     }
 
     @Override
@@ -151,6 +184,7 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
             MonthlyAttendanceReport report = reports.get(store.getId());
             boolean sent = report != null && report.getSubmittedAt() != null;
             boolean outdated = sent && isAfter(changes.get(store.getId()), report.getSubmittedAt());
+            ReportBadge badge = badge(report, sent);
             if (sent) {
                 submitted++;
             }
@@ -166,6 +200,15 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
             if ("unsent".equals(filterStatus) && sent) {
                 continue;
             }
+            if ("waiting".equals(filterStatus) && !"WAITING".equals(badge.code())) {
+                continue;
+            }
+            if ("approved".equals(filterStatus) && !"APPROVED".equals(badge.code())) {
+                continue;
+            }
+            if ("revision".equals(filterStatus) && !"REVISION".equals(badge.code())) {
+                continue;
+            }
             rows.add(AdminAttendanceReportPage.Row.builder()
                     .order(order++)
                     .reportId(report == null ? null : report.getId())
@@ -175,7 +218,10 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
                     .periodLabel(periodLabel(reportYear, reportMonth))
                     .periodStart(start)
                     .periodEnd(end)
-                    .statusLabel(adminStatus(sent, outdated))
+                    .statusCode(badge.code())
+                    .statusLabel(badge.label())
+                    .statusCss(badge.css())
+                    .reviewNote(report == null ? "" : text(report.getReviewNote()))
                     .submitted(sent)
                     .stale(outdated)
                     .senderName(sent ? senderName(report) : "")
@@ -204,7 +250,7 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
     }
 
     @Override
-    public AdminAttendanceReportDetail adminDetail(AuthenticatedUser user, int reportId, Integer employeeId) {
+    public AdminAttendanceReportDetail adminDetail(AuthenticatedUser user, int reportId, Integer employeeId, String historyKind) {
         assertAdmin(user);
         MonthlyAttendanceReport report = reportRepository.findByIdDetailed(reportId)
                 .orElseThrow(() -> new BusinessException("Không tìm thấy báo cáo."));
@@ -213,6 +259,7 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
         AttendanceReportWorkbook live = loadWorkbook(
                 store, report.getReportYear(), report.getReportMonth(), report.getPreparedByName(), today);
         boolean sent = report.getSubmittedAt() != null;
+        ReportBadge badge = badge(report, sent);
         boolean outdated = sent && isAfter(
                 changedAt(store.getId(), report.getReportYear(), report.getReportMonth()),
                 report.getSubmittedAt());
@@ -227,6 +274,7 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
                 .toList();
         String selectedName = "";
         List<AttendanceReportWorkbook.ShiftRow> days = List.of();
+        List<AttendanceReportWorkbook.TrainingRow> trainingDays = List.of();
         if (employeeId != null) {
             AttendanceReportWorkbook.SummaryRow selected = live.getEmployees().stream()
                     .filter(row -> row.getEmployeeId() == employeeId)
@@ -234,6 +282,9 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
                     .orElseThrow(() -> new BusinessException("Nhân viên không thuộc cửa hàng của báo cáo này."));
             selectedName = selected.getFullName();
             days = live.getShifts().stream()
+                    .filter(row -> row.getEmployeeId() == employeeId)
+                    .toList();
+            trainingDays = live.getTrainings().stream()
                     .filter(row -> row.getEmployeeId() == employeeId)
                     .toList();
         }
@@ -247,6 +298,10 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
                 .periodLabel(periodLabel(report.getReportYear(), report.getReportMonth()))
                 .submitted(sent)
                 .stale(outdated)
+                .statusCode(badge.code())
+                .statusLabel(badge.label())
+                .statusCss(badge.css())
+                .reviewNote(text(report.getReviewNote()))
                 .senderName(sent ? senderName(report) : "")
                 .authorName(text(report.getPreparedByName()))
                 .submittedAt(report.getSubmittedAt())
@@ -258,7 +313,9 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
                 .employees(live.getEmployees())
                 .selectedEmployeeId(employeeId)
                 .selectedEmployeeName(selectedName)
+                .historyKind(historyKind(historyKind))
                 .days(days)
+                .trainingDays(trainingDays)
                 .versions(versions)
                 .build();
     }
@@ -268,27 +325,17 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
                                                     MonthlyAttendanceReport report,
                                                     AttendanceReportWorkbook workbook,
                                                     LocalDateTime changedAt,
-                                                    Integer employeeId) {
+                                                    Integer employeeId,
+                                                    String historyKind) {
         LocalDateTime draftAt = report == null ? null : report.getDraftGeneratedAt();
         LocalDateTime submittedAt = report == null ? null : report.getSubmittedAt();
-        boolean newerDraft = draftAt != null && (submittedAt == null || draftAt.isAfter(submittedAt));
-        boolean draftStale = draftAt != null && isAfter(changedAt, draftAt);
-        boolean submittedStale = submittedAt != null && isAfter(changedAt, submittedAt);
-        String statusCode;
-        if (draftAt == null && submittedAt == null) {
-            statusCode = STATUS_NOT_CREATED;
-        } else if (newerDraft) {
-            statusCode = draftStale ? STATUS_STALE : STATUS_CREATED;
-        } else if (submittedStale) {
-            statusCode = STATUS_STALE;
-        } else if (submittedAt != null) {
-            statusCode = STATUS_SUBMITTED;
-        } else {
-            statusCode = STATUS_CREATED;
-        }
+        boolean sent = submittedAt != null;
+        boolean submittedStale = sent && isAfter(changedAt, submittedAt);
+        ReportBadge badge = badge(report, sent);
         LocalDateTime lastGenerated = latest(draftAt, submittedAt);
         String selectedName = "";
         List<AttendanceReportWorkbook.ShiftRow> days = List.of();
+        List<AttendanceReportWorkbook.TrainingRow> trainingDays = List.of();
         if (employeeId != null) {
             AttendanceReportWorkbook.SummaryRow selected = workbook.getEmployees().stream()
                     .filter(row -> row.getEmployeeId() == employeeId)
@@ -296,6 +343,9 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
                     .orElseThrow(() -> new BusinessException("Nhân viên không thuộc cửa hàng bạn quản lý."));
             selectedName = selected.getFullName();
             days = workbook.getShifts().stream()
+                    .filter(row -> row.getEmployeeId() == employeeId)
+                    .toList();
+            trainingDays = workbook.getTrainings().stream()
                     .filter(row -> row.getEmployeeId() == employeeId)
                     .toList();
         }
@@ -306,8 +356,11 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
                 .year(workbook.getYear())
                 .month(workbook.getMonth())
                 .periodLabel(workbook.periodLabel())
-                .statusCode(statusCode)
-                .statusLabel(managerStatusLabel(statusCode))
+                .statusCode(badge.code())
+                .statusLabel(badge.label())
+                .statusCss(badge.css())
+                .stale(submittedStale)
+                .reviewNote(report == null ? "" : text(report.getReviewNote()))
                 .lastGeneratedAt(lastGenerated)
                 .lastSubmittedAt(submittedAt)
                 .versionNumber(report == null || report.getVersionNumber() == null || report.getVersionNumber() == 0
@@ -318,7 +371,9 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
                 .employees(workbook.getEmployees())
                 .selectedEmployeeId(employeeId)
                 .selectedEmployeeName(selectedName)
+                .historyKind(historyKind)
                 .days(days)
+                .trainingDays(trainingDays)
                 .build();
     }
 
@@ -421,6 +476,13 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
         }
     }
 
+    private String historyKind(String kind) {
+        if ("shift".equals(kind) || "training".equals(kind)) {
+            return kind;
+        }
+        return "all";
+    }
+
     private void validatePeriod(int year, int month) {
         if (month < 1 || month > 12 || year < 2000 || year > 2100) {
             throw new BusinessException("Kỳ báo cáo không hợp lệ.");
@@ -431,29 +493,37 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
         if (status == null || status.isBlank() || "all".equals(status)) {
             return "all";
         }
-        if ("submitted".equals(status) || "unsent".equals(status)) {
+        if ("submitted".equals(status) || "unsent".equals(status)
+                || "waiting".equals(status) || "approved".equals(status) || "revision".equals(status)) {
             return status;
         }
         throw new BusinessException("Trạng thái báo cáo không hợp lệ.");
     }
 
-    private String adminStatus(boolean submitted, boolean stale) {
-        if (!submitted) {
-            return "Chưa gửi";
+    private MonthlyAttendanceReport requireSubmitted(AuthenticatedUser user, int reportId) {
+        assertAdmin(user);
+        MonthlyAttendanceReport report = reportRepository.findByIdDetailed(reportId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy báo cáo."));
+        if (report.getSubmittedAt() == null) {
+            throw new BusinessException("Báo cáo chưa được gửi.");
         }
-        if (stale) {
-            return "Đã gửi, có thay đổi cần gửi lại";
-        }
-        return "Đã gửi";
+        return report;
     }
 
-    private String managerStatusLabel(String statusCode) {
-        return switch (statusCode) {
-            case STATUS_CREATED -> "Chưa gửi";
-            case STATUS_SUBMITTED -> "Đã gửi";
-            case STATUS_STALE -> "Có thay đổi cần gửi lại";
-            default -> "Chưa gửi";
-        };
+    private ReportBadge badge(MonthlyAttendanceReport report, boolean sent) {
+        if (!sent || report == null) {
+            return new ReportBadge("UNSENT", "Chưa gửi", "status-unknown");
+        }
+        if (report.getStatus() == AttendanceReportStatus.APPROVED) {
+            return new ReportBadge("APPROVED", "✓ Đã duyệt", "status-approved");
+        }
+        if (report.getStatus() == AttendanceReportStatus.REVISION) {
+            return new ReportBadge("REVISION", "Yêu cầu làm lại", "status-revision");
+        }
+        return new ReportBadge("WAITING", "Đang chờ", "status-waiting");
+    }
+
+    private record ReportBadge(String code, String label, String css) {
     }
 
     private String senderName(MonthlyAttendanceReport report) {

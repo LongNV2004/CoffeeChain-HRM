@@ -48,7 +48,12 @@
                 </tr>
                 <tr>
                     <th>Trạng thái</th>
-                    <td><span class="status-tag" th:text="${report.statusLabel}">Chưa tạo</span></td>
+                    <td>
+                        <span class="status-tag" th:classappend="${report.statusCss}" th:text="${report.statusLabel}">Chưa gửi</span>
+                        <p class="note" th:if="${report.reviewNote != null and !#strings.isEmpty(report.reviewNote)}"
+                           th:text="${report.reviewNote}">Lý do</p>
+                        <p class="note" th:if="${report.stale}">Dữ liệu chấm công đã thay đổi sau lần gửi.</p>
+                    </td>
                 </tr>
                 <tr>
                     <th>Lần gửi gần nhất</th>

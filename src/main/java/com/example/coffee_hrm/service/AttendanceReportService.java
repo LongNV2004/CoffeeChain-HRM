@@ -7,11 +7,15 @@ import com.example.coffee_hrm.security.AuthenticatedUser;
 
 public interface AttendanceReportService {
 
-    ManagerAttendanceReportPage managerPage(AuthenticatedUser user, Integer year, Integer month, Integer employeeId);
+    ManagerAttendanceReportPage managerPage(AuthenticatedUser user, Integer year, Integer month, Integer employeeId, String historyKind);
 
     void submit(AuthenticatedUser user, int year, int month);
 
+    void approve(AuthenticatedUser user, int reportId);
+
+    void requestRevision(AuthenticatedUser user, int reportId, String note);
+
     AdminAttendanceReportPage adminPage(AuthenticatedUser user, Integer year, Integer month, Integer storeId, String status);
 
-    AdminAttendanceReportDetail adminDetail(AuthenticatedUser user, int reportId, Integer employeeId);
+    AdminAttendanceReportDetail adminDetail(AuthenticatedUser user, int reportId, Integer employeeId, String historyKind);
 }

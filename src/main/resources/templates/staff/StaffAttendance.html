@@ -78,7 +78,9 @@
                     <th>Về sớm</th>
                     <th>Còn thiếu</th>
                     <th>Vị trí Check-in</th>
+                    <th>Ảnh Check-in</th>
                     <th>Vị trí Check-out</th>
+                    <th>Ảnh Check-out</th>
                     <th>Trạng thái</th>
                 </tr>
                 </thead>
@@ -101,7 +103,17 @@
                     <td th:text="${row.earlyLabel}">0 phút</td>
                     <td th:text="${row.missingLabel}">0 phút</td>
                     <td th:text="${row.checkInLocation}">—</td>
+                    <td>
+                        <img class="attendance-photo" th:if="${row.hasCheckInPhoto}"
+                             th:src="@{|${row.photoBase}/${row.attendanceId}/in|}" alt="Ảnh check-in">
+                        <span th:unless="${row.hasCheckInPhoto}">—</span>
+                    </td>
                     <td th:text="${row.checkOutLocation}">—</td>
+                    <td>
+                        <img class="attendance-photo" th:if="${row.hasCheckOutPhoto}"
+                             th:src="@{|${row.photoBase}/${row.attendanceId}/out|}" alt="Ảnh check-out">
+                        <span th:unless="${row.hasCheckOutPhoto}">—</span>
+                    </td>
                     <td>
                         <span class="status-tag" th:classappend="${row.statusCss}" th:text="${row.statusLabel}">Có mặt</span>
                     </td>

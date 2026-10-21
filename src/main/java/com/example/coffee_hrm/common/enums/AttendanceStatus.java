@@ -12,6 +12,9 @@ public enum AttendanceStatus {
     LATE("Late"),
     EARLY_LEAVE("EarlyLeave"),
     LATE_AND_EARLY("LateAndEarly"),
+    LATE_CHECKOUT("LateCheckout"),
+    LATE_AND_LATE_CHECKOUT("LateAndLateOut"),
+    NOT_PARTICIPATED("NotJoined"),
     ABSENT("Absent");
 
     private final String dbValue;

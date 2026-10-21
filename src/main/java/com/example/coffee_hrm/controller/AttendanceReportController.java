@@ -36,7 +36,7 @@ public class AttendanceReportController {
                               @RequestParam(value = "month", required = false) Integer month,
                               @AuthenticationPrincipal AuthenticatedUser user,
                               Model model) {
-        return managerView(year, month, null, user, model, "manager/ManagerAttendanceReport");
+        return managerView(year, month, null, null, user, model, "manager/ManagerAttendanceReport");
     }
 
     @GetMapping("/manager/reports/detail")
@@ -44,9 +44,10 @@ public class AttendanceReportController {
     public String managerDetail(@RequestParam(value = "year", required = false) Integer year,
                                 @RequestParam(value = "month", required = false) Integer month,
                                 @RequestParam(value = "employeeId", required = false) Integer employeeId,
+                                @RequestParam(value = "kind", required = false) String kind,
                                 @AuthenticationPrincipal AuthenticatedUser user,
                                 Model model) {
-        return managerView(year, month, employeeId, user, model, "manager/ManagerAttendanceReportDetail");
+        return managerView(year, month, employeeId, kind, user, model, "manager/ManagerAttendanceReportDetail");
     }
 
     @PostMapping("/manager/reports/submit")
@@ -64,6 +65,45 @@ public class AttendanceReportController {
             redirect.addFlashAttribute("pageError", SCHEMA_MESSAGE);
         }
         return redirectManager(year, month);
+    }
+
+    @PostMapping("/admin/reports/{reportId}/approve")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String approve(@PathVariable("reportId") int reportId,
+                          @RequestParam("year") int year,
+                          @RequestParam("month") int month,
+                          @RequestParam(value = "back", required = false) String back,
+                          @AuthenticationPrincipal AuthenticatedUser user,
+                          RedirectAttributes redirect) {
+        try {
+            attendanceReportService.approve(user, reportId);
+            redirect.addFlashAttribute("success", "Đã duyệt báo cáo.");
+        } catch (BusinessException ex) {
+            redirect.addFlashAttribute("pageError", ex.getMessage());
+        } catch (DataAccessException ex) {
+            redirect.addFlashAttribute("pageError", SCHEMA_MESSAGE);
+        }
+        return redirectAdmin(reportId, year, month, back);
+    }
+
+    @PostMapping("/admin/reports/{reportId}/revision")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String requestRevision(@PathVariable("reportId") int reportId,
+                                  @RequestParam("year") int year,
+                                  @RequestParam("month") int month,
+                                  @RequestParam(value = "note", required = false) String note,
+                                  @RequestParam(value = "back", required = false) String back,
+                                  @AuthenticationPrincipal AuthenticatedUser user,
+                                  RedirectAttributes redirect) {
+        try {
+            attendanceReportService.requestRevision(user, reportId, note);
+            redirect.addFlashAttribute("success", "Đã yêu cầu gửi lại báo cáo.");
+        } catch (BusinessException ex) {
+            redirect.addFlashAttribute("pageError", ex.getMessage());
+        } catch (DataAccessException ex) {
+            redirect.addFlashAttribute("pageError", SCHEMA_MESSAGE);
+        }
+        return redirectAdmin(reportId, year, month, back);
     }
 
     @GetMapping("/admin/reports")
@@ -99,10 +139,11 @@ public class AttendanceReportController {
     @PreAuthorize("hasRole('ADMIN')")
     public String adminDetail(@PathVariable("reportId") int reportId,
                               @RequestParam(value = "employeeId", required = false) Integer employeeId,
+                              @RequestParam(value = "kind", required = false) String kind,
                               @AuthenticationPrincipal AuthenticatedUser user,
                               Model model) {
         try {
-            model.addAttribute("detail", attendanceReportService.adminDetail(user, reportId, employeeId));
+            model.addAttribute("detail", attendanceReportService.adminDetail(user, reportId, employeeId, kind));
             model.addAttribute("pageError", null);
         } catch (BusinessException ex) {
             model.addAttribute("detail", null);
@@ -121,11 +162,13 @@ public class AttendanceReportController {
     private String managerView(Integer year,
                                Integer month,
                                Integer employeeId,
+                               String historyKind,
                                AuthenticatedUser user,
                                Model model,
                                String view) {
         try {
-            ManagerAttendanceReportPage page = attendanceReportService.managerPage(user, year, month, employeeId);
+            ManagerAttendanceReportPage page = attendanceReportService.managerPage(
+                    user, year, month, employeeId, historyKind);
             model.addAttribute("report", page);
             model.addAttribute("years", years(page.getYear()));
             model.addAttribute("pageError", null);
@@ -147,6 +190,13 @@ public class AttendanceReportController {
 
     private String redirectManager(int year, int month) {
         return "redirect:/attendance/manager/reports?year=" + year + "&month=" + month;
+    }
+
+    private String redirectAdmin(int reportId, int year, int month, String back) {
+        if ("detail".equals(back)) {
+            return "redirect:/attendance/admin/reports/" + reportId;
+        }
+        return "redirect:/attendance/admin/reports?year=" + year + "&month=" + month;
     }
 
     private List<Integer> years(int selected) {
@@ -171,12 +221,15 @@ public class AttendanceReportController {
                 .year(year)
                 .month(month)
                 .periodLabel(String.format("%02d/%04d", month, year))
-                .statusCode("NOT_CREATED")
+                .statusCode("UNSENT")
                 .statusLabel("Chưa gửi")
+                .statusCss("status-unknown")
                 .submitted(false)
                 .preview(ManagerAttendanceReportPage.AttendanceReportPreview.builder().build())
                 .employees(List.of())
+                .historyKind("all")
                 .days(List.of())
+                .trainingDays(List.of())
                 .build();
     }
 
