@@ -11,7 +11,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const suggestionsOverlay = ids('mlSuggestionsOverlay');
     const approve = ids('mlApprove');
     const reject = ids('mlReject');
-    const showSuggestions = ids('mlShowSuggestions');
     const rejectForm = ids('mlRejectForm');
     const reason = ids('mlRejectReason');
     const gapList = ids('mlGapsList');
@@ -196,7 +195,6 @@ document.addEventListener('DOMContentLoaded', () => {
         detailField(grid, 'Trạng thái', label(request.status));
         detailField(grid, 'Ca sớm nhất', date(request.startDate));
         detailField(grid, 'Ca muộn nhất', date(request.endDate));
-        detailField(grid, 'Người bàn giao', request.handoverName || '—');
         detailField(grid, 'Điện thoại', request.contactPhone || '—');
         detailField(grid, 'Lý do xin nghỉ', request.reason || '—', true);
         if (request.rejectReason) detailField(grid, 'Lý do từ chối', request.rejectReason, true);
@@ -249,7 +247,6 @@ document.addEventListener('DOMContentLoaded', () => {
         approve.disabled = busy || !data.canApprove;
         reject.hidden = !pending;
         reject.disabled = busy;
-        showSuggestions.hidden = request.status !== 'APPROVED';
         rejectForm.hidden = true;
         reason.value = '';
     }
@@ -531,9 +528,6 @@ document.addEventListener('DOMContentLoaded', () => {
     ids('mlReject').addEventListener('click', () => { rejectForm.hidden = false; reason.focus(); });
     ids('mlCancelReject').addEventListener('click', () => { rejectForm.hidden = true; reason.value = ''; });
     ids('mlConfirmReject').addEventListener('click', () => review('REJECTED'));
-    showSuggestions.addEventListener('click', () => {
-        if (detail?.request?.status === 'APPROVED') openSuggestions(detail.request.id);
-    });
     summary();
     loadList();
 });

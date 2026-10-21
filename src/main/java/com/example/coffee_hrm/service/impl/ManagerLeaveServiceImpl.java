@@ -22,6 +22,7 @@ import com.example.coffee_hrm.entity.Shift;
 import com.example.coffee_hrm.entity.ShiftSlotLimit;
 import com.example.coffee_hrm.entity.WorkAvailability;
 import com.example.coffee_hrm.common.store.StoreAccessMessages;
+import com.example.coffee_hrm.common.enums.CertificationStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.service.support.ApprovedLeaveCoverage;
 import com.example.coffee_hrm.service.support.AvailabilityCoverage;
@@ -388,14 +389,12 @@ public class ManagerLeaveServiceImpl implements ManagerLeaveService {
                 reviewer = request.getApprovedBy().getUsername();
             }
         }
-        String handover = request.getHandoverEmployee() == null
-                ? null : request.getHandoverEmployee().getFullName();
         return new ManagerLeaveItem(request.getId(), request.getEmployee().getId(),
                 request.getEmployee().getFullName(), request.getStartDate(), request.getEndDate(),
                 request.getReason(), request.getStatus(), request.getCreatedAt(),
                 request.getResolvedDate(), request.getRejectReason(), reviewer,
                 type.name(), type.getLabel(), request.getRequestedWorkDays(),
-                request.getContactPhone(), handover, type.isConsumesAnnualLeave());
+                request.getContactPhone(), type.isConsumesAnnualLeave());
     }
 
     /** Mọi dữ liệu theo dõi nằm ở ShiftAssignments, không cần bảng trung gian. */
@@ -445,6 +444,11 @@ public class ManagerLeaveServiceImpl implements ManagerLeaveService {
         if (staff.getStatus() != EmployeeStatus.ACTIVE || staff.getStore() == null
                 || !Objects.equals(staff.getStore().getId(), store.getId())) {
             throw new BusinessException("Nhân viên thay ca phải ACTIVE và cùng cửa hàng.");
+        }
+        if (staff.getCertificationStatus() != CertificationStatus.CERTIFIED) {
+            throw new BusinessException("Nhân viên " + staff.getFullName()
+                    + " chưa có chứng chỉ nên không thể thêm vào lịch làm việc chung. "
+                    + "Vui lòng hoàn thành khóa đào tạo và đạt yêu cầu để được cấp chứng chỉ.");
         }
         if (Objects.equals(staff.getId(), original.getEmployee().getId())) {
             throw new BusinessException("Không được chọn nhân viên đang xin nghỉ.");

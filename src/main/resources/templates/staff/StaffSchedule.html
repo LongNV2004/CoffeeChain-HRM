@@ -321,7 +321,7 @@
                 <select id="transferSelect" name="targetEmployeeId" class="form-control">
                     <option value="">-- Chọn đồng nghiệp nhận ca --</option>
                     <option th:each="emp : ${schedule.storeEmployees}"
-                            th:if="${emp.employeeId != currentEmployeeId}"
+                            th:if="${emp.certified and emp.employeeId != currentEmployeeId}"
                             th:value="${emp.employeeId}"
                             th:text="${emp.fullName + ' (' + emp.email + ')'}">
                         Lê Thị Thu (thult@fpt.edu.vn)

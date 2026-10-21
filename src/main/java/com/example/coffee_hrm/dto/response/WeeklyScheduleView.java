@@ -108,6 +108,8 @@ public class WeeklyScheduleView {
         private Integer employeeId;
         private String fullName;
         private String email;
+        /** Đã có ít nhất một chứng chỉ kỹ năng, đủ điều kiện vào lịch làm việc chung. */
+        private boolean certified;
     }
 
     @Getter

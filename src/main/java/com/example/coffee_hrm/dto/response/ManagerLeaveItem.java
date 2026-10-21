@@ -20,6 +20,5 @@ public record ManagerLeaveItem(
         String leaveTypeLabel,
         Integer requestedWorkDays,
         String contactPhone,
-        String handoverName,
         boolean deductsAnnualLeave) {
 }

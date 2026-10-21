@@ -79,7 +79,6 @@ public class StaffLeaveRequestController {
         redirect.addFlashAttribute("leaveFormType", form.getLeaveType());
         redirect.addFlashAttribute("leaveFormSlots", form.getAssignmentIds());
         redirect.addFlashAttribute("leaveFormReason", form.getReason());
-        redirect.addFlashAttribute("leaveFormHandover", form.getHandoverEmployeeId());
         redirect.addFlashAttribute("leaveFormPhone", form.getContactPhone());
     }
 

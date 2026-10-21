@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-@ToString(exclude = {"employee", "approvedBy", "handoverEmployee"})
+@ToString(exclude = {"employee", "approvedBy"})
 public class LeaveRequest {
 
     @Id
@@ -46,10 +46,6 @@ public class LeaveRequest {
 
     @Column(name = "ContactPhone", length = 15)
     private String contactPhone;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "HandoverEmployeeId")
-    private Employee handoverEmployee;
 
     @Column(name = "Reason", length = 255)
     private String reason;

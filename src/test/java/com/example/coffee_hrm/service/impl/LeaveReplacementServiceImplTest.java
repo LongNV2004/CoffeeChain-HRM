@@ -2,6 +2,7 @@ package com.example.coffee_hrm.service.impl;
 
 import com.example.coffee_hrm.common.enums.ApprovalStatus;
 import com.example.coffee_hrm.common.enums.AssignmentStatus;
+import com.example.coffee_hrm.common.enums.CertificationStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.time.VietnamTime;
@@ -78,7 +79,8 @@ class LeaveReplacementServiceImplTest {
 
     private Employee active(int id) {
         return Employee.builder().id(id).fullName("NV " + id).store(store)
-                .status(EmployeeStatus.ACTIVE).build();
+                .status(EmployeeStatus.ACTIVE)
+                .certificationStatus(CertificationStatus.CERTIFIED).build();
     }
 
     private WorkAvailability registered(Employee candidate, Shift slot) {
@@ -164,5 +166,17 @@ class LeaveReplacementServiceImplTest {
         var result = service.suggest(manager, 40, 90);
         assertEquals(12, result.candidates().getFirst().employeeId());
         assertEquals(11, result.candidates().getLast().employeeId());
+    }
+
+    @Test
+    void excludesEmployeeWithoutCertificate() {
+        suggestSetup();
+        Employee certified = active(11);
+        Employee uncertified = active(12);
+        uncertified.setCertificationStatus(CertificationStatus.NOTCERTIFIED);
+        candidateQueries(List.of(), List.of(), List.of(leave), List.of(absent, certified, uncertified));
+        var result = service.suggest(manager, 40, 90);
+        assertEquals(1, result.candidates().size());
+        assertEquals(11, result.candidates().getFirst().employeeId());
     }
 }

@@ -97,17 +97,12 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         String managerName = store.getManager() == null || store.getManager().getFullName() == null
                 ? "Chưa gán quản lý"
                 : store.getManager().getFullName();
-        List<LeaveFormContext.ColleagueOption> colleagues = employeeRepository
-                .findByStore_IdAndStatus(store.getId(), EmployeeStatus.ACTIVE).stream()
-                .filter(colleague -> !Objects.equals(colleague.getId(), employee.getId()))
-                .map(colleague -> new LeaveFormContext.ColleagueOption(colleague.getId(), colleague.getFullName()))
-                .toList();
         String note = configured
                 ? "Chọn một hoặc nhiều ca đã được phân. Tuần này và tuần sau chỉ để xem các ca, không tạo đơn theo khoảng ngày."
                 : "Admin chưa thiết lập số slot phép năm cho cửa hàng. Nghỉ phép năm chưa gửi được; các loại nghỉ khác không trừ slot phép năm.";
         return new LeaveFormContext(employee.getId(), employee.getFullName(), store.getStoreName(),
                 managerName, total, used, pending, Math.max(total - used - pending, 0), false, configured,
-                note, colleagues);
+                note);
     }
 
     @Override
@@ -155,7 +150,6 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         Employee employee = requireEmployee(user, true);
         List<ShiftAssignment> selected = loadOwnedSlots(employee, request.getAssignmentIds(), true);
         LeavePreviewResponse preview = describe(employee, selected, request.getLeaveType());
-        Employee handover = resolveHandover(employee, request.getHandoverEmployeeId());
         LocalDate start = selected.stream().map(ShiftAssignment::getWorkDate).min(LocalDate::compareTo).orElseThrow();
         LocalDate end = selected.stream().map(ShiftAssignment::getWorkDate).max(LocalDate::compareTo).orElseThrow();
         LeaveRequest created = leaveRequestRepository.saveAndFlush(LeaveRequest.builder()
@@ -165,7 +159,6 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 .endDate(end)
                 .requestedWorkDays(preview.requestedWorkDays())
                 .contactPhone(phone)
-                .handoverEmployee(handover)
                 .reason(reason)
                 .status(ApprovalStatus.PENDING)
                 .build());
@@ -599,23 +592,6 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         }
     }
 
-    private Employee resolveHandover(Employee employee, Integer handoverEmployeeId) {
-        if (handoverEmployeeId == null) {
-            return null;
-        }
-        if (Objects.equals(handoverEmployeeId, employee.getId())) {
-            throw new BusinessException("Không thể bàn giao công việc cho chính mình.");
-        }
-        Employee handover = employeeRepository.findByIdWithStore(handoverEmployeeId)
-                .orElseThrow(() -> new BusinessException("Không tìm thấy người bàn giao."));
-        if (handover.getStatus() != EmployeeStatus.ACTIVE
-                || handover.getStore() == null
-                || !Objects.equals(handover.getStore().getId(), employee.getStore().getId())) {
-            throw new BusinessException("Người bàn giao phải là nhân viên đang làm việc tại cùng cửa hàng.");
-        }
-        return handover;
-    }
-
     private String normalizePhone(String phone) {
         if (phone == null || phone.isBlank()) {
             return null;
@@ -693,7 +669,6 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
     private LeaveRequestResponse toResponse(LeaveRequest item, List<LeaveSlotItem> slots) {
         LeaveType type = item.getLeaveType() == null ? LeaveType.ANNUAL : item.getLeaveType();
         ApprovalStatus status = item.getStatus();
-        Employee handover = item.getHandoverEmployee();
         boolean cancellable = status == ApprovalStatus.PENDING || status == ApprovalStatus.APPROVED;
         return LeaveRequestResponse.builder()
                 .id(item.getId())
@@ -706,8 +681,6 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 .requestedWorkDays(item.getRequestedWorkDays())
                 .deductsAnnualLeave(type.isConsumesAnnualLeave())
                 .contactPhone(item.getContactPhone())
-                .handoverEmployeeId(handover == null ? null : handover.getId())
-                .handoverEmployeeName(handover == null ? null : handover.getFullName())
                 .reason(item.getReason())
                 .status(status)
                 .statusLabel(status == null ? "" : status.getLabel())

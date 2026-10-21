@@ -203,6 +203,7 @@
                 <select id="replacementEmpSelect" name="replacementEmployeeId" class="form-control">
                     <option value="">-- Chọn nhân viên thay thế --</option>
                     <option th:each="emp : ${schedule.storeEmployees}"
+                            th:if="${emp.certified}"
                             th:value="${emp.employeeId}"
                             th:text="${emp.fullName + ' (' + emp.email + ')'}">
                         Lê Thị Thu (thult@fpt.edu.vn)
@@ -262,6 +263,7 @@
                 <select id="empSelect" name="employeeId" class="form-control" required>
                     <option value="">-- Chọn nhân viên --</option>
                     <option th:each="emp : ${schedule.storeEmployees}"
+                            th:if="${emp.certified}"
                             th:value="${emp.employeeId}"
                             th:text="${emp.fullName + ' (' + emp.email + ')'}">
                         Nguyễn Văn A (a@fpt.edu.vn)

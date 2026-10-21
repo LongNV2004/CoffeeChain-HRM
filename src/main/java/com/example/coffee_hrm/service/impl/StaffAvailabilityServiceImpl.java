@@ -67,7 +67,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                     + "Vui lòng hoàn thành khóa đào tạo và đạt yêu cầu để được cấp chứng chỉ.";
     static final String INVALID_LIMIT_MESSAGE = "Vui lòng nhập số lượng nhân viên lớn hơn 0.";
     static final String SLOT_LIMIT_HEADCOUNT_MESSAGE =
-            "Số lượng nhân viên trong ca không được vượt quá số nhân viên Staff hiện có tại cửa hàng (%d nhân viên).";
+            "Số lượng không được vượt quá số nhân viên trong quán.";
     static final String SLOT_LIMIT_NO_STAFF_MESSAGE =
             "Cửa hàng chưa có nhân viên Staff. Hãy thêm nhân viên trước khi cấu hình sức chứa lớn hơn 0.";
     static final String OTHER_STORE_SHIFT_MESSAGE = "Ca làm việc không thuộc cửa hàng bạn quản lý.";
@@ -374,7 +374,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
             throw new BusinessException(SLOT_LIMIT_NO_STAFF_MESSAGE);
         }
         if (maxEmployees > staffCount) {
-            throw new BusinessException(String.format(SLOT_LIMIT_HEADCOUNT_MESSAGE, staffCount));
+            throw new BusinessException(SLOT_LIMIT_HEADCOUNT_MESSAGE);
         }
 
         ShiftSlotLimit limit = shiftSlotLimitRepository.lockByShiftAndDay(shiftId, dayOfWeek)
