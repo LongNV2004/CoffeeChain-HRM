@@ -326,25 +326,6 @@ class LeaveRequestServiceImplTest {
         assertEquals(12, page.slots().get(0).assignmentId());
     }
 
-    @Test
-    void handoverMustBeAnotherActiveEmployeeInTheSameStore() {
-        when(employees.lockByIdForLeaveRequest(7)).thenReturn(Optional.of(employee));
-        when(assignments.lockByIds(anyCollection())).thenReturn(List.of(slot(81, LocalTime.of(7, 0))));
-        CreateLeaveRequest self = request(LeaveType.ANNUAL, List.of(81), "Nghỉ phép");
-        self.setHandoverEmployeeId(7);
-        BusinessException own = assertThrows(BusinessException.class, () -> service.create(self, user));
-        assertTrue(own.getMessage().contains("chính mình"));
-
-        Employee outsider = Employee.builder().id(15).fullName("Khác cửa hàng")
-                .status(EmployeeStatus.ACTIVE)
-                .store(Store.builder().id(9).isActive(true).build()).build();
-        when(employees.findByIdWithStore(15)).thenReturn(Optional.of(outsider));
-        CreateLeaveRequest foreign = request(LeaveType.ANNUAL, List.of(81), "Nghỉ phép");
-        foreign.setHandoverEmployeeId(15);
-        assertThrows(BusinessException.class, () -> service.create(foreign, user));
-        verify(requests, never()).saveAndFlush(any());
-    }
-
     private CreateLeaveRequest request(LeaveType type, List<Integer> assignmentIds, String reason) {
         return CreateLeaveRequest.builder().leaveType(type).assignmentIds(assignmentIds).reason(reason).build();
     }

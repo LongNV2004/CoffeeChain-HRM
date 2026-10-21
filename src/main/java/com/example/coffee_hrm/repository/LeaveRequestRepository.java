@@ -76,7 +76,7 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Inte
                                        @Param("status") ApprovalStatus status,
                                        @Param("workDate") LocalDate workDate);
 
-    @EntityGraph(attributePaths = {"employee", "approvedBy", "approvedBy.employee", "handoverEmployee"})
+    @EntityGraph(attributePaths = {"employee", "approvedBy", "approvedBy.employee"})
     @Query("""
             SELECT lr FROM LeaveRequest lr
             WHERE lr.employee.id = :employeeId

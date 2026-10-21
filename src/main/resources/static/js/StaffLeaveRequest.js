@@ -347,7 +347,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 field('Trạng thái', item.statusLabel),
                 field('Người xử lý', item.approvedByName),
                 field('Thời điểm xử lý', formatDateTime(item.resolvedDate)),
-                field('Người bàn giao', item.handoverEmployeeName),
                 field('Số điện thoại', item.contactPhone)
             );
             const reasonText = document.createElement('p');

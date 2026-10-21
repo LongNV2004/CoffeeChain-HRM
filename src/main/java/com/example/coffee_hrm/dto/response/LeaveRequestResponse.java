@@ -27,8 +27,6 @@ public class LeaveRequestResponse {
     private Integer requestedWorkDays;
     private boolean deductsAnnualLeave;
     private String contactPhone;
-    private Integer handoverEmployeeId;
-    private String handoverEmployeeName;
     private String reason;
     private ApprovalStatus status;
     private String statusLabel;

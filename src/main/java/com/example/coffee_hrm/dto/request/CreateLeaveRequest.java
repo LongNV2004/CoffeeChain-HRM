@@ -31,8 +31,6 @@ public class CreateLeaveRequest {
     @Size(max = 255, message = "Lý do không được vượt quá 255 ký tự.")
     private String reason;
 
-    private Integer handoverEmployeeId;
-
     @Pattern(regexp = "^[0-9]{9,15}$", message = "Số điện thoại gồm 9 đến 15 chữ số.")
     private String contactPhone;
 

@@ -389,14 +389,12 @@ public class ManagerLeaveServiceImpl implements ManagerLeaveService {
                 reviewer = request.getApprovedBy().getUsername();
             }
         }
-        String handover = request.getHandoverEmployee() == null
-                ? null : request.getHandoverEmployee().getFullName();
         return new ManagerLeaveItem(request.getId(), request.getEmployee().getId(),
                 request.getEmployee().getFullName(), request.getStartDate(), request.getEndDate(),
                 request.getReason(), request.getStatus(), request.getCreatedAt(),
                 request.getResolvedDate(), request.getRejectReason(), reviewer,
                 type.name(), type.getLabel(), request.getRequestedWorkDays(),
-                request.getContactPhone(), handover, type.isConsumesAnnualLeave());
+                request.getContactPhone(), type.isConsumesAnnualLeave());
     }
 
     /** Mọi dữ liệu theo dõi nằm ở ShiftAssignments, không cần bảng trung gian. */

@@ -85,16 +85,6 @@
                     <textarea id="leaveReason" maxlength="255" name="reason" placeholder="Nhập lý do nghỉ..." required rows="4" th:text="${leaveFormReason}"></textarea>
                 </label>
                 <label>
-                    Người bàn giao công việc
-                    <select id="leaveHandover" name="handoverEmployeeId">
-                        <option value="">Không chọn</option>
-                        <option th:each="person : ${context.colleagues}"
-                                th:value="${person.id}"
-                                th:text="${person.fullName + ' · NV' + person.id}"
-                                th:selected="${leaveFormHandover != null and leaveFormHandover == person.id}">Đồng nghiệp</option>
-                    </select>
-                </label>
-                <label>
                     Số điện thoại liên hệ
                     <input id="leavePhone" inputmode="numeric" maxlength="20" name="contactPhone"
                            placeholder="Không bắt buộc" th:value="${leaveFormPhone}" type="tel">
