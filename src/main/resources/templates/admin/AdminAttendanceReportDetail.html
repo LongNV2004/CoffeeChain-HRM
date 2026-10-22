@@ -58,8 +58,12 @@
             </table>
         </div>
         <p class="note" th:if="${detail.stale}">Dữ liệu chấm công đã thay đổi sau lần gửi. Quản lý có thể gửi lại.</p>
-        <div class="report-actions" th:if="${detail.submitted}">
-            <form method="post" th:action="@{/attendance/admin/reports/{id}/approve(id=${detail.reportId})}">
+        <p th:if="${detail.submitted}">
+            <a class="secondary-btn" th:href="@{/attendance/admin/reports/{id}/excel(id=${detail.reportId})}">Tải file Excel</a>
+        </p>
+        <div class="report-actions" th:if="${detail.submitted and detail.statusCode != 'REVISION'}">
+            <form method="post" th:if="${detail.statusCode != 'APPROVED'}"
+                  th:action="@{/attendance/admin/reports/{id}/approve(id=${detail.reportId})}">
                 <input type="hidden" name="year" th:value="${detail.year}">
                 <input type="hidden" name="month" th:value="${detail.month}">
                 <input type="hidden" name="back" value="detail">
@@ -99,176 +103,326 @@
         <p class="note">Ngày công là số ngày có bản ghi ca làm và không phải vắng. Tổng ngày công cộng ngày công của từng nhân viên. Lượt vi phạm gồm đi muộn và về sớm. Thiếu chấm công là bản ghi ca làm có trạng thái vắng. Ngày không có bản ghi không được tính là thiếu chấm công.</p>
     </section>
 
-    <section class="panel" th:if="${detail != null}">
-        <h2>B. Bảng tổng hợp chấm công theo nhân viên</h2>
-        <p class="note">Đây là phần Admin cần xem. Bấm xem chi tiết để mở lịch từng ngày trong tháng của nhân viên đó.</p>
-        <div class="table-wrap">
-            <table>
-                <thead>
-                <tr>
-                    <th>Nhân viên</th>
-                    <th>Ngày công</th>
-                    <th>Đi muộn</th>
-                    <th>Về sớm</th>
-                    <th>Thiếu chấm công</th>
-                    <th>Thao tác</th>
-                </tr>
-                </thead>
-                <tbody>
-                <tr th:if="${detail.employees.isEmpty()}">
-                    <td colspan="6">Không có nhân viên thuộc cửa hàng.</td>
-                </tr>
-                <tr th:each="employee : ${detail.employees}">
-                    <td>
-                        <span th:text="${employee.fullName}">Tên</span>
-                        <div class="note" th:text="${'Mã ' + employee.employeeId}">Mã</div>
-                    </td>
-                    <td th:text="${employee.attendedDays}">0</td>
-                    <td th:text="${employee.lateRecords}">0</td>
-                    <td th:text="${employee.earlyRecords}">0</td>
-                    <td th:text="${employee.absentRecords}">0</td>
-                    <td>
-                        <a th:href="@{|/attendance/admin/reports/${detail.reportId}?employeeId=${employee.employeeId}&kind=${detail.historyKind}#lich-ngay|}">Xem chi tiết</a>
-                    </td>
-                </tr>
-                </tbody>
-            </table>
+    <section class="panel attn-screen report-staff" id="reportStaff" th:if="${detail != null}">
+        <h2>B. Lịch sử chấm công theo nhân viên</h2>
+        <p class="note">Mỗi thẻ là một nhân viên trong tháng báo cáo. Bấm xem chi tiết để mở từng ca làm và buổi đào tạo.</p>
+        <label class="day-search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg>
+            <input id="reportSearch" type="search" placeholder="Tìm mã hoặc tên nhân viên..." autocomplete="off">
+        </label>
+        <div class="detail-filter-row report-role-filter" role="group" aria-label="Vai trò">
+            <span>Vai trò</span>
+            <button type="button" class="is-on" data-filter="">Tất cả</button>
+            <button type="button" data-filter="staff">Nhân viên</button>
+            <button type="button" data-filter="manager">Quản lý</button>
         </div>
+        <p class="day-empty" th:if="${detail.employees.isEmpty()}">Không có nhân viên thuộc cửa hàng.</p>
+        <p class="day-empty" id="reportFilteredEmpty" hidden>Không có người khớp bộ lọc.</p>
+        <div class="slot-list" th:if="${!detail.employees.isEmpty()}">
+            <article class="slot-card month-card" th:each="employee : ${detail.employees}"
+                     th:attr="data-search=${#strings.toLowerCase(employee.fullName + ' ' + employee.employeeId)},data-role=${employee.roleLabel == 'Manager' ? 'manager' : (employee.roleLabel == 'Staff' ? 'staff' : '')}">
+                <h3 th:text="${employee.fullName}">Nguyễn Minh Anh</h3>
+                <p class="slot-meta" th:text="${'Mã ' + employee.employeeId + (employee.roleLabel == 'Manager' ? ' · Quản lý' : (employee.roleLabel == 'Staff' ? ' · Nhân viên' : (employee.roleLabel == null or #strings.isEmpty(employee.roleLabel) ? '' : ' · ' + employee.roleLabel)))}">Mã 1</p>
+                <div class="slot-times">
+                    <div>
+                        <span>Ngày công</span>
+                        <strong th:text="${employee.attendedDays}">0</strong>
+                    </div>
+                    <div>
+                        <span>Giờ công</span>
+                        <strong th:text="${T(com.example.coffee_hrm.report.AttendanceReportWorkbook).formatHours(employee.workedMinutes)}">0 giờ</strong>
+                    </div>
+                </div>
+                <div class="slot-times slot-minutes">
+                    <div>
+                        <span>Đi muộn</span>
+                        <strong th:classappend="${employee.lateRecords > 0} ? 'is-alert' : ''"
+                                th:text="${employee.lateRecords + ' lần'}">0 lần</strong>
+                        <small th:text="${employee.lateMinutes + ' phút'}">0 phút</small>
+                    </div>
+                    <div>
+                        <span>Về sớm</span>
+                        <strong th:classappend="${employee.earlyRecords > 0} ? 'is-alert' : ''"
+                                th:text="${employee.earlyRecords + ' lần'}">0 lần</strong>
+                        <small th:text="${employee.earlyMinutes + ' phút'}">0 phút</small>
+                    </div>
+                </div>
+                <div class="slot-absent">
+                    <span>Thiếu chấm công</span>
+                    <strong th:text="${employee.absentRecords + ' lần'}">0 lần</strong>
+                </div>
+                <button type="button" class="month-detail" th:attr="data-dialog=|report-emp-${employee.employeeId}|">Xem chi tiết</button>
+            </article>
+        </div>
+        <dialog class="detail-dialog month-dialog" th:each="employee : ${detail.employees}" th:id="|report-emp-${employee.employeeId}|">
+            <form method="dialog" class="detail-card">
+                <div class="slot-top">
+                    <div>
+                        <h3 th:text="${employee.fullName}">Nguyễn Minh Anh</h3>
+                        <p class="slot-schedule" th:text="${'Mã ' + employee.employeeId + ' · Tháng ' + detail.periodLabel}">Mã 1 · Tháng 10/2026</p>
+                    </div>
+                </div>
+                <div class="detail-filter-groups">
+                    <div class="detail-filter-row" data-group="kind" role="group" aria-label="Loại chấm công">
+                        <span>Loại</span>
+                        <button type="button" class="is-on" data-filter="">Tất cả</button>
+                        <button type="button" data-filter="shift">Ca làm</button>
+                        <button type="button" data-filter="training">Đào tạo</button>
+                    </div>
+                    <div class="detail-filter-row" data-group="issue" role="group" aria-label="Vi phạm">
+                        <span>Vi phạm</span>
+                        <button type="button" class="is-on" data-filter="">Tất cả</button>
+                        <button type="button" data-filter="late">Đi muộn</button>
+                        <button type="button" data-filter="early-out">Về sớm</button>
+                        <button type="button" data-filter="absent">Vắng</button>
+                    </div>
+                </div>
+                <p class="day-empty detail-none" hidden>Chưa có bản ghi chấm công trong tháng này.</p>
+                <p class="day-empty detail-filter-empty" hidden>Không có mục khớp bộ lọc.</p>
+                <div class="month-lines">
+                    <article class="month-line" th:each="day : ${detail.days}" th:if="${day.employeeId == employee.employeeId}"
+                             th:attr="data-shift=true,data-training=false,data-late=${day.lateMinutes > 0},data-early-out=${day.earlyMinutes > 0},data-absent=${day.statusLabel == 'Vắng'}">
+                        <div class="slot-top">
+                            <h4 th:text="${#temporals.format(day.workDate, 'dd/MM/yyyy') + ' · ' + (day.shiftLabel == null or #strings.isEmpty(day.shiftLabel) ? 'Ca làm' : day.shiftLabel)}">21/10/2026 · Ca sáng</h4>
+                            <span class="day-badge"
+                                  th:classappend="${day.statusLabel == 'Vắng'} ? 'absent' : (${day.lateMinutes > 0 or day.earlyMinutes > 0} ? 'late' : 'on-time')"
+                                  th:text="${day.statusLabel == null or #strings.isEmpty(day.statusLabel) ? '—' : day.statusLabel}">Đúng giờ</span>
+                        </div>
+                        <p class="slot-schedule">Ca làm · Giờ theo lịch:
+                            <span th:text="${(day.scheduledStart == null ? '—' : #temporals.format(day.scheduledStart, 'HH:mm')) + ' – ' + (day.scheduledEnd == null ? '—' : #temporals.format(day.scheduledEnd, 'HH:mm'))}">07:00 – 11:00</span>
+                        </p>
+                        <div class="slot-times">
+                            <div><span>Check-in</span><strong th:text="${day.checkIn == null ? '—' : #temporals.format(day.checkIn, 'HH:mm')}">—</strong></div>
+                            <div><span>Check-out</span><strong th:text="${day.checkOut == null ? '—' : #temporals.format(day.checkOut, 'HH:mm')}">—</strong></div>
+                        </div>
+                        <div class="slot-times slot-minutes">
+                            <div><span>Đi muộn ca làm</span><strong th:text="${day.lateMinutes + ' phút'}">0 phút</strong></div>
+                            <div><span>Về sớm ca làm</span><strong th:text="${day.earlyMinutes + ' phút'}">0 phút</strong></div>
+                        </div>
+                        <div class="mine-hours">
+                            <span>Giờ công</span>
+                            <strong th:text="${day.workedMinutes == null ? '—' : T(com.example.coffee_hrm.report.AttendanceReportWorkbook).formatHours(day.workedMinutes)}">—</strong>
+                        </div>
+                        <p class="slot-schedule" th:if="${day.note != null and !#strings.isEmpty(day.note)}" th:text="${day.note}">Ghi chú</p>
+                        <div class="detail-photos">
+                            <figure>
+                                <figcaption>Ảnh check-in</figcaption>
+                                <img th:if="${day.hasCheckInPhoto}" th:src="@{|/attendance/photos/${day.attendanceId}/in|}" alt="Ảnh check-in">
+                                <p th:unless="${day.hasCheckInPhoto}">Chưa có ảnh</p>
+                            </figure>
+                            <figure>
+                                <figcaption>Ảnh check-out</figcaption>
+                                <img th:if="${day.hasCheckOutPhoto}" th:src="@{|/attendance/photos/${day.attendanceId}/out|}" alt="Ảnh check-out">
+                                <p th:unless="${day.hasCheckOutPhoto}">Chưa có ảnh</p>
+                            </figure>
+                        </div>
+                    </article>
+                    <article class="month-line" th:each="lesson : ${detail.trainingDays}" th:if="${lesson.employeeId == employee.employeeId}"
+                             th:attr="data-shift=false,data-training=true,data-late=${lesson.lateMinutes > 0},data-early-out=${lesson.earlyMinutes > 0},data-absent=${lesson.statusLabel == 'Vắng' or lesson.statusLabel == 'Không tham gia'}">
+                        <div class="slot-top">
+                            <h4 th:text="${#temporals.format(lesson.workDate, 'dd/MM/yyyy') + ' · ' + (lesson.className == null or #strings.isEmpty(lesson.className) ? 'Đào tạo' : lesson.className)}">21/10/2026 · Lớp</h4>
+                            <span class="day-badge"
+                                  th:classappend="${lesson.statusLabel == 'Vắng' or lesson.statusLabel == 'Không tham gia'} ? 'absent' : (${lesson.lateMinutes > 0 or lesson.earlyMinutes > 0} ? 'late' : 'on-time')"
+                                  th:text="${lesson.statusLabel == null or #strings.isEmpty(lesson.statusLabel) ? '—' : lesson.statusLabel}">Có mặt</span>
+                        </div>
+                        <p class="slot-schedule">Đào tạo · Giờ học:
+                            <span th:text="${(lesson.scheduledStart == null ? '—' : #temporals.format(lesson.scheduledStart, 'HH:mm')) + ' – ' + (lesson.scheduledEnd == null ? '—' : #temporals.format(lesson.scheduledEnd, 'HH:mm'))}">08:00 – 12:00</span>
+                        </p>
+                        <div class="slot-times">
+                            <div><span>Check-in</span><strong th:text="${lesson.checkIn == null ? '—' : #temporals.format(lesson.checkIn, 'HH:mm')}">—</strong></div>
+                            <div><span>Check-out</span><strong th:text="${lesson.checkOut == null ? '—' : #temporals.format(lesson.checkOut, 'HH:mm')}">—</strong></div>
+                        </div>
+                        <div class="slot-times slot-minutes">
+                            <div><span>Đi muộn đào tạo</span><strong th:text="${lesson.lateMinutes + ' phút'}">0 phút</strong></div>
+                            <div><span>Về sớm đào tạo</span><strong th:text="${lesson.earlyMinutes + ' phút'}">0 phút</strong></div>
+                        </div>
+                        <p class="slot-schedule" th:if="${lesson.note != null and !#strings.isEmpty(lesson.note)}" th:text="${lesson.note}">Ghi chú</p>
+                        <div class="detail-photos">
+                            <figure>
+                                <figcaption>Ảnh check-in</figcaption>
+                                <img th:if="${lesson.hasCheckInPhoto}" th:src="@{|/attendance/training-photos/${lesson.attendanceId}/in|}" alt="Ảnh check-in">
+                                <p th:unless="${lesson.hasCheckInPhoto}">Chưa có ảnh</p>
+                            </figure>
+                            <figure>
+                                <figcaption>Ảnh check-out</figcaption>
+                                <img th:if="${lesson.hasCheckOutPhoto}" th:src="@{|/attendance/training-photos/${lesson.attendanceId}/out|}" alt="Ảnh check-out">
+                                <p th:unless="${lesson.hasCheckOutPhoto}">Chưa có ảnh</p>
+                            </figure>
+                        </div>
+                    </article>
+                </div>
+                <button class="primary-btn" value="close">Đóng</button>
+            </form>
+        </dialog>
     </section>
+    <script th:if="${detail != null}">
+    (function () {
+        var root = document.getElementById("reportStaff");
+        if (!root) return;
+        var search = document.getElementById("reportSearch");
+        var cards = Array.prototype.slice.call(root.querySelectorAll(".month-card"));
+        var filteredEmpty = document.getElementById("reportFilteredEmpty");
+        function chosenRole() {
+            var on = root.querySelector(".report-role-filter button.is-on");
+            return on ? (on.getAttribute("data-filter") || "") : "";
+        }
+        function applySearch() {
+            var text = search ? search.value.trim().toLowerCase() : "";
+            var role = chosenRole();
+            var shown = 0;
+            cards.forEach(function (card) {
+                var matchesText = !text || (card.getAttribute("data-search") || "").indexOf(text) >= 0;
+                var matchesRole = !role || card.getAttribute("data-role") === role;
+                var visible = matchesText && matchesRole;
+                card.hidden = !visible;
+                if (visible) shown += 1;
+            });
+            if (filteredEmpty) filteredEmpty.hidden = shown !== 0 || cards.length === 0;
+        }
+        if (search) search.addEventListener("input", applySearch);
+        root.querySelectorAll(".report-role-filter button").forEach(function (chip) {
+            chip.addEventListener("click", function () {
+                root.querySelectorAll(".report-role-filter button").forEach(function (other) {
+                    other.classList.toggle("is-on", other === chip);
+                });
+                applySearch();
+            });
+        });
+        function chosen(dialog, group) {
+            var row = dialog.querySelector('.detail-filter-row[data-group="' + group + '"] button.is-on');
+            return row ? (row.getAttribute("data-filter") || "") : "";
+        }
+        function lineVisible(line, kind, issue) {
+            if (kind === "shift" && line.getAttribute("data-shift") !== "true") return false;
+            if (kind === "training" && line.getAttribute("data-training") !== "true") return false;
+            if (issue && line.getAttribute("data-" + issue) !== "true") return false;
+            return true;
+        }
+        function applyFilter(dialog) {
+            var kind = chosen(dialog, "kind");
+            var issue = chosen(dialog, "issue");
+            var lines = Array.prototype.slice.call(dialog.querySelectorAll(".month-line"));
+            var shown = 0;
+            lines.forEach(function (line) {
+                var visible = lineVisible(line, kind, issue);
+                line.hidden = !visible;
+                if (visible) shown += 1;
+            });
+            var empty = dialog.querySelector(".detail-filter-empty");
+            if (empty) empty.hidden = (!kind && !issue) || shown !== 0 || lines.length === 0;
+            var none = dialog.querySelector(".detail-none");
+            if (none) none.hidden = lines.length !== 0;
+        }
+        function resetFilters(dialog) {
+            dialog.querySelectorAll(".detail-filter-row").forEach(function (row) {
+                row.querySelectorAll("button").forEach(function (chip) {
+                    chip.classList.toggle("is-on", !chip.getAttribute("data-filter"));
+                });
+            });
+        }
+        root.querySelectorAll(".month-dialog").forEach(function (dialog) {
+            dialog.querySelectorAll(".detail-filter-row").forEach(function (row) {
+                row.querySelectorAll("button").forEach(function (chip) {
+                    chip.addEventListener("click", function () {
+                        row.querySelectorAll("button").forEach(function (other) {
+                            other.classList.toggle("is-on", other === chip);
+                        });
+                        applyFilter(dialog);
+                    });
+                });
+            });
+        });
+        root.querySelectorAll(".month-detail").forEach(function (button) {
+            button.addEventListener("click", function () {
+                var dialog = document.getElementById(button.getAttribute("data-dialog"));
+                if (!dialog) return;
+                resetFilters(dialog);
+                applyFilter(dialog);
+                dialog.showModal();
+            });
+        });
+    })();
+    </script>
 
-    <section class="panel" id="lich-ngay" th:if="${detail != null and detail.selectedEmployeeId != null}">
-        <h2 th:text="${'Lịch ngày của ' + detail.selectedEmployeeName}">Lịch ngày</h2>
-        <div class="clock-actions">
-            <a th:class="${detail.historyKind == 'all'} ? 'primary-btn' : 'secondary-btn'"
-               th:href="@{|/attendance/admin/reports/${detail.reportId}?employeeId=${detail.selectedEmployeeId}&kind=all#lich-ngay|}">Xem tất cả</a>
-            <a th:class="${detail.historyKind == 'shift'} ? 'primary-btn' : 'secondary-btn'"
-               th:href="@{|/attendance/admin/reports/${detail.reportId}?employeeId=${detail.selectedEmployeeId}&kind=shift#lich-ngay|}">Xem báo cáo chấm công</a>
-            <a th:class="${detail.historyKind == 'training'} ? 'primary-btn' : 'secondary-btn'"
-               th:href="@{|/attendance/admin/reports/${detail.reportId}?employeeId=${detail.selectedEmployeeId}&kind=training#lich-ngay|}">Xem báo cáo đào tạo</a>
-        </div>
-        <h3 th:if="${detail.historyKind != 'training'}">Chấm công ca làm</h3>
-        <p class="note" th:if="${detail.historyKind != 'training'}"
-           th:text="${'Các bản ghi ca làm trong tháng ' + detail.periodLabel + '. Ngày không có bản ghi không hiện ở đây.'}">Tháng</p>
-        <p class="empty" th:if="${detail.historyKind != 'training' and detail.days.isEmpty()}">Không có bản ghi chấm công ca làm trong tháng này.</p>
-        <div class="table-wrap" th:if="${detail.historyKind != 'training' and !detail.days.isEmpty()}">
-            <table>
-                <thead>
-                <tr>
-                    <th>Ngày</th>
-                    <th>Ca</th>
-                    <th>Giờ ca</th>
-                    <th>Check-in</th>
-                    <th>Check-out</th>
-                    <th>Đi muộn</th>
-                    <th>Về sớm</th>
-                    <th>Ảnh Check-in</th>
-                    <th>Ảnh Check-out</th>
-                    <th>Trạng thái</th>
-                    <th>Ghi chú</th>
-                </tr>
-                </thead>
-                <tbody>
-                <tr th:each="day : ${detail.days}">
-                    <td th:text="${#temporals.format(day.workDate, 'dd/MM/yyyy')}">01/10/2026</td>
-                    <td th:text="${day.shiftLabel == null or #strings.isEmpty(day.shiftLabel) ? '—' : day.shiftLabel}">Ca sáng</td>
-                    <td>
-                        <span th:text="${day.scheduledStart == null ? '—' : #temporals.format(day.scheduledStart, 'HH:mm')}">08:00</span>
-                        —
-                        <span th:text="${day.scheduledEnd == null ? '—' : #temporals.format(day.scheduledEnd, 'HH:mm')}">12:00</span>
-                    </td>
-                    <td th:text="${day.checkIn == null ? '—' : #temporals.format(day.checkIn, 'HH:mm')}">—</td>
-                    <td th:text="${day.checkOut == null ? '—' : #temporals.format(day.checkOut, 'HH:mm')}">—</td>
-                    <td th:text="${day.lateMinutes + ' phút'}">0 phút</td>
-                    <td th:text="${day.earlyMinutes + ' phút'}">0 phút</td>
-                    <td>
-                        <img class="attendance-photo" th:if="${day.hasCheckInPhoto}"
-                             th:src="@{|/attendance/photos/${day.attendanceId}/in|}" alt="Ảnh check-in">
-                        <span th:unless="${day.hasCheckInPhoto}">—</span>
-                    </td>
-                    <td>
-                        <img class="attendance-photo" th:if="${day.hasCheckOutPhoto}"
-                             th:src="@{|/attendance/photos/${day.attendanceId}/out|}" alt="Ảnh check-out">
-                        <span th:unless="${day.hasCheckOutPhoto}">—</span>
-                    </td>
-                    <td th:text="${day.statusLabel == null or #strings.isEmpty(day.statusLabel) ? '—' : day.statusLabel}">Có mặt</td>
-                    <td th:text="${day.note == null or #strings.isEmpty(day.note) ? '—' : day.note}">—</td>
-                </tr>
-                </tbody>
-            </table>
-        </div>
-        <h3 th:if="${detail.historyKind != 'shift'}">Chấm công đào tạo</h3>
-        <p class="note" th:if="${detail.historyKind != 'shift'}"
-           th:text="${'Các buổi đào tạo trong tháng ' + detail.periodLabel + '. Ngày không có bản ghi không hiện ở đây.'}">Tháng</p>
-        <p class="empty" th:if="${detail.historyKind != 'shift' and detail.trainingDays.isEmpty()}">Không có bản ghi chấm công đào tạo trong tháng này.</p>
-        <div class="table-wrap" th:if="${detail.historyKind != 'shift' and !detail.trainingDays.isEmpty()}">
-            <table>
-                <thead>
-                <tr>
-                    <th>Ngày</th>
-                    <th>Lớp đào tạo</th>
-                    <th>Giờ học</th>
-                    <th>Check-in</th>
-                    <th>Check-out</th>
-                    <th>Check-in muộn</th>
-                    <th>Về sớm</th>
-                    <th>Ảnh Check-in</th>
-                    <th>Ảnh Check-out</th>
-                    <th>Trạng thái</th>
-                    <th>Ghi chú</th>
-                </tr>
-                </thead>
-                <tbody>
-                <tr th:each="lesson : ${detail.trainingDays}">
-                    <td th:text="${#temporals.format(lesson.workDate, 'dd/MM/yyyy')}">01/10/2026</td>
-                    <td th:text="${lesson.className == null or #strings.isEmpty(lesson.className) ? 'Đào tạo' : lesson.className}">Lớp</td>
-                    <td>
-                        <span th:text="${lesson.scheduledStart == null ? '—' : #temporals.format(lesson.scheduledStart, 'HH:mm')}">08:00</span>
-                        —
-                        <span th:text="${lesson.scheduledEnd == null ? '—' : #temporals.format(lesson.scheduledEnd, 'HH:mm')}">12:00</span>
-                    </td>
-                    <td th:text="${lesson.checkIn == null ? '—' : #temporals.format(lesson.checkIn, 'HH:mm')}">—</td>
-                    <td th:text="${lesson.checkOut == null ? '—' : #temporals.format(lesson.checkOut, 'HH:mm')}">—</td>
-                    <td th:text="${lesson.lateMinutes + ' phút'}">0 phút</td>
-                    <td th:text="${lesson.earlyMinutes + ' phút'}">0 phút</td>
-                    <td>
-                        <img class="attendance-photo" th:if="${lesson.hasCheckInPhoto}"
-                             th:src="@{|/attendance/training-photos/${lesson.attendanceId}/in|}" alt="Ảnh check-in">
-                        <span th:unless="${lesson.hasCheckInPhoto}">—</span>
-                    </td>
-                    <td>
-                        <img class="attendance-photo" th:if="${lesson.hasCheckOutPhoto}"
-                             th:src="@{|/attendance/training-photos/${lesson.attendanceId}/out|}" alt="Ảnh check-out">
-                        <span th:unless="${lesson.hasCheckOutPhoto}">—</span>
-                    </td>
-                    <td th:text="${lesson.statusLabel == null or #strings.isEmpty(lesson.statusLabel) ? '—' : lesson.statusLabel}">Có mặt</td>
-                    <td th:text="${lesson.note == null or #strings.isEmpty(lesson.note) ? '—' : lesson.note}">—</td>
-                </tr>
-                </tbody>
-            </table>
-        </div>
-    </section>
-
-    <section class="panel" th:if="${detail != null and !detail.versions.isEmpty()}">
+    <section class="panel" id="cac-lan-gui" th:if="${detail != null and detail.versionPageCount > 0}">
         <h2>Các lần gửi</h2>
-        <div class="table-wrap">
-            <table>
-                <thead>
-                <tr>
-                    <th>Phiên bản</th>
-                    <th>Người gửi</th>
-                    <th>Thời điểm gửi</th>
-                </tr>
-                </thead>
-                <tbody>
-                <tr th:each="version : ${detail.versions}">
-                    <td th:text="${version.versionNumber}">1</td>
-                    <td th:text="${version.senderName == null or #strings.isEmpty(version.senderName) ? '—' : version.senderName}">—</td>
-                    <td th:text="${#temporals.format(version.submittedAt, 'dd/MM/yyyy HH:mm')}">01/10/2026 08:00</td>
-                </tr>
-                </tbody>
-            </table>
-        </div>
+        <p class="note">Mỗi trang 5 lần. Bấm Xem lại để mở đúng bản đã gửi lúc đó.</p>
+        <ol class="send-list">
+            <li th:each="version : ${detail.versions}"
+                th:classappend="${detail.versionNumber != null and version.versionNumber == detail.versionNumber} ? 'is-current'">
+                <span class="send-version" th:text="${'v' + version.versionNumber}">v10</span>
+                <div class="send-body">
+                    <strong th:text="${version.senderName == null or #strings.isEmpty(version.senderName) ? '—' : version.senderName}">Nguyễn Văn Quản Lý</strong>
+                    <p class="send-meta">
+                        <span th:text="${version.submittedAt == null ? '—' : #temporals.format(version.submittedAt, 'dd/MM/yyyy HH:mm')}">21/10/2026 23:57</span>
+                        <span class="send-current" th:if="${detail.versionNumber != null and version.versionNumber == detail.versionNumber}">Hiện hành</span>
+                    </p>
+                </div>
+                <div class="send-actions">
+                    <a class="ops-link" th:href="@{/attendance/admin/reports/{id}/versions/{version}(id=${detail.reportId}, version=${version.versionNumber})}">Xem lại</a>
+                    <form class="delete-form" method="post"
+                          th:if="${detail.versionNumber != null and version.versionNumber < detail.versionNumber}"
+                          th:action="@{/attendance/admin/reports/{id}/versions/{version}/delete(id=${detail.reportId}, version=${version.versionNumber})}"
+                          th:attr="data-label=${'v' + version.versionNumber}">
+                        <input type="hidden" name="versionPage" th:value="${detail.versionPage}">
+                        <button class="send-delete js-delete-open" type="button">Xoá</button>
+                    </form>
+                </div>
+            </li>
+        </ol>
+        <nav class="send-pager" th:if="${detail.versionPageCount > 1}" aria-label="Trang lần gửi">
+            <a th:if="${detail.versionPage > 1}"
+               th:href="@{/attendance/admin/reports/{id}#cac-lan-gui(id=${detail.reportId}, versionPage=${detail.versionPage - 1})}">Trước</a>
+            <a th:each="page : ${#numbers.sequence(1, detail.versionPageCount)}"
+               th:href="@{/attendance/admin/reports/{id}#cac-lan-gui(id=${detail.reportId}, versionPage=${page})}"
+               th:text="${page}"
+               th:classappend="${page == detail.versionPage} ? 'is-on'">1</a>
+            <a th:if="${detail.versionPage < detail.versionPageCount}"
+               th:href="@{/attendance/admin/reports/{id}#cac-lan-gui(id=${detail.reportId}, versionPage=${detail.versionPage + 1})}">Sau</a>
+        </nav>
     </section>
+
+    <dialog class="delete-ask" id="deleteAsk" th:if="${detail != null}">
+        <div class="delete-ask-card">
+            <h3>Bạn có muốn xoá không?</h3>
+            <p id="deleteAskText">Lần gửi này sẽ bị xoá.</p>
+            <div class="send-actions">
+                <button type="button" class="ops-link" id="deleteAskCancel">Huỷ</button>
+                <button type="button" class="send-delete" id="deleteAskOk">Xác nhận</button>
+            </div>
+        </div>
+    </dialog>
+    <script th:if="${detail != null}">
+    (function () {
+        var ask = document.getElementById("deleteAsk");
+        var text = document.getElementById("deleteAskText");
+        var pending = null;
+        if (!ask) return;
+        document.querySelectorAll(".js-delete-open").forEach(function (button) {
+            button.addEventListener("click", function () {
+                var form = button.closest("form");
+                pending = form;
+                if (text) {
+                    text.textContent = "Lần gửi " + (form.getAttribute("data-label") || "") + " sẽ bị xoá.";
+                }
+                ask.showModal();
+            });
+        });
+        document.getElementById("deleteAskCancel").addEventListener("click", function () {
+            pending = null;
+            ask.close();
+        });
+        document.getElementById("deleteAskOk").addEventListener("click", function () {
+            if (pending) pending.submit();
+        });
+        ask.addEventListener("click", function (event) {
+            if (event.target === ask) {
+                pending = null;
+                ask.close();
+            }
+        });
+    })();
+    </script>
 </main>
 </body>
 </html>

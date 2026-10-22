@@ -32,6 +32,9 @@
             <a class="is-on" th:href="@{/attendance/manager/month}">Theo tháng</a>
             <a th:href="@{/attendance/manager/history(kind='training')}">Đào tạo</a>
         </nav>
+        <p class="export-row" th:if="${pageError == null}">
+            <a class="secondary-btn" th:href="@{/attendance/manager/month/export(month=${board.monthValue})}">Xuất Excel</a>
+        </p>
 
         <p class="flash" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
 

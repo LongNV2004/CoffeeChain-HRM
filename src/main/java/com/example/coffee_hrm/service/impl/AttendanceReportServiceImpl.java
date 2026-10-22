@@ -1,17 +1,24 @@
 package com.example.coffee_hrm.service.impl;
 
 import com.example.coffee_hrm.common.enums.AttendanceReportStatus;
+import com.example.coffee_hrm.common.enums.NotificationType;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.dto.response.AdminAttendanceReportDetail;
 import com.example.coffee_hrm.dto.response.AdminAttendanceReportPage;
+import com.example.coffee_hrm.dto.response.AttendanceReportVersionView;
 import com.example.coffee_hrm.dto.response.ManagerAttendanceReportPage;
+import com.example.coffee_hrm.entity.Employee;
 import com.example.coffee_hrm.entity.MonthlyAttendanceReport;
 import com.example.coffee_hrm.entity.MonthlyAttendanceReportVersion;
 import com.example.coffee_hrm.entity.Store;
 import com.example.coffee_hrm.entity.User;
 import com.example.coffee_hrm.report.AttendanceReportCalculator;
+import com.example.coffee_hrm.report.AttendanceReportExcel;
+import com.example.coffee_hrm.report.AttendanceReportSnapshot;
 import com.example.coffee_hrm.report.AttendanceReportWorkbook;
+import com.example.coffee_hrm.report.ExcelSpreadsheetReader;
+import com.example.coffee_hrm.report.ReportExcelFile;
 import com.example.coffee_hrm.repository.AttendanceRepository;
 import com.example.coffee_hrm.repository.EmployeeRepository;
 import com.example.coffee_hrm.repository.MonthlyAttendanceReportRepository;
@@ -21,6 +28,7 @@ import com.example.coffee_hrm.repository.TrainingAttendanceRepository;
 import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.AttendanceReportService;
+import com.example.coffee_hrm.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -40,10 +48,13 @@ import java.util.Map;
 @Transactional(readOnly = true)
 public class AttendanceReportServiceImpl implements AttendanceReportService {
 
+    static final String REPORT_REF = "ATTENDANCE_REPORT";
+
     static final String STATUS_NOT_CREATED = "NOT_CREATED";
     static final String STATUS_CREATED = "CREATED";
     static final String STATUS_SUBMITTED = "SUBMITTED";
     static final String STATUS_STALE = "STALE";
+    private static final int VERSION_PAGE_SIZE = 5;
 
     private final StoreRepository storeRepository;
     private final EmployeeRepository employeeRepository;
@@ -52,6 +63,8 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
     private final MonthlyAttendanceReportRepository reportRepository;
     private final MonthlyAttendanceReportVersionRepository versionRepository;
     private final UserRepository userRepository;
+    private final AttendanceReportFileStore reportFiles;
+    private final NotificationService notificationService;
     @Qualifier("attendanceReportClock")
     private final Clock clock;
 
@@ -122,6 +135,99 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
         } catch (DataIntegrityViolationException ex) {
             throw new BusinessException("Báo cáo vừa được gửi. Hãy tải lại trang.");
         }
+        reportFiles.save(store.getId(), year, month, version, AttendanceReportExcel.write(workbook));
+        notifyAdminsOfSubmit(saved);
+    }
+
+    @Override
+    public ReportExcelFile managerReportExcel(AuthenticatedUser user, int year, int month) {
+        assertManager(user);
+        validatePeriod(year, month);
+        Store store = resolveManagerStore(user);
+        MonthlyAttendanceReport report = reportRepository.findCurrent(store.getId(), year, month)
+                .orElseThrow(() -> new BusinessException("Báo cáo kỳ này chưa được gửi cho Admin."));
+        return readSubmittedExcel(report);
+    }
+
+    @Override
+    public ReportExcelFile adminReportExcel(AuthenticatedUser user, int reportId) {
+        return readSubmittedExcel(requireSubmitted(user, reportId));
+    }
+
+    @Override
+    public ReportExcelFile adminVersionExcel(AuthenticatedUser user, int reportId, int version) {
+        MonthlyAttendanceReport report = requireSubmitted(user, reportId);
+        requireVersion(report, version);
+        return excelFile(report, version);
+    }
+
+    @Override
+    @Transactional
+    public void deleteVersion(AuthenticatedUser user, int reportId, int versionNumber) {
+        MonthlyAttendanceReport report = requireSubmitted(user, reportId);
+        MonthlyAttendanceReportVersion version = requireVersion(report, versionNumber);
+        Integer current = report.getVersionNumber();
+        if (current == null || versionNumber >= current) {
+            throw new BusinessException("Chỉ xoá được lần gửi cũ khi đã có lần gửi mới hơn.");
+        }
+        versionRepository.delete(version);
+        reportFiles.delete(report.getStore().getId(), report.getReportYear(), report.getReportMonth(), versionNumber);
+    }
+
+    @Override
+    public AttendanceReportVersionView adminVersion(AuthenticatedUser user, int reportId, int versionNumber) {
+        MonthlyAttendanceReport report = requireSubmitted(user, reportId);
+        MonthlyAttendanceReportVersion version = requireVersion(report, versionNumber);
+        byte[] body = reportFiles.read(
+                report.getStore().getId(), report.getReportYear(), report.getReportMonth(), versionNumber);
+        List<AttendanceReportVersionView.EmployeeCard> employees = List.of();
+        boolean missing = body == null;
+        if (!missing) {
+            employees = AttendanceReportSnapshot.employees(ExcelSpreadsheetReader.read(body));
+        }
+        return AttendanceReportVersionView.builder()
+                .reportId(report.getId())
+                .storeName(report.getStore().getStoreName())
+                .periodLabel(periodLabel(report.getReportYear(), report.getReportMonth()))
+                .versionNumber(version.getVersionNumber())
+                .submittedAt(version.getSubmittedAt())
+                .senderName(text(version.getSubmittedByName()))
+                .current(report.getVersionNumber() != null && report.getVersionNumber().equals(version.getVersionNumber()))
+                .fileMissing(missing)
+                .employeeCount(value(version.getEmployeeCount()))
+                .shiftRecordCount(value(version.getShiftRecordCount()))
+                .trainingRecordCount(value(version.getTrainingRecordCount()))
+                .lateCount(value(version.getLateCount()))
+                .absentCount(value(version.getAbsentCount()))
+                .employees(employees)
+                .build();
+    }
+
+    private ReportExcelFile readSubmittedExcel(MonthlyAttendanceReport report) {
+        if (report.getSubmittedAt() == null || report.getStore() == null || report.getStore().getId() == null) {
+            throw new BusinessException("Báo cáo kỳ này chưa được gửi cho Admin.");
+        }
+        int version = report.getVersionNumber() == null ? 1 : report.getVersionNumber();
+        return excelFile(report, version);
+    }
+
+    private ReportExcelFile excelFile(MonthlyAttendanceReport report, int version) {
+        byte[] body = reportFiles.read(report.getStore().getId(), report.getReportYear(), report.getReportMonth(), version);
+        if (body == null) {
+            throw new BusinessException("Không tìm thấy file Excel của lần gửi này.");
+        }
+        return new ReportExcelFile(
+                AttendanceReportExcel.fileName(report.getStore().getId(), report.getReportYear(), report.getReportMonth(), version),
+                body);
+    }
+
+    private MonthlyAttendanceReportVersion requireVersion(MonthlyAttendanceReport report, int version) {
+        return versionRepository.findByReport_IdAndVersionNumber(report.getId(), version)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy lần gửi này."));
+    }
+
+    private static int value(Integer number) {
+        return number == null ? 0 : number;
     }
 
     @Override
@@ -133,6 +239,7 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
         report.setReviewedByName(user.getDisplayName());
         report.setReviewNote(null);
         saveReport(report);
+        notifyManagerOfReview(report, true);
     }
 
     @Override
@@ -148,6 +255,7 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
         report.setReviewedByName(user.getDisplayName());
         report.setReviewNote(clean.isEmpty() ? null : clean);
         saveReport(report);
+        notifyManagerOfReview(report, false);
     }
 
     @Override
@@ -250,7 +358,7 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
     }
 
     @Override
-    public AdminAttendanceReportDetail adminDetail(AuthenticatedUser user, int reportId, Integer employeeId, String historyKind) {
+    public AdminAttendanceReportDetail adminDetail(AuthenticatedUser user, int reportId, Integer employeeId, String historyKind, Integer versionPage) {
         assertAdmin(user);
         MonthlyAttendanceReport report = reportRepository.findByIdDetailed(reportId)
                 .orElseThrow(() -> new BusinessException("Không tìm thấy báo cáo."));
@@ -272,21 +380,21 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
                         .senderName(text(version.getSubmittedByName()))
                         .build())
                 .toList();
+        int versionTotal = versions.size();
+        int versionPages = versionTotal == 0 ? 0 : (versionTotal + VERSION_PAGE_SIZE - 1) / VERSION_PAGE_SIZE;
+        int page = versionPage == null || versionPage < 1 ? 1 : versionPage;
+        if (versionPages > 0 && page > versionPages) {
+            page = versionPages;
+        }
+        int from = versionPages == 0 ? 0 : (page - 1) * VERSION_PAGE_SIZE;
+        versions = versions.subList(from, Math.min(from + VERSION_PAGE_SIZE, versionTotal));
         String selectedName = "";
-        List<AttendanceReportWorkbook.ShiftRow> days = List.of();
-        List<AttendanceReportWorkbook.TrainingRow> trainingDays = List.of();
         if (employeeId != null) {
             AttendanceReportWorkbook.SummaryRow selected = live.getEmployees().stream()
                     .filter(row -> row.getEmployeeId() == employeeId)
                     .findFirst()
                     .orElseThrow(() -> new BusinessException("Nhân viên không thuộc cửa hàng của báo cáo này."));
             selectedName = selected.getFullName();
-            days = live.getShifts().stream()
-                    .filter(row -> row.getEmployeeId() == employeeId)
-                    .toList();
-            trainingDays = live.getTrainings().stream()
-                    .filter(row -> row.getEmployeeId() == employeeId)
-                    .toList();
         }
         return AdminAttendanceReportDetail.builder()
                 .reportId(report.getId())
@@ -314,9 +422,11 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
                 .selectedEmployeeId(employeeId)
                 .selectedEmployeeName(selectedName)
                 .historyKind(historyKind(historyKind))
-                .days(days)
-                .trainingDays(trainingDays)
+                .days(live.getShifts())
+                .trainingDays(live.getTrainings())
                 .versions(versions)
+                .versionPage(page)
+                .versionPageCount(versionPages)
                 .build();
     }
 
@@ -462,6 +572,54 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
         }
         return storeRepository.findByManager_Id(user.getEmployeeId())
                 .orElseThrow(() -> new BusinessException("Bạn chưa được phân công quản lý cửa hàng nào."));
+    }
+
+    private void notifyAdminsOfSubmit(MonthlyAttendanceReport report) {
+        String sender = text(report.getSubmittedByName());
+        if (sender.isBlank()) {
+            sender = "Quản lý";
+        }
+        notificationService.notifyUsers(
+                userRepository.findActiveByRoleName(RoleName.ADMIN),
+                "Báo cáo chấm công mới",
+                sender + " đã gửi báo cáo chấm công tháng " + periodLabel(report.getReportYear(), report.getReportMonth())
+                        + " của cửa hàng " + storeName(report) + ".",
+                NotificationType.ATTENDANCE_REPORT_SUBMITTED,
+                REPORT_REF,
+                report.getId());
+    }
+
+    private void notifyManagerOfReview(MonthlyAttendanceReport report, boolean approved) {
+        User recipient = report.getSubmittedBy();
+        if (recipient == null || recipient.getId() == null) {
+            Employee manager = report.getStore() == null ? null : report.getStore().getManager();
+            if (manager != null && manager.getId() != null) {
+                recipient = userRepository.findByEmployee_Id(manager.getId()).orElse(null);
+            }
+        }
+        if (recipient == null || recipient.getId() == null) {
+            return;
+        }
+        String period = periodLabel(report.getReportYear(), report.getReportMonth());
+        String store = storeName(report);
+        String title = approved ? "Báo cáo đã được duyệt" : "Báo cáo cần gửi lại";
+        String message = approved
+                ? "Admin đã duyệt báo cáo chấm công tháng " + period + " của cửa hàng " + store + "."
+                : "Admin yêu cầu gửi lại báo cáo chấm công tháng " + period + " của cửa hàng " + store + "."
+                + (report.getReviewNote() == null || report.getReviewNote().isBlank()
+                ? ""
+                : " Lý do: " + report.getReviewNote());
+        notificationService.notifyUsers(
+                List.of(recipient),
+                title,
+                message,
+                approved ? NotificationType.ATTENDANCE_REPORT_APPROVED : NotificationType.ATTENDANCE_REPORT_REVISION,
+                REPORT_REF,
+                report.getId());
+    }
+
+    private String storeName(MonthlyAttendanceReport report) {
+        return report.getStore() == null ? "" : text(report.getStore().getStoreName());
     }
 
     private void assertManager(AuthenticatedUser user) {

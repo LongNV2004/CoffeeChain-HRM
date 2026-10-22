@@ -62,7 +62,7 @@
                     </div>
                     <div>
                         <span>Về sớm</span>
-                        <strong th:text="${slot.earlyLabel}">0 phút</strong>
+                        <strong th:classappend="${slot.early} ? 'is-alert' : ''" th:text="${slot.earlyLabel}">0 phút</strong>
                     </div>
                 </div>
                 <div class="mine-hours">
@@ -72,6 +72,7 @@
                 <button type="button" class="detail-btn"
                         th:data-title="${slot.shiftName}"
                         th:data-status="${slot.statusLabel}"
+                        th:data-status-key="${slot.statusKey}"
                         th:data-schedule="${slot.scheduleLabel}"
                         th:data-in="${slot.checkInLabel}"
                         th:data-out="${slot.checkOutLabel}"
@@ -159,7 +160,9 @@
     document.querySelectorAll(".detail-btn").forEach(function (button) {
         button.addEventListener("click", function () {
             document.getElementById("detailTitle").textContent = button.getAttribute("data-title") || "";
-            document.getElementById("detailStatus").textContent = button.getAttribute("data-status") || "";
+            var status = document.getElementById("detailStatus");
+            status.textContent = button.getAttribute("data-status") || "";
+            status.className = "day-badge " + (button.getAttribute("data-status-key") || "");
             document.getElementById("detailSchedule").textContent = button.getAttribute("data-schedule") || "—";
             document.getElementById("detailIn").textContent = button.getAttribute("data-in") || "—";
             document.getElementById("detailOut").textContent = button.getAttribute("data-out") || "—";

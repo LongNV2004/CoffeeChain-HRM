@@ -280,7 +280,8 @@ class ManagerDayAttendanceServiceImplTest {
         assertEquals(2, view.getSlots().size());
         StaffDayAttendanceView.Slot first = view.getSlots().get(0);
         assertEquals("Ca sáng", first.getShiftName());
-        assertEquals("Đã hoàn thành", first.getStatusLabel());
+        assertEquals("Đi muộn", first.getStatusLabel());
+        assertEquals("late", first.getStatusKey());
         assertEquals("07:10", first.getCheckInLabel());
         assertEquals("11:00", first.getCheckOutLabel());
         assertEquals("10 phút", first.getLateLabel());

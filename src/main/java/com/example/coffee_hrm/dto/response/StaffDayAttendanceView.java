@@ -26,6 +26,7 @@ public class StaffDayAttendanceView {
         private final String lateLabel;
         private final String earlyLabel;
         private final boolean late;
+        private final boolean early;
         private final String workedLabel;
         private final String statusKey;
         private final String statusLabel;

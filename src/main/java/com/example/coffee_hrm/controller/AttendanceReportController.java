@@ -4,10 +4,15 @@ import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.response.AdminAttendanceReportPage;
 import com.example.coffee_hrm.dto.response.ManagerAttendanceReportPage;
+import com.example.coffee_hrm.report.ReportExcelFile;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.AttendanceReportService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataAccessException;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
@@ -58,13 +63,46 @@ public class AttendanceReportController {
                          RedirectAttributes redirect) {
         try {
             attendanceReportService.submit(user, year, month);
-            redirect.addFlashAttribute("success", "Đã gửi báo cáo cho Admin.");
+            redirect.addFlashAttribute("success", "Đã gửi báo cáo và file Excel cho Admin.");
         } catch (BusinessException ex) {
             redirect.addFlashAttribute("pageError", ex.getMessage());
         } catch (DataAccessException ex) {
             redirect.addFlashAttribute("pageError", SCHEMA_MESSAGE);
         }
         return redirectManager(year, month);
+    }
+
+    @GetMapping("/manager/reports/excel")
+    @PreAuthorize("hasRole('MANAGER')")
+    public ResponseEntity<byte[]> managerExcel(@RequestParam("year") int year,
+                                               @RequestParam("month") int month,
+                                               @AuthenticationPrincipal AuthenticatedUser user) {
+        return excelResponse(attendanceReportService.managerReportExcel(user, year, month));
+    }
+
+    @GetMapping("/admin/reports/{reportId}/excel")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<byte[]> adminExcel(@PathVariable("reportId") int reportId,
+                                             @AuthenticationPrincipal AuthenticatedUser user) {
+        return excelResponse(attendanceReportService.adminReportExcel(user, reportId));
+    }
+
+    @GetMapping("/admin/reports/{reportId}/versions/{version}/excel")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<byte[]> adminVersionExcel(@PathVariable("reportId") int reportId,
+                                                    @PathVariable("version") int version,
+                                                    @AuthenticationPrincipal AuthenticatedUser user) {
+        return excelResponse(attendanceReportService.adminVersionExcel(user, reportId, version));
+    }
+
+    private ResponseEntity<byte[]> excelResponse(ReportExcelFile file) {
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename(file.fileName())
+                .build();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .contentType(MediaType.parseMediaType("application/vnd.ms-excel"))
+                .body(file.body());
     }
 
     @PostMapping("/admin/reports/{reportId}/approve")
@@ -140,10 +178,11 @@ public class AttendanceReportController {
     public String adminDetail(@PathVariable("reportId") int reportId,
                               @RequestParam(value = "employeeId", required = false) Integer employeeId,
                               @RequestParam(value = "kind", required = false) String kind,
+                              @RequestParam(value = "versionPage", required = false) Integer versionPage,
                               @AuthenticationPrincipal AuthenticatedUser user,
                               Model model) {
         try {
-            model.addAttribute("detail", attendanceReportService.adminDetail(user, reportId, employeeId, kind));
+            model.addAttribute("detail", attendanceReportService.adminDetail(user, reportId, employeeId, kind, versionPage));
             model.addAttribute("pageError", null);
         } catch (BusinessException ex) {
             model.addAttribute("detail", null);
@@ -153,6 +192,44 @@ public class AttendanceReportController {
             model.addAttribute("pageError", SCHEMA_MESSAGE);
         }
         return "admin/AdminAttendanceReportDetail";
+    }
+
+    @PostMapping("/admin/reports/{reportId}/versions/{version}/delete")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String deleteVersion(@PathVariable("reportId") int reportId,
+                                @PathVariable("version") int version,
+                                @RequestParam(value = "versionPage", required = false) Integer versionPage,
+                                @AuthenticationPrincipal AuthenticatedUser user,
+                                RedirectAttributes redirect) {
+        try {
+            attendanceReportService.deleteVersion(user, reportId, version);
+            redirect.addFlashAttribute("success", "Đã xoá lần gửi v" + version + ".");
+        } catch (BusinessException ex) {
+            redirect.addFlashAttribute("pageError", ex.getMessage());
+        } catch (DataAccessException ex) {
+            redirect.addFlashAttribute("pageError", SCHEMA_MESSAGE);
+        }
+        String page = versionPage != null && versionPage > 1 ? "?versionPage=" + versionPage : "";
+        return "redirect:/attendance/admin/reports/" + reportId + page + "#cac-lan-gui";
+    }
+
+    @GetMapping("/admin/reports/{reportId}/versions/{version}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String adminVersion(@PathVariable("reportId") int reportId,
+                               @PathVariable("version") int version,
+                               @AuthenticationPrincipal AuthenticatedUser user,
+                               Model model) {
+        try {
+            model.addAttribute("version", attendanceReportService.adminVersion(user, reportId, version));
+            model.addAttribute("pageError", null);
+        } catch (BusinessException ex) {
+            model.addAttribute("version", null);
+            model.addAttribute("pageError", ex.getMessage());
+        } catch (DataAccessException ex) {
+            model.addAttribute("version", null);
+            model.addAttribute("pageError", SCHEMA_MESSAGE);
+        }
+        return "admin/AdminAttendanceReportVersion";
     }
 
     private static final String SCHEMA_MESSAGE =

@@ -1,6 +1,7 @@
 package com.example.coffee_hrm.service.impl;
 
 import com.example.coffee_hrm.common.enums.AttendanceReportStatus;
+import com.example.coffee_hrm.common.enums.NotificationType;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.time.VietnamTime;
@@ -18,8 +19,10 @@ import com.example.coffee_hrm.repository.MonthlyAttendanceReportRepository;
 import com.example.coffee_hrm.repository.MonthlyAttendanceReportVersionRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.repository.TrainingAttendanceRepository;
+import com.example.coffee_hrm.report.ReportExcelFile;
 import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
+import com.example.coffee_hrm.service.NotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,6 +30,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -36,6 +41,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -65,8 +71,11 @@ class AttendanceReportServiceImplTest {
     @Mock
     private UserRepository userRepository;
     @Mock
+    private NotificationService notificationService;
+    @Mock
     private Clock clock;
 
+    private AttendanceReportFileStore reportFiles;
     private AttendanceReportServiceImpl service;
     private Store store;
     private Store otherStore;
@@ -75,7 +84,8 @@ class AttendanceReportServiceImplTest {
     private AuthenticatedUser admin;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
+        reportFiles = new AttendanceReportFileStore(Files.createTempDirectory("attendance-reports").toString());
         store = Store.builder().id(1).storeName("Cầu Giấy").build();
         otherStore = Store.builder().id(2).storeName("Hoàn Kiếm").build();
         manager = user(9, "manager1", "Nguyễn Văn Quản Lý", RoleName.MANAGER, store);
@@ -89,6 +99,8 @@ class AttendanceReportServiceImplTest {
                 reportRepository,
                 versionRepository,
                 userRepository,
+                reportFiles,
+                notificationService,
                 clock);
         lenient().when(clock.getZone()).thenReturn(VietnamTime.ZONE);
         lenient().when(clock.instant()).thenReturn(Instant.parse("2026-10-10T02:00:00Z"));
@@ -113,6 +125,35 @@ class AttendanceReportServiceImplTest {
         verify(reportRepository).saveAndFlush(saved.capture());
         assertEquals(10, saved.getValue().getReportMonth());
         assertEquals(1, saved.getValue().getVersionNumber());
+        byte[] excel = reportFiles.read(1, 2026, 10, 1);
+        assertNotNull(excel);
+        String sheet = new String(excel, StandardCharsets.UTF_8);
+        assertTrue(sheet.contains("Cầu Giấy"));
+        assertTrue(sheet.contains("10/2026"));
+        assertTrue(sheet.contains("Nguyễn Văn Quản Lý"));
+    }
+
+    @Test
+    void adminDownloadsTheExcelFileSavedAtSubmit() {
+        stubStoreData();
+        when(userRepository.getReferenceById(9)).thenReturn(User.builder().id(9).username("manager1").build());
+        AtomicReference<MonthlyAttendanceReport> stored = new AtomicReference<>();
+        when(reportRepository.findCurrent(1, 2026, 10)).thenAnswer(invocation -> Optional.ofNullable(stored.get()));
+        when(reportRepository.saveAndFlush(any())).thenAnswer(invocation -> {
+            MonthlyAttendanceReport report = invocation.getArgument(0);
+            report.setId(15);
+            stored.set(report);
+            return report;
+        });
+        when(reportRepository.findByIdDetailed(15)).thenAnswer(invocation -> Optional.of(stored.get()));
+        when(versionRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.submit(manager, 2026, 10);
+        ReportExcelFile file = service.adminReportExcel(admin, 15);
+
+        assertEquals("bao-cao-cham-cong-1-2026-10-v1.xls", file.fileName());
+        assertTrue(new String(file.body(), StandardCharsets.UTF_8).contains("Worksheet"));
+        assertTrue(new String(service.managerReportExcel(manager, 2026, 10).body(), StandardCharsets.UTF_8).contains("Cầu Giấy"));
     }
 
     @Test
@@ -266,6 +307,77 @@ class AttendanceReportServiceImplTest {
         assertEquals("Yêu cầu làm lại", page.getStatusLabel());
         assertEquals("status-revision", page.getStatusCss());
         assertEquals("Thiếu ảnh check-out", page.getReviewNote());
+    }
+
+    @Test
+    void submitNotifiesAdminsAndReviewNotifiesTheManager() {
+        stubStoreData();
+        User sender = User.builder().id(9).username("manager1").build();
+        User adminUser = User.builder().id(1).username("admin").build();
+        when(userRepository.getReferenceById(9)).thenReturn(sender);
+        when(userRepository.findActiveByRoleName(RoleName.ADMIN)).thenReturn(List.of(adminUser));
+        AtomicReference<MonthlyAttendanceReport> stored = new AtomicReference<>();
+        when(reportRepository.findCurrent(1, 2026, 10)).thenAnswer(invocation -> Optional.ofNullable(stored.get()));
+        when(reportRepository.saveAndFlush(any())).thenAnswer(invocation -> {
+            MonthlyAttendanceReport report = invocation.getArgument(0);
+            report.setId(15);
+            stored.set(report);
+            return report;
+        });
+        when(versionRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(reportRepository.findByIdDetailed(15)).thenAnswer(invocation -> Optional.of(stored.get()));
+
+        service.submit(manager, 2026, 10);
+        service.approve(admin, 15);
+        service.requestRevision(admin, 15, "Thiếu ngày công");
+
+        ArgumentCaptor<String> messages = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<NotificationType> types = ArgumentCaptor.forClass(NotificationType.class);
+        verify(notificationService, times(3)).notifyUsers(
+                any(), any(), messages.capture(), types.capture(), eq("ATTENDANCE_REPORT"), eq(15));
+        assertEquals(NotificationType.ATTENDANCE_REPORT_SUBMITTED, types.getAllValues().get(0));
+        assertTrue(messages.getAllValues().get(0).contains("Cầu Giấy"));
+        assertEquals(NotificationType.ATTENDANCE_REPORT_APPROVED, types.getAllValues().get(1));
+        assertEquals(NotificationType.ATTENDANCE_REPORT_REVISION, types.getAllValues().get(2));
+        assertTrue(messages.getAllValues().get(2).contains("Thiếu ngày công"));
+    }
+
+    @Test
+    void deletesOnlyAnOlderSubmission() throws Exception {
+        MonthlyAttendanceReport report = MonthlyAttendanceReport.builder()
+                .id(4)
+                .store(store)
+                .reportYear(2026)
+                .reportMonth(10)
+                .status(AttendanceReportStatus.SUBMITTED)
+                .versionNumber(2)
+                .submittedAt(LocalDateTime.of(2026, 10, 9, 8, 0))
+                .build();
+        MonthlyAttendanceReportVersion older = MonthlyAttendanceReportVersion.builder()
+                .id(8)
+                .report(report)
+                .versionNumber(1)
+                .build();
+        MonthlyAttendanceReportVersion current = MonthlyAttendanceReportVersion.builder()
+                .id(9)
+                .report(report)
+                .versionNumber(2)
+                .build();
+        when(reportRepository.findByIdDetailed(4)).thenReturn(Optional.of(report));
+        when(versionRepository.findByReport_IdAndVersionNumber(4, 1)).thenReturn(Optional.of(older));
+        when(versionRepository.findByReport_IdAndVersionNumber(4, 2)).thenReturn(Optional.of(current));
+        reportFiles.save(1, 2026, 10, 1, "v1".getBytes(StandardCharsets.UTF_8));
+        reportFiles.save(1, 2026, 10, 2, "v2".getBytes(StandardCharsets.UTF_8));
+
+        service.deleteVersion(admin, 4, 1);
+
+        verify(versionRepository).delete(older);
+        assertNull(reportFiles.read(1, 2026, 10, 1));
+        assertNotNull(reportFiles.read(1, 2026, 10, 2));
+
+        BusinessException error = assertThrows(BusinessException.class, () -> service.deleteVersion(admin, 4, 2));
+        assertTrue(error.getMessage().contains("mới hơn"));
+        verify(versionRepository, never()).delete(current);
     }
 
     private void stubStoreData() {

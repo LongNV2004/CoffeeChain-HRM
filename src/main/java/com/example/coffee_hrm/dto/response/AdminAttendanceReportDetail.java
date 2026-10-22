@@ -40,6 +40,8 @@ public class AdminAttendanceReportDetail {
     private final List<AttendanceReportWorkbook.ShiftRow> days;
     private final List<AttendanceReportWorkbook.TrainingRow> trainingDays;
     private final List<VersionItem> versions;
+    private final int versionPage;
+    private final int versionPageCount;
 
     @Getter
     @Builder

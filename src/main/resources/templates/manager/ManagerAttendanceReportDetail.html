@@ -22,13 +22,15 @@
 
     <section class="panel" th:if="${pageError == null}">
         <h2 th:text="${report.storeId + ' — ' + report.storeName}">Cửa hàng</h2>
-        <p class="note">
-            Kỳ <span th:text="${report.periodLabel}">10/2026</span>
-            · <span class="status-tag" th:classappend="${report.statusCss}" th:text="${report.statusLabel}">Đang chờ</span>
-        </p>
-        <p class="note" th:if="${report.reviewNote != null and !#strings.isEmpty(report.reviewNote)}"
-           th:text="${report.reviewNote}">Lý do</p>
-        <p class="note" th:if="${report.stale}">Dữ liệu chấm công đã thay đổi sau lần gửi.</p>
+        <div class="report-status">
+            <p class="note">Kỳ <span th:text="${report.periodLabel}">10/2026</span></p>
+            <span class="status-tag" th:classappend="${report.statusCss}" th:text="${report.statusLabel}">Đang chờ</span>
+            <p class="status-reason" th:if="${report.reviewNote != null and !#strings.isEmpty(report.reviewNote)}">
+                <span class="status-reason-label">Lý do</span>
+                <span th:text="${report.reviewNote}">Cần kiểm tra lại</span>
+            </p>
+            <p class="status-hint" th:if="${report.stale}">Dữ liệu chấm công đã thay đổi sau lần gửi.</p>
+        </div>
     </section>
 
     <section class="panel" th:if="${pageError == null}">

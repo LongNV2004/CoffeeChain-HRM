@@ -197,10 +197,10 @@
                     <svg class="coffee-icon coffee-chevron coffee-side-label"><use href="#coffee-i-chevron"/></svg>
                 </button>
                 <div class="coffee-group-children">
-                    <a th:href="@{/attendance/manager/choose}" th:classappend="${active == 'attendance'} ? ' is-active'">Chấm công</a>
+                    <a th:href="@{/attendance/manager/choose}"
+                       th:classappend="${active == 'attendance' or active == 'attendance-history'} ? ' is-active'">Chấm công</a>
                     <a th:href="@{/attendance/manager/day}"
                        th:classappend="${active == 'attendance-day' or active == 'attendance-month' or active == 'attendance-training-history'} ? ' is-active'">Theo dõi chấm công</a>
-                    <a th:href="@{/attendance/manager/history(self=true)}" th:classappend="${active == 'attendance-history'} ? ' is-active'">Lịch sử chấm công</a>
                 </div>
             </div>
             <div class="coffee-menu-group"

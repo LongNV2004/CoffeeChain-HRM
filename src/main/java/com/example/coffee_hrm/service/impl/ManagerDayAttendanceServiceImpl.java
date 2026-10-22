@@ -416,7 +416,7 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
                 && !attendance.getScheduledShiftName().isBlank()
                 ? attendance.getScheduledShiftName()
                 : shift == null || shift.getShiftName() == null ? "Ca làm" : shift.getShiftName();
-        String statusKey = ownStatusKey(checkedIn, checkedOut, absent);
+        String statusKey = ownStatusKey(checkedIn, checkedOut, absent, late, early);
         String worked = "—";
         if (checkedIn && checkedOut) {
             int minutes = (int) Math.max(0, ChronoUnit.MINUTES.between(
@@ -432,6 +432,7 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
                 .lateLabel(late + " phút")
                 .earlyLabel(checkedOut || absent ? early + " phút" : "—")
                 .late(late > 0)
+                .early(checkedOut && early > 0)
                 .workedLabel(worked)
                 .statusKey(statusKey)
                 .statusLabel(ownStatusLabel(statusKey))
@@ -480,12 +481,13 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
         boolean checkedOut = attendance != null && attendance.getCheckOutTime() != null;
         boolean absent = attendance != null && attendance.getStatus() == AttendanceStatus.ABSENT;
         int late = attendance == null || attendance.getLateMinutes() == null ? 0 : attendance.getLateMinutes();
+        int early = attendance == null || attendance.getEarlyLeaveMinutes() == null ? 0 : attendance.getEarlyLeaveMinutes();
         String worked = "—";
         if (checkedIn && checkedOut) {
             worked = minuteText((int) Math.max(0, ChronoUnit.MINUTES.between(
                     attendance.getCheckInTime(), attendance.getCheckOutTime())));
         }
-        String statusKey = ownStatusKey(checkedIn, checkedOut, absent);
+        String statusKey = ownStatusKey(checkedIn, checkedOut, absent, late, early);
         Integer classId = trainingClass == null ? null : trainingClass.getId();
         return StaffDayAttendanceView.Slot.builder()
                 .shiftId(classId)
@@ -494,8 +496,9 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
                 .checkInLabel(checkedIn ? attendance.getCheckInTime().format(CLOCK_FORMATTER) : "—")
                 .checkOutLabel(checkedOut ? attendance.getCheckOutTime().format(CLOCK_FORMATTER) : "—")
                 .lateLabel(late + " phút")
-                .earlyLabel(checkedOut ? "0 phút" : "—")
+                .earlyLabel(checkedOut || absent ? early + " phút" : "—")
                 .late(late > 0)
+                .early(checkedOut && early > 0)
                 .workedLabel(worked)
                 .statusKey(statusKey)
                 .statusLabel(ownStatusLabel(statusKey))
@@ -563,17 +566,26 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
     private record MonthLine(LocalDate date, LocalTime start, ManagerMonthAttendanceView.DayLine line) {
     }
 
-    private String ownStatusKey(boolean checkedIn, boolean checkedOut, boolean absent) {
+    private String ownStatusKey(boolean checkedIn, boolean checkedOut, boolean absent, int late, int early) {
+        if (!checkedIn && absent) {
+            return "absent";
+        }
+        if (!checkedIn) {
+            return "missing";
+        }
+        if (checkedOut && late > 0 && early > 0) {
+            return "late-early";
+        }
+        if (late > 0) {
+            return "late";
+        }
+        if (checkedOut && early > 0) {
+            return "early";
+        }
         if (checkedOut) {
             return "done";
         }
-        if (checkedIn) {
-            return "working";
-        }
-        if (absent) {
-            return "absent";
-        }
-        return "missing";
+        return "working";
     }
 
     private String ownStatusLabel(String statusKey) {
@@ -581,6 +593,9 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
             case "done" -> "Đã hoàn thành";
             case "working" -> "Đang làm";
             case "absent" -> "Vắng";
+            case "late-early" -> "Đi muộn và về sớm";
+            case "late" -> "Đi muộn";
+            case "early" -> "Về sớm";
             default -> "Chưa check-in";
         };
     }

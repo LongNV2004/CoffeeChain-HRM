@@ -49,10 +49,14 @@
                 <tr>
                     <th>Trạng thái</th>
                     <td>
-                        <span class="status-tag" th:classappend="${report.statusCss}" th:text="${report.statusLabel}">Chưa gửi</span>
-                        <p class="note" th:if="${report.reviewNote != null and !#strings.isEmpty(report.reviewNote)}"
-                           th:text="${report.reviewNote}">Lý do</p>
-                        <p class="note" th:if="${report.stale}">Dữ liệu chấm công đã thay đổi sau lần gửi.</p>
+                        <div class="report-status">
+                            <span class="status-tag" th:classappend="${report.statusCss}" th:text="${report.statusLabel}">Chưa gửi</span>
+                            <p class="status-reason" th:if="${report.reviewNote != null and !#strings.isEmpty(report.reviewNote)}">
+                                <span class="status-reason-label">Lý do</span>
+                                <span th:text="${report.reviewNote}">Cần kiểm tra lại</span>
+                            </p>
+                            <p class="status-hint" th:if="${report.stale}">Dữ liệu chấm công đã thay đổi sau lần gửi.</p>
+                        </div>
                     </td>
                 </tr>
                 <tr>
@@ -98,8 +102,10 @@
             </form>
             <a class="secondary-btn" th:if="${pageError == null}"
                th:href="@{/attendance/manager/reports/detail(year=${report.year}, month=${report.month})}">Xem chi tiết báo cáo</a>
+            <a class="secondary-btn" th:if="${report.submitted}"
+               th:href="@{/attendance/manager/reports/excel(year=${report.year}, month=${report.month})}">Tải file Excel đã gửi</a>
         </div>
-        <p class="note">Gửi báo cáo lưu thời điểm gửi và phiên bản mới. Admin xem số liệu trên hệ thống. Dữ liệu chấm công gốc không bị sửa.</p>
+        <p class="note">Gửi báo cáo lưu thời điểm gửi, phiên bản mới và file Excel để Admin tải về. Dữ liệu chấm công gốc không bị sửa.</p>
     </section>
 </main>
 </body>

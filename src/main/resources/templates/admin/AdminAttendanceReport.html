@@ -115,22 +115,30 @@
                     <td th:text="${row.senderName == null or #strings.isEmpty(row.senderName) ? '—' : row.senderName}">—</td>
                     <td th:text="${row.submittedAt == null ? '—' : #temporals.format(row.submittedAt, 'dd/MM/yyyy HH:mm')}">—</td>
                     <td th:text="${row.versionNumber == null ? '—' : row.versionNumber}">—</td>
-                    <td>
-                        <div class="report-actions" th:if="${row.submitted}">
-                            <a th:href="@{/attendance/admin/reports/{id}(id=${row.reportId})}">Xem trước</a>
-                            <form method="post" th:action="@{/attendance/admin/reports/{id}/approve(id=${row.reportId})}">
+                    <td class="ops-cell">
+                        <div class="store-ops" th:if="${row.submitted}">
+                            <div class="store-ops-row">
+                                <a class="ops-link" th:if="${row.statusCode == 'APPROVED'}"
+                                   th:href="@{/attendance/admin/reports/{id}(id=${row.reportId})}">Xem báo cáo</a>
+                                <a class="ops-link" th:unless="${row.statusCode == 'APPROVED'}"
+                                   th:href="@{/attendance/admin/reports/{id}(id=${row.reportId})}">Xem trước</a>
+                                <a class="ops-link" th:href="@{/attendance/admin/reports/{id}/excel(id=${row.reportId})}">Tải Excel</a>
+                                <form method="post" th:if="${row.statusCode == 'WAITING'}"
+                                      th:action="@{/attendance/admin/reports/{id}/approve(id=${row.reportId})}">
+                                    <input type="hidden" name="year" th:value="${report.year}">
+                                    <input type="hidden" name="month" th:value="${report.month}">
+                                    <button class="primary-btn" type="submit">Duyệt</button>
+                                </form>
+                            </div>
+                            <form class="store-ops-revise" method="post" th:if="${row.statusCode != 'REVISION'}"
+                                  th:action="@{/attendance/admin/reports/{id}/revision(id=${row.reportId})}">
                                 <input type="hidden" name="year" th:value="${report.year}">
                                 <input type="hidden" name="month" th:value="${report.month}">
-                                <button class="primary-btn" type="submit">Duyệt</button>
-                            </form>
-                            <form method="post" th:action="@{/attendance/admin/reports/{id}/revision(id=${row.reportId})}">
-                                <input type="hidden" name="year" th:value="${report.year}">
-                                <input type="hidden" name="month" th:value="${report.month}">
-                                <input type="text" name="note" maxlength="500" placeholder="Lý do gửi lại">
-                                <button class="danger-btn" type="submit">Yêu cầu gửi lại</button>
+                                <input type="text" name="note" maxlength="500" placeholder="Lý do gửi lại" aria-label="Lý do gửi lại">
+                                <button class="danger-btn" type="submit">Gửi lại</button>
                             </form>
                         </div>
-                        <span th:if="${!row.submitted}">—</span>
+                        <span class="ops-empty" th:if="${!row.submitted}">—</span>
                     </td>
                 </tr>
                 </tbody>

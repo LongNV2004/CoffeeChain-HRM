@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lần gửi báo cáo — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/AttendanceHistory.css}">
+</head>
+<body>
+<header th:replace="~{fragments/navbar :: admin('reports')}"></header>
+
+<main class="wrap dash-main">
+    <section class="welcome">
+        <div class="eyebrow">Admin</div>
+        <h1 th:text="${version == null ? 'Lần gửi báo cáo' : 'Lần gửi v' + version.versionNumber}">Lần gửi v1</h1>
+        <p>
+            <a th:if="${version != null}"
+               th:href="@{/attendance/admin/reports/{id}#cac-lan-gui(id=${version.reportId})}">Quay lại báo cáo</a>
+            <a th:if="${version == null}" th:href="@{/attendance/admin/reports}">Quay lại danh sách</a>
+        </p>
+    </section>
+
+    <p class="flash" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
+
+    <section class="panel" th:if="${version != null}">
+        <h2 th:text="${version.storeName}">Cửa hàng</h2>
+        <p class="note">
+            Kỳ <span th:text="${version.periodLabel}">10/2026</span>
+            · <span th:text="${version.senderName == null or #strings.isEmpty(version.senderName) ? '—' : version.senderName}">Người gửi</span>
+            · <span th:text="${version.submittedAt == null ? '—' : #temporals.format(version.submittedAt, 'dd/MM/yyyy HH:mm')}">21/10/2026 23:57</span>
+            <span class="send-current" th:if="${version.current}">Hiện hành</span>
+        </p>
+        <p class="note">Bản đã gửi được giữ nguyên, hiển thị như theo dõi chấm công.</p>
+        <div class="version-stats">
+            <span th:text="${'Nhân viên ' + version.employeeCount}">Nhân viên 0</span>
+            <span th:text="${'Ca làm ' + version.shiftRecordCount}">Ca làm 0</span>
+            <span th:text="${'Đào tạo ' + version.trainingRecordCount}">Đào tạo 0</span>
+            <span th:text="${'Đi muộn ' + version.lateCount}">Đi muộn 0</span>
+            <span th:text="${'Vắng ' + version.absentCount}">Vắng 0</span>
+        </div>
+        <div class="send-actions" style="margin-top:14px;">
+            <a class="ops-link" th:href="@{/attendance/admin/reports/{id}/versions/{version}/excel(id=${version.reportId}, version=${version.versionNumber})}">Tải Excel</a>
+            <form class="delete-form" method="post"
+                  th:if="${!version.current}"
+                  th:action="@{/attendance/admin/reports/{id}/versions/{version}/delete(id=${version.reportId}, version=${version.versionNumber})}"
+                  th:attr="data-label=${'v' + version.versionNumber}">
+                <button class="send-delete js-delete-open" type="button">Xoá</button>
+            </form>
+        </div>
+        <p class="flash" th:if="${version.fileMissing}">Không tìm thấy file Excel của lần gửi này.</p>
+    </section>
+
+    <section class="panel attn-screen report-staff" id="reportStaff" th:if="${version != null and !version.fileMissing}">
+        <h2>Lịch sử chấm công theo nhân viên</h2>
+        <p class="note">Mỗi thẻ là một nhân viên trong bản đã gửi. Bấm xem chi tiết để mở ca làm và đào tạo.</p>
+        <label class="day-search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg>
+            <input id="reportSearch" type="search" placeholder="Tìm mã hoặc tên nhân viên..." autocomplete="off">
+        </label>
+        <div class="detail-filter-row report-role-filter" role="group" aria-label="Vai trò">
+            <span>Vai trò</span>
+            <button type="button" class="is-on" data-filter="">Tất cả</button>
+            <button type="button" data-filter="staff">Nhân viên</button>
+            <button type="button" data-filter="manager">Quản lý</button>
+        </div>
+        <p class="day-empty" th:if="${version.employees.isEmpty()}">Bản gửi này không có nhân viên.</p>
+        <p class="day-empty" id="reportFilteredEmpty" hidden>Không có người khớp bộ lọc.</p>
+        <div class="slot-list" th:if="${!version.employees.isEmpty()}">
+            <article class="slot-card month-card" th:each="employee : ${version.employees}"
+                     th:attr="data-search=${#strings.toLowerCase(employee.fullName + ' ' + employee.code)},data-role=${employee.roleKey}">
+                <h3 th:text="${employee.fullName}">Nguyễn Minh Anh</h3>
+                <p class="slot-meta" th:text="${employee.code + (employee.roleText == null or #strings.isEmpty(employee.roleText) ? '' : ' · ' + employee.roleText)}">NV001 · Nhân viên</p>
+                <div class="slot-times">
+                    <div>
+                        <span>Ngày công</span>
+                        <strong th:text="${employee.attendedDays}">0</strong>
+                    </div>
+                    <div>
+                        <span>Giờ công</span>
+                        <strong th:text="${employee.hours}">0 giờ</strong>
+                    </div>
+                </div>
+                <div class="slot-times slot-minutes">
+                    <div>
+                        <span>Đi muộn</span>
+                        <strong th:classappend="${employee.lateRecords != '0'} ? 'is-alert' : ''" th:text="${employee.lateRecords + ' lần'}">0 lần</strong>
+                        <small th:text="${employee.lateMinutes + ' phút'}">0 phút</small>
+                    </div>
+                    <div>
+                        <span>Về sớm</span>
+                        <strong th:classappend="${employee.earlyRecords != '0'} ? 'is-alert' : ''" th:text="${employee.earlyRecords + ' lần'}">0 lần</strong>
+                        <small th:text="${employee.earlyMinutes + ' phút'}">0 phút</small>
+                    </div>
+                </div>
+                <div class="slot-absent">
+                    <span>Thiếu chấm công</span>
+                    <strong th:text="${employee.absentRecords + ' lần'}">0 lần</strong>
+                </div>
+                <button type="button" class="month-detail" th:attr="data-dialog=|version-emp-${employee.employeeId}|">Xem chi tiết</button>
+            </article>
+        </div>
+        <dialog class="detail-dialog month-dialog" th:each="employee : ${version.employees}" th:id="|version-emp-${employee.employeeId}|">
+            <form method="dialog" class="detail-card">
+                <div class="slot-top">
+                    <div>
+                        <h3 th:text="${employee.fullName}">Nguyễn Minh Anh</h3>
+                        <p class="slot-schedule" th:text="${employee.code + ' · Tháng ' + version.periodLabel}">NV001 · Tháng 10/2026</p>
+                    </div>
+                </div>
+                <div class="detail-filter-groups">
+                    <div class="detail-filter-row" data-group="kind" role="group" aria-label="Loại chấm công">
+                        <span>Loại</span>
+                        <button type="button" class="is-on" data-filter="">Tất cả</button>
+                        <button type="button" data-filter="shift">Ca làm</button>
+                        <button type="button" data-filter="training">Đào tạo</button>
+                    </div>
+                    <div class="detail-filter-row" data-group="issue" role="group" aria-label="Vi phạm">
+                        <span>Vi phạm</span>
+                        <button type="button" class="is-on" data-filter="">Tất cả</button>
+                        <button type="button" data-filter="late">Đi muộn</button>
+                        <button type="button" data-filter="early-out">Về sớm</button>
+                        <button type="button" data-filter="absent">Vắng</button>
+                    </div>
+                </div>
+                <p class="day-empty detail-none" hidden>Chưa có bản ghi chấm công trong tháng này.</p>
+                <p class="day-empty detail-filter-empty" hidden>Không có mục khớp bộ lọc.</p>
+                <div class="month-lines">
+                    <article class="month-line" th:each="day : ${employee.shifts}"
+                             th:attr="data-shift=${day.shift},data-training=${day.training},data-late=${day.late},data-early-out=${day.early},data-absent=${day.absent}">
+                        <div class="slot-top">
+                            <h4 th:text="${day.title}">21/10/2026 · Ca sáng</h4>
+                            <span class="day-badge" th:classappend="${day.badgeClass}" th:text="${day.status}">Đúng giờ</span>
+                        </div>
+                        <p class="slot-schedule" th:text="${day.kindLabel + ' · Giờ theo lịch: ' + day.schedule}">Ca làm · Giờ theo lịch: 07:00 – 11:00</p>
+                        <div class="slot-times">
+                            <div><span>Check-in</span><strong th:text="${day.checkIn}">—</strong></div>
+                            <div><span>Check-out</span><strong th:text="${day.checkOut}">—</strong></div>
+                        </div>
+                        <div class="slot-times slot-minutes">
+                            <div><span th:text="${'Đi muộn ' + #strings.toLowerCase(day.kindLabel)}">Đi muộn ca làm</span><strong th:text="${day.lateText}">0 phút</strong></div>
+                            <div><span th:text="${'Về sớm ' + #strings.toLowerCase(day.kindLabel)}">Về sớm ca làm</span><strong th:text="${day.earlyText}">0 phút</strong></div>
+                        </div>
+                        <div class="mine-hours" th:if="${day.hours != null and !#strings.isEmpty(day.hours)}">
+                            <span>Giờ công</span>
+                            <strong th:text="${day.hours}">—</strong>
+                        </div>
+                        <p class="slot-schedule" th:if="${day.note != null and !#strings.isEmpty(day.note)}" th:text="${day.note}">Ghi chú</p>
+                    </article>
+                    <article class="month-line" th:each="day : ${employee.trainings}"
+                             th:attr="data-shift=${day.shift},data-training=${day.training},data-late=${day.late},data-early-out=${day.early},data-absent=${day.absent}">
+                        <div class="slot-top">
+                            <h4 th:text="${day.title}">21/10/2026 · Lớp</h4>
+                            <span class="day-badge" th:classappend="${day.badgeClass}" th:text="${day.status}">Có mặt</span>
+                        </div>
+                        <p class="slot-schedule" th:text="${day.kindLabel + ' · Giờ học: ' + day.schedule}">Đào tạo · Giờ học: 08:00 – 12:00</p>
+                        <div class="slot-times">
+                            <div><span>Check-in</span><strong th:text="${day.checkIn}">—</strong></div>
+                            <div><span>Check-out</span><strong th:text="${day.checkOut}">—</strong></div>
+                        </div>
+                        <div class="slot-times slot-minutes">
+                            <div><span>Đi muộn đào tạo</span><strong th:text="${day.lateText}">0 phút</strong></div>
+                            <div><span>Về sớm đào tạo</span><strong th:text="${day.earlyText}">0 phút</strong></div>
+                        </div>
+                        <p class="slot-schedule" th:if="${day.note != null and !#strings.isEmpty(day.note)}" th:text="${day.note}">Ghi chú</p>
+                    </article>
+                </div>
+                <button class="primary-btn" value="close">Đóng</button>
+            </form>
+        </dialog>
+    </section>
+    <dialog class="delete-ask" id="deleteAsk" th:if="${version != null and !version.current}">
+        <div class="delete-ask-card">
+            <h3>Bạn có muốn xoá không?</h3>
+            <p id="deleteAskText">Lần gửi này sẽ bị xoá.</p>
+            <div class="send-actions">
+                <button type="button" class="ops-link" id="deleteAskCancel">Huỷ</button>
+                <button type="button" class="send-delete" id="deleteAskOk">Xác nhận</button>
+            </div>
+        </div>
+    </dialog>
+    <script th:if="${version != null and !version.current}">
+    (function () {
+        var ask = document.getElementById("deleteAsk");
+        var text = document.getElementById("deleteAskText");
+        var pending = null;
+        if (!ask) return;
+        document.querySelectorAll(".js-delete-open").forEach(function (button) {
+            button.addEventListener("click", function () {
+                pending = button.closest("form");
+                if (text && pending) {
+                    text.textContent = "Lần gửi " + (pending.getAttribute("data-label") || "") + " sẽ bị xoá.";
+                }
+                ask.showModal();
+            });
+        });
+        document.getElementById("deleteAskCancel").addEventListener("click", function () {
+            pending = null;
+            ask.close();
+        });
+        document.getElementById("deleteAskOk").addEventListener("click", function () {
+            if (pending) pending.submit();
+        });
+        ask.addEventListener("click", function (event) {
+            if (event.target === ask) {
+                pending = null;
+                ask.close();
+            }
+        });
+    })();
+    </script>
+    <script th:if="${version != null and !version.fileMissing}">
+    (function () {
+        var root = document.getElementById("reportStaff");
+        if (!root) return;
+        var search = document.getElementById("reportSearch");
+        var cards = Array.prototype.slice.call(root.querySelectorAll(".month-card"));
+        var filteredEmpty = document.getElementById("reportFilteredEmpty");
+        function chosenRole() {
+            var on = root.querySelector(".report-role-filter button.is-on");
+            return on ? (on.getAttribute("data-filter") || "") : "";
+        }
+        function applySearch() {
+            var text = search ? search.value.trim().toLowerCase() : "";
+            var role = chosenRole();
+            var shown = 0;
+            cards.forEach(function (card) {
+                var matchesText = !text || (card.getAttribute("data-search") || "").indexOf(text) >= 0;
+                var matchesRole = !role || card.getAttribute("data-role") === role;
+                var visible = matchesText && matchesRole;
+                card.hidden = !visible;
+                if (visible) shown += 1;
+            });
+            if (filteredEmpty) filteredEmpty.hidden = shown !== 0 || cards.length === 0;
+        }
+        if (search) search.addEventListener("input", applySearch);
+        root.querySelectorAll(".report-role-filter button").forEach(function (chip) {
+            chip.addEventListener("click", function () {
+                root.querySelectorAll(".report-role-filter button").forEach(function (other) {
+                    other.classList.toggle("is-on", other === chip);
+                });
+                applySearch();
+            });
+        });
+        function chosen(dialog, group) {
+            var row = dialog.querySelector('.detail-filter-row[data-group="' + group + '"] button.is-on');
+            return row ? (row.getAttribute("data-filter") || "") : "";
+        }
+        function lineVisible(line, kind, issue) {
+            if (kind === "shift" && line.getAttribute("data-shift") !== "true") return false;
+            if (kind === "training" && line.getAttribute("data-training") !== "true") return false;
+            if (issue && line.getAttribute("data-" + issue) !== "true") return false;
+            return true;
+        }
+        function applyFilter(dialog) {
+            var kind = chosen(dialog, "kind");
+            var issue = chosen(dialog, "issue");
+            var lines = Array.prototype.slice.call(dialog.querySelectorAll(".month-line"));
+            var shown = 0;
+            lines.forEach(function (line) {
+                var visible = lineVisible(line, kind, issue);
+                line.hidden = !visible;
+                if (visible) shown += 1;
+            });
+            var empty = dialog.querySelector(".detail-filter-empty");
+            if (empty) empty.hidden = (!kind && !issue) || shown !== 0 || lines.length === 0;
+            var none = dialog.querySelector(".detail-none");
+            if (none) none.hidden = lines.length !== 0;
+        }
+        root.querySelectorAll(".month-dialog").forEach(function (dialog) {
+            dialog.querySelectorAll(".detail-filter-row").forEach(function (row) {
+                row.querySelectorAll("button").forEach(function (chip) {
+                    chip.addEventListener("click", function () {
+                        row.querySelectorAll("button").forEach(function (other) {
+                            other.classList.toggle("is-on", other === chip);
+                        });
+                        applyFilter(dialog);
+                    });
+                });
+            });
+        });
+        root.querySelectorAll(".month-detail").forEach(function (button) {
+            button.addEventListener("click", function () {
+                var dialog = document.getElementById(button.getAttribute("data-dialog"));
+                if (!dialog || typeof dialog.showModal !== "function") return;
+                dialog.querySelectorAll(".detail-filter-row").forEach(function (row) {
+                    row.querySelectorAll("button").forEach(function (chip) {
+                        chip.classList.toggle("is-on", !chip.getAttribute("data-filter"));
+                    });
+                });
+                applyFilter(dialog);
+                dialog.showModal();
+            });
+        });
+    })();
+    </script>
+</main>
+</body>
+</html>
