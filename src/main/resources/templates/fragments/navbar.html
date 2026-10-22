@@ -187,6 +187,11 @@
                 <svg class="coffee-icon"><use href="#coffee-i-panel"/></svg>
                 <span class="coffee-side-label">Tổng quan cửa hàng</span>
             </a>
+            <a class="coffee-menu-item" th:href="@{/profile}"
+               th:classappend="${active == 'profile'} ? ' is-active'" title="Hồ sơ cá nhân">
+                <svg class="coffee-icon"><use href="#coffee-i-user"/></svg>
+                <span class="coffee-side-label">Hồ sơ cá nhân</span>
+            </a>
             <div class="coffee-menu-group"
                  th:classappend="${active == 'attendance' or active == 'attendance-day' or active == 'attendance-month' or active == 'attendance-history' or active == 'attendance-training-history'} ? ' is-open'">
                 <button class="coffee-menu-item coffee-group-toggle" type="button"
@@ -251,10 +256,10 @@
                 <svg class="coffee-icon"><use href="#coffee-i-panel"/></svg>
                 <span class="coffee-side-label">Tổng quan</span>
             </a>
-            <a class="coffee-menu-item" th:href="@{/dashboard/staff#profile}"
-               th:classappend="${active == 'profile'} ? ' is-active'" title="Thông tin cá nhân">
+            <a class="coffee-menu-item" th:href="@{/profile}"
+               th:classappend="${active == 'profile'} ? ' is-active'" title="Hồ sơ cá nhân">
                 <svg class="coffee-icon"><use href="#coffee-i-user"/></svg>
-                <span class="coffee-side-label">Thông tin cá nhân</span>
+                <span class="coffee-side-label">Hồ sơ cá nhân</span>
             </a>
             <div class="coffee-menu-group"
                  th:classappend="${active == 'schedule' or active == 'availability'} ? ' is-open'">
@@ -347,7 +352,7 @@
             <span th:case="'availability'">Đăng ký lịch</span>
             <span th:case="'slot-limits'">Cấu hình ca</span>
             <span th:case="'leave'">Nghỉ phép</span>
-            <span th:case="'profile'">Thông tin cá nhân</span>
+            <span th:case="'profile'">Hồ sơ cá nhân</span>
             <span th:case="*">CoffeeHRM</span>
         </strong>
     </div>
@@ -377,6 +382,8 @@
                     <strong th:text="${currentUserName != null and !#strings.isEmpty(currentUserName) ? currentUserName : 'Tài khoản'}">Tài khoản</strong>
                     <small th:text="${role == 'admin' ? 'Admin' : (role == 'manager' ? 'Quản lý cửa hàng' : 'Nhân viên')}">Nhân viên</small>
                 </div>
+                <a th:if="${role == 'manager' or role == 'staff'}"
+                   class="hrm-account-link" th:href="@{/profile}" role="menuitem">Hồ sơ cá nhân</a>
                 <form class="coffee-logout-form" th:action="@{/logout}" method="post"
                       data-coffee-confirm="Bạn muốn đăng xuất khỏi hệ thống?"
                       data-coffee-title="Đăng xuất"

@@ -67,6 +67,7 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
 .coffee-sidebar button:focus-visible,
 .coffee-sidebar a:focus-visible,
 .hrm-topbar button:focus-visible,
+.hrm-account-link:focus-visible,
 .hrm-account-logout:focus-visible {
     outline: 2px solid #B96D49;
     outline-offset: 2px;
@@ -459,7 +460,9 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
     color: #78726E;
     font-size: 12px;
 }
+.hrm-account-menu .hrm-account-link,
 .hrm-account-menu .coffee-logout-form { display: block; margin-top: 6px; }
+.hrm-account-link,
 .hrm-account-logout {
     display: flex;
     width: 100%;
@@ -472,8 +475,10 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
     color: #5C3C2E;
     font: 600 14px/1 'Be Vietnam Pro', Arial, sans-serif;
     text-align: left;
+    text-decoration: none;
     cursor: pointer;
 }
+.hrm-account-link:hover,
 .hrm-account-logout:hover { background: #F6EBE4; color: #B96D49; }
 
 .hrm-topbar .coffee-side-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }

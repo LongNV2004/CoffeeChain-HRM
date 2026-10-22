@@ -1803,6 +1803,58 @@ class TrainingServiceImplTest {
         verify(trainingClassRepository, never()).save(any());
     }
 
+    @Test
+    void currentSkillStatusKeepsTheApprovedPassWhenALaterClassIsNotPass() {
+        when(trainingClassEnrollmentRepository.findSkillTrainingFacts(List.of(30), TrainingClassStatus.REJECTED))
+                .thenReturn(List.of(
+                        fact(30, 1, "Pha chế", TrainingResult.PASS, LocalDateTime.of(2026, 10, 1, 9, 0)),
+                        fact(30, 1, "Pha chế", TrainingResult.NOT_PASS, LocalDateTime.of(2026, 10, 5, 9, 0)),
+                        fact(30, 2, "Phục vụ", TrainingResult.NOT_PASS, LocalDateTime.of(2026, 10, 6, 9, 0)),
+                        new EmployeeSkillTrainingFact(
+                                30, 3, "Thu ngân", TrainingResult.PASS,
+                                LocalDateTime.of(2026, 10, 7, 9, 0),
+                                LocalDate.of(2026, 10, 6),
+                                LocalDate.of(2026, 10, 7),
+                                LocalTime.of(17, 0),
+                                TrainingClassStatus.PENDING_APPROVAL),
+                        fact(99, 9, "Người khác", TrainingResult.PASS, LocalDateTime.of(2026, 10, 8, 9, 0))));
+
+        List<EmployeeSkillStatusLine> lines = trainingService.listCurrentSkillStatuses(30);
+
+        assertEquals(3, lines.size());
+        assertTrue(lines.stream().noneMatch(line -> Integer.valueOf(9).equals(line.getSkillId())));
+        EmployeeSkillStatusLine brew = line(lines, 1);
+        assertEquals(CertificationStatus.CERTIFIED, brew.getCertificationStatus());
+        assertEquals("CERTIFIED - Pha chế", brew.getCertificationLabel());
+        assertEquals("01/10/2026", brew.getCertifiedDateLabel());
+        assertEquals("NOT PASS", brew.getLatestResultLabel());
+        EmployeeSkillStatusLine service = line(lines, 2);
+        assertEquals(CertificationStatus.NOTCERTIFIED, service.getCertificationStatus());
+        assertEquals("NOTCERTIFIED - Phục vụ", service.getCertificationLabel());
+        assertNull(service.getCertifiedDateLabel());
+        EmployeeSkillStatusLine cashier = line(lines, 3);
+        assertEquals(CertificationStatus.NOTCERTIFIED, cashier.getCertificationStatus());
+        assertNull(cashier.getCertifiedDateLabel());
+    }
+
+    @Test
+    void currentSkillStatusIsEmptyWhenTheEmployeeHasNoCertificate() {
+        when(trainingClassEnrollmentRepository.findSkillTrainingFacts(List.of(30), TrainingClassStatus.REJECTED))
+                .thenReturn(List.of());
+
+        assertTrue(trainingService.listCurrentSkillStatuses(30).isEmpty());
+        assertTrue(trainingService.listCurrentSkillStatuses(null).isEmpty());
+        verify(trainingClassEnrollmentRepository, times(1))
+                .findSkillTrainingFacts(List.of(30), TrainingClassStatus.REJECTED);
+    }
+
+    private EmployeeSkillStatusLine line(List<EmployeeSkillStatusLine> lines, Integer skillId) {
+        return lines.stream()
+                .filter(item -> skillId.equals(item.getSkillId()))
+                .findFirst()
+                .orElseThrow();
+    }
+
     private EmployeeSkillTrainingFact fact(Integer employeeId,
                                            Integer skillId,
                                            String skillName,

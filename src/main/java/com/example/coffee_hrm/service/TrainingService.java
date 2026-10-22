@@ -6,6 +6,7 @@ import com.example.coffee_hrm.dto.request.CreateTrainingClassRequest;
 import com.example.coffee_hrm.dto.request.CreateTrainingSkillRequest;
 import com.example.coffee_hrm.dto.request.EvaluateTrainingStudentRequest;
 import com.example.coffee_hrm.dto.request.UpdateTrainingSkillRequest;
+import com.example.coffee_hrm.dto.response.EmployeeSkillStatusLine;
 import com.example.coffee_hrm.dto.response.EmployeeTrainingClassResponse;
 import com.example.coffee_hrm.dto.response.TrainingClassResponse;
 import com.example.coffee_hrm.dto.response.TrainingClassStudentResponse;
@@ -72,6 +73,12 @@ public interface TrainingService {
     EmployeeTrainingClassResponse getClassForEmployee(Integer classId, AuthenticatedUser employee);
 
     long countOngoingClassesForEmployee(AuthenticatedUser employee);
+
+    /**
+     * Trạng thái chứng chỉ hiện hành của từng kỹ năng thuộc đúng nhân viên.
+     * PASS ở lớp đã duyệt giữ chứng chỉ; NOT PASS sau đó không xóa chứng chỉ và không đổi ngày cấp.
+     */
+    List<EmployeeSkillStatusLine> listCurrentSkillStatuses(Integer employeeId);
 
     TrainingClassResponse createClass(CreateTrainingClassRequest request, AuthenticatedUser manager);
 

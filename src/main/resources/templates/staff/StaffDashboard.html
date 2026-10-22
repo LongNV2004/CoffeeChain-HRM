@@ -91,6 +91,9 @@
                 <dd th:text="${dashboard.hireDate != null} ? ${#temporals.format(dashboard.hireDate, 'dd/MM/yyyy')} : '—'">—</dd>
             </div>
         </dl>
+        <p style="margin-top:12px;">
+            <a class="hrm-text-link" th:href="@{/profile}">Xem hồ sơ cá nhân và đổi mật khẩu →</a>
+        </p>
     </article>
 
     <article class="panel" id="training">

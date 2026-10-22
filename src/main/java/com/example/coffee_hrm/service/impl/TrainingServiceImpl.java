@@ -459,6 +459,16 @@ public class TrainingServiceImpl implements TrainingService {
     }
 
     @Override
+    public List<EmployeeSkillStatusLine> listCurrentSkillStatuses(Integer employeeId) {
+        if (employeeId == null) {
+            return List.of();
+        }
+        Map<Integer, SkillSnapshot> snapshots = skillSnapshotsByEmployeeIds(List.of(employeeId))
+                .getOrDefault(employeeId, Map.of());
+        return historyLines(snapshots, Set.of());
+    }
+
+    @Override
     @Transactional
     public void deleteClassForManager(Integer classId, AuthenticatedUser manager) {
         TrainingClass trainingClass = requireVisibleApprovedClass(classId, manager);

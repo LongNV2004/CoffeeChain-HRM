@@ -28,6 +28,14 @@ public interface RecruitmentCandidateRepository extends JpaRepository<Recruitmen
 
     boolean existsByRehireEmployee_IdAndStatus(Integer employeeId, RecruitmentStatus status);
 
+    @Query("""
+            SELECT c FROM RecruitmentCandidate c
+            WHERE c.createdEmployee.id = :employeeId
+               OR c.rehireEmployee.id = :employeeId
+            ORDER BY c.id DESC
+            """)
+    List<RecruitmentCandidate> findByLinkedEmployeeId(@Param("employeeId") Integer employeeId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             SELECT c FROM RecruitmentCandidate c
