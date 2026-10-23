@@ -1,13 +1,13 @@
-@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap');
 
 /* Shell chỉ áp dụng khi đã đăng nhập (có sidebar). Trang login không dùng class này. */
 html:has(.coffee-sidebar) {
     min-height: 100%;
-    background:
-        radial-gradient(880px 520px at -8% -12%, rgba(182, 139, 112, .42), transparent 58%),
-        radial-gradient(720px 460px at 108% 108%, rgba(185, 109, 73, .22), transparent 52%),
-        radial-gradient(540px 320px at 70% 0%, rgba(191, 174, 164, .55), transparent 60%),
-        #DDDBDA;
+    background-color: #F6F1EA;
+    background-image:
+        radial-gradient(1100px 640px at -8% -12%, rgba(184, 135, 82, .18), transparent 58%),
+        radial-gradient(820px 480px at 108% 108%, rgba(43, 29, 22, .06), transparent 52%),
+        #F6F1EA;
 }
 
 body:has(.coffee-sidebar) {
@@ -15,12 +15,12 @@ body:has(.coffee-sidebar) {
     --shell-gap: 16px;
     --shell-header: 74px;
     --coffee-sidebar-width: 272px;
-    --ink: #080606;
-    --muted: #78726E;
-    --accent: #B96D49;
+    --ink: #1A1715;
+    --muted: #766D64;
+    --accent: #8C5335;
     --accent-soft: #B68B70;
     --brown: #5C3C2E;
-    --card: #FBF8F5;
+    --card: #FFFFFF;
     margin: 0;
     background: transparent;
     color: var(--ink);
@@ -36,9 +36,9 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
 .coffee-sidebar * { box-sizing: border-box; }
 
 .coffee-sidebar {
-    --coffee-ink: #3C3532;
-    --coffee-muted: #78726E;
-    --coffee-highlight: #080606;
+    --coffee-ink: #C9BFB5;
+    --coffee-muted: #8E8276;
+    --coffee-highlight: #FFFFFF;
     position: fixed;
     z-index: 50;
     top: var(--shell-pad, 16px);
@@ -49,14 +49,12 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
     width: var(--coffee-sidebar-width, 272px);
     height: auto;
     padding: 18px 12px 0;
-    border-radius: 28px;
+    border-radius: 24px;
     color: var(--coffee-ink);
     font: 500 14px/1.45 'Be Vietnam Pro', Arial, sans-serif;
-    background: rgba(251, 248, 245, .72);
-    border: 1px solid rgba(255, 255, 255, .72);
-    box-shadow: 0 18px 40px rgba(92, 60, 46, .08);
-    backdrop-filter: blur(18px) saturate(1.15);
-    -webkit-backdrop-filter: blur(18px) saturate(1.15);
+    background: #1B1816;
+    border: 1px solid rgba(255, 255, 255, .08);
+    box-shadow: 0 16px 40px rgba(15, 12, 10, .22);
     transition: width .22s ease, transform .22s ease;
 }
 
@@ -69,7 +67,7 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
 .hrm-topbar button:focus-visible,
 .hrm-account-link:focus-visible,
 .hrm-account-logout:focus-visible {
-    outline: 2px solid #B96D49;
+    outline: 2px solid #8C5335;
     outline-offset: 2px;
 }
 .coffee-icon-sprite {
@@ -109,27 +107,28 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
     width: 42px;
     height: 42px;
     flex: 0 0 42px;
-    border-radius: 14px;
-    color: #F8F1EB;
-    background: linear-gradient(160deg, #B68B70 0%, #5C3C2E 100%);
-    box-shadow: 0 8px 16px rgba(92, 60, 46, .22);
+    border-radius: 12px;
+    color: #FFFFFF;
+    background: linear-gradient(135deg, #A8673E 0%, #5C3C2E 100%);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, .35);
 }
 .coffee-sidebar .coffee-brand-mark .coffee-icon { width: 22px; height: 22px; }
 .coffee-brand-title { min-width: 0; white-space: nowrap; }
 .coffee-brand-title strong {
     display: block;
-    color: #080606;
-    font-size: 16px;
-    font-weight: 700;
+    color: #FDFBF8;
+    font-family: 'Fraunces', serif;
+    font-size: 18px;
+    font-weight: 600;
     line-height: 1.15;
-    letter-spacing: -0.03em;
+    letter-spacing: -0.01em;
 }
 .coffee-brand-title small {
     display: block;
     margin-top: 2px;
-    color: var(--coffee-muted);
+    color: #8E8276;
     font: 600 10px/1.3 'Be Vietnam Pro', Arial, sans-serif;
-    letter-spacing: .08em;
+    letter-spacing: .12em;
 }
 .coffee-sidebar-toggle {
     display: grid;
@@ -138,12 +137,12 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
     height: 32px;
     flex: 0 0 32px;
     padding: 0;
-    color: #78726E;
-    background: rgba(255, 255, 255, .45);
-    border: 1px solid rgba(92, 60, 46, .08);
+    color: #A89F95;
+    background: rgba(255, 255, 255, .06);
+    border: 1px solid rgba(255, 255, 255, .1);
     border-radius: 10px;
 }
-.coffee-sidebar-toggle:hover { background: #fff; color: #080606; }
+.coffee-sidebar-toggle:hover { background: rgba(255, 255, 255, .15); color: #FFFFFF; }
 
 .coffee-role-chip { display: none; }
 
@@ -153,13 +152,13 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
     overflow-x: hidden;
     overflow-y: auto;
     scrollbar-width: thin;
-    scrollbar-color: #BFAEA4 transparent;
+    scrollbar-color: #5C3C2E transparent;
     padding: 4px 4px 12px;
 }
 .coffee-menu-caption {
-    margin: 4px 0 8px;
+    margin: 6px 0 8px;
     padding: 0 12px;
-    color: #78726E;
+    color: #7E7368;
     font-size: 11px;
     font-weight: 700;
     letter-spacing: .12em;
@@ -174,8 +173,8 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
     gap: 12px;
     padding: 8px 12px;
     border: none;
-    border-radius: 14px;
-    color: #5C564F;
+    border-radius: 12px;
+    color: #BDB3A7;
     background: transparent;
     text-align: left;
     transition: background-color .18s ease, color .18s ease, box-shadow .18s ease;
@@ -188,17 +187,17 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
 }
 .coffee-sidebar .coffee-menu-item:hover,
 .coffee-sidebar .coffee-group-toggle:hover {
-    background: rgba(255, 255, 255, .66);
-    color: #080606;
+    background: rgba(255, 255, 255, .07);
+    color: #FFFFFF;
 }
 .coffee-sidebar .coffee-menu-item.is-active {
-    color: #F8F1EB;
-    background: #5C3C2E;
+    color: #FFFFFF;
+    background: #8C5335;
     font-weight: 600;
-    box-shadow: 0 10px 20px rgba(92, 60, 46, .22);
+    box-shadow: 0 8px 20px rgba(140, 83, 53, .35);
 }
 .coffee-sidebar .coffee-menu-group.is-open > .coffee-group-toggle {
-    color: #5C3C2E;
+    color: #FFFFFF;
     font-weight: 600;
 }
 .coffee-sidebar .coffee-group-toggle .coffee-chevron {
@@ -213,23 +212,23 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
     display: none;
     margin: 2px 0 8px 18px;
     padding: 4px 0 4px 10px;
-    border-left: 1px solid rgba(92, 60, 46, .16);
+    border-left: 1px solid rgba(255, 255, 255, .14);
 }
 .coffee-menu-group.is-open .coffee-group-children { display: flex; flex-direction: column; gap: 2px; }
 .coffee-sidebar .coffee-group-children a {
     display: block;
     padding: 8px 10px;
     margin: 0;
-    color: #5C564F;
+    color: #A69C91;
     font-size: 13px;
     line-height: 1.45;
-    border-radius: 10px;
+    border-radius: 8px;
     overflow-wrap: anywhere;
 }
-.coffee-sidebar .coffee-group-children a:hover { background: rgba(255, 255, 255, .7); color: #080606; }
+.coffee-sidebar .coffee-group-children a:hover { background: rgba(255, 255, 255, .08); color: #FFFFFF; }
 .coffee-sidebar .coffee-group-children a.is-active {
-    color: #5C3C2E;
-    background: rgba(185, 109, 73, .16);
+    color: #FFFFFF;
+    background: rgba(140, 83, 53, .45);
     font-weight: 600;
 }
 .coffee-sidebar .coffee-menu-count {
@@ -237,8 +236,8 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
     min-width: 18px;
     padding: 0 6px;
     border-radius: 999px;
-    background: #F3E2D6;
-    color: #8C4E32;
+    background: rgba(255, 255, 255, .12);
+    color: #F8E7D4;
     font-size: 11px;
     font-weight: 700;
     line-height: 18px;
@@ -246,8 +245,8 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
     white-space: nowrap;
 }
 .coffee-sidebar .coffee-menu-item.is-active .coffee-menu-count {
-    background: rgba(255, 255, 255, .18);
-    color: #F8F1EB;
+    background: rgba(255, 255, 255, .25);
+    color: #FFFFFF;
 }
 
 .coffee-sidebar-bottom {
@@ -262,22 +261,22 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
     gap: 12px;
     min-height: 40px;
     padding: 8px 12px;
-    color: #5C564F;
+    color: #A89F95;
     text-align: left;
     background: transparent;
     border: 0;
     border-radius: 12px;
 }
-.coffee-sidebar .coffee-back-button:hover { background: rgba(255, 255, 255, .7); color: #080606; }
+.coffee-sidebar .coffee-back-button:hover { background: rgba(255, 255, 255, .08); color: #FFFFFF; }
 .coffee-account-row {
     display: flex;
     align-items: center;
     gap: 10px;
     margin-top: 6px;
-    padding: 10px 8px;
-    border-radius: 16px;
-    background: rgba(255, 255, 255, .48);
-    border: 1px solid rgba(255, 255, 255, .7);
+    padding: 10px 10px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, .05);
+    border: 1px solid rgba(255, 255, 255, .08);
 }
 .coffee-account-avatar {
     display: grid;
@@ -287,8 +286,8 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
     flex: 0 0 36px;
     border-radius: 50%;
     overflow: hidden;
-    color: #F8F1EB;
-    background: linear-gradient(160deg, #B68B70, #5C3C2E);
+    color: #FFFFFF;
+    background: linear-gradient(135deg, #A8673E, #5C3C2E);
 }
 .coffee-account-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .coffee-account-avatar img:not([hidden]) ~ svg { display: none; }
@@ -301,8 +300,8 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
     white-space: nowrap;
     text-overflow: ellipsis;
 }
-.coffee-account-info strong { font-size: 13px; color: #080606; }
-.coffee-account-info small { font-size: 11px; color: var(--coffee-muted); }
+.coffee-account-info strong { font-size: 13px; color: #FDFBF8; }
+.coffee-account-info small { font-size: 11px; color: #8E8276; }
 .coffee-logout-form { flex: 0 0 auto; margin: 0; }
 .coffee-sidebar .coffee-logout-button {
     display: grid;
@@ -312,10 +311,10 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
     padding: 0;
     border: 0;
     border-radius: 10px;
-    color: #78726E;
+    color: #A89F95;
     background: transparent;
 }
-.coffee-sidebar .coffee-logout-button:hover { color: #8C4E32; background: #F8EBE6; }
+.coffee-sidebar .coffee-logout-button:hover { color: #FFA18F; background: rgba(255, 255, 255, .08); }
 
 .coffee-sidebar.is-collapsed { width: 88px; padding-right: 10px; padding-left: 10px; }
 .coffee-sidebar.is-collapsed .coffee-side-label { display: none !important; }
@@ -343,26 +342,29 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
     align-items: center;
     gap: 14px;
     height: var(--shell-header, 74px);
-    padding: 0 14px 0 18px;
-    border-radius: 24px;
-    background: rgba(251, 248, 245, .7);
-    border: 1px solid rgba(255, 255, 255, .72);
-    box-shadow: 0 12px 30px rgba(92, 60, 46, .06);
-    backdrop-filter: blur(16px) saturate(1.1);
-    -webkit-backdrop-filter: blur(16px) saturate(1.1);
+    padding: 0 18px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, .90);
+    border: 1px solid rgba(60, 40, 30, .08);
+    box-shadow: 0 4px 20px rgba(43, 27, 18, .04);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     transition: left .22s ease;
 }
 .hrm-topbar-titles { min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
 .hrm-topbar-kicker {
-    color: #B96D49;
+    color: #8C5335;
     font: 700 11px/1.2 'Be Vietnam Pro', Arial, sans-serif;
     letter-spacing: .12em;
     text-transform: uppercase;
 }
 .hrm-topbar-title {
-    color: #080606;
-    font: 700 22px/1.15 'Be Vietnam Pro', Arial, sans-serif;
-    letter-spacing: -0.03em;
+    color: #1A1715;
+    font-family: 'Fraunces', serif;
+    font-size: 22px;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -381,18 +383,19 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
     display: flex;
     align-items: center;
     gap: 10px;
-    min-height: 48px;
+    min-height: 44px;
     max-width: 260px;
-    padding: 5px 12px 5px 5px;
+    padding: 4px 14px 4px 4px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, .82);
-    border: 1px solid rgba(255, 255, 255, .9);
-    box-shadow: 0 8px 18px rgba(92, 60, 46, .06);
-    color: #080606;
+    background: #FAF7F2;
+    border: 1px solid rgba(60, 40, 30, .1);
+    box-shadow: 0 2px 6px rgba(43, 27, 18, .03);
+    color: #1A1715;
     cursor: pointer;
     font: inherit;
+    transition: background-color .18s ease, border-color .18s ease;
 }
-.hrm-user-pill:hover { background: #fff; }
+.hrm-user-pill:hover { background: #FFFFFF; border-color: #8C5335; }
 .hrm-user-pill .coffee-icon,
 .hrm-caret {
     width: 18px;
@@ -407,7 +410,7 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
     width: 16px;
     height: 16px;
     flex: 0 0 16px;
-    color: #78726E;
+    color: #766D64;
     transition: transform .18s ease;
 }
 .hrm-account.is-open .hrm-caret { transform: rotate(180deg); }
@@ -420,14 +423,14 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
     text-overflow: ellipsis;
 }
 .hrm-user-meta strong {
-    color: #080606;
+    color: #1A1715;
     font-size: 13px;
     font-weight: 600;
     line-height: 1.2;
 }
 .hrm-user-meta small {
     margin-top: 2px;
-    color: #78726E;
+    color: #766D64;
     font-size: 12px;
     line-height: 1.2;
 }
@@ -438,26 +441,26 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
     z-index: 80;
     width: 240px;
     padding: 8px;
-    border-radius: 18px;
-    background: #FFFCFA;
-    border: 1px solid rgba(92, 60, 46, .1);
-    box-shadow: 0 18px 40px rgba(8, 6, 6, .12);
+    border-radius: 16px;
+    background: #FFFFFF;
+    border: 1px solid rgba(60, 40, 30, .1);
+    box-shadow: 0 16px 36px rgba(27, 24, 22, .12);
 }
 .hrm-account-menu[hidden] { display: none; }
 .hrm-account-menu-head {
     padding: 10px 12px 12px;
-    border-bottom: 1px solid rgba(92, 60, 46, .08);
+    border-bottom: 1px solid rgba(60, 40, 30, .08);
 }
 .hrm-account-menu-head strong,
 .hrm-account-menu-head small { display: block; }
 .hrm-account-menu-head strong {
-    color: #080606;
+    color: #1A1715;
     font-size: 14px;
     font-weight: 700;
 }
 .hrm-account-menu-head small {
     margin-top: 2px;
-    color: #78726E;
+    color: #766D64;
     font-size: 12px;
 }
 .hrm-account-menu .hrm-account-link,
@@ -470,30 +473,32 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
     min-height: 40px;
     padding: 0 12px;
     border: 0;
-    border-radius: 12px;
+    border-radius: 10px;
     background: transparent;
-    color: #5C3C2E;
+    color: #1A1715;
     font: 600 14px/1 'Be Vietnam Pro', Arial, sans-serif;
     text-align: left;
     text-decoration: none;
     cursor: pointer;
+    transition: background-color .15s ease, color .15s ease;
 }
 .hrm-account-link:hover,
-.hrm-account-logout:hover { background: #F6EBE4; color: #B96D49; }
+.hrm-account-logout:hover { background: #FAF6F0; color: #8C5335; }
 
 .hrm-topbar .coffee-side-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .hrm-topbar .notif-wrap { position: relative; }
 .hrm-topbar .notif-bell-btn {
     width: 42px;
     height: 42px;
-    border-radius: 14px;
-    border: 1px solid rgba(255, 255, 255, .9);
-    background: rgba(255, 255, 255, .82);
-    color: #5C3C2E;
-    box-shadow: 0 8px 18px rgba(92, 60, 46, .05);
+    border-radius: 999px;
+    border: 1px solid rgba(60, 40, 30, .1);
+    background: #FAF7F2;
+    color: #1A1715;
+    box-shadow: 0 2px 6px rgba(43, 27, 18, .03);
+    transition: background-color .18s ease, border-color .18s ease, color .18s ease;
 }
 .hrm-topbar .notif-bell-btn:hover,
-.hrm-topbar .notif-bell-btn[aria-expanded="true"] { background: #fff; color: #B96D49; }
+.hrm-topbar .notif-bell-btn[aria-expanded="true"] { background: #FFFFFF; border-color: #8C5335; color: #8C5335; }
 .hrm-topbar .notif-popup { z-index: 90; }
 .hrm-menu-btn {
     display: none;
@@ -501,10 +506,10 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
     width: 42px;
     height: 42px;
     padding: 0;
-    border: 1px solid rgba(255, 255, 255, .9);
-    border-radius: 14px;
-    background: rgba(255, 255, 255, .82);
-    color: #080606;
+    border: 1px solid rgba(60, 40, 30, .1);
+    border-radius: 12px;
+    background: #FAF7F2;
+    color: #1A1715;
     cursor: pointer;
 }
 .hrm-menu-btn svg { width: 18px; height: 18px; }
@@ -527,13 +532,13 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
         left: 0;
         width: min(300px, 88vw);
         border-radius: 0 24px 24px 0;
-        background: rgba(247, 243, 239, .96);
+        background: #1B1816;
         transform: translateX(-110%);
         box-shadow: none;
     }
     body.hrm-nav-open .coffee-sidebar {
         transform: none;
-        box-shadow: 16px 0 40px rgba(8, 6, 6, .18);
+        box-shadow: 16px 0 40px rgba(0, 0, 0, .45);
     }
     .hrm-topbar {
         left: 0;
@@ -541,11 +546,13 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
         top: 0;
         z-index: 46;
         height: 68px;
-        padding: 0 12px;
+        padding: 0 14px;
         border-radius: 0;
         border-right: 0;
         border-left: 0;
         border-top: 0;
+        background: #FAF7F2;
+        border-bottom: 1px solid rgba(60, 40, 30, .1);
     }
     .hrm-topbar-kicker { display: none; }
     .hrm-topbar-title { font-size: 18px; }
@@ -557,7 +564,7 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
         position: fixed;
         inset: 0;
         z-index: 45;
-        background: rgba(8, 6, 6, .38);
+        background: rgba(15, 12, 10, .55);
     }
     .hrm-topbar .notif-popup,
     .hrm-account-menu {
@@ -602,16 +609,16 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
     position: relative;
     z-index: 1;
     width: min(420px, 100%);
-    padding: 22px 22px 18px;
-    border: 1px solid rgba(92, 60, 46, .14);
-    border-radius: 16px;
-    background: #fff;
-    box-shadow: 0 18px 48px rgba(43, 27, 18, .22);
-    font-family: 'Inter', sans-serif;
+    padding: 24px;
+    border: 1px solid rgba(60, 40, 30, .1);
+    border-radius: 18px;
+    background: #FFFFFF;
+    box-shadow: 0 20px 50px rgba(15, 12, 10, .25);
+    font-family: 'Be Vietnam Pro', 'Inter', sans-serif;
 }
 .coffee-confirm-card h2 {
     margin: 0;
-    color: #2B1B12;
+    color: #1A1715;
     font-family: 'Fraunces', serif;
     font-size: 22px;
     font-weight: 600;
@@ -619,7 +626,7 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
 }
 .coffee-confirm-card p {
     margin: 8px 0 0;
-    color: #4A3324;
+    color: #3D352F;
     font-size: 15px;
     line-height: 1.5;
     white-space: normal;
@@ -632,7 +639,7 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
 }
 .coffee-confirm-reason[hidden] { display: none !important; }
 .coffee-confirm-reason span {
-    color: #4A3324;
+    color: #3D352F;
     font-size: 13px;
     font-weight: 600;
 }
@@ -640,19 +647,20 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
     width: 100%;
     min-height: 88px;
     padding: 10px 12px;
-    border: 1px solid #E4D7C4;
-    border-radius: 12px;
-    background: #fff;
-    color: #2B1B12;
-    font: 400 14px/1.45 'Inter', sans-serif;
+    border: 1px solid rgba(60, 40, 30, .16);
+    border-radius: 10px;
+    background: #FFFFFF;
+    color: #1A1715;
+    font: 400 14px/1.45 'Be Vietnam Pro', 'Inter', sans-serif;
     resize: vertical;
 }
 .coffee-confirm-reason textarea:focus {
-    outline: 2px solid #C1793A;
-    outline-offset: 1px;
+    outline: none;
+    border-color: #8C5335;
+    box-shadow: 0 0 0 3px rgba(140, 83, 53, .16);
 }
 .coffee-confirm-reason-error {
-    color: #8E2F2F;
+    color: #9F3B32;
     font-size: 13px;
 }
 .coffee-confirm-reason-error[hidden] { display: none !important; }
@@ -665,23 +673,24 @@ body:has(.coffee-sidebar.is-collapsed) { --coffee-sidebar-width: 88px; }
 .coffee-confirm-cancel,
 .coffee-confirm-ok {
     min-height: 40px;
-    padding: 0 16px;
-    border-radius: 12px;
-    font: 600 14px/1 'Inter', sans-serif;
+    padding: 0 18px;
+    border-radius: 999px;
+    font: 600 14px/1 'Be Vietnam Pro', 'Inter', sans-serif;
     cursor: pointer;
+    transition: background-color .15s ease, color .15s ease;
 }
 .coffee-confirm-cancel {
-    border: 1px solid #E4D7C4;
-    background: #FBF3E8;
-    color: #2B1B12;
+    border: 1px solid rgba(60, 40, 30, .16);
+    background: #FAF6F0;
+    color: #1A1715;
 }
-.coffee-confirm-cancel:hover { background: #F1E8DB; }
+.coffee-confirm-cancel:hover { background: #EFE8DE; }
 .coffee-confirm-ok {
     border: 0;
-    background: #5C3C2E;
-    color: #F8F1EB;
+    background: #1F1A17;
+    color: #FFFFFF;
 }
-.coffee-confirm-ok:hover { background: #3E2820; }
+.coffee-confirm-ok:hover { background: #352B24; }
 .coffee-confirm-ok.is-danger { background: #9F3B32; }
 .coffee-confirm-ok.is-danger:hover { background: #7E2E28; }
 .coffee-confirm-cancel:focus-visible,

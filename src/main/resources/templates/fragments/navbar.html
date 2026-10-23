@@ -45,6 +45,9 @@
 </th:block>
 
 <div th:fragment="sidebar(role, active)" class="hrm-shell">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap">
     <link rel="stylesheet" th:href="@{/css/hrm-design-system.css}">
     <link rel="stylesheet" th:href="@{/css/CoffeeNavbar.css}">
 <aside class="coffee-sidebar"
@@ -89,9 +92,23 @@
         <symbol id="coffee-i-shift" viewBox="0 0 24 24">
             <path d="M4 7h15m0 0-4-4m4 4-4 4M20 17H5m0 0 4-4m-4 4 4 4"/>
         </symbol>
+        <symbol id="coffee-i-schedule" viewBox="0 0 24 24">
+            <rect x="3" y="4" width="18" height="16" rx="2"/>
+            <path d="M8 2.5v3.5M16 2.5v3.5M3 9h18"/>
+            <path d="M7 12.5h2.4M11 12.5h2.4M15 12.5h2.4M7 16h2.4M11 16h2.4"/>
+        </symbol>
         <symbol id="coffee-i-leave" viewBox="0 0 24 24">
-            <rect x="4" y="4" width="16" height="17" rx="2"/>
-            <path d="M8 2v4m8-4v4M4 10h16m-12 5h5"/>
+            <path d="M4 13a8 8 0 0 0 16 0"/>
+            <path d="M12 5v8M4 13h16"/>
+            <path d="M12 13v5.2"/>
+            <path d="M12 18.2c0 1.6 1.5 2.6 3 2.6"/>
+        </symbol>
+        <symbol id="coffee-i-salary" viewBox="0 0 24 24">
+            <rect x="3" y="6" width="18" height="13" rx="2"/>
+            <path d="M3 10h18M16 14h2"/>
+        </symbol>
+        <symbol id="coffee-i-transfer" viewBox="0 0 24 24">
+            <path d="M4 8h12m0 0-3-3m3 3-3 3M20 16H8m0 0 3-3m-3 3 3 3"/>
         </symbol>
         <symbol id="coffee-i-chevron" viewBox="0 0 24 24">
             <path d="m7 10 5 5 5-5"/>
@@ -140,11 +157,19 @@
                 <svg class="coffee-icon"><use href="#coffee-i-panel"/></svg>
                 <span class="coffee-side-label">Tổng quan hệ thống</span>
             </a>
-            <a class="coffee-menu-item" th:href="@{/admin/stores}"
-               th:classappend="${active == 'stores'} ? ' is-active'" title="Quản lý cửa hàng">
-                <svg class="coffee-icon"><use href="#coffee-i-store"/></svg>
-                <span class="coffee-side-label">Quản lý cửa hàng</span>
-            </a>
+            <div class="coffee-menu-group" th:classappend="${active == 'stores' or active == 'store-create'} ? ' is-open'">
+                <button type="button" class="coffee-menu-item coffee-group-toggle"
+                        data-group-toggle title="Quản lý cửa hàng"
+                        th:attr="aria-expanded=${active == 'stores' or active == 'store-create'}">
+                    <svg class="coffee-icon"><use href="#coffee-i-store"/></svg>
+                    <span class="coffee-side-label">Quản lý cửa hàng</span>
+                    <svg class="coffee-icon coffee-chevron coffee-side-label"><use href="#coffee-i-chevron"/></svg>
+                </button>
+                <div class="coffee-group-children">
+                    <a th:href="@{/admin/stores/create}" th:classappend="${active == 'store-create'} ? ' is-active'">Tạo cửa hàng mới</a>
+                    <a th:href="@{/admin/stores}" th:classappend="${active == 'stores'} ? ' is-active'">Danh sách cửa hàng</a>
+                </div>
+            </div>
             <div class="coffee-menu-group" th:classappend="${active == 'employees' or active == 'recruitment' or active == 'resignation' or active == 'training'} ? ' is-open'">
                 <button type="button" class="coffee-menu-item coffee-group-toggle"
                         data-group-toggle title="Quản lý nhân sự"
@@ -168,10 +193,15 @@
                     <a th:href="@{/admin/training}" th:classappend="${active == 'training'} ? ' is-active'">Đào tạo</a>
                 </div>
             </div>
-            <a class="coffee-menu-item" th:href="@{/attendance/admin}"
-               th:classappend="${active == 'attendance'} ? ' is-active'" title="Chấm công">
-                <svg class="coffee-icon"><use href="#coffee-i-calendar"/></svg>
-                <span class="coffee-side-label">Chấm công</span>
+            <a class="coffee-menu-item" th:href="@{/admin/transfer}"
+               th:classappend="${active == 'transfer'} ? ' is-active'" title="Điều chuyển nhân sự">
+                <svg class="coffee-icon"><use href="#coffee-i-transfer"/></svg>
+                <span class="coffee-side-label">Điều chuyển nhân sự</span>
+            </a>
+            <a class="coffee-menu-item" th:href="@{/admin/salary}"
+               th:classappend="${active == 'salary'} ? ' is-active'" title="Quản lý lương">
+                <svg class="coffee-icon"><use href="#coffee-i-salary"/></svg>
+                <span class="coffee-side-label">Quản lý lương</span>
             </a>
             <a class="coffee-menu-item" th:href="@{/attendance/admin/reports}"
                th:classappend="${active == 'reports'} ? ' is-active'" title="Báo cáo toàn chuỗi">
@@ -193,12 +223,28 @@
                 <span class="coffee-side-label">Hồ sơ cá nhân</span>
             </a>
             <div class="coffee-menu-group"
+                 th:classappend="${active == 'schedule' or active == 'availability' or active == 'slot-limits' or active == 'overtime'} ? ' is-open'">
+                <button class="coffee-menu-item coffee-group-toggle" type="button"
+                        data-group-toggle title="Lịch làm việc"
+                        th:attr="aria-expanded=${active == 'schedule' or active == 'availability' or active == 'slot-limits' or active == 'overtime'}">
+                    <svg class="coffee-icon"><use href="#coffee-i-schedule"/></svg>
+                    <span class="coffee-side-label">Lịch làm việc</span>
+                    <svg class="coffee-icon coffee-chevron coffee-side-label"><use href="#coffee-i-chevron"/></svg>
+                </button>
+                <div class="coffee-group-children">
+                    <a th:href="@{/schedule/manager}" th:classappend="${active == 'schedule'} ? ' is-active'">Lịch làm việc</a>
+                    <a th:href="@{/availability/manager}" th:classappend="${active == 'availability'} ? ' is-active'">Đăng kí lịch làm việc</a>
+                    <a th:href="@{/availability/manager/limits}" th:classappend="${active == 'slot-limits'} ? ' is-active'">Quản lý ca làm việc</a>
+                    <a th:href="@{/schedule/manager/overtime}" th:classappend="${active == 'overtime'} ? ' is-active'">Đăng kí tăng ca</a>
+                </div>
+            </div>
+            <div class="coffee-menu-group"
                  th:classappend="${active == 'attendance' or active == 'attendance-day' or active == 'attendance-month' or active == 'attendance-history' or active == 'attendance-training-history'} ? ' is-open'">
                 <button class="coffee-menu-item coffee-group-toggle" type="button"
-                        data-group-toggle title="Chấm Công"
+                        data-group-toggle title="Chấm công"
                         th:attr="aria-expanded=${active == 'attendance' or active == 'attendance-day' or active == 'attendance-month' or active == 'attendance-history' or active == 'attendance-training-history'}">
                     <svg class="coffee-icon"><use href="#coffee-i-calendar"/></svg>
-                    <span class="coffee-side-label">Chấm Công</span>
+                    <span class="coffee-side-label">Chấm công</span>
                     <svg class="coffee-icon coffee-chevron coffee-side-label"><use href="#coffee-i-chevron"/></svg>
                 </button>
                 <div class="coffee-group-children">
@@ -208,26 +254,6 @@
                        th:classappend="${active == 'attendance-day' or active == 'attendance-month' or active == 'attendance-training-history'} ? ' is-active'">Theo dõi chấm công</a>
                 </div>
             </div>
-            <div class="coffee-menu-group"
-                 th:classappend="${active == 'schedule' or active == 'availability' or active == 'slot-limits'} ? ' is-open'">
-                <button class="coffee-menu-item coffee-group-toggle" type="button"
-                        data-group-toggle title="Lịch làm việc"
-                        th:attr="aria-expanded=${active == 'schedule' or active == 'availability' or active == 'slot-limits'}">
-                    <svg class="coffee-icon"><use href="#coffee-i-shift"/></svg>
-                    <span class="coffee-side-label">Lịch làm việc</span>
-                    <svg class="coffee-icon coffee-chevron coffee-side-label"><use href="#coffee-i-chevron"/></svg>
-                </button>
-                <div class="coffee-group-children">
-                    <a th:href="@{/schedule/manager}" th:classappend="${active == 'schedule'} ? ' is-active'">Lịch làm việc</a>
-                    <a th:href="@{/availability/manager}" th:classappend="${active == 'availability'} ? ' is-active'">Đăng kí lịch làm việc</a>
-                    <a th:href="@{/availability/manager/limits}" th:classappend="${active == 'slot-limits'} ? ' is-active'">Quản lý ca làm việc</a>
-                </div>
-            </div>
-            <a class="coffee-menu-item" th:href="@{/manager/leaves}"
-               th:classappend="${active == 'leave'} ? ' is-active'" title="Đơn nghỉ phép">
-                <svg class="coffee-icon"><use href="#coffee-i-leave"/></svg>
-                <span class="coffee-side-label">Đơn nghỉ phép</span>
-            </a>
             <div class="coffee-menu-group" th:classappend="${active == 'employees' or active == 'recruitment' or active == 'resignation' or active == 'training'} ? ' is-open'">
                 <button class="coffee-menu-item coffee-group-toggle" type="button"
                         data-group-toggle title="Nhân sự & đào tạo"
@@ -243,6 +269,21 @@
                     <a th:href="@{/training}" th:classappend="${active == 'training'} ? ' is-active'">Đào tạo</a>
                 </div>
             </div>
+            <a class="coffee-menu-item" th:href="@{/manager/leaves}"
+               th:classappend="${active == 'leave'} ? ' is-active'" title="Đơn nghỉ phép">
+                <svg class="coffee-icon"><use href="#coffee-i-leave"/></svg>
+                <span class="coffee-side-label">Đơn nghỉ phép</span>
+            </a>
+            <a class="coffee-menu-item" th:href="@{/manager/transfer}"
+               th:classappend="${active == 'transfer'} ? ' is-active'" title="Điều chuyển nhân sự">
+                <svg class="coffee-icon"><use href="#coffee-i-transfer"/></svg>
+                <span class="coffee-side-label">Điều chuyển nhân sự</span>
+            </a>
+            <a class="coffee-menu-item" th:href="@{/manager/salary}"
+               th:classappend="${active == 'salary'} ? ' is-active'" title="Quản lý lương">
+                <svg class="coffee-icon"><use href="#coffee-i-salary"/></svg>
+                <span class="coffee-side-label">Quản lý lương</span>
+            </a>
             <a class="coffee-menu-item" th:href="@{/attendance/manager/reports}"
                th:classappend="${active == 'reports' or active == 'attendance-report'} ? ' is-active'" title="Báo cáo cửa hàng">
                 <svg class="coffee-icon"><use href="#coffee-i-chart"/></svg>
@@ -262,17 +303,19 @@
                 <span class="coffee-side-label">Hồ sơ cá nhân</span>
             </a>
             <div class="coffee-menu-group"
-                 th:classappend="${active == 'schedule' or active == 'availability'} ? ' is-open'">
+                 th:classappend="${active == 'schedule' or active == 'shift-change' or active == 'availability' or active == 'overtime'} ? ' is-open'">
                 <button type="button" class="coffee-menu-item coffee-group-toggle"
-                        data-group-toggle title="Lịch làm việc và đổi ca"
-                        th:attr="aria-expanded=${active == 'schedule' or active == 'availability'}">
-                    <svg class="coffee-icon"><use href="#coffee-i-shift"/></svg>
-                    <span class="coffee-side-label">Lịch làm việc &amp; đổi ca</span>
+                        data-group-toggle title="Lịch làm việc"
+                        th:attr="aria-expanded=${active == 'schedule' or active == 'shift-change' or active == 'availability' or active == 'overtime'}">
+                    <svg class="coffee-icon"><use href="#coffee-i-schedule"/></svg>
+                    <span class="coffee-side-label">Lịch làm việc</span>
                     <svg class="coffee-icon coffee-chevron coffee-side-label"><use href="#coffee-i-chevron"/></svg>
                 </button>
                 <div class="coffee-group-children">
-                    <a th:href="@{/schedule/staff}" th:classappend="${active == 'schedule'} ? ' is-active'">Lịch làm việc &amp; Đổi ca</a>
+                    <a th:href="@{/schedule/staff}" th:classappend="${active == 'schedule'} ? ' is-active'">Lịch làm việc</a>
+                    <a th:href="@{/schedule/staff/shift-change}" th:classappend="${active == 'shift-change'} ? ' is-active'">Đổi ca</a>
                     <a th:href="@{/availability}" th:classappend="${active == 'availability'} ? ' is-active'">Đăng kí lịch làm việc</a>
+                    <a th:href="@{/schedule/staff/overtime}" th:classappend="${active == 'overtime'} ? ' is-active'">Đăng kí tăng ca</a>
                 </div>
             </div>
             <a class="coffee-menu-item" th:href="@{/attendance/staff/choose}"
@@ -292,6 +335,16 @@
                th:classappend="${active == 'leave'} ? ' is-active'" title="Đơn nghỉ phép">
                 <svg class="coffee-icon"><use href="#coffee-i-leave"/></svg>
                 <span class="coffee-side-label">Đơn nghỉ phép</span>
+            </a>
+            <a class="coffee-menu-item" th:href="@{/staff/transfer}"
+               th:classappend="${active == 'transfer'} ? ' is-active'" title="Điều chuyển nhân sự">
+                <svg class="coffee-icon"><use href="#coffee-i-transfer"/></svg>
+                <span class="coffee-side-label">Điều chuyển nhân sự</span>
+            </a>
+            <a class="coffee-menu-item" th:href="@{/staff/salary}"
+               th:classappend="${active == 'salary'} ? ' is-active'" title="Quản lý lương">
+                <svg class="coffee-icon"><use href="#coffee-i-salary"/></svg>
+                <span class="coffee-side-label">Quản lý lương</span>
             </a>
         </div>
     </nav>
@@ -337,6 +390,7 @@
         <strong class="hrm-topbar-title" th:switch="${active}">
             <span th:case="'dashboard'">Tổng quan</span>
             <span th:case="'stores'">Cửa hàng</span>
+            <span th:case="'store-create'">Tạo cửa hàng</span>
             <span th:case="'employees'">Nhân sự</span>
             <span th:case="'recruitment'">Tuyển dụng</span>
             <span th:case="'resignation'">Đề xuất nghỉ việc</span>
@@ -349,9 +403,13 @@
             <span th:case="'reports'">Báo cáo</span>
             <span th:case="'attendance-report'">Báo cáo</span>
             <span th:case="'schedule'">Lịch làm việc</span>
+            <span th:case="'shift-change'">Đổi ca</span>
             <span th:case="'availability'">Đăng ký lịch</span>
             <span th:case="'slot-limits'">Cấu hình ca</span>
             <span th:case="'leave'">Nghỉ phép</span>
+            <span th:case="'salary'">Quản lý lương</span>
+            <span th:case="'transfer'">Điều chuyển nhân sự</span>
+            <span th:case="'overtime'">Đăng kí tăng ca</span>
             <span th:case="'profile'">Hồ sơ cá nhân</span>
             <span th:case="*">CoffeeHRM</span>
         </strong>

@@ -26,7 +26,7 @@
                 <strong th:text="${firstReq.proposalSummary}">Đổi ca</strong>.
             </p>
         </div>
-        <a class="hrm-banner-link" th:href="@{/schedule/staff}">Xem chi tiết lịch</a>
+        <a class="hrm-banner-link" th:href="@{/schedule/staff/shift-change}">Xem yêu cầu đổi ca</a>
     </section>
 
     <section class="welcome">
@@ -115,7 +115,7 @@
         <div class="hrm-panel-tools">
             <h2>Lịch làm việc</h2>
             <div class="hrm-inline-actions">
-                <a class="primary-btn" th:href="@{/schedule/staff}">Xem chi tiết &amp; Đổi ca →</a>
+                <a class="primary-btn" th:href="@{/schedule/staff}">Xem lịch làm việc →</a>
                 <a class="hrm-chip" th:href="@{/availability}">Đăng kí lịch làm việc</a>
             </div>
         </div>
@@ -171,7 +171,7 @@
         <article class="panel" id="shift-change">
             <div class="hrm-panel-tools">
                 <h2>Yêu cầu đổi ca</h2>
-                <a class="hrm-text-link" th:href="@{/schedule/staff}">Xem lịch làm việc</a>
+                <a class="hrm-text-link" th:href="@{/schedule/staff/shift-change}">Mở trang đổi ca</a>
             </div>
             <div class="hrm-invite" th:if="${!#lists.isEmpty(dashboard.incomingShiftChanges)}">
                 <div class="hrm-invite-title">
@@ -186,6 +186,7 @@
                     <div th:if="${inItem.reason != null and !inItem.reason.isEmpty()}" th:text="'“' + ${inItem.reason} + '”'">Lý do</div>
                     <div class="hrm-respond">
                         <form method="post" th:action="@{/schedule/staff/requests/{id}/respond(id=${inItem.requestId})}">
+                            <input name="origin" type="hidden" value="shift-change"/>
                             <input name="agreed" type="hidden" value="true"/>
                             <button class="hrm-btn-ok" type="submit"
                                     data-coffee-confirm="Bạn có chắc chắn muốn đồng ý yêu cầu đổi ca này?"
@@ -193,6 +194,7 @@
                                     data-coffee-ok="Đồng ý">Đồng ý hỗ trợ</button>
                         </form>
                         <form method="post" th:action="@{/schedule/staff/requests/{id}/respond(id=${inItem.requestId})}">
+                            <input name="origin" type="hidden" value="shift-change"/>
                             <input name="agreed" type="hidden" value="false"/>
                             <button class="hrm-btn-no" type="submit"
                                     data-coffee-confirm="Bạn có chắc chắn muốn từ chối yêu cầu đổi ca này?"

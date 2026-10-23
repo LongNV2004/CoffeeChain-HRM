@@ -123,6 +123,8 @@ public class SecurityConfig {
                                         .requestMatchers(
                                                 "/staff/leave",
                                                 "/staff/leave/**",
+                                                "/staff/salary",
+                                                "/staff/transfer",
                                                 "/dashboard/staff",
                                                 "/schedule/staff",
                                                 "/schedule/staff/**",

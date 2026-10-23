@@ -1,34 +1,35 @@
-@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap');
 
-/* Design system cho mọi trang đã đăng nhập. Landing/login không có .coffee-sidebar nên không bị ảnh hưởng. */
+/* Design system theo ngôn ngữ thiết kế Coffea cho toàn bộ giao diện quản trị CoffeeHRM. */
 body:has(.coffee-sidebar) {
-    --paper: #DDDBDA;
-    --paper-dim: #D4D1CF;
-    --espresso: #080606;
-    --espresso-soft: #3A342F;
-    --caramel: #B96D49;
-    --caramel-dark: #5C3C2E;
-    --line: rgba(92, 60, 46, .14);
-    --ink-soft: #78726E;
-    --cream: #FBF8F5;
+    --paper: #F6F1EA;
+    --paper-dim: #EFE6DA;
+    --espresso: #26170F;
+    --espresso-soft: #5C4638;
+    --caramel: #B88752;
+    --caramel-dark: #8C5E32;
+    --line: #E5D8C8;
+    --ink-soft: #7A6A5C;
+    --cream: #F6F1EA;
     --tea: #2F6B45;
     --tea-dark: #245538;
-    --clay: #B96D49;
+    --clay: #B15A3E;
     --clay-dark: #8C4E32;
-    --ml-paper: #DDDBDA;
-    --ml-espresso: #080606;
-    --ml-text: #3A342F;
-    --ml-muted: #78726E;
-    --ml-line: rgba(92, 60, 46, .14);
-    --ml-accent: #B96D49;
-    --ml-light: #FBF8F5;
+    --card: #FFFCF7;
+    --ml-paper: #F6F1EA;
+    --ml-espresso: #26170F;
+    --ml-text: #3A2A22;
+    --ml-muted: #7A6A5C;
+    --ml-line: #E5D8C8;
+    --ml-accent: #B88752;
+    --ml-light: #FFFCF7;
     --ml-green: #2F6B45;
     --ml-red: #9F3B32;
-    --store-brown: #080606;
-    --store-muted: #78726E;
-    --store-border: rgba(92, 60, 46, .14);
-    --hrm-shadow: 0 1px 0 rgba(255, 255, 255, .8) inset, 0 14px 34px rgba(92, 60, 46, .07);
-    --hrm-radius: 22px;
+    --store-brown: #26170F;
+    --store-muted: #7A6A5C;
+    --store-border: #E5D8C8;
+    --hrm-shadow: 0 2px 8px rgba(43, 27, 18, .04), 0 12px 28px rgba(43, 27, 18, .06);
+    --hrm-radius: 16px;
     margin: 0;
     background: transparent;
     color: var(--espresso);
@@ -38,9 +39,19 @@ body:has(.coffee-sidebar) {
 
 body:has(.coffee-sidebar) h1,
 body:has(.coffee-sidebar) h2,
-body:has(.coffee-sidebar) h3,
+body:has(.coffee-sidebar) .hrm-topbar-title,
+body:has(.coffee-sidebar) .welcome h1,
+body:has(.coffee-sidebar) .store-info h1,
+body:has(.coffee-sidebar) .ml-titlebar h1,
 body:has(.coffee-sidebar) .stat-card .value,
 body:has(.coffee-sidebar) .summary .value,
+body:has(.coffee-sidebar) .store-stat strong,
+body:has(.coffee-sidebar) .ml-stat strong,
+body:has(.coffee-sidebar) .hrm-spotlight strong {
+    font-family: 'Fraunces', serif;
+}
+
+body:has(.coffee-sidebar) h3,
 body:has(.coffee-sidebar) button,
 body:has(.coffee-sidebar) input,
 body:has(.coffee-sidebar) select,
@@ -66,7 +77,7 @@ body:has(.coffee-sidebar) .eyebrow,
 body:has(.coffee-sidebar) .store-info .eyebrow,
 body:has(.coffee-sidebar) .ml-eyebrow {
     margin-bottom: 6px;
-    color: #B96D49;
+    color: #8C5335;
     font-size: 11px;
     font-weight: 700;
     letter-spacing: .12em;
@@ -76,21 +87,26 @@ body:has(.coffee-sidebar) .welcome h1,
 body:has(.coffee-sidebar) .store-info h1,
 body:has(.coffee-sidebar) .ml-titlebar h1 {
     margin: 0 0 6px;
-    color: #080606;
-    font-size: 30px;
-    font-weight: 700;
-    letter-spacing: -0.04em;
-    line-height: 1.15;
+    color: #1A1715;
+    font-size: 32px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.2;
 }
 body:has(.coffee-sidebar) .welcome p,
 body:has(.coffee-sidebar) .store-info p { color: var(--ink-soft); font-size: 14px; margin: 0; }
 
 body:has(.coffee-sidebar) .stat-grid,
-body:has(.coffee-sidebar) .store-stats,
 body:has(.coffee-sidebar) .ml-stats,
 body:has(.coffee-sidebar) .summary {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin: 0 0 16px;
+}
+body:has(.coffee-sidebar) .store-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 16px;
     margin: 0 0 16px;
 }
@@ -114,9 +130,9 @@ body:has(.coffee-sidebar) .choice-card,
 body:has(.coffee-sidebar) .recruit-card,
 body:has(.coffee-sidebar) .candidate-card,
 body:has(.coffee-sidebar) .stat-pill {
-    border: 1px solid rgba(255, 255, 255, .78);
+    border: 1px solid rgba(60, 40, 30, .08);
     border-radius: var(--hrm-radius);
-    background: linear-gradient(180deg, #FFFCFA 0%, #F6F1EC 100%);
+    background: #FFFFFF;
     box-shadow: var(--hrm-shadow);
 }
 body:has(.coffee-sidebar) .stat-card,
@@ -137,7 +153,7 @@ body:has(.coffee-sidebar) .ml-stat::before {
     right: 18px;
     height: 3px;
     border-radius: 0 0 6px 6px;
-    background: linear-gradient(90deg, #B96D49, #B68B70);
+    background: linear-gradient(90deg, #8C5335, #C1793A);
 }
 body:has(.coffee-sidebar) .stat-card .label,
 body:has(.coffee-sidebar) .summary .label,
@@ -264,8 +280,8 @@ body:has(.coffee-sidebar) .training-table th,
 body:has(.coffee-sidebar) .preview-table th,
 body:has(.coffee-sidebar) .ml-table th,
 body:has(.coffee-sidebar) .schedule-grid th {
-    background: #F3EEE9;
-    color: #78726E;
+    background: #F5EFEB;
+    color: #6C635B;
     font-size: 12px;
     font-weight: 700;
     letter-spacing: .02em;
@@ -280,13 +296,13 @@ body:has(.coffee-sidebar) .table-scroll td,
 body:has(.coffee-sidebar) .ml-table th,
 body:has(.coffee-sidebar) .ml-table td {
     padding: 13px 14px;
-    border-bottom: 1px solid rgba(92, 60, 46, .08);
+    border-bottom: 1px solid rgba(60, 40, 30, .07);
     vertical-align: middle;
 }
 body:has(.coffee-sidebar) .panel tbody tr:hover td,
 body:has(.coffee-sidebar) .table-wrap tbody tr:hover td,
 body:has(.coffee-sidebar) .table-scroll tbody tr:hover td,
-body:has(.coffee-sidebar) .ml-table tbody tr:hover td { background: rgba(182, 139, 112, .08); }
+body:has(.coffee-sidebar) .ml-table tbody tr:hover td { background: rgba(140, 83, 53, .05); }
 
 body:has(.coffee-sidebar) .badge,
 body:has(.coffee-sidebar) .status-tag,
@@ -332,21 +348,26 @@ body:has(.coffee-sidebar) .ml-btn-primary {
     align-items: center;
     justify-content: center;
     min-height: 40px;
-    padding: 0 16px;
+    padding: 0 20px;
     border: 0;
-    border-radius: 12px;
-    background: #5C3C2E;
-    color: #F8F1EB;
+    border-radius: 999px;
+    background: #2B1D16;
+    color: #FDFBF8;
     font-weight: 600;
     text-decoration: none;
-    box-shadow: none;
+    box-shadow: 0 4px 12px rgba(31, 26, 23, .16);
     cursor: pointer;
+    transition: background-color .18s ease, transform .15s ease, box-shadow .18s ease;
 }
 body:has(.coffee-sidebar) .primary-btn:hover,
 body:has(.coffee-sidebar) .btn-primary:hover,
 body:has(.coffee-sidebar) .store-btn--primary:hover,
 body:has(.coffee-sidebar) .leave-btn-primary:hover,
-body:has(.coffee-sidebar) .ml-btn-primary:hover { background: #3E2820; color: #fff; }
+body:has(.coffee-sidebar) .ml-btn-primary:hover {
+    background: #352B24;
+    color: #FFFFFF;
+    box-shadow: 0 6px 18px rgba(31, 26, 23, .22);
+}
 body:has(.coffee-sidebar) .primary-btn:disabled {
     opacity: .55;
     cursor: not-allowed;
@@ -377,21 +398,21 @@ body:has(.coffee-sidebar) .recruit-form .is-invalid {
     border-color: #9F3B32;
     box-shadow: none;
 }
-body:has(.coffee-sidebar) .candidate-table th { background: #F3EEE9; }
-body:has(.coffee-sidebar) .candidate-table tr.is-editing td { background: rgba(182, 139, 112, .12); }
+body:has(.coffee-sidebar) .candidate-table th { background: #F5EFEB; }
+body:has(.coffee-sidebar) .candidate-table tr.is-editing td { background: rgba(140, 83, 53, .08); }
 body:has(.coffee-sidebar) .entry-panel .gender-pills { max-width: none; }
 body:has(.coffee-sidebar) .recruit-dialog {
-    border-radius: 22px;
-    border: 1px solid rgba(255, 255, 255, .7);
+    border-radius: 20px;
+    border: 1px solid rgba(60, 40, 30, .1);
 }
 body:has(.coffee-sidebar) .btn-publish {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     min-height: 40px;
-    padding: 0 16px;
+    padding: 0 18px;
     border: 0;
-    border-radius: 12px;
+    border-radius: 999px;
     background: #2F6B45;
     color: #fff;
     font-weight: 600;
@@ -411,14 +432,15 @@ body:has(.coffee-sidebar) .hrm-chip {
     align-items: center;
     justify-content: center;
     min-height: 40px;
-    padding: 0 14px;
-    border: 1px solid rgba(92, 60, 46, .14);
-    border-radius: 12px;
-    background: rgba(255, 255, 255, .8);
-    color: #080606;
+    padding: 0 16px;
+    border: 1px solid rgba(60, 40, 30, .14);
+    border-radius: 999px;
+    background: #FFFFFF;
+    color: #1A1715;
     font-weight: 600;
     text-decoration: none;
     cursor: pointer;
+    transition: background-color .18s ease, border-color .18s ease, color .18s ease;
 }
 body:has(.coffee-sidebar) .ghost-btn:hover,
 body:has(.coffee-sidebar) .secondary-btn:hover,
@@ -428,8 +450,16 @@ body:has(.coffee-sidebar) .store-btn--secondary:hover,
 body:has(.coffee-sidebar) .leave-btn-outline:hover,
 body:has(.coffee-sidebar) .logout-btn:hover,
 body:has(.coffee-sidebar) .page-btn:hover,
-body:has(.coffee-sidebar) .hrm-chip:hover { background: #fff; border-color: #B68B70; }
-body:has(.coffee-sidebar) .page-btn.active { background: #5C3C2E; border-color: #5C3C2E; color: #fff; }
+body:has(.coffee-sidebar) .hrm-chip:hover {
+    background: #FAF6F0;
+    border-color: #8C5335;
+    color: #8C5335;
+}
+body:has(.coffee-sidebar) .page-btn.active {
+    background: #2B1D16;
+    border-color: #2B1D16;
+    color: #FFFFFF;
+}
 body:has(.coffee-sidebar) .btn-danger,
 body:has(.coffee-sidebar) .ml-btn-danger,
 body:has(.coffee-sidebar) .link-btn.danger {
@@ -581,30 +611,35 @@ body:has(.coffee-sidebar) .hrm-board > .welcome {
     flex-direction: column;
     justify-content: space-between;
     min-height: 210px;
-    padding: 26px 28px;
-    border-radius: 28px;
-    border: 1px solid rgba(255, 255, 255, .75);
+    padding: 28px 32px;
+    border-radius: 20px;
+    border: 1px solid rgba(60, 40, 30, .08);
     background:
-        radial-gradient(420px 180px at 100% 0%, rgba(182, 139, 112, .35), transparent 70%),
-        linear-gradient(145deg, #FFFCFA 0%, #F4E7DC 58%, #EAD8CB 100%);
+        radial-gradient(420px 220px at 100% 0%, rgba(212, 171, 142, .25), transparent 70%),
+        linear-gradient(145deg, #FFFFFF 0%, #FAF6F0 60%, #F3EDE4 100%);
     box-shadow: var(--hrm-shadow);
 }
-body:has(.coffee-sidebar) .hrm-board > .welcome h1 { font-size: 34px; }
+body:has(.coffee-sidebar) .hrm-board > .welcome h1 {
+    font-size: 34px;
+    color: #1A1715;
+    letter-spacing: -0.03em;
+}
 body:has(.coffee-sidebar) .hrm-hero-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
 body:has(.coffee-sidebar) .hrm-spotlight {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     min-height: 210px;
-    padding: 24px;
-    border-radius: 28px;
-    color: #F8F1EB;
-    background: linear-gradient(165deg, #6E4C3B 0%, #5C3C2E 48%, #3E2820 100%);
-    box-shadow: 0 16px 36px rgba(92, 60, 46, .2);
+    padding: 24px 26px;
+    border-radius: 20px;
+    color: #FDFBF8;
+    background: linear-gradient(165deg, #2A2420 0%, #1F1A17 50%, #151210 100%);
+    border: 1px solid rgba(255, 255, 255, .08);
+    box-shadow: 0 14px 34px rgba(25, 20, 18, .18);
 }
 body:has(.coffee-sidebar) .hrm-spotlight span {
-    color: #E7D3C3;
-    font-size: 12px;
+    color: #D4B29E;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: .12em;
     text-transform: uppercase;
@@ -612,13 +647,13 @@ body:has(.coffee-sidebar) .hrm-spotlight span {
 body:has(.coffee-sidebar) .hrm-spotlight strong {
     display: block;
     margin: 12px 0 4px;
-    color: #fff;
+    color: #FFFFFF;
     font-size: 52px;
-    font-weight: 700;
-    letter-spacing: -0.05em;
+    font-weight: 600;
+    letter-spacing: -0.04em;
     line-height: 1;
 }
-body:has(.coffee-sidebar) .hrm-spotlight p { margin: 0; color: #F0E2D6; font-size: 14px; }
+body:has(.coffee-sidebar) .hrm-spotlight p { margin: 0; color: #D6CBC1; font-size: 14px; }
 body:has(.coffee-sidebar) .hrm-spotlight a {
     display: inline-flex;
     align-items: center;
@@ -809,4 +844,421 @@ body:has(.coffee-sidebar) .request-list span { margin-left: 8px; color: #2F6B45;
     body:has(.coffee-sidebar) .candidate-card { grid-template-columns: 1fr; }
     body:has(.coffee-sidebar) .modal-dialog,
     body:has(.coffee-sidebar) .leave-dialog { width: min(100%, 100%); }
+    body:has(.coffee-sidebar) main .panel > :not(table):not(.table-scroll):not(.table-wrap):not(.leave-table-wrap) {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+    body:has(.coffee-sidebar) main .panel > .filter-grid,
+    body:has(.coffee-sidebar) main .panel > .filter-form,
+    body:has(.coffee-sidebar) main .panel > .leave-filters {
+        margin-left: 16px;
+        margin-right: 16px;
+    }
+}
+
+/* Nội dung chính: bố cục trang, thẻ, bộ lọc, bảng và form.
+   Chỉ đổi lớp trình bày. Lịch và lưới đăng ký ca giữ nguyên cấu trúc ô. */
+body:has(.coffee-sidebar) main:not(.hrm-board) > .welcome {
+    margin: 0 0 20px;
+    padding: 2px 2px 16px;
+    border-bottom: 1px solid #E5D8C8;
+}
+body:has(.coffee-sidebar) main:not(.hrm-board) > .welcome h1,
+body:has(.coffee-sidebar) .store-create-head h1,
+body:has(.coffee-sidebar) .profile-hero h1,
+body:has(.coffee-sidebar) .ml-titlebar h1 {
+    color: #26170F;
+    font-family: 'Fraunces', serif;
+    font-size: 34px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+}
+body:has(.coffee-sidebar) main:not(.hrm-board) > .welcome p,
+body:has(.coffee-sidebar) .store-create-head p {
+    max-width: 68ch;
+    margin-top: 6px;
+    color: #7A6A5C;
+    font-size: 14.5px;
+    line-height: 1.6;
+}
+body:has(.coffee-sidebar) .store-create-head {
+    margin: 0 0 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #E5D8C8;
+}
+body:has(.coffee-sidebar) .store-create-crumb,
+body:has(.coffee-sidebar) .ml-breadcrumb {
+    margin-bottom: 10px;
+    color: #7A6A5C;
+    font-size: 13px;
+    font-weight: 600;
+}
+body:has(.coffee-sidebar) main:not(.hrm-board) > .panel,
+body:has(.coffee-sidebar) main:not(.hrm-board) > .split,
+body:has(.coffee-sidebar) main:not(.hrm-board) > .summary,
+body:has(.coffee-sidebar) main:not(.hrm-board) > .choice-grid,
+body:has(.coffee-sidebar) main:not(.hrm-board) > .schedule-header,
+body:has(.coffee-sidebar) main:not(.hrm-board) > .grid-container,
+body:has(.coffee-sidebar) main:not(.hrm-board) > .store-panel,
+body:has(.coffee-sidebar) main:not(.hrm-board) > .store-stats,
+body:has(.coffee-sidebar) main:not(.hrm-board) > .ml-stats,
+body:has(.coffee-sidebar) main:not(.hrm-board) > .ml-panel {
+    margin-top: 0;
+}
+body:has(.coffee-sidebar) main:not(.hrm-board) > .panel + .panel,
+body:has(.coffee-sidebar) main:not(.hrm-board) > .panel + .split,
+body:has(.coffee-sidebar) main:not(.hrm-board) > .split + .panel,
+body:has(.coffee-sidebar) main:not(.hrm-board) > .summary + .panel,
+body:has(.coffee-sidebar) main:not(.hrm-board) > .choice-grid + .panel,
+body:has(.coffee-sidebar) main:not(.hrm-board) > .schedule-header + .stats-bar,
+body:has(.coffee-sidebar) main:not(.hrm-board) > .stats-bar + .grid-container,
+body:has(.coffee-sidebar) main:not(.hrm-board) > .grid-container + .panel,
+body:has(.coffee-sidebar) main:not(.hrm-board) > .store-stats + .store-panel,
+body:has(.coffee-sidebar) main:not(.hrm-board) > .ml-stats + .ml-panel {
+    margin-top: 16px;
+}
+
+body:has(.coffee-sidebar) main .panel {
+    padding: 0;
+    overflow: visible;
+    border: 1px solid #E5D8C8;
+    border-radius: 20px;
+    background: #FFFCF7;
+    box-shadow: 0 1px 0 rgba(43, 29, 22, .04), 0 16px 36px rgba(43, 29, 22, .05);
+}
+body:has(.coffee-sidebar) main .panel:has(> .table-scroll),
+body:has(.coffee-sidebar) main .panel:has(> .table-wrap),
+body:has(.coffee-sidebar) main .panel:has(> .leave-table-wrap),
+body:has(.coffee-sidebar) main .panel:has(> table) {
+    overflow: hidden;
+}
+body:has(.coffee-sidebar) main .panel > :not(table):not(.table-scroll):not(.table-wrap):not(.leave-table-wrap) {
+    padding-left: 22px;
+    padding-right: 22px;
+}
+body:has(.coffee-sidebar) main .panel > :first-child:not(table):not(.table-scroll):not(.table-wrap):not(.leave-table-wrap) {
+    padding-top: 20px;
+}
+body:has(.coffee-sidebar) main .panel > :last-child:not(table):not(.table-scroll):not(.table-wrap):not(.leave-table-wrap) {
+    padding-bottom: 20px;
+}
+body:has(.coffee-sidebar) main .panel > h2:first-child,
+body:has(.coffee-sidebar) main .panel > .panel-head:first-child,
+body:has(.coffee-sidebar) main .panel > .panel-header:first-child,
+body:has(.coffee-sidebar) main .panel > .leave-heading:first-child,
+body:has(.coffee-sidebar) main .panel > .hrm-panel-tools:first-child {
+    margin: 0;
+    padding: 18px 22px 16px;
+    border-bottom: 1px solid #E5D8C8;
+    background: linear-gradient(180deg, #FFFCF7 0%, #F8F2EA 100%);
+}
+body:has(.coffee-sidebar) main .panel > h2,
+body:has(.coffee-sidebar) .panel-head h2,
+body:has(.coffee-sidebar) .panel-header h2,
+body:has(.coffee-sidebar) .leave-heading h2,
+body:has(.coffee-sidebar) .store-panel h2,
+body:has(.coffee-sidebar) .ml-panel-head h2 {
+    margin: 0;
+    color: #26170F;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+body:has(.coffee-sidebar) main .panel > :first-child + :not(table):not(.table-scroll):not(.table-wrap):not(.leave-table-wrap):not(.filter-grid):not(.filter-form):not(.leave-filters) {
+    padding-top: 16px;
+}
+body:has(.coffee-sidebar) .panel-head p,
+body:has(.coffee-sidebar) .panel-header p,
+body:has(.coffee-sidebar) main .panel > h2 + p,
+body:has(.coffee-sidebar) .store-panel-top p,
+body:has(.coffee-sidebar) .ml-panel-head p {
+    margin: 6px 0 0;
+    color: #7A6A5C;
+    font-size: 13.5px;
+    line-height: 1.55;
+}
+body:has(.coffee-sidebar) main .panel > .filter-grid,
+body:has(.coffee-sidebar) main .panel > .filter-form,
+body:has(.coffee-sidebar) main .panel > .leave-filters,
+body:has(.coffee-sidebar) .ml-filters {
+    margin: 16px 22px 4px;
+    padding: 14px;
+    border: 1px solid #E5D8C8;
+    border-radius: 16px;
+    background: #F6F1EA;
+}
+body:has(.coffee-sidebar) .filter-grid .form-actions,
+body:has(.coffee-sidebar) .filter-form .form-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+}
+body:has(.coffee-sidebar) .stack-form label,
+body:has(.coffee-sidebar) .filter-grid label,
+body:has(.coffee-sidebar) .filter-form label,
+body:has(.coffee-sidebar) .profile-form label {
+    font-weight: 600;
+    color: #5C4638;
+}
+body:has(.coffee-sidebar) .stack-form,
+body:has(.coffee-sidebar) .profile-form {
+    gap: 16px;
+}
+
+body:has(.coffee-sidebar) main .panel > .table-scroll,
+body:has(.coffee-sidebar) main .panel > .table-wrap,
+body:has(.coffee-sidebar) main .panel > .leave-table-wrap,
+body:has(.coffee-sidebar) main .panel > table {
+    margin-top: 8px;
+}
+body:has(.coffee-sidebar) main .panel table:not(.schedule-grid):not(.availability-grid),
+body:has(.coffee-sidebar) .store-table,
+body:has(.coffee-sidebar) .ml-table,
+body:has(.coffee-sidebar) .hist-table,
+body:has(.coffee-sidebar) .training-table,
+body:has(.coffee-sidebar) .data-table,
+body:has(.coffee-sidebar) .requests-table,
+body:has(.coffee-sidebar) .leave-table,
+body:has(.coffee-sidebar) .preview-table,
+body:has(.coffee-sidebar) .candidate-table,
+body:has(.coffee-sidebar) .employee-related-table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+body:has(.coffee-sidebar) main .panel table:not(.schedule-grid):not(.availability-grid) th,
+body:has(.coffee-sidebar) .store-table th,
+body:has(.coffee-sidebar) .ml-table th,
+body:has(.coffee-sidebar) .hist-table th,
+body:has(.coffee-sidebar) .training-table th,
+body:has(.coffee-sidebar) .data-table th,
+body:has(.coffee-sidebar) .requests-table th,
+body:has(.coffee-sidebar) .leave-table th,
+body:has(.coffee-sidebar) .preview-table th,
+body:has(.coffee-sidebar) .candidate-table th,
+body:has(.coffee-sidebar) .employee-related-table th {
+    padding: 12px 16px;
+    border-bottom: 1px solid #E5D8C8;
+    background: #F3EBE1;
+    color: #6B5344;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .03em;
+    text-transform: none;
+    white-space: nowrap;
+}
+body:has(.coffee-sidebar) main .panel table:not(.schedule-grid):not(.availability-grid) td,
+body:has(.coffee-sidebar) .store-table td,
+body:has(.coffee-sidebar) .ml-table td,
+body:has(.coffee-sidebar) .hist-table td,
+body:has(.coffee-sidebar) .training-table td,
+body:has(.coffee-sidebar) .data-table td,
+body:has(.coffee-sidebar) .requests-table td,
+body:has(.coffee-sidebar) .leave-table td,
+body:has(.coffee-sidebar) .preview-table td,
+body:has(.coffee-sidebar) .candidate-table td,
+body:has(.coffee-sidebar) .employee-related-table td {
+    padding: 14px 16px;
+    border-bottom: 1px solid #EFE4D8;
+    color: #26170F;
+    font-size: 14px;
+    vertical-align: middle;
+}
+body:has(.coffee-sidebar) main .panel table:not(.schedule-grid):not(.availability-grid) tbody tr:last-child td,
+body:has(.coffee-sidebar) .store-table tbody tr:last-child td,
+body:has(.coffee-sidebar) .ml-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+body:has(.coffee-sidebar) main .panel table:not(.schedule-grid):not(.availability-grid) tbody tr:hover td,
+body:has(.coffee-sidebar) .store-table tbody tr:hover td,
+body:has(.coffee-sidebar) .ml-table tbody tr:hover td,
+body:has(.coffee-sidebar) .training-table tbody tr:hover td,
+body:has(.coffee-sidebar) .hist-table tbody tr:hover td {
+    background: #FBF6EF;
+}
+body:has(.coffee-sidebar) td.empty,
+body:has(.coffee-sidebar) .panel > .empty,
+body:has(.coffee-sidebar) .store-empty,
+body:has(.coffee-sidebar) .ml-empty,
+body:has(.coffee-sidebar) .profile-empty {
+    color: #7A6A5C;
+    text-align: center;
+}
+body:has(.coffee-sidebar) td.empty,
+body:has(.coffee-sidebar) .panel > p.empty {
+    padding: 32px 18px;
+}
+
+body:has(.coffee-sidebar) .stat-card,
+body:has(.coffee-sidebar) .action-card,
+body:has(.coffee-sidebar) .summary article,
+body:has(.coffee-sidebar) .store-stat,
+body:has(.coffee-sidebar) .ml-stat,
+body:has(.coffee-sidebar) .store-panel,
+body:has(.coffee-sidebar) .ml-panel,
+body:has(.coffee-sidebar) .branch-card,
+body:has(.coffee-sidebar) .store-create-card,
+body:has(.coffee-sidebar) .choice-card,
+body:has(.coffee-sidebar) .profile-hero,
+body:has(.coffee-sidebar) .schedule-header,
+body:has(.coffee-sidebar) .grid-container {
+    border-color: #E5D8C8;
+    background: #FFFCF7;
+}
+body:has(.coffee-sidebar) .hrm-board > .welcome {
+    border-color: #E5D8C8;
+    background:
+        radial-gradient(420px 220px at 100% 0%, rgba(184, 135, 82, .22), transparent 70%),
+        linear-gradient(145deg, #FFFCF7 0%, #F8F1E8 62%, #F3E7D8 100%);
+}
+body:has(.coffee-sidebar) .hrm-spotlight {
+    background: linear-gradient(165deg, #3A2A22 0%, #2B1D16 55%, #1A120E 100%);
+}
+body:has(.coffee-sidebar) .action-card h2 a::after {
+    content: "";
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin-left: 8px;
+    border-top: 1.5px solid #B88752;
+    border-right: 1.5px solid #B88752;
+    transform: rotate(45deg) translateY(-1px);
+}
+body:has(.coffee-sidebar) .store-tabs {
+    padding: 4px;
+    border-radius: 14px;
+    background: #F6F1EA;
+}
+body:has(.coffee-sidebar) .store-tabs button.is-current {
+    border-radius: 10px;
+    background: #FFFCF7;
+    color: #26170F;
+    box-shadow: 0 1px 2px rgba(43, 29, 22, .08);
+}
+body:has(.coffee-sidebar) .branch-card {
+    border-radius: 18px;
+    box-shadow: none;
+}
+body:has(.coffee-sidebar) .branch-card h3,
+body:has(.coffee-sidebar) .store-create-card h2 {
+    font-family: 'Fraunces', serif;
+    color: #26170F;
+}
+body:has(.coffee-sidebar) .store-dialog-head,
+body:has(.coffee-sidebar) .ml-modal-head,
+body:has(.coffee-sidebar) .leave-dialog-header {
+    background: #2B1D16;
+    color: #F6F1EA;
+}
+
+body:has(.coffee-sidebar) .schedule-grid th {
+    background: #F3EBE1;
+    color: #5C4638;
+    font-size: 13px;
+    letter-spacing: 0;
+    text-transform: none;
+}
+body:has(.coffee-sidebar) .schedule-grid th.today,
+body:has(.coffee-sidebar) .availability-grid th.today {
+    background: #F8E7D4;
+    color: #8C5E32;
+    border-top: 3px solid #B88752;
+}
+body:has(.coffee-sidebar) .shift-cell { background: #F6F1EA; }
+body:has(.coffee-sidebar) .assign-card {
+    border: 1px solid #E5D8C8;
+    border-radius: 12px;
+    background: #FFFCF7;
+}
+body:has(.coffee-sidebar) .assign-card.published { border-left: 3px solid #2F6B45; }
+body:has(.coffee-sidebar) .assign-card.draft { border-left: 3px solid #B88752; }
+body:has(.coffee-sidebar) .profile-hero {
+    gap: 18px;
+    padding: 22px 24px;
+    border-radius: 22px;
+    box-shadow: 0 1px 0 rgba(43, 29, 22, .04), 0 16px 36px rgba(43, 29, 22, .05);
+}
+body:has(.coffee-sidebar) .profile-avatar {
+    border-radius: 18px;
+    background: #F3E4D4;
+    color: #2B1D16;
+}
+body:has(.coffee-sidebar) .profile-facts dt,
+body:has(.coffee-sidebar) .info-list dt,
+body:has(.coffee-sidebar) .store-create-facts dt {
+    color: #7A6A5C;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+body:has(.coffee-sidebar) .skill-list li,
+body:has(.coffee-sidebar) .password-panel,
+body:has(.coffee-sidebar) .leave-summary,
+body:has(.coffee-sidebar) .leave-history-card {
+    border-color: #E5D8C8;
+    border-radius: 16px;
+    background: #FFFCF7;
+}
+body:has(.coffee-sidebar) .ml-titlebar {
+    align-items: flex-end;
+    margin: 0 0 18px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #E5D8C8;
+}
+body:has(.coffee-sidebar) .ml-stat,
+body:has(.coffee-sidebar) .store-stat,
+body:has(.coffee-sidebar) .summary article {
+    border-radius: 18px;
+    background: #FFFCF7;
+}
+body.manager-dashboard:has(.coffee-sidebar) .welcome h1,
+body.manager-dashboard:has(.coffee-sidebar) .action-card h2,
+body.manager-dashboard:has(.coffee-sidebar) .store-banner h2,
+body.manager-dashboard:has(.coffee-sidebar) .stat-card .value,
+body.manager-dashboard:has(.coffee-sidebar) .hrm-spotlight strong,
+body.leave-workspace-body:has(.coffee-sidebar) .ml-titlebar h1,
+body.leave-workspace-body:has(.coffee-sidebar) .ml-stat strong {
+    font-family: 'Fraunces', serif;
+}
+body.manager-dashboard:has(.coffee-sidebar) .stat-card .value {
+    font-size: 32px;
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 1.1;
+}
+body:has(.coffee-sidebar) .attn-screen .slot-card,
+body:has(.coffee-sidebar) .punch-card {
+    border: 1px solid #E5D8C8;
+    border-radius: 20px;
+    background: linear-gradient(180deg, #FFFCF7 0%, #F6F1EA 100%);
+    box-shadow: 0 1px 0 rgba(43, 29, 22, .04), 0 16px 36px rgba(43, 29, 22, .05);
+}
+
+@media (max-width: 720px) {
+    body:has(.coffee-sidebar) main:not(.hrm-board) > .welcome h1,
+    body:has(.coffee-sidebar) .store-create-head h1,
+    body:has(.coffee-sidebar) .profile-hero h1,
+    body:has(.coffee-sidebar) .ml-titlebar h1 { font-size: 28px; }
+    body:has(.coffee-sidebar) main .panel > :not(table):not(.table-scroll):not(.table-wrap):not(.leave-table-wrap) {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+    body:has(.coffee-sidebar) main .panel > h2:first-child,
+    body:has(.coffee-sidebar) main .panel > .panel-head:first-child,
+    body:has(.coffee-sidebar) main .panel > .panel-header:first-child,
+    body:has(.coffee-sidebar) main .panel > .leave-heading:first-child,
+    body:has(.coffee-sidebar) main .panel > .hrm-panel-tools:first-child {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+    body:has(.coffee-sidebar) main .panel > .filter-grid,
+    body:has(.coffee-sidebar) main .panel > .filter-form,
+    body:has(.coffee-sidebar) main .panel > .leave-filters {
+        margin-left: 16px;
+        margin-right: 16px;
+    }
+    body:has(.coffee-sidebar) .profile-facts,
+    body:has(.coffee-sidebar) .profile-grid { grid-template-columns: 1fr; }
 }
