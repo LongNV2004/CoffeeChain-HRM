@@ -183,10 +183,10 @@ public class ManagerLeaveServiceImpl implements ManagerLeaveService {
             Integer storeYearlyLimit = store.getTotalLeaveSlots();
             if (storeYearlyLimit == null) {
                 throw new BusinessException(
-                        "Cửa hàng chưa được admin thiết lập số slot phép năm. Không thể duyệt nghỉ phép năm.");
+                        "Cửa hàng chưa được admin thiết lập số ca phép năm. Không thể duyệt nghỉ phép năm.");
             }
             if (storeYearlyLimit < 0) {
-                throw new BusinessException("Số slot phép năm của cửa hàng chưa hợp lệ.");
+                throw new BusinessException("Số ca phép năm của cửa hàng chưa hợp lệ.");
             }
 
             for (Map.Entry<Integer, Long> charge : chargedSlots.entrySet()) {
@@ -197,7 +197,7 @@ public class ManagerLeaveServiceImpl implements ManagerLeaveService {
                 int previouslyUsed = balance == null || balance.getUsedSlots() == null ? 0 : balance.getUsedSlots();
                 int reservedByOthers = Math.toIntExact(pendingSlotsExcluding(request, year));
                 if (previouslyUsed < 0 || previouslyUsed + reservedByOthers + slots > storeYearlyLimit) {
-                    throw new BusinessException("Quỹ slot phép năm " + year
+                    throw new BusinessException("Quỹ ca phép năm " + year
                             + " không đủ. Vui lòng kiểm tra lại định mức và các đơn đang chờ.");
                 }
                 int preservedDays = store.getTotalLeaveDays() == null ? 0 : store.getTotalLeaveDays();
@@ -255,8 +255,8 @@ public class ManagerLeaveServiceImpl implements ManagerLeaveService {
         notifyEmployee(request, "Đơn xin nghỉ đã được duyệt",
                 "Đơn #" + id + " đã được duyệt cho " + assignments.size() + " ca."
                         + (consumesAnnualLeave
-                        ? " Đã trừ " + chargedLeaveSlots + " slot phép năm."
-                        : " Đơn không trừ slot phép năm."),
+                        ? " Đã trừ " + chargedLeaveSlots + " ca phép năm."
+                        : " Đơn không trừ ca phép năm."),
                 NotificationType.LEAVE_REQUEST_APPROVED);
         log.info("Leave request approved: requestId={}, storeId={}, reviewerUserId={}, slots={}, releasedShifts={}",
                 id, store.getId(), reviewer.getId(), chargedLeaveSlots, assignments.size());
@@ -300,7 +300,7 @@ public class ManagerLeaveServiceImpl implements ManagerLeaveService {
         } else if (!slotsOpen) {
             blocked = "Có ca đã bắt đầu, đã qua hoặc không còn được phân công.";
         } else if (!enoughQuota) {
-            blocked = "Quỹ slot phép còn lại không đủ để duyệt.";
+            blocked = "Quỹ ca phép còn lại không đủ để duyệt.";
         }
         List<ManagerLeaveDetail.AffectedShift> shifts = assignments.stream()
                 .map(sa -> new ManagerLeaveDetail.AffectedShift(sa.getId(), sa.getWorkDate(),

@@ -56,9 +56,9 @@ public class AttendanceServiceImpl implements AttendanceService {
     static final String MANAGER_ALREADY_OUT = "Bạn đã Check-out trong ngày hôm nay.";
     static final String MANAGER_NOT_IN = "Bạn chưa Check-in trong ngày hôm nay.";
     static final String MANAGER_OPEN_RECORD = "Bạn chưa Check-out bản ghi chấm công đang mở.";
-    static final String SLOT_REQUIRED = "Hãy chọn slot cần chấm công.";
-    static final String SLOT_FORBIDDEN = "Bạn không có quyền chấm công slot này.";
-    static final String SLOT_CLOSED = "Đã hết giờ Check-in của slot này.";
+    static final String SLOT_REQUIRED = "Hãy chọn ca cần chấm công.";
+    static final String SLOT_FORBIDDEN = "Bạn không có quyền chấm công ca này.";
+    static final String SLOT_CLOSED = "Đã hết giờ Check-in của ca này.";
 
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");

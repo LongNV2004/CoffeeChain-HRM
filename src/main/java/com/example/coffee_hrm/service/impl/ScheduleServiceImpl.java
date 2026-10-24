@@ -83,7 +83,7 @@ public class ScheduleServiceImpl implements ScheduleService {
         createAssignment(request, user, false);
     }
 
-    /** Không rollback khi một slot không xếp được trong đợt duyệt hàng loạt. */
+    /** Không rollback khi một ca không xếp được trong đợt duyệt hàng loạt. */
     @Override
     @Transactional(noRollbackFor = BusinessException.class)
     public void assignShiftFromApprovedAvailability(AssignShiftRequest request, AuthenticatedUser user) {
@@ -681,7 +681,7 @@ public class ScheduleServiceImpl implements ScheduleService {
         }
     }
 
-    /** Chỉ chặn đúng ca đã được duyệt nghỉ. Đơn cũ không có slot vẫn chặn cả ngày. */
+    /** Chỉ chặn đúng ca đã được duyệt nghỉ. Đơn cũ không có ca vẫn chặn cả ngày. */
     private void ensureNoApprovedLeave(Integer employeeId, Integer shiftId, LocalDate workDate) {
         employeeRepository.lockByIdForLeaveRequest(employeeId)
                 .orElseThrow(() -> new BusinessException("Không tìm thấy nhân viên nhận ca."));

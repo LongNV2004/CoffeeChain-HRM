@@ -1,10 +1,12 @@
 package com.example.coffee_hrm.repository;
 
+import com.example.coffee_hrm.common.enums.AttendanceReportStatus;
 import com.example.coffee_hrm.entity.MonthlyAttendanceReport;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -44,4 +46,9 @@ public interface MonthlyAttendanceReportRepository extends JpaRepository<Monthly
             WHERE r.id = :id
             """)
     Optional<MonthlyAttendanceReport> findByIdDetailed(@Param("id") Integer id);
+
+    long countByReportYearAndReportMonthAndSubmittedAtIsNotNullAndStatusNotIn(
+            int reportYear,
+            int reportMonth,
+            Collection<AttendanceReportStatus> statuses);
 }

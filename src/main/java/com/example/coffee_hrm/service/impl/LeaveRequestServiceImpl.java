@@ -63,10 +63,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class LeaveRequestServiceImpl implements LeaveRequestService {
-    static final String PROCESS_NOTE = "Mỗi ca được chọn là một slot. "
+    static final String PROCESS_NOTE = "Mỗi ca được chọn được tính riêng. "
             + "Đơn sau khi gửi ở trạng thái Chờ duyệt và chưa trừ phép. "
-            + "Phép năm chỉ bị trừ đúng số slot khi quản lý duyệt. "
-            + "Nghỉ không hưởng lương, nghỉ ốm và nghỉ việc riêng không trừ slot phép năm. "
+            + "Phép năm chỉ bị trừ đúng số ca khi quản lý duyệt. "
+            + "Nghỉ không hưởng lương, nghỉ ốm và nghỉ việc riêng không trừ ca phép năm. "
             + "Các ca khác trong cùng ngày vẫn giữ lịch và chấm công bình thường.";
     private static final int HISTORY_PAGE_SIZE = 20;
     private static final int MAX_RANGE_DAYS = 42;
@@ -99,7 +99,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 : store.getManager().getFullName();
         String note = configured
                 ? "Chọn một hoặc nhiều ca đã được phân. Tuần này và tuần sau chỉ để xem các ca, không tạo đơn theo khoảng ngày."
-                : "Admin chưa thiết lập số slot phép năm cho cửa hàng. Nghỉ phép năm chưa gửi được; các loại nghỉ khác không trừ slot phép năm.";
+                : "Admin chưa thiết lập số ca phép năm cho cửa hàng. Nghỉ phép năm chưa gửi được; các loại nghỉ khác không trừ ca phép năm.";
         return new LeaveFormContext(employee.getId(), employee.getFullName(), store.getStoreName(),
                 managerName, total, used, pending, Math.max(total - used - pending, 0), false, configured,
                 note);
@@ -301,11 +301,11 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         }
         for (Map.Entry<Integer, Long> entry : refundByYear.entrySet()) {
             LeaveBalance balance = leaveBalanceRepository.lockByEmployeeIdAndYear(employee.getId(), entry.getKey())
-                    .orElseThrow(() -> new BusinessException("Không tìm thấy số slot phép đã trừ để hoàn lại."));
+                    .orElseThrow(() -> new BusinessException("Không tìm thấy số ca phép đã trừ để hoàn lại."));
             int used = balance.getUsedSlots() == null ? 0 : balance.getUsedSlots();
             int refund = Math.toIntExact(entry.getValue());
             if (used < refund) {
-                throw new BusinessException("Số slot phép đã trừ không đủ để hoàn lại.");
+                throw new BusinessException("Số ca phép đã trừ không đủ để hoàn lại.");
             }
             int dayUsed = balance.getUsedDays();
             int dayTotal = balance.getTotalDays();
@@ -397,10 +397,10 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             Integer allowance = employee.getStore().getTotalLeaveSlots();
             if (allowance == null) {
                 throw new BusinessException(
-                        "Cửa hàng chưa được admin thiết lập số slot phép năm. Không thể gửi đơn nghỉ phép năm.");
+                        "Cửa hàng chưa được admin thiết lập số ca phép năm. Không thể gửi đơn nghỉ phép năm.");
             }
             if (allowance < 0) {
-                throw new BusinessException("Số slot phép năm của cửa hàng chưa hợp lệ.");
+                throw new BusinessException("Số ca phép năm của cửa hàng chưa hợp lệ.");
             }
             for (Map.Entry<Integer, Long> entry : requestedByYear.entrySet()) {
                 int year = entry.getKey();
@@ -410,7 +410,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 int available = allowance - used - pending;
                 if (requested > available) {
                     throw new BusinessException("Năm " + year + " chỉ còn "
-                            + Math.max(available, 0) + " slot phép, không đủ " + requested + " slot.");
+                            + Math.max(available, 0) + " ca phép, không đủ " + requested + " ca.");
                 }
                 years.add(new LeavePreviewResponse.YearDetail(year, requested, allowance, used, pending, available));
             }
@@ -636,7 +636,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         notifyUser(manager.getId(),
                 "Nhân viên đã hủy đơn nghỉ",
                 employee.getFullName() + " đã hủy đơn #" + request.getId()
-                        + (refunded ? ". Slot phép năm đã được hoàn lại." : "."),
+                        + (refunded ? ". Ca phép năm đã được hoàn lại." : "."),
                 NotificationType.LEAVE_REQUEST_CANCELLED,
                 request.getId());
     }

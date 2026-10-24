@@ -39,7 +39,7 @@ public interface StaffAvailabilityService {
     /**
      * Duyệt hoặc từ chối một đề xuất.
      * Khi duyệt, các ngày còn hiệu lực được xếp vào lịch làm việc.
-     * Ca đã phân trùng đúng slot được giữ nguyên.
+     * Ca đã phân trùng đúng ca được giữ nguyên.
      */
     void reviewAvailability(Integer availabilityId, boolean approved, AuthenticatedUser manager);
 

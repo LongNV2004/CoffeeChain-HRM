@@ -98,7 +98,7 @@
         setPreview(form, '[data-preview-name]', name, 'Chưa nhập tên');
         setPreview(form, '[data-preview-address]', address, 'Chưa nhập địa chỉ');
         setPreview(form, '[data-preview-opening]', openingText, 'Chưa chọn');
-        setPreview(form, '[data-preview-leave]', leave === '' ? '' : leave + ' slot ca', 'Chưa nhập');
+        setPreview(form, '[data-preview-leave]', leave === '' ? '' : leave + ' ca', 'Chưa nhập');
         if (latitude && longitude) {
             setPreview(form, '[data-preview-coords]', latitude + ', ' + longitude, 'Chưa có tọa độ');
         } else {
@@ -116,7 +116,7 @@
             if (field.name === 'storeName') return 'Vui lòng nhập tên cửa hàng';
             if (field.name === 'address') return 'Vui lòng nhập địa chỉ';
             if (field.name === 'openingDate') return 'Vui lòng chọn ngày khai trương';
-            if (field.name === 'totalLeaveSlots') return 'Vui lòng nhập số slot phép';
+            if (field.name === 'totalLeaveSlots') return 'Vui lòng nhập số ca phép';
             if (field.name === 'latitude') return 'Vui lòng nhập vĩ độ';
             if (field.name === 'longitude') return 'Vui lòng nhập kinh độ';
         }
@@ -128,7 +128,7 @@
             if (field.name === 'address') return 'Địa chỉ không được để trống';
         }
         if (field.validity.rangeUnderflow && field.name === 'totalLeaveSlots') {
-            return 'Số slot phép không được âm';
+            return 'Số ca phép không được âm';
         }
         if (field.validity.tooLong) return 'Giá trị vượt quá độ dài cho phép';
         return field.validationMessage || 'Thông tin chưa hợp lệ';

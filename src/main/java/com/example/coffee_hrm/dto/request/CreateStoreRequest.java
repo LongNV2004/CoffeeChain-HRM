@@ -28,8 +28,8 @@ public class CreateStoreRequest {
     @Size(max = 255, message = "Địa chỉ tối đa 255 ký tự")
     private String address;
 
-    @NotNull(message = "Vui lòng nhập số slot phép")
-    @Min(value = 0, message = "Số slot phép không được âm")
+    @NotNull(message = "Vui lòng nhập số ca phép")
+    @Min(value = 0, message = "Số ca phép không được âm")
     private Integer totalLeaveSlots;
 
     /** Kept so existing day balances are not rewritten from this form. */

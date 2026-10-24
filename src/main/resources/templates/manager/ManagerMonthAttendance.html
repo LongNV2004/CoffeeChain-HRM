@@ -11,7 +11,7 @@
 <body>
 <header th:replace="~{fragments/navbar :: manager('attendance-month')}"></header>
 
-<main class="wrap dash-main attn-screen">
+<main class="wrap dash-main attn-screen track-board">
     <section class="day-board">
         <div class="day-head">
             <div>
@@ -44,7 +44,7 @@
                 <div class="day-stat-value" th:text="${board.employeeCount}">0</div>
             </article>
             <article>
-                <div class="day-stat-name">Tổng slot theo lịch</div>
+                <div class="day-stat-name">Tổng ca theo lịch</div>
                 <div class="day-stat-value" th:text="${board.scheduledSlots}">0</div>
             </article>
         </div>
@@ -53,11 +53,6 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg>
             <input id="monthSearch" type="search" placeholder="Tìm mã hoặc tên nhân viên..." autocomplete="off">
         </label>
-        <div class="type-filters" role="radiogroup" aria-label="Loại nhân viên">
-            <label><input type="radio" name="employment" value="" checked><span></span>Tất cả</label>
-            <label><input type="radio" name="employment" value="full-time"><span></span>Full-time</label>
-            <label><input type="radio" name="employment" value="part-time"><span></span>Part-time</label>
-        </div>
 
         <p class="day-empty" th:if="${#lists.isEmpty(board.employees)}">Không có nhân viên đang làm tại cửa hàng.</p>
         <p class="day-empty" id="monthFilteredEmpty" hidden>Không có nhân viên khớp từ khóa.</p>
@@ -69,11 +64,11 @@
                 <p class="slot-meta" th:text="${card.employeeCode + ' · ' + card.roleLabel}">NV001 · Full-time</p>
                 <div class="slot-times">
                     <div>
-                        <span>Slot theo lịch</span>
+                        <span>Ca theo lịch</span>
                         <strong th:text="${card.scheduledSlots}">0</strong>
                     </div>
                     <div>
-                        <span>Slot đã làm</span>
+                        <span>Ca đã làm</span>
                         <strong th:text="${card.workedSlots}">0</strong>
                     </div>
                 </div>
@@ -81,19 +76,19 @@
                     <div>
                         <span>Đi muộn</span>
                         <strong th:classappend="${card.late} ? 'is-alert' : ''"
-                                th:text="${card.lateSlots + ' slot'}">0 slot</strong>
+                                th:text="${card.lateSlots + ' ca'}">0 ca</strong>
                         <small th:text="${card.lateDurationLabel}">0 phút tổng cộng</small>
                     </div>
                     <div>
                         <span>Về sớm</span>
                         <strong th:classappend="${card.early} ? 'is-alert' : ''"
-                                th:text="${card.earlySlots + ' slot'}">0 slot</strong>
+                                th:text="${card.earlySlots + ' ca'}">0 ca</strong>
                         <small th:text="${card.earlyDurationLabel}">0 phút tổng cộng</small>
                     </div>
                 </div>
                 <div class="slot-absent">
                     <span>Vắng mặt</span>
-                    <strong th:text="${card.absentSlots + ' slot'}">0 slot</strong>
+                    <strong th:text="${card.absentSlots + ' ca'}">0 ca</strong>
                 </div>
                 <button type="button" class="month-detail" th:attr="data-dialog=|month-emp-${card.employeeId}|">Xem chi tiết</button>
             </article>
@@ -107,22 +102,22 @@
                     </div>
                 </div>
                 <div class="slot-times">
-                    <div><span>Slot theo lịch</span><strong th:text="${card.scheduledSlots}">0</strong></div>
-                    <div><span>Slot đã làm</span><strong th:text="${card.workedSlots}">0</strong></div>
+                    <div><span>Ca theo lịch</span><strong th:text="${card.scheduledSlots}">0</strong></div>
+                    <div><span>Ca đã làm</span><strong th:text="${card.workedSlots}">0</strong></div>
                 </div>
                 <div class="slot-times slot-minutes">
                     <div>
                         <span>Đi muộn</span>
-                        <strong th:text="${card.lateSlots + ' slot'}">0 slot</strong>
+                        <strong th:text="${card.lateSlots + ' ca'}">0 ca</strong>
                         <small th:text="${card.lateDurationLabel}">0 phút</small>
                     </div>
                     <div>
                         <span>Về sớm</span>
-                        <strong th:text="${card.earlySlots + ' slot'}">0 slot</strong>
+                        <strong th:text="${card.earlySlots + ' ca'}">0 ca</strong>
                         <small th:text="${card.earlyDurationLabel}">0 phút</small>
                     </div>
                 </div>
-                <p class="slot-schedule">Vắng mặt: <span th:text="${card.absentSlots + ' slot'}">0 slot</span></p>
+                <p class="slot-schedule">Vắng mặt: <span th:text="${card.absentSlots + ' ca'}">0 ca</span></p>
                 <div class="detail-filters" th:if="${!#lists.isEmpty(card.days)}" role="group" aria-label="Lọc ca trong tháng">
                     <button type="button" class="is-on" data-filter="">Tất cả</button>
                     <button type="button" data-filter="late">Đi muộn</button>
@@ -172,22 +167,14 @@
     var search = document.getElementById("monthSearch");
     var cards = Array.prototype.slice.call(document.querySelectorAll(".month-card"));
     var filteredEmpty = document.getElementById("monthFilteredEmpty");
-    var types = Array.prototype.slice.call(document.querySelectorAll(".type-filters input"));
     if (!search || cards.length === 0) {
         return;
     }
-    function selectedType() {
-        var chosen = types.find(function (input) { return input.checked; });
-        return chosen ? chosen.value : "";
-    }
     function apply() {
         var text = search.value.trim().toLowerCase();
-        var type = selectedType();
         var shown = 0;
         cards.forEach(function (card) {
-            var matchesText = !text || (card.getAttribute("data-search") || "").indexOf(text) >= 0;
-            var matchesType = !type || card.getAttribute("data-type") === type;
-            var visible = matchesText && matchesType;
+            var visible = !text || (card.getAttribute("data-search") || "").indexOf(text) >= 0;
             card.hidden = !visible;
             if (visible) {
                 shown += 1;
@@ -198,7 +185,6 @@
         }
     }
     search.addEventListener("input", apply);
-    types.forEach(function (input) { input.addEventListener("change", apply); });
 })();
 (function () {
     function applyFilter(dialog, filter) {

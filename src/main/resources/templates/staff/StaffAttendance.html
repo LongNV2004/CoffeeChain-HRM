@@ -3,20 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lịch sử chấm công của tôi — CoffeeHRM</title>
+    <title>Theo dõi chấm công — CoffeeHRM</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/AttendanceHistory.css}">
 </head>
 <body>
-<header th:replace="~{fragments/navbar :: staff('attendance')}"></header>
+<header th:replace="~{fragments/navbar :: staff('attendance-track')}"></header>
 
-<main class="wrap dash-main attn-screen">
+<main class="wrap dash-main attn-screen track-board">
     <section class="day-board mine-board">
-        <h1>Lịch sử chấm công của tôi</h1>
-        <p class="flash" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
-
-        <form method="get" th:action="@{/attendance/staff/history}">
+        <div class="day-head">
+            <div>
+                <h1>Theo dõi chấm công</h1>
+            </div>
+            <form method="get" th:action="@{/attendance/staff/history}">
             <label class="mine-field">Chọn ngày
                 <span class="mine-date">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>
@@ -25,18 +26,20 @@
                            onchange="this.form.submit()" aria-label="Chọn ngày">
                 </span>
             </label>
-        </form>
+            </form>
+        </div>
+        <p class="flash" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
 
         <div class="mine-filter">
-            <span>Các slot trong ngày</span>
-            <select id="slotFilter" aria-label="Các slot trong ngày">
-                <option value="">Tất cả slot</option>
+            <span>Các ca trong ngày</span>
+            <select id="slotFilter" aria-label="Các ca trong ngày">
+                <option value="">Tất cả ca</option>
                 <option th:each="slot : ${board.slots}" th:value="${slot.slotKey}" th:text="${slot.shiftName}">Ca sáng</option>
             </select>
         </div>
 
-        <p class="day-empty" th:if="${#lists.isEmpty(board.slots)}">Không có slot trong ngày này.</p>
-        <p class="day-empty" id="slotFilteredEmpty" hidden>Không có slot khớp bộ lọc.</p>
+        <p class="day-empty" th:if="${#lists.isEmpty(board.slots)}">Không có ca trong ngày này.</p>
+        <p class="day-empty" id="slotFilteredEmpty" hidden>Không có ca khớp bộ lọc.</p>
 
         <div class="slot-list" th:if="${!#lists.isEmpty(board.slots)}">
             <article class="slot-card mine-card" th:each="slot : ${board.slots}" th:attr="data-shift=${slot.slotKey}">

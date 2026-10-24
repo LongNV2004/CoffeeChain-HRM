@@ -190,7 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const grid = el('div', '', 'ml-detail-grid');
         detailField(grid, 'Nhân viên', request.employeeName);
         detailField(grid, 'Loại nghỉ', request.leaveTypeLabel || 'Nghỉ phép năm');
-        detailField(grid, 'Số slot', request.requestedWorkDays == null ? '—' : String(request.requestedWorkDays));
+        detailField(grid, 'Số ca', request.requestedWorkDays == null ? '—' : String(request.requestedWorkDays));
         detailField(grid, 'Trừ phép năm', request.deductsAnnualLeave ? 'Có, khi duyệt' : 'Không');
         detailField(grid, 'Trạng thái', label(request.status));
         detailField(grid, 'Ca sớm nhất', date(request.startDate));
@@ -204,22 +204,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const approved = request.status === 'APPROVED';
         const historicalShifts = data.cancelledLeaveShifts;
         const quotaTitle = approved
-            ? 'Slot ca đã duyệt nghỉ'
-            : (request.deductsAnnualLeave ? 'Số slot phép năm dự kiến bị trừ' : 'Số slot bị ảnh hưởng');
+            ? 'Ca đã duyệt nghỉ'
+            : (request.deductsAnnualLeave ? 'Số ca phép năm dự kiến bị trừ' : 'Số ca bị ảnh hưởng');
         body.append(el('h3', quotaTitle, 'ml-section-label'));
         const quota = el('div', '', 'ml-detail-box');
         if (approved) {
             if (Array.isArray(historicalShifts)) {
                 const dates = new Set(historicalShifts.map(item => item.workDate));
-                quota.append(el('strong', `${historicalShifts.length} slot`));
-                quota.append(el('p', 'Mỗi ca đã chọn tính một slot, kể cả khi nhiều ca nằm cùng ngày.', 'ml-muted'));
+                quota.append(el('strong', `${historicalShifts.length} ca`));
+                quota.append(el('p', 'Mỗi ca đã chọn được tính riêng, kể cả khi nhiều ca nằm cùng ngày.', 'ml-muted'));
             } else {
                 quota.append(el('p', 'Chưa tải được các ca của đơn.', 'ml-muted'));
             }
         } else {
-            quota.append(el('strong', `${data.workDaysToCharge} slot`));
+            quota.append(el('strong', `${data.workDaysToCharge} ca`));
             for (const y of data.yearlyCharges || []) {
-                quota.append(el('p', `Năm ${y.year}: ${y.chargedDays} slot · Định mức ${y.totalDays} · Đã dùng ${y.usedDays} · Chờ khác ${y.pendingOtherDays} · Còn sau duyệt ${y.remainingAfterApproval}`));
+                quota.append(el('p', `Năm ${y.year}: ${y.chargedDays} ca · Định mức ${y.totalDays} · Đã dùng ${y.usedDays} · Chờ khác ${y.pendingOtherDays} · Còn sau duyệt ${y.remainingAfterApproval}`));
             }
         }
         body.append(quota);
@@ -278,7 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         if (nextStatus === 'APPROVED' && !detail.canApprove) {
-            toast('Ca đã bắt đầu, đã qua hoặc quỹ slot phép không đủ.', true);
+            toast('Ca đã bắt đầu, đã qua hoặc quỹ ca phép không đủ.', true);
             return;
         }
         const slotCount = detail.workDaysToCharge ?? detail.request.requestedWorkDays ?? 0;
@@ -286,8 +286,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ? {
                 title: 'Duyệt đơn nghỉ phép',
                 message: detail.request.deductsAnnualLeave
-                    ? `Duyệt đơn này sẽ trừ ${slotCount} slot phép năm và chỉ hủy ${slotCount} ca đã chọn.`
-                    : 'Duyệt đơn này không trừ slot phép năm. Chỉ các ca đã chọn bị hủy.',
+                    ? `Duyệt đơn này sẽ trừ ${slotCount} ca phép năm và chỉ hủy ${slotCount} ca đã chọn.`
+                    : 'Duyệt đơn này không trừ ca phép năm. Chỉ các ca đã chọn bị hủy.',
                 confirmText: 'Duyệt'
             }
             : {
@@ -312,7 +312,7 @@ document.addEventListener('DOMContentLoaded', () => {
             closeAll();
             toast(nextStatus === 'APPROVED'
                 ? (result.chargedWorkDays > 0
-                    ? `Đã duyệt. Trừ ${result.chargedWorkDays} slot phép, giải phóng ${result.releasedShifts} ca.`
+                    ? `Đã duyệt. Trừ ${result.chargedWorkDays} ca phép, giải phóng ${result.releasedShifts} ca.`
                     : `Đã duyệt. Không trừ phép năm, giải phóng ${result.releasedShifts} ca.`)
                 : 'Đã từ chối và lưu lý do.');
             await Promise.all([summary(), loadList()]);

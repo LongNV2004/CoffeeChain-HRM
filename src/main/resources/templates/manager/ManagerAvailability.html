@@ -38,9 +38,9 @@
         <p>
             Đơn đang chờ được gom ở bảng riêng phía dưới. Duyệt hoặc từ chối từng nhân viên,
             hoặc dùng Duyệt tất cả / Từ chối tất cả cho mọi đơn đang chờ.
-            Khi duyệt, các slot trong đơn của nhân viên đó được xếp vào lịch làm việc tương lai, đúng ca và đúng thứ trong thời hạn.
+            Khi duyệt, các ca trong đơn của nhân viên đó được xếp vào lịch làm việc tương lai, đúng ca và đúng thứ trong thời hạn.
             Nhân viên xem lại các ca đó trên Lịch làm việc và nhận thông báo.
-            Ca đã phân trùng đúng slot được giữ nguyên.
+            Ca đã phân trùng đúng ca được giữ nguyên.
             Số lượng nhân viên tối đa của từng ca được cấu hình ở màn hình riêng.
             Ô lịch chỉ liệt kê người đang chiếm chỗ trong
             <strong th:text="${availabilityGrid.formattedWeekRange}">tuần kế tiếp</strong>.
@@ -107,7 +107,7 @@
                 <form th:action="@{/availability/manager/review-all}" method="post">
                     <input type="hidden" name="approved" value="true">
                     <button class="bulk-btn approve" type="submit"
-                            data-coffee-confirm="Duyệt tất cả đơn đang chờ? Mỗi nhân viên được duyệt theo đơn của chính họ; các slot trong đơn được xếp vào lịch."
+                            data-coffee-confirm="Duyệt tất cả đơn đang chờ? Mỗi nhân viên được duyệt theo đơn của chính họ; các ca trong đơn được xếp vào lịch."
                             data-coffee-title="Duyệt tất cả đơn"
                             data-coffee-ok="Duyệt tất cả">
                         Duyệt tất cả
@@ -131,7 +131,7 @@
             <tr>
                 <th>Nhân viên</th>
                 <th>Chứng chỉ</th>
-                <th>Slot theo ngày</th>
+                <th>Ca theo ngày</th>
                 <th>Thời hạn</th>
                 <th>Lịch dự kiến</th>
                 <th>Trạng thái</th>
@@ -158,7 +158,7 @@
                             <input type="hidden" name="availabilityId" th:if="${item.registrationKey == null}" th:value="${item.availabilityId}">
                             <input type="hidden" name="approved" value="true">
                             <button class="mini-btn approve" type="submit"
-                                    th:data-coffee-confirm="|Duyệt đơn đăng ký ca của ${item.employeeName}? Chỉ các slot trong đơn của nhân viên này được xếp vào lịch.|"
+                                    th:data-coffee-confirm="|Duyệt đơn đăng ký ca của ${item.employeeName}? Chỉ các ca trong đơn của nhân viên này được xếp vào lịch.|"
                                     data-coffee-title="Duyệt đơn đăng ký ca"
                                     data-coffee-ok="Duyệt">
                                 Duyệt
@@ -192,7 +192,7 @@
             <tr>
                 <th>Nhân viên</th>
                 <th>Chứng chỉ</th>
-                <th>Slot theo ngày</th>
+                <th>Ca theo ngày</th>
                 <th>Thời hạn</th>
                 <th>Lịch dự kiến</th>
                 <th>Trạng thái</th>

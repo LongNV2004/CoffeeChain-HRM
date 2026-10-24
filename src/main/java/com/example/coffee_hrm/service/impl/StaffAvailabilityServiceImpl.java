@@ -458,7 +458,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
         String period = availability.getDayOfWeek() != null
                 ? AvailabilityCoverage.formatPeriod(availability.getValidFrom(), availability.getValidTo())
                 : dateLabel(availability.getWorkDate());
-        return "Quản lý đã duyệt " + slotCount + " slot lịch làm việc ("
+        return "Quản lý đã duyệt " + slotCount + " ca lịch làm việc ("
                 + durationLabel(availability) + ", " + period
                 + "). Các ca đã được xếp vào lịch làm việc tương lai.";
     }
@@ -467,7 +467,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
         String period = availability.getDayOfWeek() != null
                 ? AvailabilityCoverage.formatPeriod(availability.getValidFrom(), availability.getValidTo())
                 : dateLabel(availability.getWorkDate());
-        return "Quản lý đã từ chối " + slotCount + " slot đăng ký lịch làm việc ("
+        return "Quản lý đã từ chối " + slotCount + " ca đăng ký lịch làm việc ("
                 + durationLabel(availability) + ", " + period
                 + "). Bạn có thể gửi đăng ký mới.";
     }
@@ -771,7 +771,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                 return;
             }
             String message = String.format(
-                    "%s đã đăng ký %d slot lịch làm việc định kỳ (%s, %s) tại %s. Xem đề xuất tại Đăng kí lịch làm việc.",
+                    "%s đã đăng ký %d ca lịch làm việc định kỳ (%s, %s) tại %s. Xem đề xuất tại Đăng kí lịch làm việc.",
                     staffEmployee.getFullName(),
                     slotCount,
                     prepared.duration().getLabel(),
@@ -1044,7 +1044,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
             String label = slotLabel(slot.shift(), slot.dayOfWeek());
             if (limit == null || limit.getMaxEmployees() == null || limit.getMaxEmployees() < 1) {
                 throw new BusinessException(label
-                        + " chưa có số lượng nhân viên tối đa. Bạn chưa thể đăng ký slot này.");
+                        + " chưa có số lượng nhân viên tối đa. Bạn chưa thể đăng ký ca này.");
             }
             List<WorkAvailability> rows = capacityCandidates(shiftId);
             List<LocalDate> dates = AvailabilityCoverage.occurrences(
@@ -1059,7 +1059,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                 if (usage.duplicateEmployee()) {
                     throw new BusinessException("Bạn đã đăng ký " + label
                             + " ngày " + date.format(FULL_DATE)
-                            + ". Không tạo thêm đăng ký trùng cho slot này.");
+                            + ". Không tạo thêm đăng ký trùng cho ca này.");
                 }
                 int occupied = usage.pending() + usage.approved();
                 if (occupied >= limit.getMaxEmployees()) {
@@ -1217,21 +1217,21 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
             key = "over";
             label = "Vượt giới hạn";
             hint = usage.viewerApproved
-                    ? "Bạn đã đăng ký slot này. Slot đang vượt giới hạn nên tạm ngưng nhận thêm."
+                    ? "Bạn đã đăng ký ca này. Ca đang vượt giới hạn nên tạm ngưng nhận thêm."
                     : "Đã vượt " + (occupied - usage.maxEmployees)
                     + " đăng ký so với giới hạn ngày " + dateText + ". Tạm ngưng nhận đăng ký mới.";
         } else if (remaining == 0) {
             key = "full";
             label = "Đã đủ người";
             hint = usage.viewerApproved
-                    ? "Bạn đã đăng ký slot này."
+                    ? "Bạn đã đăng ký ca này."
                     : usage.viewerPending
-                    ? "Slot đã đủ người cho ngày " + dateText + ". Bạn có thể gửi lại đăng ký đang chờ của mình."
+                    ? "Ca đã đủ người cho ngày " + dateText + ". Bạn có thể gửi lại đăng ký đang chờ của mình."
                     : "Đã đủ số lượng nhân viên cho ngày " + dateText + ".";
         } else if (usage.viewerApproved) {
             key = "open";
             label = "Còn chỗ";
-            hint = "Bạn đã đăng ký slot này.";
+            hint = "Bạn đã đăng ký ca này.";
         } else if (usage.viewerPending) {
             key = "open";
             label = "Còn chỗ";

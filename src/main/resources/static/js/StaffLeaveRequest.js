@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
             message('Chọn loại nghỉ và ít nhất một ca làm việc.');
             return;
         }
-        message('Đang kiểm tra ca đã chọn và quỹ slot phép...');
+        message('Đang kiểm tra ca đã chọn và quỹ ca phép...');
         try {
             const params = new URLSearchParams({ leaveType: type.value });
             chosen.forEach(slot => params.append('assignmentIds', slot.assignmentId));
@@ -163,16 +163,16 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok || !result.success) throw new Error(result.message || 'Không kiểm tra được đơn.');
             const data = result.data;
             const lines = [
-                `Số slot đang chọn: ${data.requestedWorkDays}.`,
+                `Số ca đang chọn: ${data.requestedWorkDays}.`,
                 ...chosen.map(slot => slotLine(slot)),
                 `Loại nghỉ: ${data.leaveTypeLabel}.`,
                 'Trạng thái sau khi gửi: Chờ duyệt.',
                 data.deductsAnnualLeave
-                    ? `Số slot phép năm dự kiến bị trừ khi duyệt: ${data.requestedWorkDays}. Chưa trừ lúc gửi.`
-                    : 'Đơn này không trừ slot phép năm.'
+                    ? `Số ca phép năm dự kiến bị trừ khi duyệt: ${data.requestedWorkDays}. Chưa trừ lúc gửi.`
+                    : 'Đơn này không trừ ca phép năm.'
             ];
             (data.years || []).forEach(year => {
-                lines.push(`Năm ${year.year}: xin ${year.requestedDays} slot · định mức ${year.totalDays} · đã dùng ${year.usedDays} · đang chờ ${year.pendingDays} · khả dụng ${year.availableDays} slot.`);
+                lines.push(`Năm ${year.year}: xin ${year.requestedDays} ca · định mức ${year.totalDays} · đã dùng ${year.usedDays} · đang chờ ${year.pendingDays} · khả dụng ${year.availableDays} ca.`);
             });
             if (data.processNote) lines.push(data.processNote);
             message(lines.join('\n'));
@@ -341,7 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
             grid.append(
                 field('Mã đơn', item.id),
                 field('Loại nghỉ', item.leaveTypeLabel),
-                field('Số slot', item.requestedWorkDays),
+                field('Số ca', item.requestedWorkDays),
                 field('Ca xin nghỉ', (item.slots || []).map(slot =>
                     `${formatDate(slot.workDate)} ${slot.weekday || ''} ${slot.shiftName} ${formatTime(slot.startTime)}–${formatTime(slot.endTime)}`).join('; ') || '—'),
                 field('Trạng thái', item.statusLabel),
@@ -368,7 +368,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const accepted = window.CoffeeDialog
             ? await window.CoffeeDialog.confirm({
                 title: 'Hủy đơn nghỉ phép',
-                message: 'Đơn chờ duyệt sẽ được hủy và không trừ phép. Đơn đã duyệt chỉ hủy được khi các ca chưa bắt đầu, chưa có người thay và chưa có chấm công; slot phép năm sẽ được hoàn lại một lần.',
+                message: 'Đơn chờ duyệt sẽ được hủy và không trừ phép. Đơn đã duyệt chỉ hủy được khi các ca chưa bắt đầu, chưa có người thay và chưa có chấm công; ca phép năm sẽ được hoàn lại một lần.',
                 confirmText: 'Hủy đơn',
                 tone: 'danger'
             })

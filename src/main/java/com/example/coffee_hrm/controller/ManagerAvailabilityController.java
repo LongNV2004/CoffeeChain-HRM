@@ -96,7 +96,7 @@ public class ManagerAvailabilityController {
             redirectAttributes.addFlashAttribute("successMessage",
                     approved
                             ? "Đã duyệt đơn đăng ký ca của nhân viên này. Các ca trong đơn đã được xếp vào lịch làm việc. Nhân viên đã được thông báo."
-                            : "Đã từ chối đơn đăng ký ca của nhân viên này. Nhân viên đã được thông báo và các slot trong đơn không được xếp vào lịch.");
+                            : "Đã từ chối đơn đăng ký ca của nhân viên này. Nhân viên đã được thông báo và các ca trong đơn không được xếp vào lịch.");
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
         }

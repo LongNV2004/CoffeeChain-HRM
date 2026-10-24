@@ -30,11 +30,11 @@ public class UpdateStoreRequest {
     @Size(max = 255, message = "Địa chỉ tối đa 255 ký tự")
     private String address;
 
-    @NotNull(message = "Vui lòng nhập số slot phép")
-    @Min(value = 0, message = "Số slot phép không được âm")
+    @NotNull(message = "Vui lòng nhập số ca phép")
+    @Min(value = 0, message = "Số ca phép không được âm")
     private Integer totalLeaveSlots;
 
-    /** Existing day allowance. Updates do not overwrite it from the slot field. */
+    /** Existing day allowance. Updates do not overwrite it from the leave-shift field. */
     private Integer totalLeaveDays;
 
     @NotNull(message = "Vui lòng chọn ngày khai trương")

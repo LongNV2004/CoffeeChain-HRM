@@ -11,7 +11,7 @@
 <body>
 <header th:replace="~{fragments/navbar :: manager('attendance-day')}"></header>
 
-<main class="wrap dash-main attn-screen">
+<main class="wrap dash-main attn-screen track-board">
     <section class="day-board">
         <div class="day-head">
             <div>
@@ -40,15 +40,15 @@
         <div class="day-stats">
             <article th:each="shift : ${board.shifts}">
                 <div class="day-stat-name" th:text="${shift.shiftName}">Ca sáng</div>
-                <div class="day-stat-value"><span th:text="${shift.slots}">0</span> slot</div>
+                <div class="day-stat-value"><span th:text="${shift.slots}">0</span> ca</div>
             </article>
             <article>
                 <div class="day-stat-name">Tổng vi phạm</div>
-                <div class="day-stat-value"><span th:text="${board.violationSlots}">0</span> slot</div>
+                <div class="day-stat-value"><span th:text="${board.violationSlots}">0</span> ca</div>
             </article>
         </div>
 
-        <h2>Danh sách slot chấm công</h2>
+        <h2>Danh sách ca chấm công</h2>
         <div class="day-tools">
             <label class="day-search">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg>
@@ -72,7 +72,7 @@
             </label>
         </div>
 
-        <p class="day-empty" id="slotEmpty" th:if="${#lists.isEmpty(board.slots)}">Không có slot chấm công trong ngày này.</p>
+        <p class="day-empty" id="slotEmpty" th:if="${#lists.isEmpty(board.slots)}">Không có ca chấm công trong ngày này.</p>
         <p class="day-empty" id="slotFilteredEmpty" hidden>Không có nhân viên khớp bộ lọc.</p>
 
         <div class="slot-list" th:if="${!#lists.isEmpty(board.slots)}">

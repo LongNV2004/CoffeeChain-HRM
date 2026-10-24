@@ -171,7 +171,7 @@ public final class AvailabilityCoverage {
             notes.add("Tuần giao giữa hai tháng");
         }
         if (empty) {
-            notes.add("Không có slot vì các thứ đã chọn nằm ngoài thời hạn của tuần này");
+            notes.add("Không có ca vì các thứ đã chọn nằm ngoài thời hạn của tuần này");
         }
         return String.join(". ", notes);
     }

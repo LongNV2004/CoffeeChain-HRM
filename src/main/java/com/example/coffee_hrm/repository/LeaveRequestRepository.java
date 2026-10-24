@@ -18,6 +18,7 @@ import org.springframework.data.repository.query.Param;
 public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Integer> {
     // Original queries (also used by Stage 1 and Dashboard).
     long countByEmployee_Store_IdAndStatus(Integer storeId, ApprovalStatus status);
+    long countByEmployee_IdAndStatus(Integer employeeId, ApprovalStatus status);
     List<LeaveRequest> findByEmployee_IdOrderByCreatedAtDesc(Integer employeeId, Pageable pageable);
 
     // Stage 1: create, prevent overlapping requests, show personal history.

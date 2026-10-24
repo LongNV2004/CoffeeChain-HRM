@@ -14,8 +14,8 @@ public final class MonthAttendanceExcel {
         List<List<String>> summary = new ArrayList<>();
         summary.add(List.of(
                 "Cửa hàng", "Tháng", "Mã nhân viên", "Tên nhân viên", "Vai trò",
-                "Slot theo lịch", "Slot đã làm", "Slot đi muộn", "Tổng thời gian đi muộn",
-                "Slot về sớm", "Tổng thời gian về sớm", "Slot vắng"));
+                "Ca theo lịch", "Ca đã làm", "Ca đi muộn", "Tổng thời gian đi muộn",
+                "Ca về sớm", "Tổng thời gian về sớm", "Ca vắng"));
         for (ManagerMonthAttendanceView.EmployeeMonth card : board.getEmployees()) {
             summary.add(List.of(
                     text(board.getStoreName()),

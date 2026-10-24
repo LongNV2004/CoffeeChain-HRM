@@ -3,99 +3,189 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manager Dashboard — CoffeeHRM</title>
+    <title>Tổng quan cửa hàng — CoffeeHRM</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/ManagerDashboard.css}">
-    <link rel="stylesheet" th:href="@{/css/ManagerLeavePage.css}">
+    <link rel="stylesheet" th:href="@{/css/manager-home.css}">
 </head>
 <body class="manager-dashboard">
 <header th:replace="~{fragments/navbar :: manager('dashboard')}"></header>
-<main class="wrap dash-main hrm-board">
-    <section class="welcome">
+
+<main class="wrap dash-main manager-home">
+    <header class="mgr-page-head">
         <div>
-            <div class="eyebrow">Cửa hàng — Manager</div>
-            <h1>Xin chào Manager</h1>
-            <p>
-                <span th:text="${dashboard.displayName}">Manager</span> · tài khoản
-                <strong th:text="${dashboard.username}">username</strong>
+            <h1>Tổng quan cửa hàng</h1>
+            <div class="mgr-store" th:if="${dashboard.storeAssigned}">
+                <strong th:text="${dashboard.storeName}">Cửa hàng</strong>
+                <span class="mgr-status"
+                      th:if="${dashboard.storeStatusLabel != null}"
+                      th:classappend="${dashboard.storeStatusKey}"
+                      th:text="${dashboard.storeStatusLabel}">Hoạt động</span>
+            </div>
+            <p class="mgr-unassigned" th:if="${!dashboard.storeAssigned}">
+                Tài khoản này chưa được phân công cửa hàng. Liên hệ Admin để được gán.
             </p>
-            <div class="store-banner" th:if="${dashboard.storeId != null}">
-                <h2 th:text="${dashboard.storeName}">Store</h2>
-                <p th:text="${dashboard.storeAddress}">Địa chỉ</p>
-            </div>
-            <div class="store-banner warning" th:if="${dashboard.storeId == null}">
-                <h2>Chưa được gán cửa hàng</h2>
-                <p>Tài khoản quản lý này chưa liên kết với cửa hàng nào. Liên hệ Admin để được phân công.</p>
-            </div>
         </div>
-        <div class="hrm-hero-actions">
-            <button type="button" class="hrm-chip notif-open-link" data-open-notifications>Thông báo</button>
-        </div>
-    </section>
+        <time class="mgr-today" th:datetime="${dashboard.today}" th:text="${dashboard.todayLabel}">Thứ Sáu, 23/10/2026</time>
+    </header>
 
-    <aside class="hrm-spotlight" id="leave" aria-label="Đơn nghỉ phép chờ duyệt">
-        <span>Chờ duyệt</span>
-        <div>
-            <strong th:text="${dashboard.pendingLeaveCount}">0</strong>
-            <p>Đơn nghỉ phép đang chờ xử lý</p>
-        </div>
-        <a th:href="@{/manager/leaves(status='PENDING')}">Mở đơn nghỉ phép</a>
-    </aside>
+    <section class="mgr-kpi-grid" aria-label="Chỉ số chính">
+        <a class="mgr-kpi" th:href="@{/manager/employees}">
+            <span class="mgr-kpi-icon mgr-icon-people" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 19v-1.2A4.8 4.8 0 0 1 8.3 13h1.4A4.8 4.8 0 0 1 14.5 17.8V19"/><circle cx="17" cy="9" r="2.2"/><path d="M16 13.2a4 4 0 0 1 4 3.6V19"/></svg>
+            </span>
+            <span class="mgr-kpi-label">Nhân viên đang làm việc</span>
+            <strong class="mgr-kpi-value" th:text="${#numbers.formatInteger(dashboard.workingEmployeeCount, 0, 'POINT')}">0</strong>
+            <span class="mgr-kpi-hint">Không gồm Manager, nhân viên nghỉ phép và đã nghỉ việc</span>
+        </a>
 
-    <section class="stat-grid">
-        <article class="stat-card">
-            <div class="label">Tổng nhân viên của Store</div>
-            <div class="value" th:text="${dashboard.storeEmployeeCount}">0</div>
-        </article>
-        <article class="stat-card" id="schedule">
-            <div class="label">
-                <a th:href="@{/schedule/manager}">Ca làm hôm nay</a>
-            </div>
-            <div class="value" th:text="${dashboard.todayShiftCount}">0</div>
-        </article>
-        <article class="stat-card">
-            <div class="label">
-                <a class="ml-dashboard-link" th:href="@{/manager/leaves(status='PENDING')}">Đơn nghỉ phép chờ duyệt</a>
-            </div>
-            <div class="value" th:text="${dashboard.pendingLeaveCount}">0</div>
-        </article>
-        <article class="stat-card">
-            <div class="label">
-                <a th:href="@{/schedule/manager#shift-change-requests}">Yêu cầu đổi ca chờ duyệt</a>
-            </div>
-            <div class="value" th:text="${dashboard.pendingShiftChangeCount}">0</div>
+        <a class="mgr-kpi" th:href="@{/schedule/manager}">
+            <span class="mgr-kpi-icon mgr-icon-shift" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 2.5v3.5M16 2.5v3.5M3 9h18"/><path d="M8 14h3M13 14h3"/></svg>
+            </span>
+            <span class="mgr-kpi-label">Ca làm hôm nay</span>
+            <strong class="mgr-kpi-value" th:text="${#numbers.formatInteger(dashboard.todaySlotCount, 0, 'POINT')}">0</strong>
+            <span class="mgr-kpi-hint"
+                  th:text="${#numbers.formatInteger(dashboard.todayEmployeeCount, 0, 'POINT') + ' nhân viên · ' + #numbers.formatInteger(dashboard.todaySlotCount, 0, 'POINT') + ' ca đã phân công'}">0 nhân viên · 0 ca đã phân công</span>
+        </a>
+
+        <a class="mgr-kpi" th:href="@{/attendance/manager/day}">
+            <span class="mgr-kpi-icon mgr-icon-done" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="m8.5 12.2 2.3 2.3 4.7-5"/></svg>
+            </span>
+            <span class="mgr-kpi-label">Lượt làm đã hoàn thành</span>
+            <strong class="mgr-kpi-value" th:text="${dashboard.completedRatioLabel}">0/0</strong>
+            <span class="mgr-kpi-hint">Ca đã check-out / ca đã phân công</span>
+        </a>
+
+        <article class="mgr-kpi">
+            <span class="mgr-kpi-icon mgr-icon-pending" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2"/></svg>
+            </span>
+            <span class="mgr-kpi-label">Yêu cầu chờ xử lý</span>
+            <strong class="mgr-kpi-value" th:text="${#numbers.formatInteger(dashboard.pendingRequestCount, 0, 'POINT')}">0</strong>
+            <span class="mgr-kpi-hint">Nghỉ phép, đăng ký ca và đổi ca</span>
         </article>
     </section>
 
-    <section class="action-grid hrm-modules">
-        <article class="action-card" id="attendance">
-            <h2><a th:href="@{/attendance/manager}">Chấm công</a></h2>
-            <p>Xem lịch sử giờ vào/ra của nhân viên thuộc cửa hàng bạn quản lý.</p>
+    <section class="mgr-card" aria-labelledby="mgrTasksTitle">
+        <div class="mgr-card-head">
+            <div>
+                <h2 id="mgrTasksTitle">Công việc cần xử lý</h2>
+                <p>Các yêu cầu thuộc quyền duyệt của Manager tại cửa hàng này</p>
+            </div>
+        </div>
+        <p class="mgr-empty" th:if="${dashboard.storeAssigned and dashboard.tasksEmpty}">Không có yêu cầu cần xử lý.</p>
+        <p class="mgr-empty" th:if="${!dashboard.storeAssigned}">Chưa được phân công cửa hàng.</p>
+        <div class="mgr-tasks" th:if="${!dashboard.tasksEmpty}">
+            <a class="mgr-task" th:href="@{/manager/leaves(status='PENDING')}">
+                <span class="mgr-task-icon mgr-icon-leave" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3.5v3M16 3.5v3M4 10h16"/><path d="M9 15h6"/></svg>
+                </span>
+                <span class="mgr-task-copy">
+                    <strong>Đơn xin nghỉ phép</strong>
+                    <p>Đơn của cửa hàng đang chờ phê duyệt.</p>
+                </span>
+                <span class="mgr-badge"
+                      th:classappend="${dashboard.pendingLeaveCount > 0} ? 'is-pending' : ''"
+                      th:text="${#numbers.formatInteger(dashboard.pendingLeaveCount, 0, 'POINT')}">0</span>
+                <svg class="mgr-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+            </a>
+            <a class="mgr-task" th:href="@{/availability/manager}">
+                <span class="mgr-task-icon mgr-icon-shift" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 2.5v3.5M16 2.5v3.5M3 9h18"/><path d="M12 13v5M9.5 15.5h5"/></svg>
+                </span>
+                <span class="mgr-task-copy">
+                    <strong>Đăng ký ca làm</strong>
+                    <p>Đơn đăng ký ca đang chờ duyệt.</p>
+                </span>
+                <span class="mgr-badge"
+                      th:classappend="${dashboard.pendingRegistrationCount > 0} ? 'is-pending' : ''"
+                      th:text="${#numbers.formatInteger(dashboard.pendingRegistrationCount, 0, 'POINT')}">0</span>
+                <svg class="mgr-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+            </a>
+            <a class="mgr-task" th:href="@{/schedule/manager#shift-change-requests}">
+                <span class="mgr-task-icon mgr-icon-swap" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M4 8h15m0 0-4-4m4 4-4 4M20 16H5m0 0 4-4m-4 4 4 4"/></svg>
+                </span>
+                <span class="mgr-task-copy">
+                    <strong>Yêu cầu đổi ca</strong>
+                    <p>Yêu cầu đã đến lượt Manager xử lý.</p>
+                </span>
+                <span class="mgr-badge"
+                      th:classappend="${dashboard.pendingShiftChangeCount > 0} ? 'is-pending' : ''"
+                      th:text="${#numbers.formatInteger(dashboard.pendingShiftChangeCount, 0, 'POINT')}">0</span>
+                <svg class="mgr-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+            </a>
+        </div>
+    </section>
+
+    <section class="mgr-split" aria-label="Chấm công và lịch làm việc">
+        <article class="mgr-card">
+            <div class="mgr-card-head">
+                <div>
+                    <h2>Tình hình chấm công</h2>
+                    <p>Ca đã công bố trong ngày. Hoàn thành khi đã check-out.</p>
+                </div>
+                <a class="mgr-card-link" th:href="@{/attendance/manager/day}">Xem theo ngày</a>
+            </div>
+            <div class="mgr-attendance" th:if="${!dashboard.attendanceEmpty}">
+                <div id="managerAttendanceChart"
+                     class="mgr-donut"
+                     th:data-completed="${dashboard.completedSlotCount}"
+                     th:data-remaining="${dashboard.remainingSlotCount}"
+                     th:data-rate="${dashboard.completionRate}"></div>
+                <ul class="mgr-legend">
+                    <li>
+                        <span class="mgr-swatch mgr-swatch-done"></span>
+                        <span>Đã hoàn thành</span>
+                        <strong th:text="${dashboard.completedRatioLabel}">0/0</strong>
+                    </li>
+                    <li>
+                        <span class="mgr-swatch mgr-swatch-open"></span>
+                        <span>Chưa hoàn thành</span>
+                        <strong th:text="${#numbers.formatInteger(dashboard.remainingSlotCount, 0, 'POINT')}">0</strong>
+                    </li>
+                    <li th:if="${dashboard.completionRate != null}">
+                        <span class="mgr-swatch mgr-swatch-rate"></span>
+                        <span>Tỷ lệ hoàn thành</span>
+                        <strong th:text="${dashboard.completionRate + '%'}">0%</strong>
+                    </li>
+                    <li>
+                        <span class="mgr-swatch mgr-swatch-alert"></span>
+                        <span>Vi phạm chấm công</span>
+                        <strong th:text="${#numbers.formatInteger(dashboard.violationSlotCount, 0, 'POINT')}">0</strong>
+                    </li>
+                </ul>
+            </div>
+            <p class="mgr-empty" th:if="${dashboard.attendanceEmpty}">Chưa có ca làm việc được phân công trong ngày.</p>
         </article>
-        <article class="action-card">
-            <h2><a th:href="@{/schedule/manager}">Lịch làm việc</a></h2>
-            <p>Phân công ca và phê duyệt đổi ca cho nhân viên.</p>
-        </article>
-        <article class="action-card">
-            <h2><a class="ml-dashboard-link" th:href="@{/manager/leaves}">Đơn nghỉ phép</a></h2>
-            <p>Duyệt hoặc từ chối đơn nghỉ phép của nhân viên cửa hàng.</p>
-        </article>
-        <article class="action-card">
-            <h2><a th:href="@{/training}">Đào tạo</a></h2>
-            <p>Xem danh sách lớp đào tạo của cửa hàng và tạo lớp mới.</p>
-        </article>
-        <article class="action-card">
-            <h2><a th:href="@{/manager/recruitment}">Đề xuất tuyển nhân sự</a></h2>
-            <p>Đề xuất nhân viên mới. Admin duyệt rồi hệ thống mới tạo tài khoản và gửi mật khẩu qua email.</p>
-        </article>
-        <article class="action-card" id="reports">
-            <h2><a th:href="@{/attendance/manager/reports}">Báo cáo Store</a></h2>
-            <p>Xem và gửi báo cáo chấm công tháng của cửa hàng cho Admin.</p>
+
+        <article class="mgr-card">
+            <div class="mgr-card-head">
+                <div>
+                    <h2>Lịch làm việc hôm nay</h2>
+                    <p>Ca đã phân công và đã công bố tại cửa hàng.</p>
+                </div>
+                <a class="mgr-card-link" th:href="@{/schedule/manager}">Xem lịch làm việc</a>
+            </div>
+            <div class="mgr-shifts" th:if="${!dashboard.scheduleEmpty}">
+                <div class="mgr-shift" th:each="shift : ${dashboard.todayShifts}">
+                    <div class="mgr-shift-copy">
+                        <strong th:text="${shift.shiftName}">Ca sáng</strong>
+                        <p th:text="${shift.timeLabel}">07:00 – 12:00</p>
+                    </div>
+                    <div class="mgr-shift-metrics">
+                        <span><strong th:text="${#numbers.formatInteger(shift.slotCount, 0, 'POINT')}">0</strong> ca</span>
+                        <span><strong th:text="${#numbers.formatInteger(shift.employeeCount, 0, 'POINT')}">0</strong> nhân viên</span>
+                    </div>
+                </div>
+            </div>
+            <p class="mgr-empty" th:if="${dashboard.scheduleEmpty}">Chưa có lịch làm việc trong ngày.</p>
         </article>
     </section>
 </main>
-
-<script th:src="@{/js/ManagerDashboard.js}"></script>
+<script th:src="@{/js/manager-home.js}"></script>
 </body>
 </html>

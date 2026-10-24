@@ -40,7 +40,7 @@ public class LeaveRequest {
     @Builder.Default
     private LeaveType leaveType = LeaveType.ANNUAL;
 
-    /** Số slot ca được chọn. Không còn là số ngày lịch. */
+    /** Số ca được chọn. Không còn là số ngày lịch. */
     @Column(name = "RequestedWorkDays")
     private Integer requestedWorkDays;
 

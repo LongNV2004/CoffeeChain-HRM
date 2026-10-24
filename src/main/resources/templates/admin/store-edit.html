@@ -61,11 +61,11 @@
                         </span>
                         <span class="field-error" th:if="${#fields.hasErrors('openingDate')}" th:errors="*{openingDate}">Error</span>
                     </label>
-                    <label>Số slot phép / năm <span class="req" aria-hidden="true">*</span>
+                    <label>Số ca phép / năm <span class="req" aria-hidden="true">*</span>
                         <input type="number" th:field="*{totalLeaveSlots}" min="0" required>
                         <span class="field-error" th:if="${#fields.hasErrors('totalLeaveSlots')}" th:errors="*{totalLeaveSlots}">Error</span>
                     </label>
-                    <p class="store-form-note">Mỗi slot là một ca làm. Số ngày phép đã lưu không bị ghi đè.</p>
+                    <p class="store-form-note">Mỗi ca phép tương ứng một ca làm. Số ngày phép đã lưu không bị ghi đè.</p>
                 </div>
                 <p class="store-form-note">Nếu cửa hàng chưa ngừng hoạt động, lưu ngày khai trương sẽ tính lại trạng thái. Ngày tương lai là Chuẩn bị khai trương; hôm nay hoặc ngày đã qua là Hoạt động.</p>
 

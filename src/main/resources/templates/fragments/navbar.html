@@ -315,11 +315,22 @@
                     <a th:href="@{/schedule/staff/overtime}" th:classappend="${active == 'overtime'} ? ' is-active'">Đăng kí tăng ca</a>
                 </div>
             </div>
-            <a class="coffee-menu-item" th:href="@{/attendance/staff/choose}"
-               th:classappend="${active == 'attendance'} ? ' is-active'" title="Chấm công">
-                <svg class="coffee-icon"><use href="#coffee-i-calendar"/></svg>
-                <span class="coffee-side-label">Chấm công</span>
-            </a>
+            <div class="coffee-menu-group"
+                 th:classappend="${active == 'attendance' or active == 'attendance-track'} ? ' is-open'">
+                <button type="button" class="coffee-menu-item coffee-group-toggle"
+                        data-group-toggle title="Chấm công"
+                        th:attr="aria-expanded=${active == 'attendance' or active == 'attendance-track'}">
+                    <svg class="coffee-icon"><use href="#coffee-i-calendar"/></svg>
+                    <span class="coffee-side-label">Chấm công</span>
+                    <svg class="coffee-icon coffee-chevron coffee-side-label"><use href="#coffee-i-chevron"/></svg>
+                </button>
+                <div class="coffee-group-children">
+                    <a th:href="@{/attendance/staff/choose}"
+                       th:classappend="${active == 'attendance'} ? ' is-active'">Chấm công</a>
+                    <a th:href="@{/attendance/staff/history}"
+                       th:classappend="${active == 'attendance-track'} ? ' is-active'">Theo dõi chấm công</a>
+                </div>
+            </div>
             <a class="coffee-menu-item" th:href="@{/training/staff}"
                th:classappend="${active == 'training'} ? ' is-active'" title="Đào tạo">
                 <svg class="coffee-icon"><use href="#coffee-i-training"/></svg>
@@ -392,6 +403,7 @@
             <span th:case="'attendance-day'">Theo dõi chấm công</span>
             <span th:case="'attendance-month'">Theo dõi chấm công</span>
             <span th:case="'attendance-history'">Lịch sử chấm công</span>
+            <span th:case="'attendance-track'">Theo dõi chấm công</span>
             <span th:case="'attendance-training-history'">Theo dõi chấm công</span>
             <span th:case="'reports'">Báo cáo</span>
             <span th:case="'attendance-report'">Báo cáo</span>

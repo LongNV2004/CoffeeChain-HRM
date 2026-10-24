@@ -90,6 +90,21 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Integer>
                                         @Param("fromDate") LocalDate fromDate,
                                         @Param("toDate") LocalDate toDate);
 
+    /**
+     * Chấm công trong một ngày của nhân viên thuộc cửa hàng. Bản ghi mới hơn được trả trước
+     * để mỗi ca chỉ lấy một lần.
+     */
+    @Query("""
+            SELECT a FROM Attendance a
+            JOIN FETCH a.employee e
+            LEFT JOIN FETCH a.shift
+            WHERE e.store.id = :storeId
+              AND a.workDate = :workDate
+            ORDER BY a.id DESC
+            """)
+    List<Attendance> findStoreDayAttendance(@Param("storeId") Integer storeId,
+                                            @Param("workDate") LocalDate workDate);
+
     @Query("""
             SELECT a FROM Attendance a
             JOIN FETCH a.employee e

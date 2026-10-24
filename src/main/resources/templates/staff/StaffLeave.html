@@ -32,8 +32,8 @@
             <div><small>Mã nhân viên</small><strong th:text="${context.employeeId}">12</strong></div>
             <div><small>Cửa hàng</small><strong th:text="${context.storeName}">Cửa hàng</strong></div>
             <div><small>Manager phụ trách</small><strong th:text="${context.managerName}">Manager</strong></div>
-            <div><small>Slot phép năm còn lại</small>
-                <strong th:if="${context.quotaConfigured}" th:text="${context.annualAvailableDays + ' / ' + context.annualTotalDays + ' slot ca'}">0 / 0 slot ca</strong>
+            <div><small>Ca phép năm còn lại</small>
+                <strong th:if="${context.quotaConfigured}" th:text="${context.annualAvailableDays + ' / ' + context.annualTotalDays + ' ca'}">0 / 0 ca</strong>
                 <strong th:unless="${context.quotaConfigured}">Chưa thiết lập</strong>
             </div>
         </div>
@@ -98,8 +98,8 @@
                 <div class="leave-preview" id="leavePreview">Chọn loại nghỉ và ít nhất một ca.</div>
                 <ul class="leave-policy">
                     <li>Trạng thái ban đầu sau khi gửi: <strong>Chờ duyệt</strong>.</li>
-                    <li th:if="${context.quotaConfigured}">Slot phép năm còn lại: <strong th:text="${context.annualAvailableDays + ' slot'}">0 slot</strong> (đã dùng <span th:text="${context.annualUsedDays}">0</span>, đang chờ <span th:text="${context.annualPendingDays}">0</span>).</li>
-                    <li th:unless="${context.quotaConfigured}">Admin chưa thiết lập số slot phép năm. Nghỉ phép năm chưa gửi được.</li>
+                    <li th:if="${context.quotaConfigured}">Ca phép năm còn lại: <strong th:text="${context.annualAvailableDays + ' ca'}">0 ca</strong> (đã dùng <span th:text="${context.annualUsedDays}">0</span>, đang chờ <span th:text="${context.annualPendingDays}">0</span>).</li>
+                    <li th:unless="${context.quotaConfigured}">Admin chưa thiết lập số ca phép năm. Nghỉ phép năm chưa gửi được.</li>
                     <li>Đơn chờ duyệt hoặc bị từ chối không trừ phép. Phép năm chỉ trừ khi được duyệt.</li>
                     <li>Quản lý cửa hàng là người duyệt. Admin không duyệt từng đơn.</li>
                 </ul>
@@ -130,7 +130,7 @@
                     <th>Mã đơn</th>
                     <th>Loại nghỉ</th>
                     <th>Ca xin nghỉ</th>
-                    <th>Số slot</th>
+                    <th>Số ca</th>
                     <th>Ngày gửi</th>
                     <th>Trạng thái</th>
                     <th>Người xử lý</th>

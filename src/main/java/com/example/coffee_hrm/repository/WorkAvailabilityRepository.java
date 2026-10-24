@@ -171,4 +171,17 @@ public interface WorkAvailabilityRepository extends JpaRepository<WorkAvailabili
             @Param("today") LocalDate today,
             @Param("pending") ApprovalStatus pending,
             @Param("statuses") Collection<ApprovalStatus> statuses);
+
+    /**
+     * Mỗi dòng là một ca trong đơn đăng ký đang chờ. Người gọi gom theo registrationKey
+     * để một đơn nhiều ca chỉ tính một yêu cầu.
+     */
+    @Query("""
+            SELECT wa.registrationKey, wa.id
+            FROM WorkAvailability wa
+            WHERE wa.employee.store.id = :storeId
+              AND wa.status = :pending
+            """)
+    List<Object[]> findPendingRegistrationIdentities(@Param("storeId") Integer storeId,
+                                                     @Param("pending") ApprovalStatus pending);
 }

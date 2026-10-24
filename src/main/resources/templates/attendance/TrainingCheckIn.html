@@ -29,8 +29,8 @@
     <p class="flash" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
 
     <section class="punch-board" th:if="${clock != null}">
-        <h2>Slot hôm nay</h2>
-        <p class="empty" th:if="${#lists.isEmpty(clock.sessions)}">Hôm nay bạn không có slot đào tạo.</p>
+        <h2>Ca hôm nay</h2>
+        <p class="empty" th:if="${#lists.isEmpty(clock.sessions)}">Hôm nay bạn không có ca đào tạo.</p>
         <div class="punch-list" th:if="${!#lists.isEmpty(clock.sessions)}">
             <article class="punch-card" th:each="lesson : ${clock.sessions}">
                 <div class="slot-top">
@@ -86,7 +86,7 @@
     </section>
 
     <a class="link-btn" th:href="@{${chooseUrl}}">Chọn loại chấm công</a>
-    <a class="link-btn" th:href="@{${historyUrl}}">Xem lịch sử</a>
+    <a class="link-btn" th:if="${navbarRole != 'staff'}" th:href="@{${historyUrl}}">Xem lịch sử</a>
 </main>
 <script th:src="@{/js/attendance-gps.js(v=9)}"></script>
 </body>

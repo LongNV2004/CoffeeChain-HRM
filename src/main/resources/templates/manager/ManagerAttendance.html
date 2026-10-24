@@ -11,16 +11,25 @@
 <body>
 <header th:replace="~{fragments/navbar :: manager(${historyNav})}"></header>
 
-<main class="wrap dash-main">
+<main class="wrap dash-main"
+      th:classappend="${historyNav == 'attendance-training-history'} ? ' attn-screen track-board' : ''">
     <section class="attn-screen track-head" th:if="${historyNav == 'attendance-training-history'}">
-        <h1>Theo dõi chấm công</h1>
+        <div class="day-head">
+            <div>
+                <h1>Theo dõi chấm công</h1>
+                <p class="day-date">
+                    <span th:text="${history.storeName != null ? history.storeName : 'Cửa hàng đang quản lý'}">Cửa hàng</span>
+                    <span th:text="' · ' + ${#temporals.format(history.fromDate, 'dd/MM/yyyy')} + ' – ' + ${#temporals.format(history.toDate, 'dd/MM/yyyy')}"> · kỳ</span>
+                </p>
+            </div>
+        </div>
         <nav class="track-tabs" aria-label="Theo dõi chấm công">
             <a th:href="@{/attendance/manager/day}">Theo ngày</a>
             <a th:href="@{/attendance/manager/month}">Theo tháng</a>
             <a class="is-on" th:href="@{/attendance/manager/history(kind='training')}">Đào tạo</a>
         </nav>
     </section>
-    <p class="hist-context">
+    <p class="hist-context" th:unless="${historyNav == 'attendance-training-history'}">
         <span th:text="${history.storeName != null ? history.storeName : 'Cửa hàng đang quản lý'}">Cửa hàng</span>
         <span th:text="' · ' + ${#temporals.format(history.fromDate, 'dd/MM/yyyy')} + ' – ' + ${#temporals.format(history.toDate, 'dd/MM/yyyy')}"> · kỳ</span>
     </p>
@@ -166,7 +175,7 @@
                 <tr>
                     <th>Ngày</th>
                     <th th:unless="${selfHistory}">Nhân viên</th>
-                    <th>Slot</th>
+                    <th>Ca</th>
                     <th>Theo lịch</th>
                     <th>Check-in</th>
                     <th>Check-out</th>
