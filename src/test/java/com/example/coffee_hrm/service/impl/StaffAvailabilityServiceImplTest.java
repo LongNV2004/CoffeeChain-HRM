@@ -21,7 +21,10 @@ import com.example.coffee_hrm.entity.WorkAvailability;
 import com.example.coffee_hrm.repository.EmployeeRepository;
 import com.example.coffee_hrm.repository.ShiftRepository;
 import com.example.coffee_hrm.repository.ShiftSlotLimitRepository;
+import com.example.coffee_hrm.repository.ShiftSlotPositionNeedRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
+import com.example.coffee_hrm.repository.TrainingClassEnrollmentRepository;
+import com.example.coffee_hrm.repository.TrainingSkillRepository;
 import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.repository.WorkAvailabilityRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
@@ -80,6 +83,12 @@ class StaffAvailabilityServiceImplTest {
     private NotificationService notificationService;
     @Mock
     private ScheduleService scheduleService;
+    @Mock
+    private ShiftSlotPositionNeedRepository shiftSlotPositionNeedRepository;
+    @Mock
+    private TrainingSkillRepository trainingSkillRepository;
+    @Mock
+    private TrainingClassEnrollmentRepository trainingClassEnrollmentRepository;
 
     @InjectMocks
     private StaffAvailabilityServiceImpl service;

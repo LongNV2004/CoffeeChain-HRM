@@ -54,6 +54,20 @@
                th:if="${availabilityError != null and availabilityError != registrationBlockMessage}"
                th:text="${availabilityError}">Error</p>
 
+            <label class="duration-field" th:if="${positionOptions != null and !#lists.isEmpty(positionOptions)}">
+                Vị trí làm việc
+                <select th:field="*{skillId}" th:disabled="${registrationBlockMessage != null}">
+                    <option value="">-- Chọn vị trí theo chứng chỉ --</option>
+                    <option th:each="opt : ${positionOptions}"
+                            th:value="${opt.id}"
+                            th:text="${opt.name}">Pha chế</option>
+                </select>
+            </label>
+            <p class="muted" th:if="${positionOptions != null and !#lists.isEmpty(positionOptions)}">
+                Chọn một vị trí. Bạn chỉ được tính vào đúng vị trí đã đăng ký, không được tính thành nhiều người khi có nhiều kỹ năng.
+                Ca chưa cấu hình vị trí vẫn đăng ký như trước.
+            </p>
+
             <label class="duration-field">
                 Thời hạn áp dụng
                 <select th:field="*{durationCode}" th:disabled="${registrationBlockMessage != null}">

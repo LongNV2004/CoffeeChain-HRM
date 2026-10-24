@@ -141,8 +141,19 @@
 .status-badge.rejected{background:#F8EBE6;color:var(--clay);}
 .status-badge.unconfigured{background:#F3F1EE;color:var(--ink-soft);}
 .status-badge.open{background:#E7F2EA;color:#3F6B45;}
-.status-badge.full,.status-badge.over{background:#F8EBE6;color:var(--clay);}
-.manager-view .slot-cell{min-width:180px;}
+.status-badge.full,.status-badge.over,.status-badge.short{background:#F8EBE6;color:var(--clay);}
+.status-badge.enough{background:#E7F2EA;color:#3F6B45;}
+.staffing-alerts{display:grid;gap:4px;margin:12px 0;}
+.staffing-alerts h3{margin:0;font-size:14px;}
+.staffing-bar{height:6px;width:100%;background:#F3F1EE;border-radius:99px;overflow:hidden;}
+.staffing-bar > span{display:block;height:100%;background:#3F6B45;}
+.staffing-bar.short > span{background:var(--clay);}
+.position-needs{display:grid;gap:4px;width:100%;}
+.position-needs label{display:flex;justify-content:space-between;gap:6px;align-items:center;width:100%;}
+.position-needs input{width:64px;}
+.position-status{list-style:none;margin:0;padding:0;display:grid;gap:2px;font-size:11px;}
+.position-status li{display:flex;justify-content:space-between;gap:6px;}
+.manager-view .slot-cell{min-width:220px;}
 
 @media (max-width:720px){
   .availability-grid .shift-col,.availability-grid .shift-cell{min-width:110px;}

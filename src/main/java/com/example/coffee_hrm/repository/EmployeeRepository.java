@@ -1,5 +1,6 @@
 package com.example.coffee_hrm.repository;
 
+import com.example.coffee_hrm.common.enums.CertificationStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.entity.Employee;
@@ -186,6 +187,23 @@ public interface EmployeeRepository extends JpaRepository<Employee, Integer> {
                                 @Param("status") EmployeeStatus status,
                                 @Param("staffRole") RoleName staffRole,
                                 @Param("managerEmployeeId") Integer managerEmployeeId);
+
+    @Query("""
+            SELECT e.id
+            FROM Employee e
+            JOIN e.user u
+            JOIN u.role r
+            WHERE e.store.id = :storeId
+              AND e.status = :status
+              AND r.roleName = :staffRole
+              AND e.certificationStatus = :certified
+              AND e.id <> :managerEmployeeId
+            """)
+    List<Integer> findSchedulableStaffIds(@Param("storeId") Integer storeId,
+                                           @Param("status") EmployeeStatus status,
+                                           @Param("staffRole") RoleName staffRole,
+                                           @Param("certified") CertificationStatus certified,
+                                           @Param("managerEmployeeId") Integer managerEmployeeId);
 
     /**
      * Nhân viên đang làm việc tại đúng cửa hàng: trạng thái Active.

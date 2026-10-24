@@ -1,13 +1,17 @@
 package com.example.coffee_hrm.service;
 
 import com.example.coffee_hrm.dto.request.SubmitWorkAvailabilityRequest;
+import com.example.coffee_hrm.dto.request.UpdateSlotStaffingForm;
 import com.example.coffee_hrm.dto.response.AvailabilityPreview;
 import com.example.coffee_hrm.dto.response.SlotLimitUpdateResult;
 import com.example.coffee_hrm.dto.response.WeeklyAvailabilityView;
 import com.example.coffee_hrm.dto.response.WorkAvailabilityResponse;
+import com.example.coffee_hrm.dto.response.WorkPositionOption;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 public interface StaffAvailabilityService {
 
@@ -33,6 +37,12 @@ public interface StaffAvailabilityService {
 
     /** Manager xem đăng ký định kỳ còn hiệu lực hoặc đang chờ của cửa hàng. */
     WeeklyAvailabilityView getStoreNextWeekAvailabilityGrid(AuthenticatedUser manager);
+
+    /**
+     * Cùng lưới cấu hình ca, số đăng ký tính theo tuần chứa {@code weekStart}.
+     * Chỉ tiêu theo vị trí vẫn là cấu hình lặp theo thứ, không gắn một tuần.
+     */
+    WeeklyAvailabilityView getStoreWeekStaffingGrid(AuthenticatedUser manager, LocalDate weekStart);
 
     List<WorkAvailabilityResponse> listStoreNextWeekAvailabilities(AuthenticatedUser manager);
 
@@ -70,4 +80,30 @@ public interface StaffAvailabilityService {
                                            Integer dayOfWeek,
                                            String maxEmployees,
                                            AuthenticatedUser manager);
+
+    /**
+     * Cập nhật tổng chỉ tiêu cùng nhu cầu từng vị trí.
+     * Tổng các vị trí phải bằng tổng chỉ tiêu. Vị trí là kỹ năng đào tạo đang hoạt động.
+     * Ca đã có từ trước vẫn sửa được bằng {@link #updateSlotLimit} khi chưa có nhu cầu vị trí.
+     */
+    SlotLimitUpdateResult updateSlotStaffing(Integer shiftId,
+                                              Integer dayOfWeek,
+                                              String maxEmployees,
+                                              Map<Integer, String> requiredCounts,
+                                              AuthenticatedUser manager);
+
+    /** Lưu nhiều ô ca trong một giao dịch. Một ô lỗi thì không lưu ô nào. */
+    SlotLimitUpdateResult updateSlotStaffingBatch(List<UpdateSlotStaffingForm> slots, AuthenticatedUser manager);
+
+    /** Số Staff đã chứng nhận và đạt từng kỹ năng đang hoạt động. */
+    Map<Integer, Integer> countEligibleStaffBySkill(AuthenticatedUser manager);
+
+    /** Số Staff có ít nhất một chứng chỉ kỹ năng đang hoạt động. */
+    int countEligibleStaff(AuthenticatedUser manager);
+
+    /** Kỹ năng đang hoạt động, dùng làm vị trí trên ca. */
+    List<WorkPositionOption> listActiveWorkPositions();
+
+    /** Vị trí nhân viên được đăng ký: kỹ năng đã đạt và đang hoạt động. */
+    List<WorkPositionOption> listMyWorkPositions(AuthenticatedUser staff);
 }

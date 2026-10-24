@@ -81,11 +81,13 @@ public class StaffAvailabilityController {
             model.addAttribute("availabilityGrid", grid);
             model.addAttribute("registrations", grid.getRegistrations() != null ? grid.getRegistrations() : List.of());
             model.addAttribute("registrationBlockMessage", staffAvailabilityService.registrationBlockedMessage(user));
+            model.addAttribute("positionOptions", staffAvailabilityService.listMyWorkPositions(user));
             model.addAttribute("pageError", null);
         } catch (BusinessException ex) {
             model.addAttribute("availabilityGrid", null);
             model.addAttribute("registrations", List.of());
             model.addAttribute("registrationBlockMessage", null);
+            model.addAttribute("positionOptions", List.of());
             model.addAttribute("pageError", ex.getMessage());
         }
     }

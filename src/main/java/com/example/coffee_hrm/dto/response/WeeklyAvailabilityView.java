@@ -9,6 +9,7 @@ import lombok.Setter;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 
 @Getter
 @Setter
@@ -26,6 +27,7 @@ public class WeeklyAvailabilityView {
     private List<DayHeader> days;
     private List<ShiftRow> shiftRows;
     private List<RegistrationGroup> registrations;
+    private List<String> shortageAlerts;
 
     public String getFormattedWeekRange() {
         if (patternMode) {
@@ -88,6 +90,66 @@ public class WeeklyAvailabilityView {
         private String slotStatusKey;
         private String slotStatusLabel;
         private String registrationHint;
+        private int registeredCount;
+        private int positionsFilled;
+        private int positionsTracked;
+        private int shortfall;
+        private boolean positionsConfigured;
+        private boolean awaitingApproval;
+        private int staffingProgress;
+        private String staffingStatusKey;
+        private String staffingStatusLabel;
+        private String shortageSummary;
+        @Builder.Default
+        private List<PositionLine> positionLines = List.of();
+        @Builder.Default
+        private Map<Integer, SkillActivity> skillActivity = Map.of();
+
+        public Integer requiredCountOf(Integer skillId) {
+            if (!positionsConfigured || positionLines == null || skillId == null) {
+                return null;
+            }
+            for (PositionLine line : positionLines) {
+                if (skillId.equals(line.getSkillId())) {
+                    return line.getRequired();
+                }
+            }
+            return 0;
+        }
+
+        public SkillActivity activityOf(Integer skillId) {
+            if (skillActivity == null || skillId == null) {
+                return SkillActivity.EMPTY;
+            }
+            return skillActivity.getOrDefault(skillId, SkillActivity.EMPTY);
+        }
+    }
+
+    @Getter
+    @AllArgsConstructor
+    public static class SkillActivity {
+        public static final SkillActivity EMPTY = new SkillActivity(0, 0, 0);
+
+        private final int registered;
+        private final int pending;
+        private final int approved;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class PositionLine {
+        private Integer skillId;
+        private String skillName;
+        private int required;
+        private int registered;
+        private int pending;
+        private int approved;
+        private int shortfall;
+        private String statusKey;
+        private String statusLabel;
     }
 
     @Getter
@@ -104,6 +166,7 @@ public class WeeklyAvailabilityView {
         private boolean pending;
         private String detail;
         private String certificationLabel;
+        private String positionName;
     }
 
     @Getter
@@ -124,5 +187,9 @@ public class WeeklyAvailabilityView {
         private String statusKey;
         private String statusLabel;
         private boolean pending;
+        private String positionName;
+        private boolean activeInWeek;
+        /** Các ô ca của đơn, dạng {@code ;thứ|tên ca;}. */
+        private String slotKeys;
     }
 }
