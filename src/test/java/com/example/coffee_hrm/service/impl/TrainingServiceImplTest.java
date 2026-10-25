@@ -116,13 +116,6 @@ class TrainingServiceImplTest {
     }
 
     @Test
-    void managerCannotApproveClass() {
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> trainingService.approveClass(1, manager));
-        assertEquals("Chỉ Admin mới được duyệt lớp đào tạo.", ex.getMessage());
-    }
-
-    @Test
     void createSkillPersistsActiveStatus() {
         when(trainingSkillRepository.existsBySkillNameIgnoreCase("Latte Art")).thenReturn(false);
         when(userRepository.findById(1)).thenReturn(Optional.of(user(1, RoleName.ADMIN, null)));
@@ -187,57 +180,6 @@ class TrainingServiceImplTest {
         assertEquals("Chỉ Admin mới được ngừng kỹ năng đào tạo.", deactivateDenied.getMessage());
         assertEquals("Chỉ Admin mới được kích hoạt kỹ năng đào tạo.", activateDenied.getMessage());
         verify(trainingSkillRepository, never()).findById(any());
-    }
-
-    @Test
-    void approveSetsReviewerAndStatus() {
-        TrainingClass pending = TrainingClass.builder()
-                .id(3)
-                .className("Ca sáng")
-                .status(TrainingClassStatus.PENDING_APPROVAL)
-                .skills(Set.of(TrainingSkill.builder().id(1).skillName("Espresso").build()))
-                .store(Store.builder().id(5).storeName("Store A").build())
-                .createdBy(user(2, RoleName.MANAGER, 20))
-                .build();
-        when(trainingClassRepository.findByIdWithDetails(3)).thenReturn(Optional.of(pending));
-        when(userRepository.findById(1)).thenReturn(Optional.of(user(1, RoleName.ADMIN, null)));
-
-        var response = trainingService.approveClass(3, admin);
-
-        assertEquals(TrainingClassStatus.APPROVED, response.getStatus());
-        assertEquals("admin", response.getApprovedByName());
-        verify(notificationService).notifyUsers(
-                any(),
-                eq("Lớp đào tạo đã được duyệt"),
-                contains("đã được Admin duyệt"),
-                eq(NotificationType.TRAINING_CLASS_APPROVED),
-                eq("TRAINING_CLASS"),
-                eq(3));
-    }
-
-    @Test
-    void rejectNotifiesCreator() {
-        TrainingClass pending = TrainingClass.builder()
-                .id(4)
-                .className("Ca chiều")
-                .status(TrainingClassStatus.PENDING_APPROVAL)
-                .skills(Set.of(TrainingSkill.builder().id(1).skillName("Espresso").build()))
-                .store(Store.builder().id(5).storeName("Store A").build())
-                .createdBy(user(2, RoleName.MANAGER, 20))
-                .build();
-        when(trainingClassRepository.findByIdWithDetails(4)).thenReturn(Optional.of(pending));
-        when(userRepository.findById(1)).thenReturn(Optional.of(user(1, RoleName.ADMIN, null)));
-
-        var response = trainingService.rejectClass(4, admin);
-
-        assertEquals(TrainingClassStatus.REJECTED, response.getStatus());
-        verify(notificationService).notifyUsers(
-                any(),
-                eq("Lớp đào tạo bị từ chối"),
-                contains("đã bị từ chối"),
-                eq(NotificationType.TRAINING_CLASS_REJECTED),
-                eq("TRAINING_CLASS"),
-                eq(4));
     }
 
     @Test
@@ -482,43 +424,8 @@ class TrainingServiceImplTest {
         verify(trainingClassRepository).save(captor.capture());
         assertEquals("Lớp Barista T9", captor.getValue().getClassName());
         assertEquals(TrainingClassStatus.APPROVED, captor.getValue().getStatus());
-    }
-
-    @Test
-    void listSubmittedClassesForManagerShowsOpenRequestStatuses() {
-        Store store = Store.builder().id(5).storeName("Store A").build();
-        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
-        TrainingClass pending = TrainingClass.builder()
-                .id(7)
-                .className("Phục vụ 1")
-                .skills(Set.of(TrainingSkill.builder().id(9).skillName("Phục vụ").build()))
-                .store(store)
-                .startDate(VietnamTime.today())
-                .endDate(VietnamTime.today().plusDays(2))
-                .status(TrainingClassStatus.PENDING_APPROVAL)
-                .createdBy(user(2, RoleName.MANAGER, 20))
-                .build();
-        TrainingClass rejected = TrainingClass.builder()
-                .id(8)
-                .className("Pha chế")
-                .skills(Set.of(TrainingSkill.builder().id(9).skillName("Pha chế").build()))
-                .store(store)
-                .startDate(VietnamTime.today())
-                .endDate(VietnamTime.today().plusDays(1))
-                .status(TrainingClassStatus.REJECTED)
-                .createdBy(user(2, RoleName.MANAGER, 20))
-                .build();
-        when(trainingClassRepository.findOpenRequestsForManager(
-                eq(5), eq(2), eq(TrainingType.STORE_TRAINING), eq(VietnamTime.today()), any(LocalTime.class)))
-                .thenReturn(List.of(pending, rejected));
-
-        var requests = trainingService.listSubmittedClassesForManager(manager);
-
-        assertEquals(2, requests.size());
-        assertEquals(TrainingClassStatus.PENDING_APPROVAL, requests.get(0).getStatus());
-        assertEquals("Chờ duyệt", requests.get(0).getStatus().getLabel());
-        assertEquals(TrainingClassStatus.REJECTED, requests.get(1).getStatus());
-        assertEquals("Từ chối", requests.get(1).getStatus().getLabel());
+        assertNull(captor.getValue().getApprovedBy());
+        assertNull(captor.getValue().getApprovedAt());
     }
 
     @Test
@@ -618,6 +525,48 @@ class TrainingServiceImplTest {
     }
 
     @Test
+    void createdClassScheduleLabelFollowsVietnamTime() {
+        LocalDate today = VietnamTime.today();
+        TrainingClass upcoming = TrainingClass.builder()
+                .id(1)
+                .className("Sắp mở")
+                .startDate(today.plusDays(2))
+                .endDate(today.plusDays(3))
+                .startTime(LocalTime.of(8, 0))
+                .endTime(LocalTime.of(10, 0))
+                .status(TrainingClassStatus.APPROVED)
+                .build();
+        TrainingClass live = TrainingClass.builder()
+                .id(2)
+                .className("Đang học")
+                .startDate(today.minusDays(1))
+                .endDate(today.plusDays(1))
+                .startTime(LocalTime.of(8, 0))
+                .endTime(LocalTime.of(10, 0))
+                .status(TrainingClassStatus.APPROVED)
+                .build();
+        TrainingClass ended = TrainingClass.builder()
+                .id(3)
+                .className("Đã xong")
+                .startDate(today.minusDays(3))
+                .endDate(today.minusDays(1))
+                .startTime(LocalTime.of(8, 0))
+                .endTime(LocalTime.of(10, 0))
+                .status(TrainingClassStatus.APPROVED)
+                .build();
+        when(trainingClassRepository.findAllWithDetails()).thenReturn(List.of(upcoming, live, ended));
+
+        var classes = trainingService.listAllClassesForAdmin();
+
+        assertEquals("Sắp tới", classes.get(0).getScheduleLabel());
+        assertEquals("badge-upcoming", classes.get(0).getScheduleTone());
+        assertEquals("Đang diễn ra", classes.get(1).getScheduleLabel());
+        assertEquals("badge-live", classes.get(1).getScheduleTone());
+        assertEquals("Đã kết thúc", classes.get(2).getScheduleLabel());
+        assertEquals("badge-ended", classes.get(2).getScheduleTone());
+    }
+
+    @Test
     void adminClassDetailIsReadOnly() {
         when(trainingClassRepository.findByIdWithDetails(8)).thenReturn(Optional.of(TrainingClass.builder()
                 .id(8)
@@ -675,41 +624,10 @@ class TrainingServiceImplTest {
     }
 
     @Test
-    void managerCanDeleteApprovedActiveClassInOwnStore() {
-        Store store = Store.builder().id(5).storeName("Store A").build();
-        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
-        TrainingClass approved = TrainingClass.builder()
-                .id(10)
-                .className("Lớp Barista")
-                .status(TrainingClassStatus.APPROVED)
-                .store(store)
-                .endDate(VietnamTime.today().plusDays(2))
-                .skills(Set.of(TrainingSkill.builder().id(1).skillName("Espresso").build()))
-                .createdBy(user(2, RoleName.MANAGER, 20))
-                .build();
-        when(trainingClassRepository.findByIdWithDetails(10)).thenReturn(Optional.of(approved));
-
-        trainingService.deleteClassForManager(10, manager);
-
-        verify(trainingClassRepository).delete(approved);
-    }
-
-    @Test
-    void managerCannotDeletePendingClassFromList() {
-        Store store = Store.builder().id(5).storeName("Store A").build();
-        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
-        when(trainingClassRepository.findByIdWithDetails(7)).thenReturn(Optional.of(TrainingClass.builder()
-                .id(7)
-                .className("Chờ duyệt")
-                .status(TrainingClassStatus.PENDING_APPROVAL)
-                .store(store)
-                .skills(Set.of(TrainingSkill.builder().id(1).skillName("Espresso").build()))
-                .createdBy(user(2, RoleName.MANAGER, 20))
-                .build()));
-
+    void managerCannotDeleteTrainingClass() {
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> trainingService.deleteClassForManager(7, manager));
-        assertEquals("Không tìm thấy lớp đào tạo.", ex.getMessage());
+                () -> trainingService.deleteClassForManager(10, manager));
+        assertEquals("Manager không được xóa lớp đào tạo.", ex.getMessage());
         verify(trainingClassRepository, never()).delete(any());
     }
 
@@ -1611,8 +1529,8 @@ class TrainingServiceImplTest {
         assertEquals(2, saved.getTrainer().getId());
         assertEquals(1, saved.getCreatedBy().getId());
         assertEquals(TrainingClassStatus.APPROVED, saved.getStatus());
-        assertEquals(1, saved.getApprovedBy().getId());
-        assertNotNull(saved.getApprovedAt());
+        assertNull(saved.getApprovedBy());
+        assertNull(saved.getApprovedAt());
         assertEquals(CertificationStatus.NOTCERTIFIED, firstEmployee.getCertificationStatus());
         verify(notificationService, never()).notifyUsers(
                 any(),

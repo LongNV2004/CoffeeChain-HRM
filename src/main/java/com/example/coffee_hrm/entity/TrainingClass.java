@@ -86,7 +86,7 @@ public class TrainingClass {
 
     @Column(name = "Status", nullable = false, length = 30)
     @Builder.Default
-    private TrainingClassStatus status = TrainingClassStatus.PENDING_APPROVAL;
+    private TrainingClassStatus status = TrainingClassStatus.APPROVED;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "CreatedBy", nullable = false)

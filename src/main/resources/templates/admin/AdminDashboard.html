@@ -64,20 +64,6 @@
             <p>Các nghiệp vụ đang chờ Admin giải quyết</p>
         </div>
         <div class="admin-tasks">
-            <a class="admin-task" th:href="@{/admin/training}">
-                <span class="admin-task-icon admin-kpi-icon-pending" aria-hidden="true">
-                    <svg viewBox="0 0 24 24"><path d="m3 9 9-4 9 4-9 4-9-4Z"/><path d="M7 11.5V16c2.2 1.6 7.8 1.6 10 0v-4.5"/><path d="M21 9.5V16"/></svg>
-                </span>
-                <span class="admin-task-copy">
-                    <strong>Đề xuất đào tạo</strong>
-                    <p>Chờ Admin phê duyệt.</p>
-                </span>
-                <span class="admin-badge"
-                      th:classappend="${dashboard.pendingTrainingClassCount > 0} ? 'is-pending' : ''"
-                      th:text="${#numbers.formatInteger(dashboard.pendingTrainingClassCount, 0, 'POINT')}">0</span>
-                <svg class="admin-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
-            </a>
-
             <a class="admin-task" th:href="@{/admin/recruitment}">
                 <span class="admin-task-icon admin-kpi-icon-people" aria-hidden="true">
                     <svg viewBox="0 0 24 24"><circle cx="10" cy="8" r="3"/><path d="M4 19v-1.2A5 5 0 0 1 9 13h2a5 5 0 0 1 5 4.8V19"/><path d="M18 8v6M15 11h6"/></svg>

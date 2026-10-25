@@ -17,7 +17,6 @@ public class AdminDashboardView {
     private final long totalStores;
     private final long activeStores;
     private final long totalEmployees;
-    private final long pendingTrainingClassCount;
     private final long waitingChainReportCount;
     private final long managerCount;
     private final long staffCount;

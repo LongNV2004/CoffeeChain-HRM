@@ -7,7 +7,6 @@ import com.example.coffee_hrm.common.enums.CertificationStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.enums.StoreStatus;
-import com.example.coffee_hrm.common.enums.TrainingClassStatus;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.response.AdminDashboardView;
@@ -30,7 +29,6 @@ import com.example.coffee_hrm.repository.MonthlyAttendanceReportRepository;
 import com.example.coffee_hrm.repository.ShiftAssignmentRepository;
 import com.example.coffee_hrm.repository.ShiftChangeRequestRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
-import com.example.coffee_hrm.repository.TrainingClassRepository;
 import com.example.coffee_hrm.repository.WorkAvailabilityRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.AttendanceService;
@@ -78,7 +76,6 @@ public class DashboardServiceImpl implements DashboardService {
     private final LeaveRequestRepository leaveRequestRepository;
     private final ShiftChangeRequestRepository shiftChangeRequestRepository;
     private final AttendanceRepository attendanceRepository;
-    private final TrainingClassRepository trainingClassRepository;
     private final MonthlyAttendanceReportRepository monthlyAttendanceReportRepository;
     private final WorkAvailabilityRepository workAvailabilityRepository;
     private final AttendanceService attendanceService;
@@ -105,7 +102,6 @@ public class DashboardServiceImpl implements DashboardService {
                 .totalStores(storeRepository.count())
                 .activeStores(storeRepository.countByStatus(StoreStatus.ACTIVE))
                 .totalEmployees(managers + staff + unassigned + other)
-                .pendingTrainingClassCount(trainingClassRepository.countByStatus(TrainingClassStatus.PENDING_APPROVAL))
                 .waitingChainReportCount(monthlyAttendanceReportRepository
                         .countByReportYearAndReportMonthAndSubmittedAtIsNotNullAndStatusNotIn(
                                 period.getYear(),

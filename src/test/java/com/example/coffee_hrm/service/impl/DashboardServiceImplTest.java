@@ -8,7 +8,6 @@ import com.example.coffee_hrm.common.enums.CertificationStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.enums.StoreStatus;
-import com.example.coffee_hrm.common.enums.TrainingClassStatus;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.response.AdminDashboardView;
 import com.example.coffee_hrm.dto.response.AttendanceClockView;
@@ -33,7 +32,6 @@ import com.example.coffee_hrm.repository.MonthlyAttendanceReportRepository;
 import com.example.coffee_hrm.repository.ShiftAssignmentRepository;
 import com.example.coffee_hrm.repository.ShiftChangeRequestRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
-import com.example.coffee_hrm.repository.TrainingClassRepository;
 import com.example.coffee_hrm.repository.WorkAvailabilityRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.AttendanceService;
@@ -83,8 +81,6 @@ class DashboardServiceImplTest {
     @Mock
     private AttendanceRepository attendanceRepository;
     @Mock
-    private TrainingClassRepository trainingClassRepository;
-    @Mock
     private MonthlyAttendanceReportRepository monthlyAttendanceReportRepository;
     @Mock
     private WorkAvailabilityRepository workAvailabilityRepository;
@@ -110,7 +106,6 @@ class DashboardServiceImplTest {
         when(employeeRepository.countWorkingByRole(EmployeeStatus.TERMINATED, RoleName.ADMIN)).thenReturn(1L);
         when(employeeRepository.countWorkingWithoutAccount(EmployeeStatus.TERMINATED)).thenReturn(1L);
         when(employeeRepository.countByStatusNot(EmployeeStatus.TERMINATED)).thenReturn(11L);
-        when(trainingClassRepository.countByStatus(TrainingClassStatus.PENDING_APPROVAL)).thenReturn(2L);
         when(monthlyAttendanceReportRepository.countByReportYearAndReportMonthAndSubmittedAtIsNotNullAndStatusNotIn(
                 eq(current.getYear()),
                 eq(current.getMonthValue()),
@@ -138,7 +133,6 @@ class DashboardServiceImplTest {
         assertEquals(6, view.getStaffCount());
         assertEquals(1, view.getUnassignedRoleCount());
         assertEquals(0, view.getOtherRoleCount());
-        assertEquals(2, view.getPendingTrainingClassCount());
         assertEquals(3, view.getWaitingChainReportCount());
         assertEquals(6, view.getTrend().size());
         assertEquals(current.format(DateTimeFormatter.ofPattern("MM/yyyy")), view.getTrend().get(5).getLabel());
@@ -158,7 +152,6 @@ class DashboardServiceImplTest {
         when(employeeRepository.countWorkingByRole(any(), any())).thenReturn(0L);
         when(employeeRepository.countWorkingWithoutAccount(EmployeeStatus.TERMINATED)).thenReturn(0L);
         when(employeeRepository.countByStatusNot(EmployeeStatus.TERMINATED)).thenReturn(0L);
-        when(trainingClassRepository.countByStatus(TrainingClassStatus.PENDING_APPROVAL)).thenReturn(0L);
         when(monthlyAttendanceReportRepository.countByReportYearAndReportMonthAndSubmittedAtIsNotNullAndStatusNotIn(
                 anyInt(), anyInt(), any()))
                 .thenReturn(0L);

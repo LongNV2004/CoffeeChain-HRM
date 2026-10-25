@@ -331,6 +331,9 @@ body:has(.coffee-sidebar) .badge-nocert,
 body:has(.coffee-sidebar) .status-absent { background: #F8E4E1; color: #9F3B32; }
 body:has(.coffee-sidebar) .badge-partial,
 body:has(.coffee-sidebar) .badge-swap { background: #E7E4F2; color: #3E3A6B; }
+body:has(.coffee-sidebar) .badge-upcoming { background: #E7EEF8; color: #2C4A73; }
+body:has(.coffee-sidebar) .badge-live { background: #E5F3EA; color: #24683E; }
+body:has(.coffee-sidebar) .badge-ended { background: #EEEAE4; color: #6B6258; }
 body:has(.coffee-sidebar) .ml-pill[data-status='PENDING'],
 body:has(.coffee-sidebar) .leave-history-status[data-status='PENDING'] { background: #F8E7D4; color: #8C4E32; }
 body:has(.coffee-sidebar) .ml-pill[data-status='APPROVED'],

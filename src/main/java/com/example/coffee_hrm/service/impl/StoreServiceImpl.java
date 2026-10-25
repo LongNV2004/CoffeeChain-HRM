@@ -83,7 +83,7 @@ public class StoreServiceImpl implements StoreService {
         }
         LocalDate openingDate = requireOpeningDate(request.getOpeningDate());
         StoreStatus status = StoreStatus.fromOpeningDate(openingDate, VietnamTime.today());
-        // Cửa hàng mới chưa có nhân viên và chưa chỉ định Manager; phân công thực hiện ở Quản lý nhân sự.
+        // Cửa hàng mới chưa có nhân viên và chưa chỉ định Manager; phân công thực hiện ở Nhân sự & đào tạo.
         // Ca, số chỗ và vị trí chấm công được gắn ngay để nhân viên check-in được.
         Store store = Store.builder()
                 .storeName(storeName)

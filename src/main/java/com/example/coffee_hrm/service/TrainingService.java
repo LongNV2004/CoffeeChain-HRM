@@ -51,8 +51,6 @@ public interface TrainingService {
                                                       String sortDir,
                                                       int page);
 
-    List<TrainingClassResponse> listSubmittedClassesForManager(AuthenticatedUser manager);
-
     List<TrainingClassResponse> listEndedClassesForManager(AuthenticatedUser manager);
 
     TrainingClassResponse getApprovedClassDetailForManager(Integer classId, AuthenticatedUser manager);
@@ -93,13 +91,5 @@ public interface TrainingService {
 
     TrainingClassResponse getApprovedClassDetailForAdmin(Integer classId, AuthenticatedUser admin);
 
-    List<TrainingClassResponse> listPendingClasses();
-
     List<TrainingClassResponse> listAllClassesForAdmin();
-
-    TrainingClassResponse approveClass(Integer classId, AuthenticatedUser admin);
-
-    TrainingClassResponse rejectClass(Integer classId, AuthenticatedUser admin);
-
-    long countPendingClasses();
 }

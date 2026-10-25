@@ -275,3 +275,26 @@ td form{margin:0;}
   .recruit-submit-bar .primary-btn,.recruit-submit-bar .ghost-btn{width:100%;}
   .recruit-toast{right:16px;left:16px;bottom:16px;max-width:none;}
 }
+
+/* Hai trang tạo đề xuất chiếm hết vùng nội dung sau sidebar. */
+body:has(.coffee-sidebar) main.wrap.recruit-page{
+  width:100%;
+  max-width:none;
+  min-width:0;
+  margin:0;
+  padding:4px 12px 48px;
+  box-sizing:border-box;
+}
+body:has(.coffee-sidebar) main.wrap.recruit-page .welcome,
+body:has(.coffee-sidebar) main.wrap.recruit-page .recruit-form,
+body:has(.coffee-sidebar) main.wrap.recruit-page .recruit-card{
+  width:100%;
+  max-width:none;
+  min-width:0;
+  box-sizing:border-box;
+}
+body:has(.coffee-sidebar) main.wrap.recruit-page .candidate-table{width:100%;}
+body:has(.coffee-sidebar) main.wrap.recruit-page #item-list{width:100%;min-width:0;}
+@media (max-width:720px){
+  body:has(.coffee-sidebar) main.wrap.recruit-page{padding:8px 16px 40px;}
+}

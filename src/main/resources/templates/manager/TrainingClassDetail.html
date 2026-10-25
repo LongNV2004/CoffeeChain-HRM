@@ -87,7 +87,7 @@
             <div>
                 <h2>Danh sách học viên</h2>
                 <p th:if="${classDetail.ended and classDetail.evaluable}">Lớp đã kết thúc. Hãy đánh giá từng học viên.</p>
-                <p th:if="${!classDetail.ended}">Chỉ được đánh giá sau khi thời điểm kết thúc của lớp đã qua và lớp đã được Admin duyệt.</p>
+                <p th:if="${!classDetail.ended}">Chỉ được đánh giá sau khi thời điểm kết thúc của lớp đã qua.</p>
             </div>
             <button class="primary-btn" type="button" id="open-add-students" th:if="${classDetail.evaluable}">Thêm nhân viên</button>
         </div>
