@@ -3,10 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hợp đồng — CoffeeHRM</title>
+    <title th:text="${navRole == 'manager'} ? 'Quản lý hợp đồng — CoffeeHRM' : 'Hợp đồng — CoffeeHRM'">Hợp đồng — CoffeeHRM</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
+    <style>
+        /* Chỉ chỉnh bảng và đầu trang hợp đồng để nội dung dùng hết bề ngang, không đè layout khác. */
+        body:has(.coffee-sidebar) main.contract-board.wrap > .welcome .panel-head { align-items: center; }
+        body:has(.coffee-sidebar) main.contract-board.wrap > .welcome .primary-btn { flex: none; }
+        body:has(.coffee-sidebar) main.contract-board.wrap .stat-card .muted { display: block; margin-top: 8px; }
+        body:has(.coffee-sidebar) main.contract-board.wrap .panel .table-scroll { width: 100%; max-width: 100%; }
+        body:has(.coffee-sidebar) main.contract-board.wrap .panel table.contract-table {
+            width: 100%;
+            min-width: 0;
+            margin-top: 0;
+            table-layout: fixed;
+        }
+        body:has(.coffee-sidebar) main.contract-board.wrap .panel table.contract-table th,
+        body:has(.coffee-sidebar) main.contract-board.wrap .panel table.contract-table td {
+            white-space: normal;
+            overflow-wrap: break-word;
+            padding-left: 10px;
+            padding-right: 10px;
+        }
+        body:has(.coffee-sidebar) main.contract-board.wrap .panel table.contract-table th:nth-child(1) { width: 11%; }
+        body:has(.coffee-sidebar) main.contract-board.wrap .panel table.contract-table th:nth-child(2),
+        body:has(.coffee-sidebar) main.contract-board.wrap .panel table.contract-table th:nth-child(3) { width: 13%; }
+        body:has(.coffee-sidebar) main.contract-board.wrap .panel table.contract-table th:nth-child(4),
+        body:has(.coffee-sidebar) main.contract-board.wrap .panel table.contract-table th:nth-child(5) { width: 10%; }
+        body:has(.coffee-sidebar) main.contract-board.wrap .panel table.contract-table th:nth-child(6) { width: 10%; }
+        body:has(.coffee-sidebar) main.contract-board.wrap .panel table.contract-table th:nth-child(7),
+        body:has(.coffee-sidebar) main.contract-board.wrap .panel table.contract-table th:nth-child(8) { width: 12%; }
+        body:has(.coffee-sidebar) main.contract-board.wrap .panel table.contract-table th:nth-child(9) { width: 9%; }
+        body:has(.coffee-sidebar) main.contract-board.wrap .contract-table .link-btn {
+            border: 0;
+            background: transparent;
+            padding: 0;
+            color: #B96D49;
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        body:has(.coffee-sidebar) main.contract-board.wrap .contract-table .link-btn:disabled {
+            opacity: .45;
+            cursor: not-allowed;
+        }
+        body:has(.coffee-sidebar) main.contract-board.wrap .pagination {
+            justify-content: space-between;
+            margin: 0;
+        }
+        body:has(.coffee-sidebar) main.contract-board.wrap .page-numbers { display: flex; gap: 8px; }
+        body:has(.coffee-sidebar) main.contract-board.wrap .page-btn:disabled { opacity: .45; cursor: not-allowed; }
+    </style>
 </head>
 <body>
 <th:block th:if="${navRole == 'admin'}">
@@ -19,7 +67,113 @@
     <header th:replace="~{fragments/navbar :: staff('contract')}"></header>
 </th:block>
 
-<main class="wrap dash-main">
+<main class="wrap dash-main contract-board" th:if="${navRole == 'manager'}">
+    <section class="welcome">
+        <div class="panel-head">
+            <div>
+                <div class="eyebrow" th:text="${eyebrow}">Cửa hàng — Quản lý</div>
+                <h1>Quản lý hợp đồng</h1>
+                <p>Theo dõi hợp đồng lao động, bản ký và thời hạn hiệu lực trong cửa hàng.</p>
+            </div>
+            <button type="button" class="primary-btn" disabled title="Chưa mở ở giai đoạn giao diện">Tạo hợp đồng</button>
+        </div>
+    </section>
+
+    <section class="stat-grid" aria-label="Thống kê hợp đồng">
+        <article class="stat-card">
+            <div class="label">Tổng hợp đồng</div>
+            <div class="value" aria-label="Chưa có dữ liệu">—</div>
+            <span class="muted">Chưa có dữ liệu</span>
+        </article>
+        <article class="stat-card">
+            <div class="label">Đang hiệu lực</div>
+            <div class="value" aria-label="Chưa có dữ liệu">—</div>
+            <span class="muted">Chưa có dữ liệu</span>
+        </article>
+        <article class="stat-card">
+            <div class="label">Chưa có bản ký</div>
+            <div class="value" aria-label="Chưa có dữ liệu">—</div>
+            <span class="muted">Chưa có dữ liệu</span>
+        </article>
+        <article class="stat-card">
+            <div class="label">Sắp hết hạn</div>
+            <div class="value" aria-label="Chưa có dữ liệu">—</div>
+            <span class="muted">Chưa có dữ liệu</span>
+        </article>
+    </section>
+
+    <section class="panel">
+        <div class="panel-head">
+            <div>
+                <h2 id="contractListTitle">Danh sách hợp đồng</h2>
+                <p>Tìm theo mã hợp đồng hoặc tên nhân viên, rồi lọc theo cửa hàng và trạng thái.</p>
+            </div>
+        </div>
+
+        <div class="filter-grid">
+            <label for="contractKeyword">Tìm kiếm
+                <input id="contractKeyword" type="search" placeholder="Mã hợp đồng hoặc tên nhân viên" maxlength="120" autocomplete="off">
+            </label>
+            <label for="contractStore">Cửa hàng
+                <select id="contractStore" title="Chưa có danh sách cửa hàng">
+                    <option value="">Tất cả cửa hàng</option>
+                </select>
+            </label>
+            <label for="contractSign">Hồ sơ ký
+                <select id="contractSign">
+                    <option value="">Tất cả hồ sơ ký</option>
+                    <option value="SIGNED">Đã có bản ký</option>
+                    <option value="UNSIGNED">Chưa có bản ký</option>
+                </select>
+            </label>
+            <label for="contractValidity">Hiệu lực
+                <select id="contractValidity">
+                    <option value="">Tất cả hiệu lực</option>
+                    <option value="ACTIVE">Đang hiệu lực</option>
+                    <option value="EXPIRING">Sắp hết hạn</option>
+                    <option value="EXPIRED">Đã hết hạn</option>
+                    <option value="PENDING">Chưa hiệu lực</option>
+                </select>
+            </label>
+        </div>
+
+        <div class="table-scroll">
+            <table class="contract-table" aria-labelledby="contractListTitle">
+                <thead>
+                <tr>
+                    <th>Mã hợp đồng</th>
+                    <th>Nhân viên</th>
+                    <th>Cửa hàng</th>
+                    <th>Ngày bắt đầu</th>
+                    <th>Ngày kết thúc</th>
+                    <th>Mức lương</th>
+                    <th>Trạng thái hồ sơ ký</th>
+                    <th>Trạng thái hiệu lực</th>
+                    <th>Thao tác</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr>
+                    <td colspan="8" class="empty">Chưa có hợp đồng nào.</td>
+                    <td>
+                        <button type="button" class="link-btn" disabled title="Chưa có hợp đồng để xem chi tiết">Xem chi tiết</button>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <nav class="pagination" aria-label="Phân trang danh sách hợp đồng">
+            <span class="muted">Chưa có dữ liệu để phân trang</span>
+            <div class="page-numbers">
+                <button type="button" class="page-btn" disabled>Trang trước</button>
+                <button type="button" class="page-btn" disabled>Trang tiếp theo</button>
+            </div>
+        </nav>
+    </section>
+</main>
+
+<main class="wrap dash-main" th:if="${navRole != 'manager'}">
     <section class="welcome">
         <div class="eyebrow" th:text="${eyebrow}">CoffeeHRM</div>
         <h1>Hợp đồng</h1>
