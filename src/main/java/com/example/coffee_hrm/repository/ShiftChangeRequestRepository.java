@@ -141,5 +141,18 @@ public interface ShiftChangeRequestRepository extends JpaRepository<ShiftChangeR
             @Param("status") ApprovalStatus status,
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate);
+
+    @Query("""
+           SELECT scr FROM ShiftChangeRequest scr
+           JOIN FETCH scr.assignment sa
+           JOIN FETCH sa.shift s
+           JOIN FETCH scr.employee e
+           WHERE e.store.id = :storeId
+             AND scr.status = com.example.coffee_hrm.common.enums.ApprovalStatus.PENDING
+             AND scr.targetEmployee IS NULL
+             AND scr.targetAssignment IS NULL
+           ORDER BY sa.workDate ASC, s.startTime ASC
+           """)
+    List<ShiftChangeRequest> findOpenRescueRequestsForStore(@Param("storeId") Integer storeId);
 }
 
