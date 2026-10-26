@@ -118,17 +118,9 @@
                     <td class="ops-cell">
                         <div class="store-ops" th:if="${row.submitted}">
                             <div class="store-ops-row">
-                                <a class="ops-link" th:if="${row.statusCode == 'APPROVED'}"
+                                <a class="ops-link"
                                    th:href="@{/attendance/admin/reports/{id}(id=${row.reportId})}">Xem báo cáo</a>
-                                <a class="ops-link" th:unless="${row.statusCode == 'APPROVED'}"
-                                   th:href="@{/attendance/admin/reports/{id}(id=${row.reportId})}">Xem trước</a>
                                 <a class="ops-link" th:href="@{/attendance/admin/reports/{id}/excel(id=${row.reportId})}">Tải Excel</a>
-                                <form method="post" th:if="${row.statusCode == 'WAITING'}"
-                                      th:action="@{/attendance/admin/reports/{id}/approve(id=${row.reportId})}">
-                                    <input type="hidden" name="year" th:value="${report.year}">
-                                    <input type="hidden" name="month" th:value="${report.month}">
-                                    <button class="primary-btn" type="submit">Duyệt</button>
-                                </form>
                             </div>
                             <form class="store-ops-revise" method="post" th:if="${row.statusCode != 'REVISION'}"
                                   th:action="@{/attendance/admin/reports/{id}/revision(id=${row.reportId})}">

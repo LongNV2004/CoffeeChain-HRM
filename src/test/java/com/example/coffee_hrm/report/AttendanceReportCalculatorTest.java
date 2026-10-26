@@ -29,7 +29,7 @@ class AttendanceReportCalculatorTest {
     private final Employee minh = employee(6, "Minh", RoleName.STAFF, store);
 
     @Test
-    void countsDistinctDaysAndDoesNotTreatMissingDaysAsAbsent() {
+    void countsEachShiftAsASlotAndDoesNotTreatMissingDaysAsAbsent() {
         LocalDate day1 = LocalDate.of(2026, 10, 1);
         LocalDate day2 = LocalDate.of(2026, 10, 2);
         Attendance morning = shift(11, lan, day1, AttendanceStatus.LATE, 25, 0, 240,
@@ -64,11 +64,11 @@ class AttendanceReportCalculatorTest {
                 .findFirst()
                 .orElseThrow();
         assertEquals("Staff", lanRow.getRoleLabel());
-        assertEquals(2, lanRow.getWorkDays());
-        assertEquals(1, lanRow.getAttendedDays());
+        assertEquals(4, lanRow.getWorkDays());
+        assertEquals(2, lanRow.getAttendedDays());
         assertEquals(1, lanRow.getLateRecords());
         assertEquals(25, lanRow.getLateMinutes());
-        assertEquals(1, lanRow.getAbsentDays());
+        assertEquals(2, lanRow.getAbsentDays());
         assertEquals(2, lanRow.getAbsentRecords());
         assertEquals(360, lanRow.getWorkedMinutes());
         assertEquals(0, lanRow.getOpenCheckouts());
@@ -98,7 +98,7 @@ class AttendanceReportCalculatorTest {
         assertEquals(1, workbook.getPreview().getShiftLateCount());
         assertEquals(1, workbook.getPreview().getTrainingLateCount());
         assertEquals(2, workbook.getPreview().getLateCount());
-        assertEquals(2, workbook.getPreview().getWorkDayCount());
+        assertEquals(3, workbook.getPreview().getWorkDayCount());
         assertEquals(1, workbook.getPreview().getViolationCount());
         assertEquals(2, workbook.getPreview().getMissingCount());
         assertTrue(workbook.getShifts().stream().noneMatch(row -> row.getEmployeeId() == 8));

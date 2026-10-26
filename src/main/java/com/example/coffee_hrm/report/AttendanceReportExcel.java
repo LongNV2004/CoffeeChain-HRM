@@ -32,8 +32,8 @@ public final class AttendanceReportExcel {
         rows.add(List.of());
         rows.add(List.of(
                 "STT", "Mã nhân viên", "Tên nhân viên", "Vai trò",
-                "Ngày công", "Ngày có mặt", "Lượt đi muộn", "Phút đi muộn",
-                "Lượt về sớm", "Phút về sớm", "Ngày vắng", "Lượt vắng", "Giờ công", "Ghi chú"));
+                "Slot ghi nhận", "Slot đã làm", "Slot đi muộn", "Phút đi muộn",
+                "Slot về sớm", "Phút về sớm", "Slot vắng", "Slot vắng", "Giờ công", "Ghi chú"));
         for (AttendanceReportWorkbook.SummaryRow row : workbook.getEmployees()) {
             rows.add(List.of(
                     String.valueOf(row.getOrder()),

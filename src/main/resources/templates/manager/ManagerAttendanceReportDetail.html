@@ -42,11 +42,11 @@
                 <div class="value" th:text="${report.preview.employeeCount}">0</div>
             </article>
             <article>
-                <div class="label">Tổng ngày công</div>
+                <div class="label">Tổng slot đã làm</div>
                 <div class="value" th:text="${report.preview.workDayCount}">0</div>
             </article>
             <article>
-                <div class="label">Tổng lượt vi phạm</div>
+                <div class="label">Tổng slot vi phạm</div>
                 <div class="value" th:text="${report.preview.violationCount}">0</div>
             </article>
             <article>
@@ -54,7 +54,7 @@
                 <div class="value" th:text="${report.preview.missingCount}">0</div>
             </article>
         </section>
-        <p class="note">Ngày công là số ngày có bản ghi ca làm và không phải vắng. Tổng ngày công cộng ngày công của từng nhân viên. Lượt vi phạm gồm đi muộn và về sớm. Thiếu chấm công là bản ghi ca làm có trạng thái vắng. Ngày không có bản ghi không được tính là thiếu chấm công.</p>
+        <p class="note">Slot đã làm là từng ca có check-in và không vắng. Tổng slot đã làm cộng slot của từng nhân viên. Slot vi phạm gồm đi muộn và về sớm. Thiếu chấm công là từng slot có trạng thái vắng. Ngày không có slot không được tính là thiếu chấm công.</p>
     </section>
 
     <section class="panel" th:if="${pageError == null}">
@@ -65,7 +65,7 @@
                 <thead>
                 <tr>
                     <th>Nhân viên</th>
-                    <th>Ngày công</th>
+                    <th>Slot đã làm</th>
                     <th>Đi muộn</th>
                     <th>Về sớm</th>
                     <th>Thiếu chấm công</th>
