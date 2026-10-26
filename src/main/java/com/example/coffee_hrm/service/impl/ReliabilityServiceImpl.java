@@ -438,13 +438,13 @@ public class ReliabilityServiceImpl implements ReliabilityService {
             entry.setKpiRewardEligible(top3Qualifies);
             entry.setPriorityScheduleEligible(prioritySchedule);
             if (top3Qualifies && rank == 1) {
-                entry.setRewardBadgeLabel("👑 Quán quân KPI Tháng + Ưu tiên lịch tuần sau");
+                entry.setRewardBadgeLabel("Quán quân KPI Tháng + Ưu tiên lịch tuần sau");
             } else if (top3Qualifies) {
-                entry.setRewardBadgeLabel("🏆 Thưởng KPI Tháng + Ưu tiên lịch tuần sau");
+                entry.setRewardBadgeLabel("Thưởng KPI Tháng + Ưu tiên lịch tuần sau");
             } else if (prioritySchedule) {
-                entry.setRewardBadgeLabel("⚡ Ưu tiên chọn lịch làm tuần sau");
+                entry.setRewardBadgeLabel("Ưu tiên chọn lịch làm tuần sau");
             } else if (entry.getReliabilityScore() < 90) {
-                entry.setRewardBadgeLabel("⚠️ Cần cải thiện kỷ luật nhận/đổi ca");
+                entry.setRewardBadgeLabel("Cần cải thiện kỷ luật nhận/đổi ca");
             } else {
                 entry.setRewardBadgeLabel("Duy trì điểm uy tín tốt");
             }

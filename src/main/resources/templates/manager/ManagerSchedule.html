@@ -43,8 +43,8 @@
         <!-- Action buttons -->
         <div class="header-actions" style="display:flex;gap:10px;align-items:center;">
             <a class="nav-btn" th:href="@{/schedule/manager/leaderboard}"
-               style="background:#FFF8E1;border-color:#F59E0B;color:#92400E;font-weight:600;text-decoration:none;">
-                🏆 Chiến thần cứu ca
+               style="background:#FFF8E1;border-color:#F59E0B;color:#92400E;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:4px;">
+                <i data-lucide="trophy" style="width:14px;height:14px;"></i> Chiến thần cứu ca
             </a>
             <button class="btn btn-primary" type="button" onclick="openAssignModal()">+ Phân ca mới</button>
         </div>
@@ -150,8 +150,8 @@
                     </span>
                     <span class="badge-type"
                           th:if="${req.urgentWithin24h}"
-                          style="background:#FEE2E2;color:#991B1B;font-weight:700;margin-left:4px;">
-                        🔥 Sát giờ (&lt;24h) • Cứu bồ +5đ
+                          style="background:#FEE2E2;color:#991B1B;font-weight:700;margin-left:4px;display:inline-flex;align-items:center;gap:3px;">
+                        <i data-lucide="flame" style="width:13px;height:13px;"></i> Sát giờ (&lt;24h) • Cứu bồ +5đ
                     </span>
                     <div style="font-size:12px;color:var(--ink-soft);margin-top:4px;" th:text="${req.proposalSummary}">
                         Đổi chéo với: Lê Thị Thu
@@ -214,7 +214,7 @@
                     <option th:each="emp : ${schedule.storeEmployees}"
                             th:if="${emp.certified}"
                             th:value="${emp.employeeId}"
-                            th:text="${emp.fullName + ' — ' + emp.reliabilityScore + 'đ uy tín' + (emp.prioritySchedule ? ' [🏆 Ưu tiên lịch]' : '') + ' (' + emp.email + ')'}">
+                            th:text="${emp.fullName + ' — ' + emp.reliabilityScore + 'đ uy tín' + (emp.prioritySchedule ? ' [Ưu tiên lịch]' : '') + ' (' + emp.email + ')'}">
                         Lê Thị Thu (thult@fpt.edu.vn)
                     </option>
                 </select>

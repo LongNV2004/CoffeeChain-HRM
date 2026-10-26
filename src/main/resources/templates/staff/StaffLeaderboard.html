@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&amp;family=Be+Vietnam+Pro:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/Leaderboard.css}">
+    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
 <header th:replace="~{fragments/navbar :: staff('leaderboard')}"></header>
@@ -15,18 +16,21 @@
 
     <!-- Flash Alerts -->
     <div class="lb-alert lb-alert-success" th:if="${successMessage != null}">
-        <span>✓</span>
+        <i data-lucide="check-circle" style="width:18px;height:18px;color:var(--forest);flex-shrink:0;"></i>
         <span th:text="${successMessage}">Thành công</span>
     </div>
     <div class="lb-alert lb-alert-error" th:if="${errorMessage != null}">
-        <span>⚠</span>
+        <i data-lucide="alert-triangle" style="width:18px;height:18px;color:var(--clay);flex-shrink:0;"></i>
         <span th:text="${errorMessage}">Lỗi xử lý</span>
     </div>
 
     <!-- Hero Header -->
     <section class="lb-header">
         <div>
-            <div class="lb-eyebrow">🏆 Gamification • Điểm tín nhiệm &amp; "Cứu bồ"</div>
+            <div class="lb-eyebrow">
+                <i data-lucide="award" style="width:14px;height:14px;"></i>
+                <span>Điểm tín nhiệm &amp; "Cứu bồ"</span>
+            </div>
             <h1 th:text="'Chiến thần cứu ca — ' + ${leaderboard.storeName}">Chiến thần cứu ca</h1>
             <p th:text="${leaderboard.storeAddress + ' • Khởi đầu 100 điểm • Nhận ca cứu bồ (+5đ), hoàn thành ca đổi (+2đ), ưu tiên chọn lịch tuần sau'}">
                 Địa chỉ cửa hàng
@@ -36,8 +40,12 @@
             <a class="lb-nav-btn" th:href="@{/schedule/staff/leaderboard(month=${leaderboard.prevMonthParam})}">← Tháng trước</a>
             <span class="lb-period-pill" th:text="${leaderboard.periodLabel}">Tháng 10/2026</span>
             <a class="lb-nav-btn" th:href="@{/schedule/staff/leaderboard(month=${leaderboard.nextMonthParam})}">Tháng sau →</a>
-            <a class="lb-nav-btn primary" th:href="@{/schedule/staff/shift-change}">⇄ Trang Đổi ca</a>
-            <a class="lb-nav-btn" th:href="@{/schedule/staff}">📅 Lịch tuần</a>
+            <a class="lb-nav-btn primary" th:href="@{/schedule/staff/shift-change}">
+                <i data-lucide="arrow-left-right" style="width:14px;height:14px;"></i> Trang Đổi ca
+            </a>
+            <a class="lb-nav-btn" th:href="@{/schedule/staff}">
+                <i data-lucide="calendar" style="width:14px;height:14px;"></i> Lịch tuần
+            </a>
         </div>
     </section>
 
@@ -77,8 +85,9 @@
             </div>
         </div>
         <div style="text-align:right;">
-            <div class="lb-podium-reward" th:text="${leaderboard.mySummary.rewardBadgeLabel}">
-                Duy trì điểm uy tín tốt
+            <div class="lb-podium-reward" style="display:inline-flex;align-items:center;gap:6px;">
+                <i data-lucide="award" style="width:14px;height:14px;"></i>
+                <span th:text="${leaderboard.mySummary.rewardBadgeLabel}">Duy trì điểm uy tín tốt</span>
             </div>
         </div>
     </section>
@@ -107,7 +116,9 @@
             </div>
         </div>
         <div class="lb-rule-card">
-            <div class="lb-rule-icon reward">👑</div>
+            <div class="lb-rule-icon reward">
+                <i data-lucide="crown" style="width:18px;height:18px;"></i>
+            </div>
             <div class="lb-rule-text">
                 <strong>Quyền lợi "Chiến thần cứu ca"</strong>
                 <span>Top 3 điểm uy tín cao nhất tháng được thưởng KPI &amp; ưu tiên chọn lịch tuần sau.</span>
@@ -119,9 +130,14 @@
     <section class="lb-panel" style="border-left:4px solid #F59E0B;background:linear-gradient(180deg, #FFFBEB 0%, #FFFFFF 100%);"
              th:if="${!#lists.isEmpty(leaderboard.openRescueShifts)}">
         <div class="lb-panel-head">
-            <div>
-                <h2>🦸 Ca đang cần "Cứu bồ" tại cửa hàng (<span th:text="${leaderboard.openRescueShiftsCount}">1</span>)</h2>
-                <small style="color:var(--ink-soft);">Nhận ca ngay để giúp đồng nghiệp và tích lũy điểm uy tín đua Top tháng!</small>
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div style="width:36px;height:36px;border-radius:50%;background:#FEF3C7;display:flex;align-items:center;justify-content:center;color:#B45309;">
+                    <i data-lucide="shield-check" style="width:20px;height:20px;"></i>
+                </div>
+                <div>
+                    <h2 style="margin:0;">Ca đang cần "Cứu bồ" tại cửa hàng (<span th:text="${leaderboard.openRescueShiftsCount}">1</span>)</h2>
+                    <small style="color:var(--ink-soft);">Nhận ca ngay để giúp đồng nghiệp và tích lũy điểm uy tín đua Top tháng!</small>
+                </div>
             </div>
         </div>
 
@@ -134,8 +150,8 @@
                             Ca Sáng (07:00 – 12:00)
                         </strong>
                         <span th:if="${rescue.urgentWithin24h}"
-                              class="lb-tier-pill" style="background:#FEE2E2;color:#991B1B;border:1px solid #FECACA;">
-                            🔥 Khẩn cấp (&lt;24h) • Cứu bồ +5đ
+                              class="lb-tier-pill" style="background:#FEE2E2;color:#991B1B;border:1px solid #FECACA;display:inline-flex;align-items:center;gap:4px;">
+                            <i data-lucide="flame" style="width:13px;height:13px;"></i> Khẩn cấp (&lt;24h) • Cứu bồ +5đ
                         </span>
                         <span th:unless="${rescue.urgentWithin24h}"
                               class="lb-tier-pill tier-standard">
@@ -157,7 +173,7 @@
                                 data-coffee-confirm="Bạn muốn xung phong nhận ca cứu bồ này? Đơn sẽ được chuyển lên Quản lý cửa hàng phê duyệt."
                                 data-coffee-title="Xung phong Cứu bồ"
                                 data-coffee-ok="Nhận ca cứu bồ">
-                            🦸 Nhận ca cứu bồ (+<span th:text="${rescue.rescueBonusPoints}">5</span>đ)
+                            <i data-lucide="shield-check" style="width:14px;height:14px;"></i> Nhận ca cứu bồ (+<span th:text="${rescue.rescueBonusPoints}">5</span>đ)
                         </button>
                     </form>
                     <span th:unless="${rescue.canVolunteer}" style="font-size:12px;color:var(--ink-soft);">
@@ -170,16 +186,25 @@
 
     <!-- Top 3 Podium -->
     <section class="lb-podium-section" th:if="${!#lists.isEmpty(leaderboard.podiumEntries)}">
-        <h2 class="lb-section-title">🏆 Bảng vàng "Chiến thần cứu ca" — Top 3 Nhân viên dẫn đầu</h2>
+        <h2 class="lb-section-title" style="display:flex;align-items:center;gap:8px;">
+            <i data-lucide="trophy" style="width:22px;height:22px;color:#F59E0B;"></i>
+            <span>Bảng vàng "Chiến thần cứu ca" — Top 3 Nhân viên dẫn đầu</span>
+        </h2>
         <div class="lb-podium-grid">
             <div class="lb-podium-card"
                  th:each="p : ${leaderboard.podiumEntries}"
                  th:classappend="'rank-' + ${p.rank}">
                 <div class="lb-podium-top">
                     <span class="lb-medal">
-                        <span th:if="${p.rank == 1}">🥇 Hạng 1 • Quán quân</span>
-                        <span th:if="${p.rank == 2}">🥈 Hạng 2 • Á quân</span>
-                        <span th:if="${p.rank == 3}">🥉 Hạng 3 • Top 3</span>
+                        <span th:if="${p.rank == 1}" style="display:inline-flex;align-items:center;gap:4px;">
+                            <i data-lucide="medal" style="width:16px;height:16px;color:#F59E0B;"></i> Hạng 1 • Quán quân
+                        </span>
+                        <span th:if="${p.rank == 2}" style="display:inline-flex;align-items:center;gap:4px;">
+                            <i data-lucide="medal" style="width:16px;height:16px;color:#94A3B8;"></i> Hạng 2 • Á quân
+                        </span>
+                        <span th:if="${p.rank == 3}" style="display:inline-flex;align-items:center;gap:4px;">
+                            <i data-lucide="medal" style="width:16px;height:16px;color:#D97706;"></i> Hạng 3 • Top 3
+                        </span>
                     </span>
                     <div class="lb-podium-score">
                         <strong th:text="${p.reliabilityScore} + ' đ'">115 đ</strong>
@@ -194,11 +219,18 @@
                     <span class="lb-tier-pill" th:classappend="${p.tierBadgeClass}" th:text="${p.tierLabel}">Chiến thần cứu ca</span>
                 </div>
                 <div class="lb-podium-stats">
-                    <div>🦸 Cứu bồ: <strong th:text="${p.rescueShiftsCount}">2</strong> ca</div>
-                    <div>✅ Hoàn thành đổi: <strong th:text="${p.completedSwapsCount}">3</strong> ca</div>
+                    <div style="display:inline-flex;align-items:center;gap:4px;">
+                        <i data-lucide="shield-check" style="width:14px;height:14px;color:#D97706;"></i>
+                        <span>Cứu bồ: <strong th:text="${p.rescueShiftsCount}">2</strong> ca</span>
+                    </div>
+                    <div style="display:inline-flex;align-items:center;gap:4px;">
+                        <i data-lucide="check" style="width:14px;height:14px;color:#16A34A;"></i>
+                        <span>Hoàn thành: <strong th:text="${p.completedSwapsCount}">3</strong> ca</span>
+                    </div>
                 </div>
-                <div class="lb-podium-reward" th:text="${p.rewardBadgeLabel}">
-                    👑 Quán quân KPI Tháng + Ưu tiên lịch tuần sau
+                <div class="lb-podium-reward" style="display:inline-flex;align-items:center;gap:5px;">
+                    <i data-lucide="award" style="width:14px;height:14px;"></i>
+                    <span th:text="${p.rewardBadgeLabel}">Quán quân KPI Tháng + Ưu tiên lịch tuần sau</span>
                 </div>
             </div>
         </div>
@@ -266,58 +298,40 @@
         </div>
     </section>
 
-    <!-- Two Columns: My Score History & Store Activity Feed -->
-    <div class="lb-two-col">
-        <section class="lb-panel">
-            <div class="lb-panel-head">
-                <h2>📋 Lịch sử điểm uy tín của tôi</h2>
+    <!-- My Score History (Nhân viên chỉ xem lịch sử điểm của chính mình) -->
+    <section class="lb-panel">
+        <div class="lb-panel-head">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <i data-lucide="clipboard-list" style="width:20px;height:20px;color:var(--espresso);"></i>
+                <h2 style="margin:0;">Lịch sử điểm uy tín của tôi</h2>
             </div>
-            <p th:if="${#lists.isEmpty(leaderboard.myRecentLogs)}" style="color:var(--ink-soft);font-size:13.5px;margin:0;">
-                Bạn đang giữ nguyên mốc khởi đầu 100 điểm uy tín. Hãy nhận ca cứu bồ hoặc hoàn thành tốt ca đổi để tích lũy thêm điểm!
-            </p>
-            <div class="lb-log-list" th:if="${!#lists.isEmpty(leaderboard.myRecentLogs)}">
-                <div class="lb-log-item" th:each="log : ${leaderboard.myRecentLogs}">
-                    <div>
-                        <div style="font-weight:700;color:var(--espresso);" th:text="${log.actionLabel}">Cứu bồ ca khẩn cấp</div>
-                        <div style="font-size:12.5px;color:var(--ink-soft);margin-top:3px;" th:text="${log.reason}">Lý do</div>
-                        <div style="font-size:11px;color:var(--ink-soft);margin-top:3px;" th:text="${log.createdAtFormatted}">26/10/2026 14:30</div>
-                    </div>
-                    <div style="text-align:right;flex-shrink:0;">
-                        <div th:class="${log.positive ? 'lb-delta-pos' : (log.warningOnly ? 'lb-delta-zero' : 'lb-delta-neg')}"
-                             th:text="${log.formattedDelta}">+5 đ</div>
-                        <small style="font-size:11px;color:var(--ink-soft);" th:text="'Điểm sau: ' + ${log.scoreAfter} + ' đ'">105 đ</small>
-                    </div>
+            <small style="color:var(--ink-soft);">Ghi vết minh bạch các biến động điểm uy tín cá nhân của bạn</small>
+        </div>
+        <p th:if="${#lists.isEmpty(leaderboard.myRecentLogs)}" style="color:var(--ink-soft);font-size:13.5px;margin:0;">
+            Bạn đang giữ nguyên mốc khởi đầu 100 điểm uy tín. Hãy nhận ca cứu bồ hoặc hoàn thành tốt ca đổi để tích lũy thêm điểm!
+        </p>
+        <div class="lb-log-list" th:if="${!#lists.isEmpty(leaderboard.myRecentLogs)}">
+            <div class="lb-log-item" th:each="log : ${leaderboard.myRecentLogs}">
+                <div>
+                    <div style="font-weight:700;color:var(--espresso);" th:text="${log.actionLabel}">Cứu bồ ca khẩn cấp</div>
+                    <div style="font-size:12.5px;color:var(--ink-soft);margin-top:3px;" th:text="${log.reason}">Lý do</div>
+                    <div style="font-size:11px;color:var(--ink-soft);margin-top:3px;" th:text="${log.createdAtFormatted}">26/10/2026 14:30</div>
+                </div>
+                <div style="text-align:right;flex-shrink:0;">
+                    <div th:class="${log.positive ? 'lb-delta-pos' : (log.warningOnly ? 'lb-delta-zero' : 'lb-delta-neg')}"
+                         th:text="${log.formattedDelta}">+5 đ</div>
+                    <small style="font-size:11px;color:var(--ink-soft);" th:text="'Điểm sau: ' + ${log.scoreAfter} + ' đ'">105 đ</small>
                 </div>
             </div>
-        </section>
-
-        <section class="lb-panel">
-            <div class="lb-panel-head">
-                <h2>📜 Nhật ký "Cứu bồ" &amp; Tín nhiệm toàn cửa hàng</h2>
-            </div>
-            <p th:if="${#lists.isEmpty(leaderboard.recentLogs)}" style="color:var(--ink-soft);font-size:13.5px;margin:0;">
-                Chưa có hoạt động biến động điểm uy tín nào tại cửa hàng trong kỳ này.
-            </p>
-            <div class="lb-log-list" th:if="${!#lists.isEmpty(leaderboard.recentLogs)}">
-                <div class="lb-log-item" th:each="log : ${leaderboard.recentLogs}">
-                    <div>
-                        <div style="font-weight:700;color:var(--espresso);">
-                            <span th:text="${log.employeeName}">Trần Văn Tuấn</span>
-                            <span style="font-size:12px;font-weight:600;color:var(--caramel-dark);" th:text="'• ' + ${log.actionLabel}"></span>
-                        </div>
-                        <div style="font-size:12.5px;color:var(--ink-soft);margin-top:3px;" th:text="${log.reason}">Lý do</div>
-                        <div style="font-size:11px;color:var(--ink-soft);margin-top:3px;" th:text="${log.createdAtFormatted}">26/10/2026 14:30</div>
-                    </div>
-                    <div style="text-align:right;flex-shrink:0;">
-                        <div th:class="${log.positive ? 'lb-delta-pos' : (log.warningOnly ? 'lb-delta-zero' : 'lb-delta-neg')}"
-                             th:text="${log.formattedDelta}">+5 đ</div>
-                        <small style="font-size:11px;color:var(--ink-soft);" th:text="'Sau: ' + ${log.scoreAfter} + ' đ'">105 đ</small>
-                    </div>
-                </div>
-            </div>
-        </section>
-    </div>
+        </div>
+    </section>
 
 </main>
+
+<script>
+    if (window.lucide) {
+        lucide.createIcons();
+    }
+</script>
 </body>
 </html>

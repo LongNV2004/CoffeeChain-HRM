@@ -112,7 +112,7 @@ class ScheduleControllerTest {
                 .tierBadgeClass("tier-hero")
                 .kpiRewardEligible(true)
                 .priorityScheduleEligible(true)
-                .rewardBadgeLabel("👑 Quán quân KPI Tháng + Ưu tiên lịch tuần sau")
+                .rewardBadgeLabel("Quán quân KPI Tháng + Ưu tiên lịch tuần sau")
                 .build();
 
         ReliabilityLeaderboardView.RescueShiftItem rescueItem = ReliabilityLeaderboardView.RescueShiftItem.builder()
