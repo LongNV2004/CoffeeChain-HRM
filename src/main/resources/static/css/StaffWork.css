@@ -23,6 +23,11 @@
 .panel-head p{margin:0;color:var(--ink-soft);font-size:14px;}
 
 .availability-form{margin-top:16px;}
+.quota-panel{display:grid;gap:4px;margin-top:16px;padding:12px 14px;border:1px solid var(--line);border-radius:8px;background:var(--paper-dim);}
+.quota-panel p{margin:0;}
+.quota-panel .is-short{color:#8A5A12;}
+.quota-panel .is-over{color:var(--clay);}
+.quota-panel .is-ready{color:#3F6B45;}
 .availability-grid-wrap{overflow-x:auto;margin-top:16px;border:1px solid var(--line);border-radius:8px;background:#fff;}
 .availability-grid{width:100%;border-collapse:collapse;min-width:720px;}
 .availability-grid th,.availability-grid td{

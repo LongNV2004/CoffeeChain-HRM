@@ -24,11 +24,15 @@ import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.EmploymentContractService;
+import com.example.coffee_hrm.service.support.ContractShiftQuota;
 import com.example.coffee_hrm.service.impl.ContractFileStore.StoredContractFile;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -45,6 +49,7 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
     private static final int KEYWORD_MAX_LENGTH = 120;
     private static final int SALARY_INTEGER_DIGITS = 16;
     private static final int SALARY_SCALE = 2;
+    private static final int CODE_SAVE_ATTEMPTS = 5;
     private static final DateTimeFormatter CODE_MONTH = DateTimeFormatter.ofPattern("yyyyMM");
 
     private final EmploymentContractRepository contractRepository;
@@ -53,12 +58,14 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
     private final UserRepository userRepository;
     private final ContractFileStore fileStore;
     private final Integer expiringWithinDays;
+    private final TransactionTemplate newContractTransaction;
 
     public EmploymentContractServiceImpl(EmploymentContractRepository contractRepository,
                                          EmployeeRepository employeeRepository,
                                          StoreRepository storeRepository,
                                          UserRepository userRepository,
                                          ContractFileStore fileStore,
+                                         PlatformTransactionManager transactionManager,
                                          @Value("${coffee-hrm.contract.expiring-within-days:}") String expiringWithinDays) {
         this.contractRepository = contractRepository;
         this.employeeRepository = employeeRepository;
@@ -66,6 +73,8 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
         this.userRepository = userRepository;
         this.fileStore = fileStore;
         this.expiringWithinDays = parseExpiringWithinDays(expiringWithinDays);
+        this.newContractTransaction = new TransactionTemplate(transactionManager);
+        this.newContractTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     @Override
@@ -166,17 +175,13 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
             throw new BusinessException("Vui lòng tải lên file hợp đồng đã ký.");
         }
         LocalDate startDate = requireStartDate(request);
-        LocalDate endDate = request.getEndDate();
-        if (endDate != null && endDate.isBefore(startDate)) {
+        LocalDate endDate = requireEndDate(request);
+        if (endDate.isBefore(startDate)) {
             throw new BusinessException("Ngày kết thúc không được trước ngày bắt đầu hiệu lực.");
         }
-        BigDecimal salary = requireSalary(request == null ? null : request.getSalary(), "Mức lương cơ bản");
-        BigDecimal allowance = requireAllowance(request.getAllowance());
-        String jobTitle = requireText(request.getJobTitle(), "Vui lòng nhập chức danh công việc theo hợp đồng.", 150);
-        Integer weeklyShifts = requireWeeklyShifts(request.getWeeklyShiftCount());
-        if (request.getPaymentMethod() == null) {
-            throw new BusinessException("Vui lòng chọn hình thức trả lương.");
-        }
+        BigDecimal salary = requireSalary(request.getSalary(), "Mức lương");
+        Integer weeklyShiftCount = requireWeeklyShiftCount(request == null ? null : request.getWeeklyShiftCount());
+        String note = optionalNote(request.getInternalNote());
         Employee employee = employeeRepository.findByIdWithStore(request.getEmployeeId())
                 .orElseThrow(() -> new BusinessException("Không tìm thấy nhân viên."));
         if (actor.getEmployeeId() != null && actor.getEmployeeId().equals(employee.getId())) {
@@ -194,36 +199,39 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
         }
         requireNoUnresolvedOverlap(employee.getId(), startDate, endDate);
         User creator = actor.getUserId() == null ? null : userRepository.findById(actor.getUserId()).orElse(null);
-        String code = nextCode();
         StoredContractFile stored = fileStore.store(file);
-        EmploymentContract contract = EmploymentContract.builder()
-                .contractCode(code)
-                .employee(employee)
-                .startDate(startDate)
-                .endDate(endDate)
-                .salary(salary)
-                .jobTitle(jobTitle)
-                .weeklyShiftCount(weeklyShifts)
-                .allowance(allowance)
-                .paymentMethod(request.getPaymentMethod())
-                .originalFileName(stored.originalName())
-                .fileContentType(stored.contentType())
-                .fileSizeBytes(stored.size())
-                .createdBy(creator)
-                .signingStatus(ContractSigningStatus.DA_TAI_BAN_KY)
-                .signedFilePath(stored.storedName())
-                .terminatedDate(null)
-                .build();
-        try {
-            contract = contractRepository.saveAndFlush(contract);
-        } catch (RuntimeException ex) {
-            fileStore.delete(stored.storedName());
-            if (ex instanceof DataIntegrityViolationException) {
-                throw new BusinessException("Không tạo được hợp đồng vì số hợp đồng bị trùng. Hãy thử lại.");
+        EmploymentContract saved = null;
+        for (int attempt = 1; attempt <= CODE_SAVE_ATTEMPTS; attempt++) {
+            try {
+                saved = newContractTransaction.execute(status -> contractRepository.saveAndFlush(EmploymentContract.builder()
+                        .contractCode(nextCode())
+                        .employee(employee)
+                        .startDate(startDate)
+                        .endDate(endDate)
+                        .salary(salary)
+                        .weeklyShiftCount(weeklyShiftCount)
+                        .internalNote(note)
+                        .originalFileName(stored.originalName())
+                        .fileContentType(stored.contentType())
+                        .fileSizeBytes(stored.size())
+                        .createdBy(creator)
+                        .signingStatus(ContractSigningStatus.DA_TAI_BAN_KY)
+                        .signedFilePath(stored.storedName())
+                        .terminatedDate(null)
+                        .build()));
+                break;
+            } catch (DataIntegrityViolationException ex) {
+                saved = null;
+            } catch (RuntimeException ex) {
+                fileStore.delete(stored.storedName());
+                throw ex;
             }
-            throw ex;
         }
-        return toResponse(contract);
+        if (saved == null) {
+            fileStore.delete(stored.storedName());
+            throw new BusinessException("Không tạo được hợp đồng vì số hợp đồng bị trùng. Hãy thử lại.");
+        }
+        return toResponse(saved);
     }
 
     private List<EmploymentContract> scoped(AuthenticatedUser actor) {
@@ -410,23 +418,33 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
         return request.getStartDate();
     }
 
-    private static String requireText(String value, String missingMessage, int max) {
+    private static LocalDate requireEndDate(CreateEmploymentContractRequest request) {
+        if (request == null || request.getEndDate() == null) {
+            throw new BusinessException("Vui lòng nhập ngày kết thúc.");
+        }
+        return request.getEndDate();
+    }
+
+    private static String optionalNote(String value) {
         if (value == null || value.isBlank()) {
-            throw new BusinessException(missingMessage);
+            return null;
         }
         String trimmed = value.trim();
-        if (trimmed.length() > max) {
-            throw new BusinessException("Nội dung vượt quá " + max + " ký tự.");
+        if (trimmed.length() > 500) {
+            throw new BusinessException("Ghi chú tối đa 500 ký tự.");
         }
         return trimmed;
     }
 
-    private static Integer requireWeeklyShifts(Integer value) {
+    private static Integer requireWeeklyShiftCount(Integer value) {
         if (value == null) {
-            return null;
+            throw new BusinessException("Vui lòng nhập số ca làm việc quy định.");
         }
-        if (value < 1 || value > 14) {
-            throw new BusinessException("Số ca mỗi tuần phải từ 1 đến 14.");
+        if (value < 1) {
+            throw new BusinessException("Số ca làm việc quy định phải lớn hơn 0.");
+        }
+        if (value > ContractShiftQuota.MAX_PER_WEEK) {
+            throw new BusinessException("Số ca làm việc quy định không được quá 21 ca/tuần.");
         }
         return value;
     }
@@ -439,16 +457,6 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
             throw new BusinessException(label + " phải lớn hơn 0.");
         }
         return normalizeMoney(salary, label);
-    }
-
-    private static BigDecimal requireAllowance(BigDecimal allowance) {
-        if (allowance == null) {
-            return null;
-        }
-        if (allowance.compareTo(BigDecimal.ZERO) < 0) {
-            throw new BusinessException("Phụ cấp không được âm.");
-        }
-        return normalizeMoney(allowance, "Phụ cấp");
     }
 
     private static BigDecimal normalizeMoney(BigDecimal amount, String label) {

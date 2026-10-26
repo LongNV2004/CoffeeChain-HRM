@@ -21,6 +21,10 @@ public interface EmployeeRepository extends JpaRepository<Employee, Integer> {
     @Query("SELECT e FROM Employee e WHERE e.id = :id")
     Optional<Employee> lockByIdForLeaveRequest(@Param("id") Integer id);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT e FROM Employee e WHERE e.id = :id")
+    Optional<Employee> lockById(@Param("id") Integer id);
+
     long countByStore_IdAndStatusNot(Integer storeId, EmployeeStatus status);
 
     long countByStatusNot(EmployeeStatus status);

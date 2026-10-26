@@ -26,8 +26,10 @@ import com.example.coffee_hrm.entity.ShiftSlotPositionNeed;
 import com.example.coffee_hrm.entity.Store;
 import com.example.coffee_hrm.entity.TrainingSkill;
 import com.example.coffee_hrm.entity.WorkAvailability;
+import com.example.coffee_hrm.entity.EmploymentContract;
 import com.example.coffee_hrm.repository.EmployeePassedSkill;
 import com.example.coffee_hrm.repository.EmployeeRepository;
+import com.example.coffee_hrm.repository.EmploymentContractRepository;
 import com.example.coffee_hrm.repository.ShiftRepository;
 import com.example.coffee_hrm.repository.ShiftSlotLimitRepository;
 import com.example.coffee_hrm.repository.ShiftSlotPositionNeedRepository;
@@ -41,6 +43,7 @@ import com.example.coffee_hrm.service.NotificationService;
 import com.example.coffee_hrm.service.ScheduleService;
 import com.example.coffee_hrm.service.StaffAvailabilityService;
 import com.example.coffee_hrm.service.support.AvailabilityCoverage;
+import com.example.coffee_hrm.service.support.ContractShiftQuota;
 import com.example.coffee_hrm.service.support.PositionStaffing;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -73,6 +76,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
     private static final DateTimeFormatter FULL_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
     private static final String[] VI_DAYS = {"Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"};
+    private static final int MAX_SHIFTS_PER_DAY = 2;
     private static final String AVAILABILITY_REF = "WORK_AVAILABILITY";
     static final String NOT_CERTIFIED_MESSAGE =
             "Bạn chưa có chứng chỉ nên không thể đăng ký ca làm việc. "
@@ -106,6 +110,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
     private final ShiftSlotPositionNeedRepository shiftSlotPositionNeedRepository;
     private final TrainingSkillRepository trainingSkillRepository;
     private final TrainingClassEnrollmentRepository trainingClassEnrollmentRepository;
+    private final EmploymentContractRepository employmentContractRepository;
 
     @Override
     public WeeklyAvailabilityView getNextWeekAvailabilityGrid(AuthenticatedUser staff) {
@@ -120,6 +125,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                 staffingContext(employee.getStore().getId(), usage), weekStart);
         grid.setRegistrations(toGroups(visible));
         grid.setSelectedCount(grid.getRegistrations().size());
+        applyContractQuota(grid, employee.getId(), weekStart);
         return grid;
     }
 
@@ -135,7 +141,10 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
     @Override
     public String registrationBlockedMessage(AuthenticatedUser staff) {
         Employee employee = requireStaffEmployee(staff);
-        return isCertified(employee) ? null : NOT_CERTIFIED_MESSAGE;
+        if (!isCertified(employee)) {
+            return NOT_CERTIFIED_MESSAGE;
+        }
+        return ContractShiftQuota.describe(contractsOf(employee.getId()), nextWeekMonday()).blockMessage();
     }
 
     @Override
@@ -158,6 +167,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
     @Transactional
     public int submitNextWeekAvailability(SubmitWorkAvailabilityRequest request, AuthenticatedUser staff) {
         Employee employee = requireStaffEmployeeWithManager(staff);
+        employeeRepository.lockById(employee.getId());
         requireCertifiedToRegisterShift(employee);
         PreparedRegistration prepared = prepare(request, employee);
         if (prepared.slots().isEmpty()) {
@@ -311,6 +321,12 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
         }
         Employee employee = group.getFirst().getEmployee();
         assertSameStore(employee, store);
+        employeeRepository.lockById(employee.getId());
+        group = workAvailabilityRepository.findByRegistrationKey(registrationKey);
+        if (group.isEmpty()) {
+            throw new BusinessException("Không tìm thấy đăng ký lịch làm việc.");
+        }
+        employee = group.getFirst().getEmployee();
 
         boolean anyApproved = group.stream().anyMatch(wa -> resolveStatus(wa.getStatus()) == ApprovalStatus.APPROVED);
         boolean allRejected = group.stream().allMatch(wa -> resolveStatus(wa.getStatus()) == ApprovalStatus.REJECTED);
@@ -346,6 +362,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
         if (registrationUsesPositions(group)) {
             assertConfirmedQuota(group, employee);
         }
+        assertApprovedSetMatchesContract(employee, group);
 
         applyApprovedPattern(group, manager);
         List<WorkAvailability> toSave = new ArrayList<>();
@@ -701,6 +718,12 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                 }
             }
         }
+        for (WorkAvailability current : existing) {
+            if (resolveStatus(current.getStatus()) == ApprovalStatus.PENDING
+                    && overlapsRegistration(current, validFrom, validTo)) {
+                pendingToReplace.add(current);
+            }
+        }
         if (!approvedConflicts.isEmpty()) {
             throw new BusinessException(
                     "Đăng ký mới chồng lên lịch đã được duyệt: "
@@ -708,8 +731,27 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                             + ". Hãy chọn thứ hoặc thời hạn không trùng. Lịch đã duyệt được giữ nguyên.");
         }
         List<WorkAvailability> pending = pendingToReplace.stream().distinct().toList();
+        enforceContractShiftCount(employee, validFrom, validTo, slots, existing, pending);
         TrainingSkill skill = resolveRegistrationSkill(request, employee, slots);
         return new PreparedRegistration(duration, validFrom, validTo, slots, pending, skill);
+    }
+
+    private boolean overlapsRegistration(WorkAvailability existing, LocalDate validFrom, LocalDate validTo) {
+        ApprovalStatus status = resolveStatus(existing.getStatus());
+        if (status == ApprovalStatus.REJECTED || status == ApprovalStatus.CANCELLED) {
+            return false;
+        }
+        if (existing.getDayOfWeek() != null) {
+            if (existing.getValidTo() != null && existing.getValidTo().isBefore(VietnamTime.today())) {
+                return false;
+            }
+            return AvailabilityCoverage.rangesOverlap(validFrom, validTo, existing.getValidFrom(), existing.getValidTo());
+        }
+        LocalDate workDate = existing.getWorkDate();
+        return workDate != null
+                && !workDate.isBefore(VietnamTime.today())
+                && !workDate.isBefore(validFrom)
+                && !workDate.isAfter(validTo);
     }
 
     private boolean conflictsWith(WorkAvailability existing,
@@ -1954,6 +1996,168 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
             return "Bạn chưa có chứng chỉ hợp lệ cho vị trí " + skillName + " nên không thể đăng ký ca này.";
         }
         return "Nhân viên chưa có chứng chỉ hợp lệ cho vị trí " + skillName + " nên không thể duyệt đăng ký này.";
+    }
+
+    private void applyContractQuota(WeeklyAvailabilityView grid, Integer employeeId, LocalDate weekStart) {
+        ContractShiftQuota.WeekQuota quota = ContractShiftQuota.describe(contractsOf(employeeId), weekStart);
+        grid.setContractWeeklyShifts(quota.required());
+        grid.setContractShiftMessage(quota.blockMessage());
+    }
+
+    private List<EmploymentContract> contractsOf(Integer employeeId) {
+        return employmentContractRepository.findByEmployeeId(employeeId);
+    }
+
+    private void enforceContractShiftCount(Employee employee,
+                                           LocalDate validFrom,
+                                           LocalDate validTo,
+                                           List<ParsedPatternSlot> slots,
+                                           List<WorkAvailability> existing,
+                                           List<WorkAvailability> replaced) {
+        java.util.Set<Integer> replacedIds = new java.util.HashSet<>();
+        for (WorkAvailability row : replaced) {
+            if (row.getId() != null) {
+                replacedIds.add(row.getId());
+            }
+        }
+        List<WorkAvailability> kept = new java.util.ArrayList<>();
+        for (WorkAvailability row : existing) {
+            ApprovalStatus status = resolveStatus(row.getStatus());
+            if (status != ApprovalStatus.PENDING && status != ApprovalStatus.APPROVED) {
+                continue;
+            }
+            if (row.getId() != null && replacedIds.contains(row.getId())) {
+                continue;
+            }
+            kept.add(row);
+        }
+        List<String> keys = slotKeys(slots);
+        enforceMaxShiftsPerDay(validFrom, validTo, keys, kept);
+        ContractShiftQuota.requireExact(
+                contractsOf(employee.getId()),
+                validFrom,
+                validTo,
+                shiftCounts(validFrom, validTo, keys, kept));
+    }
+
+    private void assertApprovedSetMatchesContract(Employee employee, List<WorkAvailability> group) {
+        LocalDate validFrom = group.getFirst().getValidFrom();
+        LocalDate validTo = group.getFirst().getValidTo();
+        if (validFrom == null || validTo == null || group.getFirst().getDayOfWeek() == null) {
+            return;
+        }
+        java.util.Set<Integer> groupIds = new java.util.HashSet<>();
+        List<String> keys = new java.util.ArrayList<>();
+        for (WorkAvailability row : group) {
+            if (row.getId() != null) {
+                groupIds.add(row.getId());
+            }
+            if (row.getShift() != null && row.getShift().getId() != null && row.getDayOfWeek() != null) {
+                keys.add(row.getShift().getId() + ":" + row.getDayOfWeek());
+            }
+        }
+        List<WorkAvailability> kept = new java.util.ArrayList<>();
+        for (WorkAvailability row : workAvailabilityRepository.findVisibleByEmployee(
+                employee.getId(), VietnamTime.today(), ApprovalStatus.PENDING)) {
+            if (row.getId() != null && groupIds.contains(row.getId())) {
+                continue;
+            }
+            if (resolveStatus(row.getStatus()) == ApprovalStatus.APPROVED) {
+                kept.add(row);
+            }
+        }
+        enforceMaxShiftsPerDay(validFrom, validTo, keys, kept);
+        ContractShiftQuota.requireExact(
+                contractsOf(employee.getId()), validFrom, validTo, shiftCounts(validFrom, validTo, keys, kept));
+    }
+
+    private void enforceMaxShiftsPerDay(LocalDate validFrom,
+                                        LocalDate validTo,
+                                        List<String> newKeys,
+                                        List<WorkAvailability> kept) {
+        Map<Integer, Set<String>> byDay = new LinkedHashMap<>();
+        for (String key : newKeys) {
+            addShiftDay(byDay, key);
+        }
+        for (WorkAvailability row : kept) {
+            if (!overlapsRegistration(row, validFrom, validTo)
+                    || row.getShift() == null
+                    || row.getShift().getId() == null) {
+                continue;
+            }
+            Integer day = row.getDayOfWeek();
+            if (day == null && row.getWorkDate() != null) {
+                day = row.getWorkDate().getDayOfWeek().getValue();
+            }
+            if (day == null) {
+                continue;
+            }
+            addShiftDay(byDay, row.getShift().getId() + ":" + day);
+        }
+        for (Map.Entry<Integer, Set<String>> entry : byDay.entrySet()) {
+            if (entry.getValue().size() <= MAX_SHIFTS_PER_DAY) {
+                continue;
+            }
+            int day = entry.getKey();
+            String dayName = day >= 1 && day <= VI_DAYS.length ? VI_DAYS[day - 1] : "Ngày đã chọn";
+            throw new BusinessException(dayName + " chỉ được đăng ký tối đa 2 ca/ngày.");
+        }
+    }
+
+    private static void addShiftDay(Map<Integer, Set<String>> byDay, String key) {
+        int separator = key.indexOf(':');
+        if (separator < 0 || separator == key.length() - 1) {
+            return;
+        }
+        int day = Integer.parseInt(key.substring(separator + 1));
+        byDay.computeIfAbsent(day, ignored -> new LinkedHashSet<>()).add(key);
+    }
+
+    private static List<String> slotKeys(List<ParsedPatternSlot> slots) {
+        List<String> keys = new java.util.ArrayList<>();
+        for (ParsedPatternSlot slot : slots) {
+            keys.add(slot.shift().getId() + ":" + slot.dayOfWeek());
+        }
+        return keys;
+    }
+
+    private Map<LocalDate, Integer> shiftCounts(LocalDate validFrom,
+                                                LocalDate validTo,
+                                                List<String> newKeys,
+                                                List<WorkAvailability> kept) {
+        Map<LocalDate, java.util.Set<String>> byWeek = new java.util.LinkedHashMap<>();
+        LocalDate week = validFrom.with(java.time.temporal.TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        LocalDate last = validTo.with(java.time.temporal.TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        while (!week.isAfter(last)) {
+            java.util.Set<String> keys = new java.util.LinkedHashSet<>();
+            LocalDate weekEnd = week.plusDays(6);
+            for (String key : newKeys) {
+                int day = Integer.parseInt(key.substring(key.indexOf(':') + 1));
+                LocalDate date = week.plusDays(day - 1L);
+                if (!date.isBefore(validFrom) && !date.isAfter(validTo) && !date.isAfter(weekEnd)) {
+                    keys.add(key);
+                }
+            }
+            for (WorkAvailability row : kept) {
+                if (row.getShift() == null || row.getShift().getId() == null) {
+                    continue;
+                }
+                for (int day = 1; day <= 7; day++) {
+                    LocalDate date = week.plusDays(day - 1L);
+                    if (date.isBefore(validFrom) || date.isAfter(validTo)) {
+                        continue;
+                    }
+                    if (AvailabilityCoverage.appliesOn(row, date)) {
+                        keys.add(row.getShift().getId() + ":" + day);
+                    }
+                }
+            }
+            byWeek.put(week, keys);
+            week = week.plusWeeks(1);
+        }
+        Map<LocalDate, Integer> counts = new java.util.LinkedHashMap<>();
+        byWeek.forEach((start, keys) -> counts.put(start, keys.size()));
+        return counts;
     }
 
     private record ParsedPatternSlot(Shift shift, int dayOfWeek) {

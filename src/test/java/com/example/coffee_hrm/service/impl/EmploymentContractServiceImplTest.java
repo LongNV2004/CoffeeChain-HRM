@@ -1,6 +1,5 @@
 package com.example.coffee_hrm.service.impl;
 
-import com.example.coffee_hrm.common.enums.ContractPaymentMethod;
 import com.example.coffee_hrm.common.enums.ContractSigningStatus;
 import com.example.coffee_hrm.common.enums.ContractValidityStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
@@ -25,9 +24,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionStatus;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
@@ -67,8 +69,10 @@ class EmploymentContractServiceImplTest {
     @BeforeEach
     void setUp() {
         fileStore = new ContractFileStore(storage.toString());
+        PlatformTransactionManager transactionManager = mock(PlatformTransactionManager.class);
+        when(transactionManager.getTransaction(any())).thenReturn(mock(TransactionStatus.class));
         service = new EmploymentContractServiceImpl(
-                contractRepository, employeeRepository, storeRepository, userRepository, fileStore, "");
+                contractRepository, employeeRepository, storeRepository, userRepository, fileStore, transactionManager, "");
         Employee managerEmployee = Employee.builder().id(10).fullName("Quản lý").status(EmployeeStatus.ACTIVE).build();
         store = Store.builder().id(1).storeName("Cửa hàng A").manager(managerEmployee).build();
         otherStore = Store.builder().id(2).storeName("Cửa hàng B").build();
@@ -97,6 +101,7 @@ class EmploymentContractServiceImplTest {
         assertEquals(ContractSigningStatus.DA_TAI_BAN_KY, response.getSigningStatus());
         assertNull(response.getSignedDate());
         assertEquals("hop-dong.pdf", response.getOriginalFileName());
+        assertEquals(7, response.getWeeklyShiftCount());
         assertTrue(response.isHasFile());
         assertNull(response.getTerminatedDate());
         assertEquals(1, storedFiles());
@@ -158,9 +163,33 @@ class EmploymentContractServiceImplTest {
                 () -> service.create(manager, reversed, pdf("sai-ngay.pdf")));
         assertEquals("Ngày kết thúc không được trước ngày bắt đầu hiệu lực.", error.getMessage());
 
-        EmploymentContractResponse openEnded = service.create(manager, request(null, new BigDecimal("1000.50")), pdf("mo.pdf"));
-        assertNull(openEnded.getEndDate());
-        verify(contractRepository).saveAndFlush(any(EmploymentContract.class));
+        CreateEmploymentContractRequest missingEnd = request(LocalDate.of(2026, 12, 31), new BigDecimal("1000.50"));
+        missingEnd.setEndDate(null);
+        BusinessException missing = assertThrows(BusinessException.class,
+                () -> service.create(manager, missingEnd, pdf("thieu-ngay.pdf")));
+        assertEquals("Vui lòng nhập ngày kết thúc.", missing.getMessage());
+        verify(contractRepository, never()).saveAndFlush(any(EmploymentContract.class));
+    }
+
+    @Test
+    void collidingContractCodeRetriesAndKeepsAUniqueCode() throws Exception {
+        allowEmployee();
+        java.util.List<String> taken = new ArrayList<>();
+        when(contractRepository.findCodesByPrefix(any())).thenAnswer(invocation -> java.util.List.copyOf(taken));
+        when(contractRepository.saveAndFlush(any(EmploymentContract.class))).thenAnswer(invocation -> {
+            EmploymentContract saving = invocation.getArgument(0);
+            if (taken.isEmpty()) {
+                taken.add(saving.getContractCode());
+                throw new DataIntegrityViolationException("duplicate");
+            }
+            saving.setId(8);
+            return saving;
+        });
+
+        EmploymentContractResponse response = service.create(manager, request(null, new BigDecimal("1000")), pdf("song-song.pdf"));
+
+        assertTrue(response.getContractCode().endsWith("-0002"));
+        assertEquals(1, storedFiles());
     }
 
     @Test
@@ -183,6 +212,24 @@ class EmploymentContractServiceImplTest {
         assertThrows(RuntimeException.class,
                 () -> service.create(manager, request(null, new BigDecimal("1000")), pdf("loi-db.pdf")));
         assertEquals(0, storedFiles());
+    }
+
+    @Test
+    void weeklyShiftCountMustBeAPositiveInteger() throws Exception {
+        allowEmployee();
+        CreateEmploymentContractRequest blank = request(null, new BigDecimal("1000"));
+        blank.setWeeklyShiftCount(null);
+        CreateEmploymentContractRequest zero = request(null, new BigDecimal("1000"));
+        zero.setWeeklyShiftCount(0);
+
+        BusinessException missing = assertThrows(BusinessException.class,
+                () -> service.create(manager, blank, pdf("thieu-ca.pdf")));
+        BusinessException notPositive = assertThrows(BusinessException.class,
+                () -> service.create(manager, zero, pdf("khong-ca.pdf")));
+
+        assertEquals("Vui lòng nhập số ca làm việc quy định.", missing.getMessage());
+        assertEquals("Số ca làm việc quy định phải lớn hơn 0.", notPositive.getMessage());
+        verify(contractRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -298,7 +345,7 @@ class EmploymentContractServiceImplTest {
         allowEmployee();
         BusinessException salary = assertThrows(BusinessException.class,
                 () -> service.create(manager, request(null, BigDecimal.ZERO), pdf("luong.pdf")));
-        assertEquals("Mức lương cơ bản phải lớn hơn 0.", salary.getMessage());
+        assertEquals("Mức lương phải lớn hơn 0.", salary.getMessage());
     }
 
     private void allowEmployee() {
@@ -310,10 +357,9 @@ class EmploymentContractServiceImplTest {
         CreateEmploymentContractRequest request = new CreateEmploymentContractRequest();
         request.setEmployeeId(30);
         request.setStartDate(LocalDate.of(2026, 10, 1));
-        request.setEndDate(endDate);
-        request.setJobTitle("Pha chế");
+        request.setEndDate(endDate == null ? LocalDate.of(2026, 12, 31) : endDate);
         request.setSalary(salary);
-        request.setPaymentMethod(ContractPaymentMethod.BANK_TRANSFER);
+        request.setWeeklyShiftCount(7);
         return request;
     }
 

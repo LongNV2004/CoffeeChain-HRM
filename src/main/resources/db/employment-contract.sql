@@ -100,7 +100,7 @@ IF NOT EXISTS (
 )
     ALTER TABLE dbo.EmploymentContracts
         ADD CONSTRAINT CK_EmploymentContracts_WeeklyShiftCount
-        CHECK (WeeklyShiftCount IS NULL OR (WeeklyShiftCount >= 1 AND WeeklyShiftCount <= 14));
+        CHECK (WeeklyShiftCount IS NULL OR (WeeklyShiftCount >= 1 AND WeeklyShiftCount <= 21));
 GO
 IF NOT EXISTS (
     SELECT 1 FROM sys.check_constraints
@@ -120,6 +120,20 @@ IF NOT EXISTS (
         ADD CONSTRAINT CK_EmploymentContracts_PayPeriod
         CHECK (PayPeriod IS NULL OR PayPeriod IN ('HangThang', 'HaiLanThang'));
 GO
+IF EXISTS (
+    SELECT 1 FROM sys.check_constraints
+    WHERE name = N'CK_EmploymentContracts_WeeklyShiftCount'
+      AND parent_object_id = OBJECT_ID(N'dbo.EmploymentContracts')
+      AND definition NOT LIKE N'%21%'
+)
+BEGIN
+    ALTER TABLE dbo.EmploymentContracts DROP CONSTRAINT CK_EmploymentContracts_WeeklyShiftCount;
+    ALTER TABLE dbo.EmploymentContracts
+        ADD CONSTRAINT CK_EmploymentContracts_WeeklyShiftCount
+        CHECK (WeeklyShiftCount IS NULL OR (WeeklyShiftCount >= 1 AND WeeklyShiftCount <= 21));
+END;
+GO
+
 IF NOT EXISTS (
     SELECT 1 FROM sys.foreign_keys
     WHERE name = N'FK_EmploymentContracts_CreatedBy'

@@ -1,9 +1,7 @@
 package com.example.coffee_hrm.dto.request;
 
-import com.example.coffee_hrm.common.enums.ContractPaymentMethod;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -24,26 +22,22 @@ public class CreateEmploymentContractRequest {
     @NotNull(message = "Vui lòng nhập ngày bắt đầu hiệu lực.")
     private LocalDate startDate;
 
+    @NotNull(message = "Vui lòng nhập ngày kết thúc.")
     private LocalDate endDate;
 
-    @NotBlank(message = "Vui lòng nhập chức danh công việc theo hợp đồng.")
-    @Size(max = 150, message = "Chức danh tối đa 150 ký tự.")
-    private String jobTitle;
-
-    @Min(value = 1, message = "Số ca mỗi tuần phải từ 1 đến 14.")
-    @Max(value = 14, message = "Số ca mỗi tuần phải từ 1 đến 14.")
+    @NotNull(message = "Vui lòng nhập số ca làm việc quy định.")
+    @Min(value = 1, message = "Số ca làm việc quy định phải lớn hơn 0.")
+    @Max(value = 21, message = "Số ca làm việc quy định không được quá 21 ca/tuần.")
     private Integer weeklyShiftCount;
 
-    @NotNull(message = "Vui lòng nhập mức lương cơ bản.")
+    @NotNull(message = "Vui lòng nhập mức lương.")
     private BigDecimal salary;
 
-    private BigDecimal allowance;
+    @Size(max = 500, message = "Ghi chú tối đa 500 ký tự.")
+    private String internalNote;
 
-    @NotNull(message = "Vui lòng chọn hình thức trả lương.")
-    private ContractPaymentMethod paymentMethod;
-
-    public void setJobTitle(String jobTitle) {
-        this.jobTitle = blankToNull(jobTitle);
+    public void setInternalNote(String internalNote) {
+        this.internalNote = blankToNull(internalNote);
     }
 
     private static String blankToNull(String value) {

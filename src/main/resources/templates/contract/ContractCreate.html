@@ -12,6 +12,8 @@
         .contract-facts dt, .contract-facts dd { margin: 0; }
         .contract-facts dt { font-weight: 600; }
         .contract-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+        .unit-input { display: flex; align-items: center; gap: 8px; }
+        .unit-input input { max-width: 160px; }
         @media (max-width: 720px) { .contract-facts { grid-template-columns: 1fr; } }
     </style>
 </head>
@@ -48,17 +50,14 @@
             <dl class="contract-facts" id="employee-confirm" hidden>
                 <dt>Mã nhân viên</dt><dd id="confirm-code"></dd>
                 <dt>Họ và tên</dt><dd id="confirm-name"></dd>
-                <dt>Cửa hàng đang làm việc</dt><dd id="confirm-store"></dd>
-                <dt>Chức vụ</dt><dd id="confirm-position"></dd>
-                <dt>CCCD/CMND</dt><dd>Chưa có trong hồ sơ</dd>
-                <dt>Ngày vào làm</dt><dd id="confirm-hire"></dd>
+                <dt>Cửa hàng hiện tại</dt><dd id="confirm-store"></dd>
+                <dt>Chức vụ hiện tại</dt><dd id="confirm-position"></dd>
             </dl>
             <p class="empty" th:if="${#lists.isEmpty(employees)}">Không có nhân viên đang làm việc trong cửa hàng của bạn.</p>
         </section>
 
         <section class="panel recruit-card" th:if="${!#lists.isEmpty(employees)}">
             <h2>Thông tin hợp đồng</h2>
-            <p class="muted">Số hợp đồng do hệ thống tự sinh khi tạo, bảo đảm không trùng.</p>
             <div class="recruit-grid">
                 <label for="startDate">
                     <span class="field-label">Ngày bắt đầu hiệu lực <span class="req">*</span></span>
@@ -67,49 +66,32 @@
                     <span class="field-error" th:if="${#fields.hasErrors('startDate')}" th:errors="*{startDate}"></span>
                 </label>
                 <label for="endDate">
-                    <span class="field-label">Ngày kết thúc</span>
-                    <input id="endDate" name="endDate" type="date"
+                    <span class="field-label">Ngày kết thúc <span class="req">*</span></span>
+                    <input id="endDate" name="endDate" type="date" required
                            th:value="${form.endDate != null ? #temporals.format(form.endDate, 'yyyy-MM-dd') : ''}">
-                    <span class="muted">Để trống nếu hợp đồng không quy định ngày kết thúc.</span>
                     <span class="field-error" id="end-client-error" hidden></span>
                     <span class="field-error" th:if="${#fields.hasErrors('endDate')}" th:errors="*{endDate}"></span>
                 </label>
-                <label for="jobTitle">
-                    <span class="field-label">Chức danh công việc theo hợp đồng <span class="req">*</span></span>
-                    <input id="jobTitle" type="text" th:field="*{jobTitle}" maxlength="150" required>
-                    <span class="field-error" th:if="${#fields.hasErrors('jobTitle')}" th:errors="*{jobTitle}"></span>
-                </label>
                 <label for="weeklyShiftCount">
-                    <span class="field-label">Số ca làm việc tiêu chuẩn mỗi tuần</span>
-                    <input id="weeklyShiftCount" type="number" th:field="*{weeklyShiftCount}" min="1" max="14" step="1">
-                    <span class="muted">Nhập theo thỏa thuận, từ 1 đến 14. Có thể để trống.</span>
+                    <span class="field-label">Số ca làm việc quy định (ca/tuần) <span class="req">*</span></span>
+                    <span class="unit-input">
+                        <input id="weeklyShiftCount" type="number" th:field="*{weeklyShiftCount}"
+                               min="1" max="21" step="1" required inputmode="numeric">
+                        <span>ca/tuần</span>
+                    </span>
+                    <span class="muted">Số nguyên lớn hơn 0. Nhân viên phải đăng ký đúng số ca này mỗi tuần.</span>
                     <span class="field-error" th:if="${#fields.hasErrors('weeklyShiftCount')}" th:errors="*{weeklyShiftCount}"></span>
                 </label>
-            </div>
-        </section>
-
-        <section class="panel recruit-card" th:if="${!#lists.isEmpty(employees)}">
-            <h2>Lương và chế độ</h2>
-            <p class="muted">Đơn vị VNĐ. Mức lương trong hợp đồng không làm thay đổi công thức tính lương hiện tại.</p>
-            <div class="recruit-grid">
                 <label for="salary">
-                    <span class="field-label">Mức lương cơ bản <span class="req">*</span></span>
+                    <span class="field-label">Mức lương (đồng/giờ) <span class="req">*</span></span>
                     <input id="salary" type="number" th:field="*{salary}" min="0.01" step="0.01" required inputmode="decimal">
+                    <span class="muted">Đơn vị cố định: đồng/giờ. Mức này không phải tiền lương thực nhận.</span>
                     <span class="field-error" th:if="${#fields.hasErrors('salary')}" th:errors="*{salary}"></span>
                 </label>
-                <label for="allowance">
-                    <span class="field-label">Phụ cấp</span>
-                    <input id="allowance" type="number" th:field="*{allowance}" min="0" step="0.01" inputmode="decimal">
-                    <span class="field-error" th:if="${#fields.hasErrors('allowance')}" th:errors="*{allowance}"></span>
-                </label>
-                <label for="paymentMethod">
-                    <span class="field-label">Hình thức trả lương <span class="req">*</span></span>
-                    <select id="paymentMethod" th:field="*{paymentMethod}" required>
-                        <option value="">Chọn hình thức</option>
-                        <option th:each="method : ${T(com.example.coffee_hrm.common.enums.ContractPaymentMethod).values()}"
-                                th:value="${method.name()}" th:text="${method.label}"></option>
-                    </select>
-                    <span class="field-error" th:if="${#fields.hasErrors('paymentMethod')}" th:errors="*{paymentMethod}"></span>
+                <label class="recruit-span" for="internalNote">
+                    <span class="field-label">Ghi chú</span>
+                    <textarea id="internalNote" th:field="*{internalNote}" maxlength="500" rows="3"></textarea>
+                    <span class="field-error" th:if="${#fields.hasErrors('internalNote')}" th:errors="*{internalNote}"></span>
                 </label>
             </div>
         </section>
@@ -162,8 +144,6 @@
             document.getElementById("confirm-name").textContent = option.getAttribute("data-name") || "";
             document.getElementById("confirm-store").textContent = option.getAttribute("data-store") || "";
             document.getElementById("confirm-position").textContent = option.getAttribute("data-position") || "";
-            var hire = option.getAttribute("data-hire") || "";
-            document.getElementById("confirm-hire").textContent = hire ? hire.split("-").reverse().join("/") : "—";
             confirmBox.hidden = false;
         }
         function checkEnd() {
@@ -173,6 +153,9 @@
                 end.setCustomValidity("Ngày kết thúc không được trước ngày bắt đầu hiệu lực.");
                 error.hidden = false;
                 error.textContent = "Ngày kết thúc không được trước ngày bắt đầu hiệu lực.";
+            } else if (!end.value) {
+                end.setCustomValidity("Vui lòng nhập ngày kết thúc.");
+                error.hidden = true;
             } else {
                 end.setCustomValidity("");
                 error.hidden = true;
