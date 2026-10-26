@@ -105,25 +105,6 @@ public class AttendanceReportController {
                 .body(file.body());
     }
 
-    @PostMapping("/admin/reports/{reportId}/approve")
-    @PreAuthorize("hasRole('ADMIN')")
-    public String approve(@PathVariable("reportId") int reportId,
-                          @RequestParam("year") int year,
-                          @RequestParam("month") int month,
-                          @RequestParam(value = "back", required = false) String back,
-                          @AuthenticationPrincipal AuthenticatedUser user,
-                          RedirectAttributes redirect) {
-        try {
-            attendanceReportService.approve(user, reportId);
-            redirect.addFlashAttribute("success", "Đã duyệt báo cáo.");
-        } catch (BusinessException ex) {
-            redirect.addFlashAttribute("pageError", ex.getMessage());
-        } catch (DataAccessException ex) {
-            redirect.addFlashAttribute("pageError", SCHEMA_MESSAGE);
-        }
-        return redirectAdmin(reportId, year, month, back);
-    }
-
     @PostMapping("/admin/reports/{reportId}/revision")
     @PreAuthorize("hasRole('ADMIN')")
     public String requestRevision(@PathVariable("reportId") int reportId,

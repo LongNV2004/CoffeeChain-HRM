@@ -74,7 +74,7 @@
                 <p class="slot-meta" th:text="${employee.code + (employee.roleText == null or #strings.isEmpty(employee.roleText) ? '' : ' · ' + employee.roleText)}">NV001 · Nhân viên</p>
                 <div class="slot-times">
                     <div>
-                        <span>Ngày công</span>
+                        <span>Slot đã làm</span>
                         <strong th:text="${employee.attendedDays}">0</strong>
                     </div>
                     <div>
@@ -85,18 +85,18 @@
                 <div class="slot-times slot-minutes">
                     <div>
                         <span>Đi muộn</span>
-                        <strong th:classappend="${employee.lateRecords != '0'} ? 'is-alert' : ''" th:text="${employee.lateRecords + ' lần'}">0 lần</strong>
+                        <strong th:classappend="${employee.lateRecords != '0'} ? 'is-alert' : ''" th:text="${employee.lateRecords + ' slot'}">0 slot</strong>
                         <small th:text="${employee.lateMinutes + ' phút'}">0 phút</small>
                     </div>
                     <div>
                         <span>Về sớm</span>
-                        <strong th:classappend="${employee.earlyRecords != '0'} ? 'is-alert' : ''" th:text="${employee.earlyRecords + ' lần'}">0 lần</strong>
+                        <strong th:classappend="${employee.earlyRecords != '0'} ? 'is-alert' : ''" th:text="${employee.earlyRecords + ' slot'}">0 slot</strong>
                         <small th:text="${employee.earlyMinutes + ' phút'}">0 phút</small>
                     </div>
                 </div>
                 <div class="slot-absent">
                     <span>Thiếu chấm công</span>
-                    <strong th:text="${employee.absentRecords + ' lần'}">0 lần</strong>
+                    <strong th:text="${employee.absentRecords + ' slot'}">0 slot</strong>
                 </div>
                 <button type="button" class="month-detail" th:attr="data-dialog=|version-emp-${employee.employeeId}|">Xem chi tiết</button>
             </article>
