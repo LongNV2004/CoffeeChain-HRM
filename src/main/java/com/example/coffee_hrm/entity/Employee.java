@@ -66,6 +66,10 @@ public class Employee {
     @Builder.Default
     private Boolean hasCertificate = false;
 
+    @Column(name = "ReliabilityScore", nullable = false)
+    @Builder.Default
+    private Integer reliabilityScore = 100;
+
     @CreationTimestamp
     @Column(name = "CreatedAt", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -75,6 +79,13 @@ public class Employee {
         if (certificationStatus == null) {
             certificationStatus = CertificationStatus.NOTCERTIFIED;
         }
+        if (reliabilityScore == null) {
+            reliabilityScore = 100;
+        }
+    }
+
+    public int getEffectiveReliabilityScore() {
+        return reliabilityScore != null ? reliabilityScore : 100;
     }
 
     @OneToOne(mappedBy = "employee", fetch = FetchType.LAZY)
