@@ -14,6 +14,7 @@ import com.example.coffee_hrm.entity.*;
 import com.example.coffee_hrm.repository.*;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.NotificationService;
+import com.example.coffee_hrm.service.ReliabilityService;
 import com.example.coffee_hrm.service.ScheduleService;
 import com.example.coffee_hrm.service.support.ApprovedLeaveCoverage;
 import com.example.coffee_hrm.service.support.AvailabilityCoverage;
@@ -45,6 +46,7 @@ public class ScheduleServiceImpl implements ScheduleService {
     private final UserRepository userRepository;
     private final WorkAvailabilityRepository workAvailabilityRepository;
     private final NotificationService notificationService;
+    private final ReliabilityService reliabilityService;
     private static final String SHIFT_CHANGE_REF = "SHIFT_CHANGE";
     @Override
     @Transactional(readOnly = true)
@@ -212,6 +214,9 @@ public class ScheduleServiceImpl implements ScheduleService {
         LocalDateTime targetAgreedAt = "MANAGER_ASSIGN".equalsIgnoreCase(changeType) ? VietnamTime.now() : null;
         ShiftChangeRequest changeRequest = ShiftChangeRequest.builder() .assignment(assignment) .employee(currentEmployee) .targetAssignment(targetAssignment) .targetEmployee(targetEmployee) .isTargetAgreed(isTargetAgreed) .targetAgreedAt(targetAgreedAt) .reason(fullReason) .status(ApprovalStatus.PENDING) .build();
         shiftChangeRequestRepository.save(changeRequest);
+        if (reliabilityService != null) {
+            reliabilityService.recordLateShiftChangeIfUrgent(currentEmployee, assignment, changeRequest.getId());
+        }
         notifyStoreManager(currentEmployee, changeRequest);
     }
 
@@ -234,6 +239,64 @@ public class ScheduleServiceImpl implements ScheduleService {
             changeRequest.setStatus(ApprovalStatus.REJECTED);
             changeRequest.setReason(changeRequest.getReason() + " [Đồng nghiệp từ chối hoán đổi]");
         }
+        shiftChangeRequestRepository.save(changeRequest);
+        if (!agreed && reliabilityService != null) {
+            reliabilityService.recordEmergencyDeclineIfApplicable(currentEmployee, changeRequest);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void volunteerRescueShift(Integer requestId, AuthenticatedUser user) {
+        Employee currentEmployee = resolveStaffEmployee(user);
+        requireCertifiedForSharedSchedule(currentEmployee);
+        ShiftChangeRequest changeRequest = shiftChangeRequestRepository.findByIdWithDetails(requestId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy yêu cầu đổi ca cần cứu bồ."));
+        if (changeRequest.getEmployee() == null || changeRequest.getEmployee().getStore() == null
+                || currentEmployee.getStore() == null
+                || !Objects.equals(changeRequest.getEmployee().getStore().getId(), currentEmployee.getStore().getId())) {
+            throw new BusinessException("Ca làm việc này không thuộc cửa hàng của bạn.");
+        }
+        if (Objects.equals(changeRequest.getEmployee().getId(), currentEmployee.getId())) {
+            throw new BusinessException("Bạn không thể tự nhận cứu bồ cho ca của chính mình.");
+        }
+        if (changeRequest.getStatus() != ApprovalStatus.PENDING) {
+            throw new BusinessException("Yêu cầu đổi ca này đã được xử lý trước đó.");
+        }
+        if (changeRequest.getTargetEmployee() != null || changeRequest.getTargetAssignment() != null) {
+            throw new BusinessException("Ca này đã có đồng nghiệp khác nhận hỗ trợ.");
+        }
+        ShiftAssignment assignment = changeRequest.getAssignment();
+        if (assignment == null || assignment.getShift() == null
+                || !isShiftStillUpcoming(assignment.getWorkDate(), assignment.getShift().getStartTime())) {
+            throw new BusinessException("Ca làm việc đã qua hoặc đã bắt đầu, không thể nhận cứu bồ.");
+        }
+        ensureNoApprovedLeave(currentEmployee.getId(), assignment.getShift().getId(), assignment.getWorkDate());
+        if (shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus(
+                currentEmployee.getId(), assignment.getShift().getId(), assignment.getWorkDate(), AssignmentStatus.ASSIGNED)) {
+            throw new BusinessException("Bạn đã có ca làm việc này trên lịch rồi.");
+        }
+        List<ShiftAssignment> existingSameDay = shiftAssignmentRepository.findByEmployee_IdAndWorkDateAndStatus(
+                currentEmployee.getId(), assignment.getWorkDate(), AssignmentStatus.ASSIGNED);
+        for (ShiftAssignment existing : existingSameDay) {
+            Shift otherShift = existing.getShift();
+            Shift newShift = assignment.getShift();
+            if (otherShift != null && newShift != null
+                    && newShift.getStartTime().isBefore(otherShift.getEndTime())
+                    && newShift.getEndTime().isAfter(otherShift.getStartTime())) {
+                throw new BusinessException("Bạn đã có ca khác trùng giờ trong ngày "
+                        + assignment.getWorkDate().format(DATE_FORMATTER) + ".");
+            }
+        }
+        changeRequest.setTargetEmployee(currentEmployee);
+        changeRequest.setIsTargetAgreed(true);
+        changeRequest.setTargetAgreedAt(VietnamTime.now());
+        String baseReason = changeRequest.getReason() != null ? changeRequest.getReason() : "";
+        String updatedReason = baseReason + " [Cứu bồ: " + currentEmployee.getFullName() + " xung phong nhận thay]";
+        if (updatedReason.length() > 255) {
+            updatedReason = updatedReason.substring(0, 255);
+        }
+        changeRequest.setReason(updatedReason);
         shiftChangeRequestRepository.save(changeRequest);
     }
 
@@ -394,6 +457,9 @@ public class ScheduleServiceImpl implements ScheduleService {
         changeRequest.setResolvedBy(managerUser);
         changeRequest.setResolvedDate(VietnamTime.now());
         shiftChangeRequestRepository.save(changeRequest);
+        if (reliabilityService != null && changeRequest.getTargetEmployee() != null) {
+            reliabilityService.recordRescueShiftOnApproval(changeRequest, changeRequest.getTargetEmployee());
+        }
         notifyShiftChangeResult(changeRequest, true);
     }
 
@@ -444,10 +510,39 @@ public class ScheduleServiceImpl implements ScheduleService {
             }
             shiftRows.add(WeeklyScheduleView.ShiftRow.builder() .shiftId(shift.getId()) .shiftName(shift.getShiftName()) .startTime(shift.getStartTime()) .endTime(shift.getEndTime()) .formattedTime(shift.getStartTime().format(TIME_FORMATTER) + " – " + shift.getEndTime().format(TIME_FORMATTER)) .dayCells(cells) .build());
         }
-        List<WeeklyScheduleView.EmployeeOption> employeeOptions = activeEmployees.stream() .map(emp -> WeeklyScheduleView.EmployeeOption.builder() .employeeId(emp.getId()) .fullName(emp.getFullName()) .email(emp.getEmail()) .certified(emp.getCertificationStatus() == CertificationStatus.CERTIFIED) .build()) .toList();
+        List<WeeklyScheduleView.EmployeeOption> employeeOptions = activeEmployees.stream()
+                .sorted(Comparator.comparingInt(Employee::getEffectiveReliabilityScore).reversed()
+                        .thenComparing(Employee::getFullName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
+                .map(emp -> {
+                    int score = emp.getEffectiveReliabilityScore();
+                    String tierLabel = ReliabilityServiceImpl.resolveTier(score).label();
+                    return WeeklyScheduleView.EmployeeOption.builder()
+                            .employeeId(emp.getId())
+                            .fullName(emp.getFullName())
+                            .email(emp.getEmail())
+                            .certified(emp.getCertificationStatus() == CertificationStatus.CERTIFIED)
+                            .reliabilityScore(score)
+                            .reliabilityTierLabel(tierLabel)
+                            .prioritySchedule(score >= 105)
+                            .build();
+                })
+                .toList();
         List<WeeklyScheduleView.ShiftChangeItem> changeItems = requests.stream() .map(this::mapToShiftChangeItem) .toList();
         List<WeeklyScheduleView.ShiftChangeItem> incomingItems = incomingRequests != null ? incomingRequests.stream().map(this::mapToShiftChangeItem).toList() : List.of();
-        return WeeklyScheduleView.builder() .storeId(store.getId()) .storeName(store.getStoreName()) .storeAddress(store.getAddress()) .weekStartDate(monday) .weekEndDate(sunday) .prevWeekDate(monday.minusWeeks(1)) .nextWeekDate(monday.plusWeeks(1)) .days(dayHeaders) .shiftRows(shiftRows) .storeEmployees(employeeOptions) .colleagueShifts(colleagueShifts) .pendingShiftChanges(changeItems) .incomingRequests(incomingItems) .totalAssignments(totalCount) .publishedAssignments(publishedCount) .draftAssignments(draftCount) .fullyPublished(totalCount > 0 && draftCount == 0) .build();
+        List<ShiftChangeRequest> openRescueRaw = shiftChangeRequestRepository.findOpenRescueRequestsForStore(store.getId());
+        List<WeeklyScheduleView.ShiftChangeItem> openRescueItems = openRescueRaw == null ? List.of() : openRescueRaw.stream()
+                .filter(req -> req.getAssignment() != null && req.getAssignment().getShift() != null
+                        && isShiftStillUpcoming(req.getAssignment().getWorkDate(), req.getAssignment().getShift().getStartTime()))
+                .filter(req -> currentEmpId == null || !Objects.equals(req.getEmployee().getId(), currentEmpId))
+                .map(this::mapToShiftChangeItem)
+                .toList();
+        Employee currentStaffObj = currentEmpId == null ? null : activeEmployees.stream()
+                .filter(e -> Objects.equals(e.getId(), currentEmpId))
+                .findFirst()
+                .orElse(null);
+        int currentStaffScore = currentStaffObj != null ? currentStaffObj.getEffectiveReliabilityScore() : 100;
+        String currentStaffTier = ReliabilityServiceImpl.resolveTier(currentStaffScore).label();
+        return WeeklyScheduleView.builder() .storeId(store.getId()) .storeName(store.getStoreName()) .storeAddress(store.getAddress()) .weekStartDate(monday) .weekEndDate(sunday) .prevWeekDate(monday.minusWeeks(1)) .nextWeekDate(monday.plusWeeks(1)) .days(dayHeaders) .shiftRows(shiftRows) .storeEmployees(employeeOptions) .colleagueShifts(colleagueShifts) .pendingShiftChanges(changeItems) .incomingRequests(incomingItems) .openRescueRequests(openRescueItems) .currentStaffReliabilityScore(currentStaffScore) .currentStaffTierLabel(currentStaffTier) .currentStaffPrioritySchedule(currentStaffScore >= 105) .totalAssignments(totalCount) .publishedAssignments(publishedCount) .draftAssignments(draftCount) .fullyPublished(totalCount > 0 && draftCount == 0) .build();
     }
 
     private WeeklyScheduleView.ShiftChangeItem mapToShiftChangeItem(ShiftChangeRequest req) {
@@ -482,7 +577,23 @@ public class ScheduleServiceImpl implements ScheduleService {
                 stageLabel = "Chờ đồng nghiệp đồng ý";
             }
         }
-        return WeeklyScheduleView.ShiftChangeItem.builder() .requestId(req.getId()) .assignmentId(req.getAssignment().getId()) .employeeId(req.getEmployee().getId()) .employeeName(req.getEmployee().getFullName()) .shiftName(req.getAssignment().getShift().getShiftName()) .workDate(req.getAssignment().getWorkDate()) .timeRange(req.getAssignment().getShift().getStartTime().format(TIME_FORMATTER) + " – " + req.getAssignment().getShift().getEndTime().format(TIME_FORMATTER)) .reason(req.getReason()) .status(req.getStatus().getDbValue()) .requestDate(req.getRequestDate() != null ? req.getRequestDate().format(DATE_TIME_FORMATTER) : "—") .resolvedByName(req.getResolvedBy() != null ? req.getResolvedBy().getUsername() : null) .resolvedDate(req.getResolvedDate() != null ? req.getResolvedDate().format(DATE_TIME_FORMATTER) : null) .targetEmployeeId(req.getTargetEmployee() != null ? req.getTargetEmployee().getId() : null) .targetEmployeeName(req.getTargetEmployee() != null ? req.getTargetEmployee().getFullName() : null) .targetAssignmentId(req.getTargetAssignment() != null ? req.getTargetAssignment().getId() : null) .targetShiftName(req.getTargetAssignment() != null ? req.getTargetAssignment().getShift().getShiftName() : null) .targetWorkDate(req.getTargetAssignment() != null ? req.getTargetAssignment().getWorkDate() : null) .targetTimeRange(req.getTargetAssignment() != null ? (req.getTargetAssignment().getShift().getStartTime().format(TIME_FORMATTER) + " – " + req.getTargetAssignment().getShift().getEndTime().format(TIME_FORMATTER)) : null) .changeType(changeType) .changeTypeLabel(changeTypeLabel) .proposalSummary(proposalSummary) .isTargetAgreed(req.getIsTargetAgreed()) .targetAgreedAt(req.getTargetAgreedAt() != null ? req.getTargetAgreedAt().format(DATE_TIME_FORMATTER) : null) .stageLabel(stageLabel) .build();
+        boolean urgent24h = isShiftWithin24Hours(req.getAssignment());
+        int rescueBonus = urgent24h ? ReliabilityService.RESCUE_SHIFT_BONUS : ReliabilityService.COMPLETED_SWAP_BONUS;
+        return WeeklyScheduleView.ShiftChangeItem.builder() .requestId(req.getId()) .assignmentId(req.getAssignment().getId()) .employeeId(req.getEmployee().getId()) .employeeName(req.getEmployee().getFullName()) .shiftName(req.getAssignment().getShift().getShiftName()) .workDate(req.getAssignment().getWorkDate()) .timeRange(req.getAssignment().getShift().getStartTime().format(TIME_FORMATTER) + " – " + req.getAssignment().getShift().getEndTime().format(TIME_FORMATTER)) .reason(req.getReason()) .status(req.getStatus().getDbValue()) .requestDate(req.getRequestDate() != null ? req.getRequestDate().format(DATE_TIME_FORMATTER) : "—") .resolvedByName(req.getResolvedBy() != null ? req.getResolvedBy().getUsername() : null) .resolvedDate(req.getResolvedDate() != null ? req.getResolvedDate().format(DATE_TIME_FORMATTER) : null) .targetEmployeeId(req.getTargetEmployee() != null ? req.getTargetEmployee().getId() : null) .targetEmployeeName(req.getTargetEmployee() != null ? req.getTargetEmployee().getFullName() : null) .targetAssignmentId(req.getTargetAssignment() != null ? req.getTargetAssignment().getId() : null) .targetShiftName(req.getTargetAssignment() != null ? req.getTargetAssignment().getShift().getShiftName() : null) .targetWorkDate(req.getTargetAssignment() != null ? req.getTargetAssignment().getWorkDate() : null) .targetTimeRange(req.getTargetAssignment() != null ? (req.getTargetAssignment().getShift().getStartTime().format(TIME_FORMATTER) + " – " + req.getTargetAssignment().getShift().getEndTime().format(TIME_FORMATTER)) : null) .changeType(changeType) .changeTypeLabel(changeTypeLabel) .proposalSummary(proposalSummary) .isTargetAgreed(req.getIsTargetAgreed()) .targetAgreedAt(req.getTargetAgreedAt() != null ? req.getTargetAgreedAt().format(DATE_TIME_FORMATTER) : null) .stageLabel(stageLabel) .urgentWithin24h(urgent24h) .rescueBonusPoints(rescueBonus) .build();
+    }
+
+    private boolean isShiftWithin24Hours(ShiftAssignment assignment) {
+        if (assignment == null || assignment.getWorkDate() == null || assignment.getShift() == null
+                || assignment.getShift().getStartTime() == null) {
+            return false;
+        }
+        LocalDateTime now = VietnamTime.now();
+        if (reliabilityService != null) {
+            return reliabilityService.isWithin24Hours(assignment.getWorkDate(), assignment.getShift().getStartTime(), now);
+        }
+        LocalDateTime shiftStart = LocalDateTime.of(assignment.getWorkDate(), assignment.getShift().getStartTime());
+        long minutes = java.time.temporal.ChronoUnit.MINUTES.between(now, shiftStart);
+        return minutes >= 0 && minutes <= 24 * 60;
     }
 
     private void notifyStoreManager(Employee staff, ShiftChangeRequest request) {

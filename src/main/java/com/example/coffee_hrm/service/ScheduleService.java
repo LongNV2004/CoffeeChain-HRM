@@ -28,4 +28,9 @@ public interface ScheduleService {
     void resolveShiftChange(Integer requestId, boolean approved, Integer replacementEmployeeId, AuthenticatedUser user);
 
     void respondToIncomingShiftChange(Integer requestId, boolean agreed, AuthenticatedUser user);
+
+    /**
+     * Đồng nghiệp chủ động xung phong nhận ca "cứu bồ" cho đơn xin đổi ca đang chờ Quản lý tìm người.
+     */
+    void volunteerRescueShift(Integer requestId, AuthenticatedUser user);
 }
