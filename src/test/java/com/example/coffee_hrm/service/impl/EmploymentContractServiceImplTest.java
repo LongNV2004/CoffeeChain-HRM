@@ -1,9 +1,15 @@
 package com.example.coffee_hrm.service.impl;
 
+import com.example.coffee_hrm.common.enums.ContractPaymentMethod;
 import com.example.coffee_hrm.common.enums.ContractSigningStatus;
+import com.example.coffee_hrm.common.enums.ContractValidityStatus;
+import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.common.time.VietnamTime;
+import com.example.coffee_hrm.dto.request.ContractFilePayload;
 import com.example.coffee_hrm.dto.request.CreateEmploymentContractRequest;
+import com.example.coffee_hrm.dto.response.EmploymentContractListView;
 import com.example.coffee_hrm.dto.response.EmploymentContractResponse;
 import com.example.coffee_hrm.entity.Employee;
 import com.example.coffee_hrm.entity.EmploymentContract;
@@ -13,17 +19,26 @@ import com.example.coffee_hrm.entity.User;
 import com.example.coffee_hrm.repository.EmployeeRepository;
 import com.example.coffee_hrm.repository.EmploymentContractRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
+import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -32,11 +47,15 @@ import static org.mockito.Mockito.when;
 
 class EmploymentContractServiceImplTest {
 
+    @TempDir
+    Path storage;
+
     private final EmploymentContractRepository contractRepository = mock(EmploymentContractRepository.class);
     private final EmployeeRepository employeeRepository = mock(EmployeeRepository.class);
     private final StoreRepository storeRepository = mock(StoreRepository.class);
-    private final EmploymentContractServiceImpl service = new EmploymentContractServiceImpl(
-            contractRepository, employeeRepository, storeRepository, "");
+    private final UserRepository userRepository = mock(UserRepository.class);
+    private ContractFileStore fileStore;
+    private EmploymentContractServiceImpl service;
 
     private Store store;
     private Store otherStore;
@@ -47,128 +66,299 @@ class EmploymentContractServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        Employee managerEmployee = Employee.builder().id(10).fullName("Quản lý").build();
+        fileStore = new ContractFileStore(storage.toString());
+        service = new EmploymentContractServiceImpl(
+                contractRepository, employeeRepository, storeRepository, userRepository, fileStore, "");
+        Employee managerEmployee = Employee.builder().id(10).fullName("Quản lý").status(EmployeeStatus.ACTIVE).build();
         store = Store.builder().id(1).storeName("Cửa hàng A").manager(managerEmployee).build();
         otherStore = Store.builder().id(2).storeName("Cửa hàng B").build();
         managerEmployee.setStore(store);
-        employee = Employee.builder().id(30).fullName("Nhân viên").store(store).build();
+        employee = Employee.builder().id(30).fullName("Nhân viên").store(store).status(EmployeeStatus.ACTIVE).build();
         manager = user(2, RoleName.MANAGER, managerEmployee);
         admin = user(1, RoleName.ADMIN, null);
         staff = user(3, RoleName.STAFF, employee);
-    }
-
-    @Test
-    void createLeavesContractUnsigned() {
-        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
-        when(employeeRepository.findByIdWithStore(30)).thenReturn(Optional.of(employee));
-        when(contractRepository.countByContractCodeIgnoreCase("HD-01")).thenReturn(0L);
-        when(contractRepository.save(any(EmploymentContract.class))).thenAnswer(invocation -> {
+        when(contractRepository.findByEmployeeId(30)).thenReturn(List.of());
+        when(contractRepository.findCodesByPrefix(any())).thenReturn(List.of());
+        when(userRepository.findById(2)).thenReturn(Optional.empty());
+        when(contractRepository.saveAndFlush(any(EmploymentContract.class))).thenAnswer(invocation -> {
             EmploymentContract saved = invocation.getArgument(0);
             saved.setId(7);
             return saved;
         });
+    }
 
-        EmploymentContractResponse response = service.create(manager, request("HD-01", null, new BigDecimal("12000000")));
+    @Test
+    void managerCreatesPdfContractWithGeneratedCode() throws Exception {
+        allowEmployee();
+        EmploymentContractResponse response = service.create(manager, request(null, new BigDecimal("12000000")), pdf("hop-dong.pdf"));
 
         assertEquals(7, response.getId());
-        assertEquals(ContractSigningStatus.CHUA_CO_BAN_KY, response.getSigningStatus());
+        assertTrue(response.getContractCode().matches("HD\\d{6}-0001"));
+        assertEquals(ContractSigningStatus.DA_TAI_BAN_KY, response.getSigningStatus());
         assertNull(response.getSignedDate());
-        assertNull(response.getSignedFilePath());
+        assertEquals("hop-dong.pdf", response.getOriginalFileName());
+        assertTrue(response.isHasFile());
         assertNull(response.getTerminatedDate());
-        assertEquals(store.getId(), response.getStoreId());
+        assertEquals(1, storedFiles());
     }
 
     @Test
-    void createAllowsOpenEndedContractAndRejectsReversedDates() {
-        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
-        when(employeeRepository.findByIdWithStore(30)).thenReturn(Optional.of(employee));
-        when(contractRepository.countByContractCodeIgnoreCase("HD-02")).thenReturn(0L);
-        when(contractRepository.save(any(EmploymentContract.class))).thenAnswer(invocation -> invocation.getArgument(0));
+    void managerCreatesDocxContract() throws Exception {
+        allowEmployee();
+        EmploymentContractResponse response = service.create(manager, request(null, new BigDecimal("8500000")), docx("hop-dong.docx"));
 
-        EmploymentContractResponse openEnded = service.create(manager, request("HD-02", null, new BigDecimal("1000.50")));
-        assertNull(openEnded.getEndDate());
+        assertTrue(response.isHasFile());
+        assertEquals("hop-dong.docx", response.getOriginalFileName());
+        assertEquals(ContractValidityStatus.DANG_HIEU_LUC, response.getValidityStatus());
+    }
 
-        CreateEmploymentContractRequest reversed = request("HD-03", LocalDate.of(2026, 1, 1), new BigDecimal("1000"));
+    @Test
+    void futureStartDateIsNotYetEffective() {
+        allowEmployee();
+        CreateEmploymentContractRequest upcoming = request(VietnamTime.today().plusMonths(1), new BigDecimal("9000000"));
+        upcoming.setStartDate(VietnamTime.today().plusDays(10));
+
+        EmploymentContractResponse response = service.create(manager, upcoming, pdf("sap-hieu-luc.pdf"));
+
+        assertEquals(ContractValidityStatus.CHUA_HIEU_LUC, response.getValidityStatus());
+    }
+
+    @Test
+    void missingFileIsRejectedBeforeAnythingIsStored() {
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> service.create(manager, request(null, new BigDecimal("1000")), null));
+        assertEquals("Vui lòng tải lên file hợp đồng đã ký.", error.getMessage());
+        verify(contractRepository, never()).saveAndFlush(any());
+        verify(employeeRepository, never()).findByIdWithStore(any());
+    }
+
+    @Test
+    void invalidContentAndOversizedFileAreRejected() {
+        allowEmployee();
+        BusinessException invalid = assertThrows(BusinessException.class,
+                () -> service.create(manager, request(null, new BigDecimal("1000")),
+                        new ContractFilePayload("hop-dong.pdf", "khong-phai-pdf".getBytes(StandardCharsets.UTF_8))));
+        assertEquals("Nội dung file không phải PDF hợp lệ.", invalid.getMessage());
+
+        byte[] oversized = new byte[ContractFileStore.MAX_BYTES + 1];
+        System.arraycopy("%PDF-".getBytes(StandardCharsets.US_ASCII), 0, oversized, 0, 5);
+        BusinessException tooLarge = assertThrows(BusinessException.class,
+                () -> service.create(manager, request(null, new BigDecimal("1000")),
+                        new ContractFilePayload("lon.pdf", oversized)));
+        assertEquals("File hợp đồng vượt quá dung lượng cho phép (2 MB).", tooLarge.getMessage());
+        verify(contractRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void endDateBeforeStartAndOpenEndedContract() {
+        allowEmployee();
+        CreateEmploymentContractRequest reversed = request(LocalDate.of(2026, 1, 1), new BigDecimal("1000"));
         reversed.setStartDate(LocalDate.of(2026, 2, 1));
-        BusinessException error = assertThrows(BusinessException.class, () -> service.create(manager, reversed));
-        assertEquals("Ngày kết thúc không được trước ngày bắt đầu.", error.getMessage());
-        verify(contractRepository).save(any(EmploymentContract.class));
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> service.create(manager, reversed, pdf("sai-ngay.pdf")));
+        assertEquals("Ngày kết thúc không được trước ngày bắt đầu hiệu lực.", error.getMessage());
+
+        EmploymentContractResponse openEnded = service.create(manager, request(null, new BigDecimal("1000.50")), pdf("mo.pdf"));
+        assertNull(openEnded.getEndDate());
+        verify(contractRepository).saveAndFlush(any(EmploymentContract.class));
     }
 
     @Test
-    void duplicateCodeAndInvalidSalaryAreRejected() {
+    void duplicateContractNumberDeletesStoredFile() throws Exception {
+        allowEmployee();
+        when(contractRepository.saveAndFlush(any(EmploymentContract.class)))
+                .thenThrow(new DataIntegrityViolationException("duplicate"));
+
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> service.create(manager, request(null, new BigDecimal("1000")), pdf("trung.pdf")));
+        assertEquals("Không tạo được hợp đồng vì số hợp đồng bị trùng. Hãy thử lại.", error.getMessage());
+        assertEquals(0, storedFiles());
+    }
+
+    @Test
+    void databaseFailureDeletesStoredFile() throws Exception {
+        allowEmployee();
+        when(contractRepository.saveAndFlush(any(EmploymentContract.class))).thenThrow(new RuntimeException("db down"));
+
+        assertThrows(RuntimeException.class,
+                () -> service.create(manager, request(null, new BigDecimal("1000")), pdf("loi-db.pdf")));
+        assertEquals(0, storedFiles());
+    }
+
+    @Test
+    void managerCannotCreateContractForSelf() {
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
-        when(employeeRepository.findByIdWithStore(30)).thenReturn(Optional.of(employee));
-        when(contractRepository.countByContractCodeIgnoreCase("HD-01")).thenReturn(1L);
+        Employee self = store.getManager();
+        when(employeeRepository.findByIdWithStore(10)).thenReturn(Optional.of(self));
+        CreateEmploymentContractRequest own = request(null, new BigDecimal("1000"));
+        own.setEmployeeId(10);
 
-        BusinessException duplicate = assertThrows(BusinessException.class,
-                () -> service.create(manager, request("HD-01", null, new BigDecimal("1000"))));
-        assertEquals("Mã hợp đồng đã tồn tại.", duplicate.getMessage());
-
-        when(contractRepository.countByContractCodeIgnoreCase("HD-04")).thenReturn(0L);
-        BusinessException salary = assertThrows(BusinessException.class,
-                () -> service.create(manager, request("HD-04", null, BigDecimal.ZERO)));
-        assertEquals("Mức lương phải lớn hơn 0.", salary.getMessage());
-        verify(contractRepository, never()).save(any());
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> service.create(manager, own, pdf("tu-tao.pdf")));
+        assertEquals("Không thể tạo hợp đồng cho chính bạn.", error.getMessage());
+        verify(contractRepository, never()).saveAndFlush(any());
     }
 
     @Test
-    void managerCannotUseEmployeeOrContractFromAnotherStore() {
-        Employee outsider = Employee.builder().id(40).fullName("Người khác").store(otherStore).build();
+    void managerCannotCreateForAnotherStore() {
+        Employee outsider = Employee.builder().id(40).fullName("Người khác").store(otherStore).status(EmployeeStatus.ACTIVE).build();
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
         when(employeeRepository.findByIdWithStore(40)).thenReturn(Optional.of(outsider));
-        CreateEmploymentContractRequest outsiderRequest = request("HD-09", null, new BigDecimal("1000"));
+        CreateEmploymentContractRequest outsiderRequest = request(null, new BigDecimal("1000"));
         outsiderRequest.setEmployeeId(40);
 
-        BusinessException createError = assertThrows(BusinessException.class,
-                () -> service.create(manager, outsiderRequest));
-        assertEquals("Nhân viên không thuộc cửa hàng bạn quản lý.", createError.getMessage());
-
-        EmploymentContract foreign = EmploymentContract.builder()
-                .id(8)
-                .contractCode("HD-B")
-                .employee(outsider)
-                .startDate(LocalDate.of(2026, 1, 1))
-                .salary(new BigDecimal("1000"))
-                .signingStatus(ContractSigningStatus.CHUA_CO_BAN_KY)
-                .build();
-        when(contractRepository.findDetailById(8)).thenReturn(Optional.of(foreign));
-        BusinessException detailError = assertThrows(BusinessException.class, () -> service.detail(manager, 8));
-        assertEquals("Bạn không có quyền xem hợp đồng này.", detailError.getMessage());
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> service.create(manager, outsiderRequest, pdf("ngoai.pdf")));
+        assertEquals("Nhân viên không thuộc cửa hàng bạn quản lý.", error.getMessage());
+        verify(contractRepository, never()).saveAndFlush(any());
     }
 
     @Test
-    void missingEmployeeAndStaffAreRejected() {
-        when(employeeRepository.findByIdWithStore(99)).thenReturn(Optional.empty());
-        CreateEmploymentContractRequest missing = request("HD-10", null, new BigDecimal("1000"));
-        missing.setEmployeeId(99);
-        BusinessException notFound = assertThrows(BusinessException.class, () -> service.create(admin, missing));
-        assertEquals("Không tìm thấy nhân viên.", notFound.getMessage());
+    void terminatedEmployeeCannotReceiveANewContract() {
+        employee.setStatus(EmployeeStatus.TERMINATED);
+        allowEmployee();
 
-        BusinessException denied = assertThrows(BusinessException.class,
-                () -> service.create(staff, request("HD-11", null, new BigDecimal("1000"))));
-        assertEquals("Bạn không có quyền tạo hợp đồng.", denied.getMessage());
-        verify(storeRepository, never()).findByManager_Id(any());
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> service.create(manager, request(null, new BigDecimal("1000")), pdf("nghi.pdf")));
+        assertEquals("Nhân viên đã nghỉ việc, không thể tạo hợp đồng mới.", error.getMessage());
+        verify(contractRepository, never()).saveAndFlush(any());
     }
 
-    private CreateEmploymentContractRequest request(String code, LocalDate endDate, BigDecimal salary) {
+    @Test
+    void unresolvedContractBlocksOverlapButExpiredContractDoesNot() {
+        allowEmployee();
+        EmploymentContract active = contract(employee, VietnamTime.today().minusDays(5), null, null);
+        when(contractRepository.findByEmployeeId(30)).thenReturn(List.of(active));
+        BusinessException overlap = assertThrows(BusinessException.class,
+                () -> service.create(manager, request(null, new BigDecimal("1000")), pdf("trung-thoi-gian.pdf")));
+        assertEquals("Nhân viên đang có hợp đồng hiệu lực trùng thời gian. Hãy xử lý hợp đồng hiện tại trước khi tạo hợp đồng mới.",
+                overlap.getMessage());
+
+        EmploymentContract expired = contract(employee, VietnamTime.today().minusMonths(2), VietnamTime.today().minusDays(1), null);
+        when(contractRepository.findByEmployeeId(30)).thenReturn(List.of(expired));
+        EmploymentContractResponse created = service.create(
+                manager, request(VietnamTime.today().plusMonths(1), new BigDecimal("1000")), pdf("sau-het-han.pdf"));
+        assertEquals(7, created.getId());
+    }
+
+    @Test
+    void staffAndAdminCannotCreate() {
+        BusinessException staffError = assertThrows(BusinessException.class,
+                () -> service.create(staff, request(null, new BigDecimal("1000")), pdf("staff.pdf")));
+        assertEquals("Bạn không có quyền tạo hợp đồng.", staffError.getMessage());
+
+        BusinessException adminError = assertThrows(BusinessException.class,
+                () -> service.create(admin, request(null, new BigDecimal("1000")), pdf("admin.pdf")));
+        assertEquals("Bạn không có quyền tạo hợp đồng.", adminError.getMessage());
+        verify(contractRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void staffCannotOpenAnotherEmployeesContract() {
+        Employee outsider = Employee.builder().id(40).fullName("Người khác").store(store).build();
+        EmploymentContract foreign = contract(outsider, LocalDate.of(2026, 1, 1), null, "c" + "ab".repeat(16) + ".pdf");
+        foreign.setId(8);
+        when(contractRepository.findDetailById(8)).thenReturn(Optional.of(foreign));
+
+        BusinessException error = assertThrows(BusinessException.class, () -> service.detail(staff, 8));
+        assertEquals("Bạn không có quyền xem hợp đồng này.", error.getMessage());
+        assertThrows(BusinessException.class, () -> service.download(staff, 8));
+    }
+
+    @Test
+    void adminSeesContractsFromEveryStoreAndSearchCanBeEmpty() {
+        EmploymentContract first = contract(employee, LocalDate.of(2026, 1, 1), null, null);
+        first.setId(1);
+        first.setContractCode("HD202601-0001");
+        Employee otherEmployee = Employee.builder().id(40).fullName("Nguyễn Văn B").store(otherStore).build();
+        EmploymentContract second = contract(otherEmployee, LocalDate.of(2026, 2, 1), null, null);
+        second.setId(2);
+        second.setContractCode("HD202602-0001");
+        when(contractRepository.findAllWithEmployee()).thenReturn(List.of(first, second));
+        when(storeRepository.findAll()).thenReturn(List.of(store, otherStore));
+
+        EmploymentContractListView all = service.search(admin, null, null, null, null, null, 1);
+        assertEquals(2, all.getMatchCount());
+        assertFalse(all.isFiltered());
+
+        EmploymentContractListView none = service.search(admin, "khong-ton-tai", null, null, null, null, 1);
+        assertEquals(0, none.getMatchCount());
+        assertTrue(none.isFiltered());
+        assertTrue(none.getContracts().isEmpty());
+    }
+
+    @Test
+    void emptyListAndSalaryMustBePositive() {
+        when(contractRepository.findAllWithEmployee()).thenReturn(List.of());
+        when(storeRepository.findAll()).thenReturn(List.of());
+        EmploymentContractListView empty = service.search(admin, null, null, null, null, null, 1);
+        assertEquals(0, empty.getMatchCount());
+        assertEquals(0, empty.getTotalPages());
+
+        allowEmployee();
+        BusinessException salary = assertThrows(BusinessException.class,
+                () -> service.create(manager, request(null, BigDecimal.ZERO), pdf("luong.pdf")));
+        assertEquals("Mức lương cơ bản phải lớn hơn 0.", salary.getMessage());
+    }
+
+    private void allowEmployee() {
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        when(employeeRepository.findByIdWithStore(30)).thenReturn(Optional.of(employee));
+    }
+
+    private CreateEmploymentContractRequest request(LocalDate endDate, BigDecimal salary) {
         CreateEmploymentContractRequest request = new CreateEmploymentContractRequest();
-        request.setContractCode(code);
         request.setEmployeeId(30);
         request.setStartDate(LocalDate.of(2026, 10, 1));
         request.setEndDate(endDate);
+        request.setJobTitle("Pha chế");
         request.setSalary(salary);
+        request.setPaymentMethod(ContractPaymentMethod.BANK_TRANSFER);
         return request;
     }
 
-    private AuthenticatedUser user(int id, RoleName roleName, Employee employee) {
+    private static EmploymentContract contract(Employee owner, LocalDate start, LocalDate end, String file) {
+        return EmploymentContract.builder()
+                .employee(owner)
+                .startDate(start)
+                .endDate(end)
+                .salary(new BigDecimal("1000"))
+                .signingStatus(ContractSigningStatus.DA_TAI_BAN_KY)
+                .signedFilePath(file)
+                .build();
+    }
+
+    private static ContractFilePayload pdf(String name) {
+        return new ContractFilePayload(name, "%PDF-1.4\n".getBytes(StandardCharsets.US_ASCII));
+    }
+
+    private static ContractFilePayload docx(String name) throws Exception {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        try (java.util.zip.ZipOutputStream zip = new java.util.zip.ZipOutputStream(out)) {
+            zip.putNextEntry(new java.util.zip.ZipEntry("word/document.xml"));
+            zip.write("<w:document/>".getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+        }
+        return new ContractFilePayload(name, out.toByteArray());
+    }
+
+    private long storedFiles() throws Exception {
+        if (!Files.isDirectory(storage)) {
+            return 0;
+        }
+        try (var files = Files.list(storage)) {
+            return files.count();
+        }
+    }
+
+    private AuthenticatedUser user(int id, RoleName roleName, Employee owner) {
         Role role = Role.builder().id(id).roleName(roleName).build();
         return AuthenticatedUser.from(User.builder()
                 .id(id)
                 .username(roleName.name().toLowerCase())
                 .passwordHash("hash")
                 .role(role)
-                .employee(employee)
+                .employee(owner)
                 .isActive(true)
                 .build());
     }

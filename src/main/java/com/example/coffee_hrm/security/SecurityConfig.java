@@ -125,6 +125,7 @@ public class SecurityConfig {
                                                 "/staff/leave/**",
                                                 "/staff/salary",
                                                 "/staff/contract",
+                                                "/staff/contract/**",
                                                 "/staff/transfer",
                                                 "/dashboard/staff",
                                                 "/schedule/staff",

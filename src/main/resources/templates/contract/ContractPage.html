@@ -3,160 +3,127 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title th:text="${navRole == 'manager'} ? 'Quản lý hợp đồng — CoffeeHRM' : 'Hợp đồng — CoffeeHRM'">Hợp đồng — CoffeeHRM</title>
+    <title th:text="${navRole == 'staff'} ? 'Hợp đồng của tôi — CoffeeHRM' : 'Quản lý hợp đồng — CoffeeHRM'">Quản lý hợp đồng — CoffeeHRM</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
     <style>
-        /* Chỉ chỉnh bảng và đầu trang hợp đồng để nội dung dùng hết bề ngang, không đè layout khác. */
         body:has(.coffee-sidebar) main.contract-board.wrap > .welcome .panel-head { align-items: center; }
-        body:has(.coffee-sidebar) main.contract-board.wrap > .welcome .primary-btn { flex: none; }
-        body:has(.coffee-sidebar) main.contract-board.wrap .stat-card .muted { display: block; margin-top: 8px; }
-        body:has(.coffee-sidebar) main.contract-board.wrap .panel .table-scroll { width: 100%; max-width: 100%; }
-        body:has(.coffee-sidebar) main.contract-board.wrap .panel table.contract-table {
-            width: 100%;
-            min-width: 0;
-            margin-top: 0;
-            table-layout: fixed;
-        }
-        body:has(.coffee-sidebar) main.contract-board.wrap .panel table.contract-table th,
-        body:has(.coffee-sidebar) main.contract-board.wrap .panel table.contract-table td {
-            white-space: normal;
-            overflow-wrap: break-word;
-            padding-left: 10px;
-            padding-right: 10px;
-        }
-        body:has(.coffee-sidebar) main.contract-board.wrap .panel table.contract-table th:nth-child(1) { width: 11%; }
-        body:has(.coffee-sidebar) main.contract-board.wrap .panel table.contract-table th:nth-child(2),
-        body:has(.coffee-sidebar) main.contract-board.wrap .panel table.contract-table th:nth-child(3) { width: 13%; }
-        body:has(.coffee-sidebar) main.contract-board.wrap .panel table.contract-table th:nth-child(4),
-        body:has(.coffee-sidebar) main.contract-board.wrap .panel table.contract-table th:nth-child(5) { width: 10%; }
-        body:has(.coffee-sidebar) main.contract-board.wrap .panel table.contract-table th:nth-child(6) { width: 10%; }
-        body:has(.coffee-sidebar) main.contract-board.wrap .panel table.contract-table th:nth-child(7),
-        body:has(.coffee-sidebar) main.contract-board.wrap .panel table.contract-table th:nth-child(8) { width: 12%; }
-        body:has(.coffee-sidebar) main.contract-board.wrap .panel table.contract-table th:nth-child(9) { width: 9%; }
+        body:has(.coffee-sidebar) main.contract-board.wrap .panel .table-scroll { width: 100%; max-width: 100%; overflow-x: auto; }
+        body:has(.coffee-sidebar) main.contract-board.wrap .panel table.contract-table { width: 100%; min-width: 1100px; margin-top: 0; }
         body:has(.coffee-sidebar) main.contract-board.wrap .contract-table .link-btn {
-            border: 0;
-            background: transparent;
-            padding: 0;
-            color: #B96D49;
-            font: inherit;
-            font-weight: 600;
-            cursor: pointer;
+            color: #B96D49; font-weight: 600; text-decoration: none; margin-right: 10px;
         }
-        body:has(.coffee-sidebar) main.contract-board.wrap .contract-table .link-btn:disabled {
-            opacity: .45;
-            cursor: not-allowed;
-        }
-        body:has(.coffee-sidebar) main.contract-board.wrap .pagination {
-            justify-content: space-between;
-            margin: 0;
-        }
-        body:has(.coffee-sidebar) main.contract-board.wrap .page-numbers { display: flex; gap: 8px; }
-        body:has(.coffee-sidebar) main.contract-board.wrap .page-btn:disabled { opacity: .45; cursor: not-allowed; }
+        body:has(.coffee-sidebar) main.contract-board.wrap .pagination { justify-content: space-between; margin: 0; }
+        body:has(.coffee-sidebar) main.contract-board.wrap .page-numbers { display: flex; gap: 8px; flex-wrap: wrap; }
+        body:has(.coffee-sidebar) main.contract-board.wrap .page-btn.disabled { opacity: .45; pointer-events: none; }
     </style>
 </head>
 <body>
-<th:block th:if="${navRole == 'admin'}">
-    <header th:replace="~{fragments/navbar :: admin('contract')}"></header>
-</th:block>
-<th:block th:if="${navRole == 'manager'}">
-    <header th:replace="~{fragments/navbar :: manager('contract')}"></header>
-</th:block>
-<th:block th:if="${navRole == 'staff'}">
-    <header th:replace="~{fragments/navbar :: staff('contract')}"></header>
-</th:block>
+<th:block th:if="${navRole == 'admin'}"><header th:replace="~{fragments/navbar :: admin('contract')}"></header></th:block>
+<th:block th:if="${navRole == 'manager'}"><header th:replace="~{fragments/navbar :: manager('contract')}"></header></th:block>
+<th:block th:if="${navRole == 'staff'}"><header th:replace="~{fragments/navbar :: staff('contract')}"></header></th:block>
 
-<main class="wrap dash-main contract-board" th:if="${navRole == 'manager'}">
+<main class="wrap dash-main contract-board">
     <section class="welcome">
         <div class="panel-head">
             <div>
-                <div class="eyebrow" th:text="${eyebrow}">Cửa hàng — Quản lý</div>
-                <h1>Quản lý hợp đồng</h1>
-                <p>Theo dõi hợp đồng lao động, bản ký và thời hạn hiệu lực trong cửa hàng.</p>
+                <div class="eyebrow" th:text="${eyebrow}">CoffeeHRM</div>
+                <h1 th:text="${navRole == 'staff'} ? 'Hợp đồng của tôi' : 'Quản lý hợp đồng'">Quản lý hợp đồng</h1>
+                <p th:if="${navRole == 'admin'}">Xem hợp đồng lao động của toàn bộ chuỗi cửa hàng.</p>
+                <p th:if="${navRole == 'manager'}">Tạo và theo dõi hợp đồng của nhân viên trong cửa hàng bạn quản lý.</p>
+                <p th:if="${navRole == 'staff'}">Xem hợp đồng lao động của chính bạn và tải file đã ký.</p>
             </div>
-            <button type="button" class="primary-btn" disabled title="Chưa mở ở giai đoạn giao diện">Tạo hợp đồng</button>
+            <a class="primary-btn" th:if="${navRole == 'manager'}" th:href="@{/manager/contract/create}">Tạo hợp đồng</a>
         </div>
     </section>
 
-    <section class="stat-grid" aria-label="Thống kê hợp đồng">
-        <article class="stat-card">
-            <div class="label">Tổng hợp đồng</div>
-            <div class="value" aria-label="Chưa có dữ liệu">—</div>
-            <span class="muted">Chưa có dữ liệu</span>
-        </article>
-        <article class="stat-card">
-            <div class="label">Đang hiệu lực</div>
-            <div class="value" aria-label="Chưa có dữ liệu">—</div>
-            <span class="muted">Chưa có dữ liệu</span>
-        </article>
-        <article class="stat-card">
-            <div class="label">Chưa có bản ký</div>
-            <div class="value" aria-label="Chưa có dữ liệu">—</div>
-            <span class="muted">Chưa có dữ liệu</span>
-        </article>
-        <article class="stat-card">
-            <div class="label">Sắp hết hạn</div>
-            <div class="value" aria-label="Chưa có dữ liệu">—</div>
-            <span class="muted">Chưa có dữ liệu</span>
-        </article>
-    </section>
+    <p class="flash success" th:if="${successMessage}" th:text="${successMessage}"></p>
+    <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}"></p>
 
     <section class="panel">
         <div class="panel-head">
             <div>
                 <h2 id="contractListTitle">Danh sách hợp đồng</h2>
-                <p>Tìm theo mã hợp đồng hoặc tên nhân viên, rồi lọc theo cửa hàng và trạng thái.</p>
+                <p>Tìm theo số hợp đồng, mã nhân viên hoặc tên nhân viên.</p>
             </div>
         </div>
 
-        <div class="filter-grid">
+        <form class="filter-grid" method="get" th:action="@{${listPath}}">
             <label for="contractKeyword">Tìm kiếm
-                <input id="contractKeyword" type="search" placeholder="Mã hợp đồng hoặc tên nhân viên" maxlength="120" autocomplete="off">
+                <input id="contractKeyword" type="search" name="keyword" maxlength="120"
+                       th:value="${view.keyword}" placeholder="Số hợp đồng, mã hoặc tên nhân viên">
             </label>
-            <label for="contractStore">Cửa hàng
-                <select id="contractStore" title="Chưa có danh sách cửa hàng">
+            <label for="contractStore" th:if="${view.admin}">Cửa hàng
+                <select id="contractStore" name="storeId">
                     <option value="">Tất cả cửa hàng</option>
+                    <option th:each="store : ${view.stores}" th:value="${store.id}" th:text="${store.name}"
+                            th:selected="${store.id == view.storeId}"></option>
                 </select>
             </label>
-            <label for="contractSign">Hồ sơ ký
-                <select id="contractSign">
-                    <option value="">Tất cả hồ sơ ký</option>
-                    <option value="SIGNED">Đã có bản ký</option>
-                    <option value="UNSIGNED">Chưa có bản ký</option>
+            <label for="contractValidity">Trạng thái
+                <select id="contractValidity" name="validity">
+                    <option value="">Tất cả trạng thái</option>
+                    <option th:each="status : ${T(com.example.coffee_hrm.common.enums.ContractValidityStatus).values()}"
+                            th:value="${status.name()}" th:text="${status.label}"
+                            th:selected="${status.name() == view.validity}"></option>
                 </select>
             </label>
-            <label for="contractValidity">Hiệu lực
-                <select id="contractValidity">
-                    <option value="">Tất cả hiệu lực</option>
-                    <option value="ACTIVE">Đang hiệu lực</option>
-                    <option value="EXPIRING">Sắp hết hạn</option>
-                    <option value="EXPIRED">Đã hết hạn</option>
-                    <option value="PENDING">Chưa hiệu lực</option>
-                </select>
+            <label for="fromDate">Từ ngày hiệu lực
+                <input id="fromDate" type="date" name="fromDate"
+                       th:value="${view.fromDate != null ? #temporals.format(view.fromDate, 'yyyy-MM-dd') : ''}">
             </label>
-        </div>
+            <label for="toDate">Đến ngày hiệu lực
+                <input id="toDate" type="date" name="toDate"
+                       th:value="${view.toDate != null ? #temporals.format(view.toDate, 'yyyy-MM-dd') : ''}">
+            </label>
+            <div class="form-actions">
+                <button class="secondary-btn" type="submit">Lọc</button>
+                <a class="secondary-btn" th:if="${view.filtered}" th:href="@{${listPath}}">Xóa bộ lọc</a>
+            </div>
+        </form>
 
         <div class="table-scroll">
             <table class="contract-table" aria-labelledby="contractListTitle">
                 <thead>
                 <tr>
-                    <th>Mã hợp đồng</th>
-                    <th>Nhân viên</th>
+                    <th>Số hợp đồng</th>
+                    <th>Mã nhân viên</th>
+                    <th>Họ tên nhân viên</th>
                     <th>Cửa hàng</th>
-                    <th>Ngày bắt đầu</th>
+                    <th>Chức danh theo hợp đồng</th>
+                    <th>Ngày hiệu lực</th>
                     <th>Ngày kết thúc</th>
-                    <th>Mức lương</th>
-                    <th>Trạng thái hồ sơ ký</th>
-                    <th>Trạng thái hiệu lực</th>
+                    <th>Mức lương cơ bản</th>
+                    <th>Trạng thái</th>
                     <th>Thao tác</th>
                 </tr>
                 </thead>
                 <tbody>
-                <tr>
-                    <td colspan="8" class="empty">Chưa có hợp đồng nào.</td>
+                <tr th:if="${#lists.isEmpty(view.contracts)}">
+                    <td colspan="10" class="empty">
+                        <span th:if="${errorMessage != null}">Không thể hiển thị danh sách hợp đồng.</span>
+                        <span th:if="${errorMessage == null and view.filtered}">Không có hợp đồng phù hợp với điều kiện tìm kiếm.</span>
+                        <span th:if="${errorMessage == null and not view.filtered}">Chưa có hợp đồng nào.</span>
+                    </td>
+                </tr>
+                <tr th:each="contract : ${view.contracts}">
+                    <td th:text="${contract.contractCode}">HD</td>
+                    <td th:text="${contract.employeeId}">1</td>
+                    <td th:text="${contract.employeeName}">Nguyễn Văn A</td>
+                    <td th:text="${contract.storeName}">Cửa hàng</td>
+                    <td th:text="${contract.jobTitle}">Pha chế</td>
+                    <td th:text="${#temporals.format(contract.startDate, 'dd/MM/yyyy')}">01/10/2026</td>
+                    <td th:text="${contract.endDate == null ? 'Không xác định thời hạn' : #temporals.format(contract.endDate, 'dd/MM/yyyy')}">Không xác định thời hạn</td>
+                    <td th:text="${#numbers.formatDecimal(contract.salary, 1, 'POINT', 2, 'COMMA') + ' đ'}">0 đ</td>
                     <td>
-                        <button type="button" class="link-btn" disabled title="Chưa có hợp đồng để xem chi tiết">Xem chi tiết</button>
+                        <span class="badge"
+                              th:classappend="${contract.validityStatus.name() == 'DANG_HIEU_LUC'} ? ' badge-ok' : (${contract.validityStatus.name() == 'CHUA_HIEU_LUC' or contract.validityStatus.name() == 'SAP_HET_HAN'} ? ' badge-wait' : ' badge-off')"
+                              th:text="${contract.validityStatusLabel}">Đang hiệu lực</span>
+                    </td>
+                    <td>
+                        <a class="link-btn" th:href="@{|${listPath}/${contract.id}|}">Xem chi tiết</a>
+                        <a class="link-btn" th:if="${contract.hasFile}" th:href="@{|${listPath}/${contract.id}/file|}">Tải file</a>
                     </td>
                 </tr>
                 </tbody>
@@ -164,23 +131,22 @@
         </div>
 
         <nav class="pagination" aria-label="Phân trang danh sách hợp đồng">
-            <span class="muted">Chưa có dữ liệu để phân trang</span>
-            <div class="page-numbers">
-                <button type="button" class="page-btn" disabled>Trang trước</button>
-                <button type="button" class="page-btn" disabled>Trang tiếp theo</button>
+            <span class="muted" th:if="${view.matchCount == 0}">Chưa có dữ liệu để phân trang</span>
+            <span class="muted" th:if="${view.matchCount > 0}"
+                  th:text="|Hiển thị ${view.fromIndex}–${view.toIndex} của ${view.matchCount}|"></span>
+            <div class="page-numbers" th:if="${view.totalPages > 0}">
+                <a th:if="${view.page > 1}" class="page-btn"
+                   th:href="@{${listPath}(page=${view.page - 1}, keyword=${view.keyword}, storeId=${view.storeId}, validity=${view.validity}, fromDate=${view.fromDate}, toDate=${view.toDate})}">Trang trước</a>
+                <span th:unless="${view.page > 1}" class="page-btn disabled">Trang trước</span>
+                <a th:each="p : ${#numbers.sequence(1, view.totalPages)}" class="page-btn"
+                   th:classappend="${p == view.page} ? ' active'"
+                   th:href="@{${listPath}(page=${p}, keyword=${view.keyword}, storeId=${view.storeId}, validity=${view.validity}, fromDate=${view.fromDate}, toDate=${view.toDate})}"
+                   th:text="${p}">1</a>
+                <a th:if="${view.page < view.totalPages}" class="page-btn"
+                   th:href="@{${listPath}(page=${view.page + 1}, keyword=${view.keyword}, storeId=${view.storeId}, validity=${view.validity}, fromDate=${view.fromDate}, toDate=${view.toDate})}">Trang tiếp theo</a>
+                <span th:unless="${view.page < view.totalPages}" class="page-btn disabled">Trang tiếp theo</span>
             </div>
         </nav>
-    </section>
-</main>
-
-<main class="wrap dash-main" th:if="${navRole != 'manager'}">
-    <section class="welcome">
-        <div class="eyebrow" th:text="${eyebrow}">CoffeeHRM</div>
-        <h1>Hợp đồng</h1>
-    </section>
-    <section class="panel">
-        <h2>Thông tin hợp đồng</h2>
-        <p class="empty">Xem và theo dõi hợp đồng lao động theo vai trò đang đăng nhập.</p>
     </section>
 </main>
 </body>

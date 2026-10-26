@@ -44,4 +44,21 @@ public interface EmploymentContractRepository extends JpaRepository<EmploymentCo
             WHERE c.id = :id
             """)
     Optional<EmploymentContract> findDetailById(@Param("id") Integer id);
+
+    @Query("""
+            SELECT c
+            FROM EmploymentContract c
+            JOIN FETCH c.employee e
+            JOIN FETCH e.store
+            WHERE e.id = :employeeId
+            ORDER BY c.startDate DESC, c.id DESC
+            """)
+    List<EmploymentContract> findByEmployeeId(@Param("employeeId") Integer employeeId);
+
+    @Query("""
+            SELECT c.contractCode
+            FROM EmploymentContract c
+            WHERE c.contractCode LIKE CONCAT(:prefix, '%')
+            """)
+    List<String> findCodesByPrefix(@Param("prefix") String prefix);
 }
