@@ -4,14 +4,13 @@ import com.example.coffee_hrm.common.enums.ApprovalStatus;
 import com.example.coffee_hrm.common.enums.CertificationStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
-import com.example.coffee_hrm.common.enums.TrainingClassStatus;
-import com.example.coffee_hrm.common.enums.TrainingResult;
 import com.example.coffee_hrm.common.enums.TrainingSkillStatus;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.SubmitWorkAvailabilityRequest;
 import com.example.coffee_hrm.dto.response.WeeklyAvailabilityView;
 import com.example.coffee_hrm.entity.Employee;
+import com.example.coffee_hrm.entity.EmploymentContract;
 import com.example.coffee_hrm.entity.Role;
 import com.example.coffee_hrm.entity.Shift;
 import com.example.coffee_hrm.entity.ShiftSlotLimit;
@@ -20,8 +19,8 @@ import com.example.coffee_hrm.entity.Store;
 import com.example.coffee_hrm.entity.TrainingSkill;
 import com.example.coffee_hrm.entity.User;
 import com.example.coffee_hrm.entity.WorkAvailability;
-import com.example.coffee_hrm.repository.EmployeePassedSkill;
 import com.example.coffee_hrm.repository.EmployeeRepository;
+import com.example.coffee_hrm.repository.EmploymentContractRepository;
 import com.example.coffee_hrm.repository.ShiftRepository;
 import com.example.coffee_hrm.repository.ShiftSlotLimitRepository;
 import com.example.coffee_hrm.repository.ShiftSlotPositionNeedRepository;
@@ -49,11 +48,12 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -83,6 +83,8 @@ class ShiftPositionStaffingServiceTest {
     private TrainingSkillRepository trainingSkillRepository;
     @Mock
     private TrainingClassEnrollmentRepository trainingClassEnrollmentRepository;
+    @Mock
+    private EmploymentContractRepository employmentContractRepository;
 
     @InjectMocks
     private StaffAvailabilityServiceImpl service;
@@ -121,54 +123,53 @@ class ShiftPositionStaffingServiceTest {
         brew = skill(1, "Pha chế");
         cash = skill(2, "Thu ngân");
         serve = skill(3, "Phục vụ");
+        lenient().when(employmentContractRepository.findByEmployeeId(any()))
+                .thenReturn(List.of(EmploymentContract.builder()
+                        .startDate(LocalDate.of(2020, 1, 6))
+                        .endDate(LocalDate.of(2035, 12, 31))
+                        .weeklyShiftCount(1)
+                        .build()));
     }
 
     @Test
-    void savesFiveStaffSplitAcrossThreePositions() {
+    void savesTheShiftTotalAndClearsOldPositionNeeds() {
         stubOwnedShift();
         stubStaffCount(5);
-        stubActiveSkills();
-        stubCertifiedHolders(2, 1, 2);
         ShiftSlotLimit limit = openLimit(5);
         when(shiftSlotLimitRepository.lockByShiftAndDay(1, 1)).thenReturn(Optional.of(limit));
-        when(shiftSlotLimitRepository.findById(91)).thenReturn(Optional.of(limit));
         when(workAvailabilityRepository.findCapacityCandidatesByShift(eq(1), any(), any(), any())).thenReturn(List.of());
 
         var result = service.updateSlotStaffing(1, 1, "5", counts(2, 1, 2), managerUser);
 
-        assertTrue(result.getMessage().contains("Pha chế 2"));
-        assertTrue(result.getMessage().contains("Thu ngân 1"));
-        assertTrue(result.getMessage().contains("Phục vụ 2"));
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<ShiftSlotPositionNeed>> saved = ArgumentCaptor.forClass(List.class);
+        assertTrue(result.getMessage().contains("tối đa 5"));
+        assertFalse(result.getMessage().contains("Pha chế"));
         verify(shiftSlotPositionNeedRepository).deleteByLimitId(91);
-        verify(shiftSlotPositionNeedRepository).saveAll(saved.capture());
-        assertEquals(5, saved.getValue().stream().mapToInt(ShiftSlotPositionNeed::getRequiredCount).sum());
+        verify(shiftSlotPositionNeedRepository, never()).saveAll(any());
     }
 
     @Test
-    void rejectsPositionTotalThatDoesNotMatchTheShiftTarget() {
+    void positionCountsNoLongerBlockTheShiftTotal() {
         stubOwnedShift();
         stubStaffCount(5);
-        stubActiveSkills();
+        when(shiftSlotLimitRepository.lockByShiftAndDay(1, 1)).thenReturn(Optional.of(openLimit(5)));
+        when(workAvailabilityRepository.findCapacityCandidatesByShift(eq(1), any(), any(), any())).thenReturn(List.of());
 
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.updateSlotStaffing(1, 1, "5", counts(2, 1, 1), managerUser));
+        var result = service.updateSlotStaffing(1, 1, "5", counts(2, 1, 1), managerUser);
 
-        assertEquals(StaffAvailabilityServiceImpl.positionSumMessage(4, 5), ex.getMessage());
-        verify(shiftSlotLimitRepository, never()).saveAndFlush(any());
+        assertTrue(result.getMessage().contains("tối đa 5"));
+        verify(shiftSlotLimitRepository).saveAndFlush(any());
     }
 
     @Test
-    void rejectsNegativePositionCount() {
+    void negativePositionCountIsIgnored() {
         stubOwnedShift();
         stubStaffCount(5);
-        stubActiveSkills();
+        when(shiftSlotLimitRepository.lockByShiftAndDay(1, 1)).thenReturn(Optional.of(openLimit(5)));
+        when(workAvailabilityRepository.findCapacityCandidatesByShift(eq(1), any(), any(), any())).thenReturn(List.of());
 
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.updateSlotStaffing(1, 1, "5", Map.of(1, "2", 2, "-1", 3, "4"), managerUser));
+        var result = service.updateSlotStaffing(1, 1, "5", Map.of(1, "2", 2, "-1", 3, "4"), managerUser);
 
-        assertEquals(StaffAvailabilityServiceImpl.POSITION_COUNT_MESSAGE, ex.getMessage());
+        assertTrue(result.getMessage().contains("tối đa 5"));
     }
 
     @Test
@@ -183,17 +184,16 @@ class ShiftPositionStaffingServiceTest {
     }
 
     @Test
-    void rejectsPositionDemandAboveCertifiedStaff() {
+    void certifiedHeadcountDoesNotLimitTheShiftTotal() {
         stubOwnedShift();
         stubStaffCount(5);
-        stubActiveSkills();
-        stubCertifiedHolders(1, 1, 2);
+        when(shiftSlotLimitRepository.lockByShiftAndDay(1, 1)).thenReturn(Optional.of(openLimit(5)));
+        when(workAvailabilityRepository.findCapacityCandidatesByShift(eq(1), any(), any(), any())).thenReturn(List.of());
 
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.updateSlotStaffing(1, 1, "5", counts(2, 1, 2), managerUser));
+        var result = service.updateSlotStaffing(1, 1, "5", counts(2, 1, 2), managerUser);
 
-        assertTrue(ex.getMessage().contains("Pha chế cần 2"));
-        assertTrue(ex.getMessage().contains("chỉ có 1"));
+        assertTrue(result.getMessage().contains("tối đa 5"));
+        assertFalse(result.getMessage().contains("Pha chế"));
     }
 
     @Test
@@ -208,18 +208,18 @@ class ShiftPositionStaffingServiceTest {
     }
 
     @Test
-    void changingTheTargetRequiresMatchingPositionCounts() {
+    void changingTheTargetClearsOldPositionNeeds() {
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
         when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shift));
         when(employeeRepository.countSchedulableStaff(1, EmployeeStatus.ACTIVE, RoleName.STAFF, 10)).thenReturn(5L);
-        when(shiftSlotPositionNeedRepository.findByShiftAndDay(1, 1)).thenReturn(List.of(
-                need(brew, 2), need(cash, 1), need(serve, 2)));
+        when(shiftSlotLimitRepository.lockByShiftAndDay(1, 1)).thenReturn(Optional.of(openLimit(5)));
+        when(workAvailabilityRepository.findCapacityCandidatesByShift(eq(1), any(), any(), any())).thenReturn(List.of());
 
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.updateSlotLimit(1, 1, "4", managerUser));
+        var result = service.updateSlotLimit(1, 1, "4", managerUser);
 
-        assertTrue(ex.getMessage().contains("Hãy điều chỉnh số lượng từng vị trí"));
-        verify(shiftSlotLimitRepository, never()).saveAndFlush(any());
+        assertTrue(result.getMessage().contains("tối đa 4"));
+        assertFalse(result.getMessage().contains("vị trí"));
+        verify(shiftSlotPositionNeedRepository).deleteByLimitId(91);
     }
 
     @Test
@@ -227,14 +227,13 @@ class ShiftPositionStaffingServiceTest {
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
         when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shift));
         when(employeeRepository.countSchedulableStaff(1, EmployeeStatus.ACTIVE, RoleName.STAFF, 10)).thenReturn(5L);
-        when(shiftSlotPositionNeedRepository.findByShiftAndDay(1, 1)).thenReturn(List.of());
         when(shiftSlotLimitRepository.lockByShiftAndDay(1, 1)).thenReturn(Optional.of(openLimit(3)));
         when(workAvailabilityRepository.findCapacityCandidatesByShift(eq(1), any(), any(), any())).thenReturn(List.of());
 
         var result = service.updateSlotLimit(1, 1, "4", managerUser);
 
         assertTrue(result.getMessage().contains("tối đa 4"));
-        verify(shiftSlotPositionNeedRepository, never()).deleteByLimitId(any());
+        verify(shiftSlotPositionNeedRepository).deleteByLimitId(91);
     }
 
     @Test
@@ -259,15 +258,6 @@ class ShiftPositionStaffingServiceTest {
                 .thenReturn(List.of());
         when(workAvailabilityRepository.findCapacityCandidatesByStore(eq(1), any(), any(), any()))
                 .thenReturn(List.of(approvedBrew, approvedCash, approvedServe, pendingBrew, rejectedBrew, approvedWithoutSkill));
-        when(shiftSlotPositionNeedRepository.findByStoreId(1)).thenReturn(List.of(
-                need(brew, 2), need(cash, 1), need(serve, 2)));
-        when(trainingClassEnrollmentRepository.findPassedSkillsByEmployees(anyCollection(), eq(TrainingResult.PASS), eq(TrainingClassStatus.APPROVED)))
-                .thenReturn(List.of(
-                        new EmployeePassedSkill(20, 1),
-                        new EmployeePassedSkill(20, 3),
-                        new EmployeePassedSkill(12, 2),
-                        new EmployeePassedSkill(13, 3),
-                        new EmployeePassedSkill(14, 1)));
 
         WeeklyAvailabilityView.DayCell monday = service.getStoreNextWeekAvailabilityGrid(managerUser)
                 .getShiftRows().getFirst().getDayCells().getFirst();
@@ -277,15 +267,12 @@ class ShiftPositionStaffingServiceTest {
         assertEquals(1, monday.getPendingCount());
         assertEquals(4, monday.getApprovedCount());
         assertEquals(1, monday.getShortfall());
-        assertEquals(1, monday.getPositionsFilled());
-        assertEquals(3, monday.getPositionsTracked());
+        assertEquals(0, monday.getPositionsFilled());
+        assertEquals(0, monday.getPositionsTracked());
+        assertTrue(monday.getPositionLines().isEmpty());
         assertEquals(PositionStaffing.SHORT, monday.getStaffingStatusKey());
         assertTrue(monday.isAwaitingApproval());
-        assertEquals(1, monday.getPositionLines().getFirst().getApproved());
-        assertEquals(1, monday.getPositionLines().get(1).getApproved());
-        assertEquals(1, monday.getPositionLines().get(2).getApproved());
-        assertTrue(monday.getShortageSummary().contains("Pha chế"));
-        assertTrue(monday.getShortageSummary().contains("Phục vụ"));
+        assertTrue(monday.getShortageSummary() == null || !monday.getShortageSummary().contains("Pha chế"));
     }
 
     @Test
@@ -296,11 +283,8 @@ class ShiftPositionStaffingServiceTest {
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
         when(workAvailabilityRepository.findByRegistrationKey("don-1")).thenReturn(List.of(pending));
         when(shiftSlotLimitRepository.lockByShiftAndDay(1, 1)).thenReturn(Optional.of(limit));
-        when(shiftSlotPositionNeedRepository.findByShiftAndDay(1, 1)).thenReturn(List.of(need(brew, 1)));
         when(workAvailabilityRepository.findCapacityCandidatesByShift(eq(1), any(), any(), any()))
                 .thenReturn(List.of(pending));
-        when(trainingClassEnrollmentRepository.findPassedSkillsByEmployees(anyCollection(), any(), any()))
-                .thenReturn(List.of(new EmployeePassedSkill(20, 1)));
         when(userRepository.findByEmployee_Id(20)).thenReturn(Optional.of(user(3, RoleName.STAFF, staff)));
 
         service.reviewRegistration("don-1", true, managerUser);
@@ -320,29 +304,23 @@ class ShiftPositionStaffingServiceTest {
         WorkAvailability already = registration(other, brew, ApprovalStatus.APPROVED);
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
         when(workAvailabilityRepository.findByRegistrationKey("don-moi")).thenReturn(List.of(incoming));
-        when(shiftSlotLimitRepository.lockByShiftAndDay(1, 1)).thenReturn(Optional.of(openLimit(2)));
-        when(shiftSlotPositionNeedRepository.findByShiftAndDay(1, 1)).thenReturn(List.of(need(brew, 1)));
+        when(shiftSlotLimitRepository.lockByShiftAndDay(1, 1)).thenReturn(Optional.of(openLimit(1)));
         when(workAvailabilityRepository.findCapacityCandidatesByShift(eq(1), any(), any(), any()))
                 .thenReturn(List.of(incoming, already));
-        when(trainingClassEnrollmentRepository.findPassedSkillsByEmployees(anyCollection(), any(), any()))
-                .thenReturn(List.of(new EmployeePassedSkill(20, 1), new EmployeePassedSkill(21, 1)));
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.reviewRegistration("don-moi", true, managerUser));
 
-        assertTrue(ex.getMessage().contains("vượt chỉ tiêu"));
+        assertTrue(ex.getMessage().contains("vượt tổng chỉ tiêu"));
+        assertFalse(ex.getMessage().contains("vị trí"));
         assertEquals(ApprovalStatus.PENDING, incoming.getStatus());
         verify(scheduleService, never()).assignShiftFromApprovedAvailability(any(), any());
     }
 
     @Test
-    void staffWithoutThePositionCertificateCannotRegister() {
+    void staffWithoutTheEmployeeCertificateCannotRegister() {
+        staff.setCertificationStatus(CertificationStatus.NOTCERTIFIED);
         when(employeeRepository.findByIdWithStoreAndManager(20)).thenReturn(Optional.of(staff));
-        when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shift));
-        when(shiftSlotPositionNeedRepository.findByShiftAndDay(1, 1)).thenReturn(List.of(need(brew, 2)));
-        when(trainingSkillRepository.findById(1)).thenReturn(Optional.of(brew));
-        when(trainingClassEnrollmentRepository.findPassedSkillsByEmployees(anyCollection(), any(), any()))
-                .thenReturn(List.of());
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.submitNextWeekAvailability(SubmitWorkAvailabilityRequest.builder()
@@ -351,21 +329,18 @@ class ShiftPositionStaffingServiceTest {
                         .selectedSlots(List.of("1:1"))
                         .build(), staffUser));
 
-        assertTrue(ex.getMessage().contains("chưa có chứng chỉ hợp lệ cho vị trí Pha chế"));
+        assertTrue(ex.getMessage().contains("Bạn chưa có chứng chỉ"));
+        assertFalse(ex.getMessage().contains("Pha chế"));
     }
 
     @Test
-    void registrationStopsWhenThePositionIsAlreadyFull() {
+    void registrationStopsWhenTheShiftIsAlreadyFull() {
         Employee other = certified(21, "Đã duyệt");
         WorkAvailability approved = registration(other, brew, ApprovalStatus.APPROVED);
         when(employeeRepository.findByIdWithStoreAndManager(20)).thenReturn(Optional.of(staff));
         when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shift));
-        when(shiftSlotPositionNeedRepository.findByShiftAndDay(1, 1)).thenReturn(List.of(need(brew, 1)));
-        when(trainingSkillRepository.findById(1)).thenReturn(Optional.of(brew));
-        when(trainingClassEnrollmentRepository.findPassedSkillsByEmployees(anyCollection(), any(), any()))
-                .thenReturn(List.of(new EmployeePassedSkill(20, 1), new EmployeePassedSkill(21, 1)));
         when(workAvailabilityRepository.findVisibleByEmployee(eq(20), any(), any())).thenReturn(List.of());
-        when(shiftSlotLimitRepository.lockByShiftAndDay(1, 1)).thenReturn(Optional.of(openLimit(3)));
+        when(shiftSlotLimitRepository.lockByShiftAndDay(1, 1)).thenReturn(Optional.of(openLimit(1)));
         when(workAvailabilityRepository.findCapacityCandidatesByShift(eq(1), any(), any(), any()))
                 .thenReturn(List.of(approved));
 
@@ -376,7 +351,8 @@ class ShiftPositionStaffingServiceTest {
                         .selectedSlots(List.of("1:1"))
                         .build(), staffUser));
 
-        assertTrue(ex.getMessage().contains("đã đủ người cho vị trí Pha chế"));
+        assertTrue(ex.getMessage().contains("đã đủ số lượng nhân viên"));
+        assertFalse(ex.getMessage().contains("vị trí"));
     }
 
     @Test
@@ -400,11 +376,8 @@ class ShiftPositionStaffingServiceTest {
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
         when(workAvailabilityRepository.findByRegistrationKey("don-trung")).thenReturn(List.of(pending));
         when(shiftSlotLimitRepository.lockByShiftAndDay(1, 1)).thenReturn(Optional.of(openLimit(2)));
-        when(shiftSlotPositionNeedRepository.findByShiftAndDay(1, 1)).thenReturn(List.of(need(brew, 1)));
         when(workAvailabilityRepository.findCapacityCandidatesByShift(eq(1), any(), any(), any()))
                 .thenReturn(List.of(pending));
-        when(trainingClassEnrollmentRepository.findPassedSkillsByEmployees(anyCollection(), any(), any()))
-                .thenReturn(List.of(new EmployeePassedSkill(20, 1)));
         org.mockito.Mockito.doThrow(new BusinessException("Nhân viên đã có ca trùng giờ."))
                 .when(scheduleService).assignShiftFromApprovedAvailability(any(), any());
 
@@ -434,23 +407,6 @@ class ShiftPositionStaffingServiceTest {
         when(employeeRepository.findSchedulableStaffIds(
                 1, EmployeeStatus.ACTIVE, RoleName.STAFF, CertificationStatus.CERTIFIED, 10))
                 .thenReturn(List.of(31, 32, 33, 34, 35));
-        when(trainingClassEnrollmentRepository.findPassedSkillsByEmployees(anyCollection(), eq(TrainingResult.PASS), eq(TrainingClassStatus.APPROVED)))
-                .thenReturn(holders(brewers, cashiers, servers));
-    }
-
-    private List<EmployeePassedSkill> holders(int brewers, int cashiers, int servers) {
-        java.util.ArrayList<EmployeePassedSkill> rows = new java.util.ArrayList<>();
-        int id = 31;
-        for (int i = 0; i < brewers; i++) {
-            rows.add(new EmployeePassedSkill(id++, 1));
-        }
-        for (int i = 0; i < cashiers; i++) {
-            rows.add(new EmployeePassedSkill(id++, 2));
-        }
-        for (int i = 0; i < servers; i++) {
-            rows.add(new EmployeePassedSkill(id++, 3));
-        }
-        return rows;
     }
 
     private Map<Integer, String> counts(int brewers, int cashiers, int servers) {

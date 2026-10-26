@@ -158,7 +158,7 @@
         <div class="stf-card-head">
             <div>
                 <h2 id="staff-training-title">Đào tạo và chứng chỉ</h2>
-                <p>Chứng chỉ được xét theo từng kỹ năng.</p>
+                <p>Chỉ có Chứng chỉ nhân viên. Đạt đào tạo thì được cấp, không đạt thì chưa có chứng chỉ.</p>
             </div>
             <div class="stf-links">
                 <a class="stf-card-link" th:href="@{/training/staff}">Xem đào tạo</a>
@@ -177,7 +177,7 @@
                 <p th:if="${skill.latestSummary != null}" th:text="${skill.latestSummary}">Pha chế: PASS</p>
             </article>
         </div>
-        <p class="stf-muted" th:if="${#lists.isEmpty(dashboard.skills)}">Chưa có chứng chỉ theo từng kỹ năng.</p>
+        <p class="stf-muted" th:if="${#lists.isEmpty(dashboard.skills)}">Chưa có Chứng chỉ nhân viên.</p>
         <h3>Lớp đào tạo sắp tới</h3>
         <p class="stf-empty" th:if="${#lists.isEmpty(dashboard.upcomingClasses)}">Bạn chưa có lớp đào tạo sắp diễn ra.</p>
         <div class="stf-classes" th:if="${!#lists.isEmpty(dashboard.upcomingClasses)}">

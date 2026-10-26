@@ -71,16 +71,17 @@ class ProfileControllerTest {
     void managerCanViewProfileAndCertificates() throws Exception {
         AuthenticatedUser manager = actor(RoleName.MANAGER, 4);
         when(profileService.getProfile(manager)).thenReturn(profile(RoleName.MANAGER, List.of(
-                skill(1, "Pha chế", CertificationStatus.CERTIFIED, "01/10/2026"),
-                skill(2, "Phục vụ", CertificationStatus.NOTCERTIFIED, null))));
+                skill(0, "Chứng chỉ nhân viên", CertificationStatus.CERTIFIED, "01/10/2026"))));
 
         mockMvc.perform(get("/profile").param("userId", "99").with(user(manager)))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("An Nguyễn")))
                 .andExpect(content().string(containsString("Mã nhân viên")))
+                .andExpect(content().string(containsString("Chứng chỉ nhân viên")))
                 .andExpect(content().string(containsString("CERTIFIED · Đã chứng nhận")))
-                .andExpect(content().string(containsString("NOTCERTIFIED · Chưa chứng nhận")))
                 .andExpect(content().string(containsString("Ngày cấp 01/10/2026")))
+                .andExpect(content().string(not(containsString("Phục vụ"))))
+                .andExpect(content().string(not(containsString("Pha chế"))))
                 .andExpect(content().string(containsString("Hồ sơ cá nhân")))
                 .andExpect(content().string(containsString("Chỉnh sửa thông tin")))
                 .andExpect(content().string(containsString("Lưu")))
@@ -96,7 +97,7 @@ class ProfileControllerTest {
 
         mockMvc.perform(get("/profile").with(user(staff)))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Bạn chưa có chứng chỉ kỹ năng.")))
+                .andExpect(content().string(containsString("Chưa có Chứng chỉ nhân viên.")))
                 .andExpect(content().string(containsString("Đổi mật khẩu")))
                 .andExpect(content().string(containsString("/profile/password")));
     }

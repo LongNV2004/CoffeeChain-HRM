@@ -100,15 +100,10 @@ class ProfileServiceImplTest {
                         .build()));
         when(trainingService.listCurrentSkillStatuses(40)).thenReturn(List.of(
                 EmployeeSkillStatusLine.builder()
-                        .skillId(1)
-                        .skillName("Pha chế")
+                        .skillName("Chứng chỉ nhân viên")
                         .certificationStatus(CertificationStatus.CERTIFIED)
+                        .certificationLabel("Đã có chứng chỉ")
                         .certifiedDateLabel("01/10/2026")
-                        .build(),
-                EmployeeSkillStatusLine.builder()
-                        .skillId(2)
-                        .skillName("Phục vụ")
-                        .certificationStatus(CertificationStatus.NOTCERTIFIED)
                         .build()));
 
         MyProfileView profile = service.getProfile(AuthenticatedUser.from(manager));
@@ -121,9 +116,9 @@ class ProfileServiceImplTest {
         assertEquals("079******123", profile.getCitizenIdMasked());
         assertEquals(LocalDate.of(1994, 3, 12), profile.getDateOfBirth());
         assertEquals("Nam", profile.getGenderLabel());
-        assertEquals(2, profile.getSkillCertificates().size());
+        assertEquals(1, profile.getSkillCertificates().size());
+        assertEquals("Chứng chỉ nhân viên", profile.getSkillCertificates().get(0).getSkillName());
         assertEquals(CertificationStatus.CERTIFIED, profile.getSkillCertificates().get(0).getCertificationStatus());
-        assertEquals(CertificationStatus.NOTCERTIFIED, profile.getSkillCertificates().get(1).getCertificationStatus());
         verify(trainingService).listCurrentSkillStatuses(40);
         verify(trainingService, never()).listCurrentSkillStatuses(99);
         verify(userRepository, never()).findById(any());

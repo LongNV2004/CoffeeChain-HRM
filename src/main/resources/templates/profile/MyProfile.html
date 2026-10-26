@@ -154,9 +154,9 @@
         </section>
 
         <section class="panel" aria-labelledby="skill-title">
-            <h2 id="skill-title">Chứng chỉ kỹ năng</h2>
-            <p class="profile-note">Trạng thái chứng chỉ hiện hành của từng kỹ năng. Kết quả lớp đào tạo gần nhất không làm mất chứng chỉ đã được cấp.</p>
-            <p class="profile-empty" th:if="${#lists.isEmpty(profile.skillCertificates)}">Bạn chưa có chứng chỉ kỹ năng.</p>
+            <h2 id="skill-title">Chứng chỉ nhân viên</h2>
+            <p class="profile-note">Chỉ có một chứng chỉ. Chứng chỉ được cấp khi kết quả đào tạo đạt và bị gỡ khi kết quả không đạt.</p>
+            <p class="profile-empty" th:if="${#lists.isEmpty(profile.skillCertificates)}">Chưa có Chứng chỉ nhân viên.</p>
             <ul class="skill-list" th:if="${!#lists.isEmpty(profile.skillCertificates)}">
                 <li th:each="line : ${profile.skillCertificates}">
                     <div>

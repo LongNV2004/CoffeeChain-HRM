@@ -73,8 +73,7 @@ public interface TrainingService {
     long countOngoingClassesForEmployee(AuthenticatedUser employee);
 
     /**
-     * Trạng thái chứng chỉ hiện hành của từng kỹ năng thuộc đúng nhân viên.
-     * PASS ở lớp đã duyệt giữ chứng chỉ; NOT PASS sau đó không xóa chứng chỉ và không đổi ngày cấp.
+     * Một dòng Chứng chỉ nhân viên của đúng hồ sơ. Không còn chứng chỉ theo từng kỹ năng.
      */
     List<EmployeeSkillStatusLine> listCurrentSkillStatuses(Integer employeeId);
 

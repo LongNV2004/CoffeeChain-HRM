@@ -19,9 +19,9 @@ public class EmployeeSkillStatusLine {
     private Integer skillId;
     private String skillName;
     private CertificationStatus certificationStatus;
-    /** Ví dụ: {@code CERTIFIED - Pha chế}. */
+    /** Nhãn Chứng chỉ nhân viên, hoặc kết quả đào tạo gần nhất của một nội dung lớp. */
     private String certificationLabel;
-    /** {@code dd/MM/yyyy} của lần PASS gần nhất. Null khi chưa có chứng chỉ. */
+    /** {@code dd/MM/yyyy}. Null khi chưa có ngày cấp. */
     private String certifiedDateLabel;
     /** {@code PASS}, {@code NOT_PASS} hoặc {@code IN_TRAINING}. */
     private String latestResultCode;

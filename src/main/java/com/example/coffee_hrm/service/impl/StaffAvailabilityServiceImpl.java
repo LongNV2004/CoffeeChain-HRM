@@ -6,8 +6,6 @@ import com.example.coffee_hrm.common.enums.CertificationStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.NotificationType;
 import com.example.coffee_hrm.common.enums.RoleName;
-import com.example.coffee_hrm.common.enums.TrainingClassStatus;
-import com.example.coffee_hrm.common.enums.TrainingResult;
 import com.example.coffee_hrm.common.enums.TrainingSkillStatus;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.time.VietnamTime;
@@ -27,7 +25,6 @@ import com.example.coffee_hrm.entity.Store;
 import com.example.coffee_hrm.entity.TrainingSkill;
 import com.example.coffee_hrm.entity.WorkAvailability;
 import com.example.coffee_hrm.entity.EmploymentContract;
-import com.example.coffee_hrm.repository.EmployeePassedSkill;
 import com.example.coffee_hrm.repository.EmployeeRepository;
 import com.example.coffee_hrm.repository.EmploymentContractRepository;
 import com.example.coffee_hrm.repository.ShiftRepository;
@@ -359,9 +356,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
         if (!isCertified(employee)) {
             throw new BusinessException(NOT_CERTIFIED_APPROVAL_MESSAGE);
         }
-        if (registrationUsesPositions(group)) {
-            assertConfirmedQuota(group, employee);
-        }
+        assertConfirmedQuota(group, employee);
         assertApprovedSetMatchesContract(employee, group);
 
         applyApprovedPattern(group, manager);
@@ -437,7 +432,6 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
         if (maxEmployees > staffCount) {
             throw new BusinessException(SLOT_LIMIT_HEADCOUNT_MESSAGE);
         }
-        assertExistingPositionsMatch(shiftId, dayOfWeek, maxEmployees);
         return persistSlotLimit(shift, dayOfWeek, maxEmployees, null);
     }
 
@@ -465,8 +459,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
         if (maxEmployees > staffCount) {
             throw new BusinessException(SLOT_LIMIT_HEADCOUNT_MESSAGE);
         }
-        List<ParsedPositionNeed> positions = parsePositionNeeds(requiredCounts, maxEmployees, store, manager);
-        return persistSlotLimit(shift, dayOfWeek, maxEmployees, positions);
+        return persistSlotLimit(shift, dayOfWeek, maxEmployees, null);
     }
 
     @Override
@@ -497,29 +490,19 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
         List<Integer> staffIds = employeeRepository.findSchedulableStaffIds(
                 store.getId(), EmployeeStatus.ACTIVE, RoleName.STAFF,
                 CertificationStatus.CERTIFIED, manager.getEmployeeId());
-        return holderCounts(staffIds);
+        Map<Integer, Integer> counts = new LinkedHashMap<>();
+        for (TrainingSkill skill : trainingSkillRepository.findByStatusWithCreator(TrainingSkillStatus.ACTIVE)) {
+            counts.put(skill.getId(), staffIds.size());
+        }
+        return counts;
     }
 
     @Override
     public int countEligibleStaff(AuthenticatedUser manager) {
         Store store = resolveManagerStore(manager);
-        List<TrainingSkill> active = trainingSkillRepository.findByStatusWithCreator(TrainingSkillStatus.ACTIVE);
-        Set<Integer> activeIds = active.stream().map(TrainingSkill::getId).collect(Collectors.toSet());
-        if (activeIds.isEmpty()) {
-            return 0;
-        }
-        List<Integer> staffIds = employeeRepository.findSchedulableStaffIds(
+        return employeeRepository.findSchedulableStaffIds(
                 store.getId(), EmployeeStatus.ACTIVE, RoleName.STAFF,
-                CertificationStatus.CERTIFIED, manager.getEmployeeId());
-        if (staffIds.isEmpty()) {
-            return 0;
-        }
-        return (int) trainingClassEnrollmentRepository.findPassedSkillsByEmployees(
-                        staffIds, TrainingResult.PASS, TrainingClassStatus.APPROVED).stream()
-                .filter(row -> row.getEmployeeId() != null && activeIds.contains(row.getSkillId()))
-                .map(EmployeePassedSkill::getEmployeeId)
-                .distinct()
-                .count();
+                CertificationStatus.CERTIFIED, manager.getEmployeeId()).size();
     }
 
     @Override
@@ -535,14 +518,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
         if (!isCertified(employee)) {
             return List.of();
         }
-        Set<Integer> passed = passedSkillIds(employee.getId());
-        if (passed.isEmpty()) {
-            return List.of();
-        }
-        return trainingSkillRepository.findByStatusWithCreator(TrainingSkillStatus.ACTIVE).stream()
-                .filter(skill -> passed.contains(skill.getId()))
-                .map(skill -> new WorkPositionOption(skill.getId(), skill.getSkillName()))
-                .toList();
+        return listActiveWorkPositions();
     }
 
     private SlotLimitUpdateResult persistSlotLimit(Shift shift,
@@ -593,13 +569,8 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
             message += " Tuần đông nhất sắp tới (" + dateLabel(peak.date())
                     + ") đang có " + peak.occupied() + " người.";
         }
-        if (positions != null) {
-            replacePositionNeeds(limit, positions);
-            String detail = positions.stream()
-                    .filter(item -> item.count() > 0)
-                    .map(item -> item.skill().getSkillName() + " " + item.count())
-                    .collect(Collectors.joining(", "));
-            message += " Nhu cầu theo vị trí: " + detail + ".";
+        if (limit.getId() != null) {
+            shiftSlotPositionNeedRepository.deleteByLimitId(limit.getId());
         }
         return new SlotLimitUpdateResult(message, false);
     }
@@ -732,8 +703,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
         }
         List<WorkAvailability> pending = pendingToReplace.stream().distinct().toList();
         enforceContractShiftCount(employee, validFrom, validTo, slots, existing, pending);
-        TrainingSkill skill = resolveRegistrationSkill(request, employee, slots);
-        return new PreparedRegistration(duration, validFrom, validTo, slots, pending, skill);
+        return new PreparedRegistration(duration, validFrom, validTo, slots, pending, null);
     }
 
     private boolean overlapsRegistration(WorkAvailability existing, LocalDate validFrom, LocalDate validTo) {
@@ -1341,7 +1311,6 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                             + usage.approved() + " đăng ký đã duyệt. "
                             + "Nếu bạn vừa thấy còn chỗ, người khác đã đăng ký trước.");
                 }
-                assertPositionCapacity(prepared, slot, label, date, rows, replacedIds);
             }
             if (!checkedDate) {
                 throw new BusinessException(label + " không có ngày nào trong thời hạn đã chọn.");
@@ -1598,9 +1567,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
     }
 
     private StaffingContext staffingContext(Integer storeId, Map<String, SlotUsage> usage) {
-        Map<String, List<PositionStaffing.Requirement>> requirements = loadRequirements(storeId);
-        Set<String> qualified = requirements.isEmpty() ? Set.of() : qualifiedPairs(usage);
-        return new StaffingContext(requirements, qualified);
+        return new StaffingContext(Map.of(), Set.of());
     }
 
     private Map<String, List<PositionStaffing.Requirement>> loadRequirements(Integer storeId) {
@@ -1624,21 +1591,15 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
     }
 
     private Set<String> qualifiedPairs(Map<String, SlotUsage> usage) {
-        Set<Integer> employeeIds = new LinkedHashSet<>();
+        Set<String> pairs = new LinkedHashSet<>();
         for (SlotUsage slot : usage.values()) {
             for (SeatDraft draft : slot.drafts.values()) {
-                if (draft.employeeId() != null && draft.certified()) {
-                    employeeIds.add(draft.employeeId());
+                if (draft.certified() && draft.employeeId() != null && draft.skillId() != null) {
+                    pairs.add(draft.employeeId() + ":" + draft.skillId());
                 }
             }
         }
-        if (employeeIds.isEmpty()) {
-            return Set.of();
-        }
-        return trainingClassEnrollmentRepository.findPassedSkillsByEmployees(
-                        employeeIds, TrainingResult.PASS, TrainingClassStatus.APPROVED).stream()
-                .map(row -> row.getEmployeeId() + ":" + row.getSkillId())
-                .collect(Collectors.toSet());
+        return pairs;
     }
 
     private void assertExistingPositionsMatch(Integer shiftId, int dayOfWeek, int maxEmployees) {
@@ -1699,13 +1660,12 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                 RoleName.STAFF,
                 CertificationStatus.CERTIFIED,
                 manager.getEmployeeId());
-        Map<Integer, Integer> holders = holderCounts(staffIds);
+        int available = staffIds.size();
         for (ParsedPositionNeed item : parsed) {
-            int available = holders.getOrDefault(item.skill().getId(), 0);
             if (item.count() > available) {
                 throw new BusinessException("Vị trí " + item.skill().getSkillName() + " cần " + item.count()
                         + " người nhưng cửa hàng chỉ có " + available
-                        + " nhân viên Staff có chứng chỉ phù hợp.");
+                        + " nhân viên có Chứng chỉ nhân viên.");
             }
         }
         return parsed;
@@ -1725,23 +1685,6 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
         } catch (NumberFormatException ex) {
             throw new BusinessException(POSITION_COUNT_MESSAGE);
         }
-    }
-
-    private Map<Integer, Integer> holderCounts(List<Integer> staffIds) {
-        Map<Integer, Set<Integer>> people = new HashMap<>();
-        if (staffIds == null || staffIds.isEmpty()) {
-            return Map.of();
-        }
-        for (EmployeePassedSkill row : trainingClassEnrollmentRepository.findPassedSkillsByEmployees(
-                staffIds, TrainingResult.PASS, TrainingClassStatus.APPROVED)) {
-            if (row.getSkillId() == null || row.getEmployeeId() == null) {
-                continue;
-            }
-            people.computeIfAbsent(row.getSkillId(), ignored -> new HashSet<>()).add(row.getEmployeeId());
-        }
-        Map<Integer, Integer> counts = new HashMap<>();
-        people.forEach((skillId, ids) -> counts.put(skillId, ids.size()));
-        return counts;
     }
 
     private void replacePositionNeeds(ShiftSlotLimit limit, List<ParsedPositionNeed> positions) {
@@ -1781,10 +1724,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
         TrainingSkill skill = trainingSkillRepository.findById(skillId)
                 .filter(item -> item.getStatus() == TrainingSkillStatus.ACTIVE)
                 .orElseThrow(() -> new BusinessException(
-                        "Vị trí làm việc không có trong danh mục kỹ năng đang hoạt động."));
-        if (!passedSkillIds(employee.getId()).contains(skill.getId())) {
-            throw new BusinessException(missingCertificateMessage(skill.getSkillName(), true));
-        }
+                        "Vị trí làm việc không có trong danh mục đang hoạt động."));
         if (needsPosition) {
             for (ParsedPatternSlot slot : slots) {
                 List<ShiftSlotPositionNeed> needs = shiftSlotPositionNeedRepository
@@ -1823,9 +1763,8 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
         if (need == null || need.getRequiredCount() == null) {
             return;
         }
-        Set<Integer> holders = employeesHolding(employeeIds(rows), prepared.skill().getId());
         UsageCount usage = countQualifiedPosition(
-                rows, slot.dayOfWeek(), date, replacedIds, prepared.skill().getId(), holders);
+                rows, slot.dayOfWeek(), date, replacedIds, prepared.skill().getId(), Set.of());
         if (usage.pending() + usage.approved() >= need.getRequiredCount()) {
             throw new BusinessException(label + " đã đủ người cho vị trí " + prepared.skill().getSkillName()
                     + " ngày " + date.format(FULL_DATE)
@@ -1850,14 +1789,6 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
     }
 
     private void assertConfirmedQuota(List<WorkAvailability> group, Employee employee) {
-        TrainingSkill skill = group.stream()
-                .map(WorkAvailability::getSkill)
-                .filter(Objects::nonNull)
-                .findFirst()
-                .orElse(null);
-        if (skill != null && !passedSkillIds(employee.getId()).contains(skill.getId())) {
-            throw new BusinessException(missingCertificateMessage(skill.getSkillName(), false));
-        }
         List<WorkAvailability> ordered = new ArrayList<>(group);
         ordered.sort(Comparator
                 .comparing((WorkAvailability availability) -> availability.getShift() != null
@@ -1879,21 +1810,10 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
             }
             Integer shiftId = availability.getShift().getId();
             ShiftSlotLimit limit = shiftSlotLimitRepository.lockByShiftAndDay(shiftId, day).orElse(null);
-            List<ShiftSlotPositionNeed> needs = shiftSlotPositionNeedRepository.findByShiftAndDay(shiftId, day);
-            if (skill == null && needs.isEmpty()) {
+            if (limit == null || limit.getMaxEmployees() == null) {
                 continue;
             }
             List<WorkAvailability> rows = capacityCandidates(shiftId);
-            Set<Integer> holders = skill == null ? Set.of() : employeesHolding(employeeIds(rows), skill.getId());
-            int required = -1;
-            if (skill != null) {
-                required = needs.stream()
-                        .filter(need -> need.getSkill() != null && skill.getId().equals(need.getSkill().getId()))
-                        .map(ShiftSlotPositionNeed::getRequiredCount)
-                        .filter(Objects::nonNull)
-                        .findFirst()
-                        .orElse(-1);
-            }
             List<LocalDate> dates = availability.getDayOfWeek() != null
                     ? AvailabilityCoverage.occurrences(day, availability.getValidFrom(), availability.getValidTo())
                     : availability.getWorkDate() == null ? List.of() : List.of(availability.getWorkDate());
@@ -1902,23 +1822,12 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                     continue;
                 }
                 UsageCount total = countOnDate(rows, day, date, Set.of(), null);
-                if (limit != null && limit.getMaxEmployees() != null && total.approved() + 1 > limit.getMaxEmployees()) {
+                if (total.approved() + 1 > limit.getMaxEmployees()) {
                     throw new BusinessException("Không duyệt được " + slotLabel(availability.getShift(), day)
                             + " ngày " + date.format(FULL_DATE)
                             + " vì sẽ vượt tổng chỉ tiêu " + limit.getMaxEmployees()
                             + ". Đã duyệt " + total.approved()
                             + ". Yêu cầu duyệt khác có thể vừa chiếm chỗ cuối.");
-                }
-                if (required >= 0) {
-                    UsageCount position = countQualifiedPosition(rows, day, date, Set.of(), skill.getId(), holders);
-                    if (position.approved() + 1 > required) {
-                        throw new BusinessException("Không duyệt được vì vị trí " + skill.getSkillName()
-                                + " của " + slotLabel(availability.getShift(), day)
-                                + " ngày " + date.format(FULL_DATE)
-                                + " sẽ vượt chỉ tiêu. Cần " + required
-                                + ", đã duyệt " + position.approved()
-                                + ". Yêu cầu duyệt khác có thể vừa chiếm chỗ cuối.");
-                    }
                 }
             }
         }
@@ -1942,7 +1851,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                 continue;
             }
             Employee occupant = row.getEmployee();
-            if (occupant == null || !isCertified(occupant) || !holders.contains(occupant.getId())) {
+            if (occupant == null || !isCertified(occupant)) {
                 continue;
             }
             addSeat(seats, row);
@@ -1967,35 +1876,6 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
             }
         }
         return ids;
-    }
-
-    private Set<Integer> employeesHolding(Collection<Integer> employeeIds, Integer skillId) {
-        if (employeeIds == null || employeeIds.isEmpty() || skillId == null) {
-            return Set.of();
-        }
-        return trainingClassEnrollmentRepository.findPassedSkillsByEmployees(
-                        employeeIds, TrainingResult.PASS, TrainingClassStatus.APPROVED).stream()
-                .filter(row -> skillId.equals(row.getSkillId()))
-                .map(EmployeePassedSkill::getEmployeeId)
-                .collect(Collectors.toSet());
-    }
-
-    private Set<Integer> passedSkillIds(Integer employeeId) {
-        if (employeeId == null) {
-            return Set.of();
-        }
-        return trainingClassEnrollmentRepository.findPassedSkillsByEmployees(
-                        List.of(employeeId), TrainingResult.PASS, TrainingClassStatus.APPROVED).stream()
-                .map(EmployeePassedSkill::getSkillId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-    }
-
-    private String missingCertificateMessage(String skillName, boolean staffFacing) {
-        if (staffFacing) {
-            return "Bạn chưa có chứng chỉ hợp lệ cho vị trí " + skillName + " nên không thể đăng ký ca này.";
-        }
-        return "Nhân viên chưa có chứng chỉ hợp lệ cho vị trí " + skillName + " nên không thể duyệt đăng ký này.";
     }
 
     private void applyContractQuota(WeeklyAvailabilityView grid, Integer employeeId, LocalDate weekStart) {

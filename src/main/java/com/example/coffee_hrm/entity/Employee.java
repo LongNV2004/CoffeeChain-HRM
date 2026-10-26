@@ -69,6 +69,10 @@ public class Employee {
     @Builder.Default
     private Boolean hasCertificate = false;
 
+    /** Ngày cấp Chứng chỉ nhân viên. Null khi chưa cấp hoặc chưa xác định được từ dữ liệu cũ. */
+    @Column(name = "CertificateIssuedOn")
+    private LocalDate certificateIssuedOn;
+
     @CreationTimestamp
     @Column(name = "CreatedAt", nullable = false, updatable = false)
     private LocalDateTime createdAt;

@@ -112,22 +112,8 @@
                 </dd>
             </div>
             <div>
-                <dt>Các kỹ năng đã PASS</dt>
-                <dd>
-                    <span th:if="${#lists.isEmpty(classDetail.passedSkillNames)}">Không có</span>
-                    <ul class="skill-result-list" th:unless="${#lists.isEmpty(classDetail.passedSkillNames)}">
-                        <li th:each="skill : ${classDetail.passedSkillNames}" th:text="${skill}">Pha chế</li>
-                    </ul>
-                </dd>
-            </div>
-            <div>
-                <dt>Các kỹ năng NOT PASS</dt>
-                <dd>
-                    <span th:if="${#lists.isEmpty(classDetail.notPassedSkillNames)}">Không có</span>
-                    <ul class="skill-result-list" th:unless="${#lists.isEmpty(classDetail.notPassedSkillNames)}">
-                        <li th:each="skill : ${classDetail.notPassedSkillNames}" th:text="${skill}">Pha chế</li>
-                    </ul>
-                </dd>
+                <dt>Chứng chỉ nhân viên</dt>
+                <dd th:text="${classDetail.resultCode == 'PASS'} ? 'Đã cấp Chứng chỉ nhân viên' : 'Chưa cấp Chứng chỉ nhân viên'">Chưa cấp Chứng chỉ nhân viên</dd>
             </div>
             <div>
                 <dt>Ngày đánh giá</dt>

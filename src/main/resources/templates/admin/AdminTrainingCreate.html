@@ -71,7 +71,7 @@
 
             <div class="ms-field">
                 <p>Nhân viên</p>
-                <p class="muted">Chọn cửa hàng và kỹ năng trước. Chứng chỉ là trạng thái hiện tại của từng kỹ năng. Lần gần nhất là kết quả đào tạo mới nhất và không làm mất chứng chỉ đã có. Nhân viên đã có chứng chỉ vẫn được học lại. Nhân viên đang học kỹ năng đó ở lớp khác thì không thể đăng ký.</p>
+                <p class="muted">Lớp đào tạo dùng chung cho Chứng chỉ nhân viên. Đạt thì được cấp chứng chỉ, không đạt thì chưa có chứng chỉ. Không chọn chứng chỉ theo từng kỹ năng.</p>
                 <p class="empty enroll-empty" th:if="${employees == null or #lists.isEmpty(employees)}">Không có nhân viên đang làm việc.</p>
                 <p class="empty enroll-empty" id="enroll-empty" th:if="${employees != null and !#lists.isEmpty(employees)}">Chọn cửa hàng trước.</p>
                 <div class="enroll-list" id="enroll-list" th:if="${employees != null and !#lists.isEmpty(employees)}">
@@ -239,10 +239,6 @@
             var selectedStores = selectedStoreIds();
             if (selectedStores.length < 1) {
                 fail('Vui lòng chọn ít nhất một cửa hàng.');
-                return;
-            }
-            if (!form.querySelector('input[name="skillIds"]:checked')) {
-                fail('Vui lòng chọn ít nhất một kỹ năng đào tạo.');
                 return;
             }
             var employeeOutsideStore = false;

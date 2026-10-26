@@ -29,7 +29,6 @@ public class CreateCentralizedTrainingRequest implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    @NotEmpty(message = "Vui lòng chọn ít nhất một kỹ năng đào tạo")
     private List<@NotNull(message = "Kỹ năng không hợp lệ") Integer> skillIds = new ArrayList<>();
 
     @NotEmpty(message = "Vui lòng chọn ít nhất một cửa hàng")

@@ -108,7 +108,7 @@ public class WeeklyScheduleView {
         private Integer employeeId;
         private String fullName;
         private String email;
-        /** Đã có ít nhất một chứng chỉ kỹ năng, đủ điều kiện vào lịch làm việc chung. */
+        /** Đã có Chứng chỉ nhân viên, đủ điều kiện xét lịch làm việc chung. */
         private boolean certified;
     }
 

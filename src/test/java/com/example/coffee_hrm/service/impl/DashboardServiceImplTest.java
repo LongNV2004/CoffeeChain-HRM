@@ -432,21 +432,16 @@ class DashboardServiceImplTest {
     }
 
     @Test
-    void staffDashboardShowsPerSkillCertificatesAndApprovedClassesOnly() {
+    void staffDashboardShowsTheEmployeeCertificateAndApprovedClassesOnly() {
         Employee staff = Employee.builder().id(30).fullName("Mai").status(EmployeeStatus.ACTIVE)
                 .certificationStatus(CertificationStatus.CERTIFIED).build();
         when(employeeRepository.findByIdWithStore(30)).thenReturn(Optional.of(staff));
         quietStaff(30);
         when(trainingService.listCurrentSkillStatuses(30)).thenReturn(List.of(
                 EmployeeSkillStatusLine.builder()
-                        .skillName("Pha chế")
-                        .certificationLabel("CERTIFIED - Pha chế")
-                        .latestResultLabel("PASS")
-                        .build(),
-                EmployeeSkillStatusLine.builder()
-                        .skillName("Pha máy")
-                        .certificationLabel("NOTCERTIFIED - Pha máy")
-                        .latestResultLabel("NOT PASS")
+                        .skillName("Chứng chỉ nhân viên")
+                        .certificationLabel("Đã có chứng chỉ")
+                        .certifiedDateLabel("01/10/2026")
                         .build()));
         when(trainingService.listClassesForEmployee(any())).thenReturn(List.of(
                 EmployeeTrainingClassResponse.builder()
@@ -465,9 +460,9 @@ class DashboardServiceImplTest {
 
         assertTrue(view.isCertified());
         assertEquals("Đã chứng nhận", view.getCertificationLabel());
-        assertEquals(2, view.getSkills().size());
-        assertEquals("Pha chế", view.getSkills().get(0).getSkillName());
-        assertEquals("CERTIFIED - Pha chế", view.getSkills().get(0).getCertificationLabel());
+        assertEquals(1, view.getSkills().size());
+        assertEquals("Chứng chỉ nhân viên", view.getSkills().get(0).getSkillName());
+        assertEquals("Đã có chứng chỉ", view.getSkills().get(0).getCertificationLabel());
         assertEquals(1, view.getUpcomingClasses().size());
         assertEquals("Lớp pha chế", view.getUpcomingClasses().get(0).getClassName());
     }

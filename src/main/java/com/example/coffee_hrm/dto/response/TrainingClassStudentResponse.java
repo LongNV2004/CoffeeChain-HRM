@@ -44,8 +44,8 @@ public class TrainingClassStudentResponse {
     private List<Integer> certifiedSkillIds = List.of();
 
     /**
-     * true khi nhân viên đã có chứng chỉ cho mọi kỹ năng đang xét.
-     * null khi chưa chọn kỹ năng nên chưa xác định được.
+     * true khi hồ sơ đang có Chứng chỉ nhân viên.
+     * null khi danh sách chưa gắn với một lớp.
      */
     private Boolean hasCertificate;
 
