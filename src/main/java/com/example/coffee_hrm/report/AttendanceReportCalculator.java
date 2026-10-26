@@ -16,12 +16,10 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 public final class AttendanceReportCalculator {
 
@@ -461,10 +459,9 @@ public final class AttendanceReportCalculator {
 
     private static final class SummaryAccumulator {
         private final Employee employee;
-        private final Set<LocalDate> workDays = new HashSet<>();
-        private final Set<LocalDate> attendedDays = new HashSet<>();
-        private final Set<LocalDate> absentDays = new HashSet<>();
-        private int absentRecords;
+        private int workSlots;
+        private int workedSlots;
+        private int absentSlots;
         private int lateRecords;
         private int lateMinutes;
         private int earlyRecords;
@@ -478,12 +475,11 @@ public final class AttendanceReportCalculator {
         }
 
         private void add(Attendance attendance, ShiftFacts facts) {
-            workDays.add(attendance.getWorkDate());
+            workSlots++;
             if (attendance.getStatus() == AttendanceStatus.ABSENT) {
-                absentDays.add(attendance.getWorkDate());
-                absentRecords++;
-            } else {
-                attendedDays.add(attendance.getWorkDate());
+                absentSlots++;
+            } else if (attendance.getCheckInTime() != null) {
+                workedSlots++;
             }
             if (facts.late) {
                 lateRecords++;
@@ -510,14 +506,14 @@ public final class AttendanceReportCalculator {
                     .employeeId(employee.getId())
                     .fullName(text(employee.getFullName()))
                     .roleLabel(roleLabel(employee))
-                    .workDays(workDays.size())
-                    .attendedDays(attendedDays.size())
+                    .workDays(workSlots)
+                    .attendedDays(workedSlots)
                     .lateRecords(lateRecords)
                     .lateMinutes(lateMinutes)
                     .earlyRecords(earlyRecords)
                     .earlyMinutes(earlyMinutes)
-                    .absentDays(absentDays.size())
-                    .absentRecords(absentRecords)
+                    .absentDays(absentSlots)
+                    .absentRecords(absentSlots)
                     .workedMinutes(workedMinutes)
                     .openCheckouts(openCheckouts)
                     .note(String.join("; ", notes))

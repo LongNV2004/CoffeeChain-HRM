@@ -62,13 +62,6 @@
             <a class="secondary-btn" th:href="@{/attendance/admin/reports/{id}/excel(id=${detail.reportId})}">Tải file Excel</a>
         </p>
         <div class="report-actions" th:if="${detail.submitted and detail.statusCode != 'REVISION'}">
-            <form method="post" th:if="${detail.statusCode != 'APPROVED'}"
-                  th:action="@{/attendance/admin/reports/{id}/approve(id=${detail.reportId})}">
-                <input type="hidden" name="year" th:value="${detail.year}">
-                <input type="hidden" name="month" th:value="${detail.month}">
-                <input type="hidden" name="back" value="detail">
-                <button class="primary-btn" type="submit">Duyệt</button>
-            </form>
             <form method="post" th:action="@{/attendance/admin/reports/{id}/revision(id=${detail.reportId})}">
                 <input type="hidden" name="year" th:value="${detail.year}">
                 <input type="hidden" name="month" th:value="${detail.month}">
@@ -88,11 +81,11 @@
                 <div class="value" th:text="${detail.live.employeeCount}">0</div>
             </article>
             <article>
-                <div class="label">Tổng ngày công</div>
+                <div class="label">Tổng slot đã làm</div>
                 <div class="value" th:text="${detail.live.workDayCount}">0</div>
             </article>
             <article>
-                <div class="label">Tổng lượt vi phạm</div>
+                <div class="label">Tổng slot vi phạm</div>
                 <div class="value" th:text="${detail.live.violationCount}">0</div>
             </article>
             <article>
@@ -100,7 +93,7 @@
                 <div class="value" th:text="${detail.live.missingCount}">0</div>
             </article>
         </section>
-        <p class="note">Ngày công là số ngày có bản ghi ca làm và không phải vắng. Tổng ngày công cộng ngày công của từng nhân viên. Lượt vi phạm gồm đi muộn và về sớm. Thiếu chấm công là bản ghi ca làm có trạng thái vắng. Ngày không có bản ghi không được tính là thiếu chấm công.</p>
+        <p class="note">Slot đã làm là từng ca có check-in và không vắng. Tổng slot đã làm cộng slot của từng nhân viên. Slot vi phạm gồm đi muộn và về sớm. Thiếu chấm công là từng slot có trạng thái vắng. Ngày không có slot không được tính là thiếu chấm công.</p>
     </section>
 
     <section class="panel attn-screen report-staff" id="reportStaff" th:if="${detail != null}">
@@ -125,7 +118,7 @@
                 <p class="slot-meta" th:text="${'Mã ' + employee.employeeId + (employee.roleLabel == 'Manager' ? ' · Quản lý' : (employee.roleLabel == 'Staff' ? ' · Nhân viên' : (employee.roleLabel == null or #strings.isEmpty(employee.roleLabel) ? '' : ' · ' + employee.roleLabel)))}">Mã 1</p>
                 <div class="slot-times">
                     <div>
-                        <span>Ngày công</span>
+                        <span>Slot đã làm</span>
                         <strong th:text="${employee.attendedDays}">0</strong>
                     </div>
                     <div>
@@ -137,19 +130,19 @@
                     <div>
                         <span>Đi muộn</span>
                         <strong th:classappend="${employee.lateRecords > 0} ? 'is-alert' : ''"
-                                th:text="${employee.lateRecords + ' lần'}">0 lần</strong>
+                                th:text="${employee.lateRecords + ' slot'}">0 slot</strong>
                         <small th:text="${employee.lateMinutes + ' phút'}">0 phút</small>
                     </div>
                     <div>
                         <span>Về sớm</span>
                         <strong th:classappend="${employee.earlyRecords > 0} ? 'is-alert' : ''"
-                                th:text="${employee.earlyRecords + ' lần'}">0 lần</strong>
+                                th:text="${employee.earlyRecords + ' slot'}">0 slot</strong>
                         <small th:text="${employee.earlyMinutes + ' phút'}">0 phút</small>
                     </div>
                 </div>
                 <div class="slot-absent">
                     <span>Thiếu chấm công</span>
-                    <strong th:text="${employee.absentRecords + ' lần'}">0 lần</strong>
+                    <strong th:text="${employee.absentRecords + ' slot'}">0 slot</strong>
                 </div>
                 <button type="button" class="month-detail" th:attr="data-dialog=|report-emp-${employee.employeeId}|">Xem chi tiết</button>
             </article>
