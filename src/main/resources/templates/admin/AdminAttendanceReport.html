@@ -73,6 +73,9 @@
                 <select name="status">
                     <option value="all" th:selected="${report.filterStatus == 'all'}">Tất cả</option>
                     <option value="submitted" th:selected="${report.filterStatus == 'submitted'}">Đã gửi</option>
+                    <option value="waiting" th:selected="${report.filterStatus == 'waiting'}">Đang chờ</option>
+                    <option value="approved" th:selected="${report.filterStatus == 'approved'}">Đã duyệt</option>
+                    <option value="revision" th:selected="${report.filterStatus == 'revision'}">Yêu cầu làm lại</option>
                     <option value="unsent" th:selected="${report.filterStatus == 'unsent'}">Chưa gửi</option>
                 </select>
             </label>
@@ -106,14 +109,28 @@
                     <td th:text="${row.storeName}">Cửa hàng</td>
                     <td th:text="${row.managerName == null or #strings.isEmpty(row.managerName) ? '—' : row.managerName}">—</td>
                     <td th:text="${row.periodLabel}">10/2026</td>
-                    <td th:text="${row.statusLabel}">Chưa gửi</td>
+                    <td>
+                        <span class="status-tag" th:classappend="${row.statusCss}" th:text="${row.statusLabel}">Chưa gửi</span>
+                    </td>
                     <td th:text="${row.senderName == null or #strings.isEmpty(row.senderName) ? '—' : row.senderName}">—</td>
                     <td th:text="${row.submittedAt == null ? '—' : #temporals.format(row.submittedAt, 'dd/MM/yyyy HH:mm')}">—</td>
                     <td th:text="${row.versionNumber == null ? '—' : row.versionNumber}">—</td>
-                    <td>
-                        <a th:if="${row.reportId != null}"
-                           th:href="@{/attendance/admin/reports/{id}(id=${row.reportId})}">Xem báo cáo</a>
-                        <span th:if="${row.reportId == null}">—</span>
+                    <td class="ops-cell">
+                        <div class="store-ops" th:if="${row.submitted}">
+                            <div class="store-ops-row">
+                                <a class="ops-link"
+                                   th:href="@{/attendance/admin/reports/{id}(id=${row.reportId})}">Xem báo cáo</a>
+                                <a class="ops-link" th:href="@{/attendance/admin/reports/{id}/excel(id=${row.reportId})}">Tải Excel</a>
+                            </div>
+                            <form class="store-ops-revise" method="post" th:if="${row.statusCode != 'REVISION'}"
+                                  th:action="@{/attendance/admin/reports/{id}/revision(id=${row.reportId})}">
+                                <input type="hidden" name="year" th:value="${report.year}">
+                                <input type="hidden" name="month" th:value="${report.month}">
+                                <input type="text" name="note" maxlength="500" placeholder="Lý do gửi lại" aria-label="Lý do gửi lại">
+                                <button class="danger-btn" type="submit">Gửi lại</button>
+                            </form>
+                        </div>
+                        <span class="ops-empty" th:if="${!row.submitted}">—</span>
                     </td>
                 </tr>
                 </tbody>

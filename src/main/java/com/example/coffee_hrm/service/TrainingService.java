@@ -6,6 +6,7 @@ import com.example.coffee_hrm.dto.request.CreateTrainingClassRequest;
 import com.example.coffee_hrm.dto.request.CreateTrainingSkillRequest;
 import com.example.coffee_hrm.dto.request.EvaluateTrainingStudentRequest;
 import com.example.coffee_hrm.dto.request.UpdateTrainingSkillRequest;
+import com.example.coffee_hrm.dto.response.EmployeeSkillStatusLine;
 import com.example.coffee_hrm.dto.response.EmployeeTrainingClassResponse;
 import com.example.coffee_hrm.dto.response.TrainingClassResponse;
 import com.example.coffee_hrm.dto.response.TrainingClassStudentResponse;
@@ -50,8 +51,6 @@ public interface TrainingService {
                                                       String sortDir,
                                                       int page);
 
-    List<TrainingClassResponse> listSubmittedClassesForManager(AuthenticatedUser manager);
-
     List<TrainingClassResponse> listEndedClassesForManager(AuthenticatedUser manager);
 
     TrainingClassResponse getApprovedClassDetailForManager(Integer classId, AuthenticatedUser manager);
@@ -73,6 +72,12 @@ public interface TrainingService {
 
     long countOngoingClassesForEmployee(AuthenticatedUser employee);
 
+    /**
+     * Trạng thái chứng chỉ hiện hành của từng kỹ năng thuộc đúng nhân viên.
+     * PASS ở lớp đã duyệt giữ chứng chỉ; NOT PASS sau đó không xóa chứng chỉ và không đổi ngày cấp.
+     */
+    List<EmployeeSkillStatusLine> listCurrentSkillStatuses(Integer employeeId);
+
     TrainingClassResponse createClass(CreateTrainingClassRequest request, AuthenticatedUser manager);
 
     TrainingClassResponse createCentralizedClass(CreateCentralizedTrainingRequest request, AuthenticatedUser admin);
@@ -86,13 +91,5 @@ public interface TrainingService {
 
     TrainingClassResponse getApprovedClassDetailForAdmin(Integer classId, AuthenticatedUser admin);
 
-    List<TrainingClassResponse> listPendingClasses();
-
     List<TrainingClassResponse> listAllClassesForAdmin();
-
-    TrainingClassResponse approveClass(Integer classId, AuthenticatedUser admin);
-
-    TrainingClassResponse rejectClass(Integer classId, AuthenticatedUser admin);
-
-    long countPendingClasses();
 }

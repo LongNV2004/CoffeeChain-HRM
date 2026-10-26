@@ -19,6 +19,8 @@ public interface RecruitmentRequestRepository extends JpaRepository<RecruitmentR
 
     int countByStatusIn(Collection<RecruitmentProposalStatus> statuses);
 
+    boolean existsByTitleIgnoreCase(String title);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT r FROM RecruitmentRequest r WHERE r.id = :id")
     Optional<RecruitmentRequest> lockById(@Param("id") Integer id);

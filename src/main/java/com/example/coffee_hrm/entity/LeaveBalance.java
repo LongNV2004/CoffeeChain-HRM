@@ -50,4 +50,15 @@ public class LeaveBalance {
 
     @Column(name = "RemainingDays", nullable = false)
     private Integer remainingDays;
+
+    /** Separate from the day columns. Null until an admin slot allowance is applied. */
+    @Column(name = "TotalSlots")
+    private Integer totalSlots;
+
+    @Column(name = "UsedSlots", nullable = false)
+    @Builder.Default
+    private Integer usedSlots = 0;
+
+    @Column(name = "RemainingSlots")
+    private Integer remainingSlots;
 }

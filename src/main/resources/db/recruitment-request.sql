@@ -282,3 +282,34 @@ ALTER TABLE dbo.RecruitmentRequests ALTER COLUMN FullName NVARCHAR(100) NULL;
 ALTER TABLE dbo.RecruitmentRequests ALTER COLUMN Email NVARCHAR(100) NULL;
 ALTER TABLE dbo.RecruitmentRequests ALTER COLUMN Phone NVARCHAR(15) NULL;
 GO
+
+IF COL_LENGTH(N'dbo.RecruitmentCandidates', N'RehireEmployeeId') IS NULL
+BEGIN
+    ALTER TABLE dbo.RecruitmentCandidates ADD RehireEmployeeId INT NULL;
+END;
+GO
+
+IF COL_LENGTH(N'dbo.RecruitmentCandidates', N'RehireEmployeeId') IS NOT NULL
+   AND NOT EXISTS (
+        SELECT 1 FROM sys.foreign_keys
+        WHERE name = 'FK_RecruitmentCandidates_RehireEmployee'
+          AND parent_object_id = OBJECT_ID(N'dbo.RecruitmentCandidates')
+   )
+BEGIN
+    ALTER TABLE dbo.RecruitmentCandidates
+        ADD CONSTRAINT FK_RecruitmentCandidates_RehireEmployee
+        FOREIGN KEY (RehireEmployeeId) REFERENCES dbo.Employees (EmployeeId);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'UX_RecruitmentCandidates_PendingRehire'
+      AND object_id = OBJECT_ID(N'dbo.RecruitmentCandidates')
+)
+BEGIN
+    CREATE UNIQUE INDEX UX_RecruitmentCandidates_PendingRehire
+        ON dbo.RecruitmentCandidates (RehireEmployeeId)
+        WHERE Status = 'Pending' AND RehireEmployeeId IS NOT NULL;
+END;
+GO

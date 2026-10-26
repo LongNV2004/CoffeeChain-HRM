@@ -21,7 +21,10 @@ import com.example.coffee_hrm.entity.WorkAvailability;
 import com.example.coffee_hrm.repository.EmployeeRepository;
 import com.example.coffee_hrm.repository.ShiftRepository;
 import com.example.coffee_hrm.repository.ShiftSlotLimitRepository;
+import com.example.coffee_hrm.repository.ShiftSlotPositionNeedRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
+import com.example.coffee_hrm.repository.TrainingClassEnrollmentRepository;
+import com.example.coffee_hrm.repository.TrainingSkillRepository;
 import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.repository.WorkAvailabilityRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
@@ -40,6 +43,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import java.util.Optional;
@@ -79,6 +83,12 @@ class StaffAvailabilityServiceImplTest {
     private NotificationService notificationService;
     @Mock
     private ScheduleService scheduleService;
+    @Mock
+    private ShiftSlotPositionNeedRepository shiftSlotPositionNeedRepository;
+    @Mock
+    private TrainingSkillRepository trainingSkillRepository;
+    @Mock
+    private TrainingClassEnrollmentRepository trainingClassEnrollmentRepository;
 
     @InjectMocks
     private StaffAvailabilityServiceImpl service;
@@ -234,6 +244,29 @@ class StaffAvailabilityServiceImplTest {
     }
 
     @Test
+    void submitNotifiesStoreManager() {
+        Employee manager = Employee.builder().id(10).fullName("Manager A").store(store)
+                .status(EmployeeStatus.ACTIVE).build();
+        store.setManager(manager);
+        User managerAccount = buildUser(2, "manager1", RoleName.MANAGER, manager);
+        AuthenticatedUser staffUser = AuthenticatedUser.from(buildUser(3, "staff1", RoleName.STAFF, staff));
+        when(employeeRepository.findByIdWithStoreAndManager(20)).thenReturn(Optional.of(staff));
+        when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shift));
+        when(userRepository.findByEmployee_Id(10)).thenReturn(Optional.of(managerAccount));
+        stubOpenLimit(4);
+
+        service.submitNextWeekAvailability(nextWeekRequest(), staffUser);
+
+        verify(notificationService).notifyUsers(
+                eq(List.of(managerAccount)),
+                eq("Nhân viên đăng ký ca làm"),
+                anyString(),
+                eq(NotificationType.WORK_AVAILABILITY_SUBMITTED),
+                eq("WORK_AVAILABILITY"),
+                eq(20));
+    }
+
+    @Test
     void submitAllowsCertifiedStaff() {
         AuthenticatedUser staffUser = AuthenticatedUser.from(buildUser(3, "staff1", RoleName.STAFF, staff));
         when(employeeRepository.findByIdWithStoreAndManager(20)).thenReturn(Optional.of(staff));
@@ -361,7 +394,7 @@ class StaffAvailabilityServiceImplTest {
         verify(workAvailabilityRepository).saveAll(List.of(availability));
         verify(notificationService).notifyUsers(
                 eq(List.of(staffAccount)),
-                eq("Lịch làm việc đã được duyệt"),
+                eq("Đăng ký ca làm đã được duyệt"),
                 anyString(),
                 eq(NotificationType.WORK_AVAILABILITY_APPROVED),
                 eq("WORK_AVAILABILITY"),
@@ -389,7 +422,7 @@ class StaffAvailabilityServiceImplTest {
         verify(scheduleService, never()).assignShiftFromApprovedAvailability(any(), any());
         verify(notificationService).notifyUsers(
                 eq(List.of(staffAccount)),
-                eq("Lịch làm việc bị từ chối"),
+                eq("Đăng ký ca làm bị từ chối"),
                 anyString(),
                 eq(NotificationType.WORK_AVAILABILITY_REJECTED),
                 eq("WORK_AVAILABILITY"),
@@ -607,7 +640,7 @@ class StaffAvailabilityServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.submitNextWeekAvailability(nextWeekRequest(), staffUser));
 
-        assertTrue(ex.getMessage().contains("đã đủ người"));
+        assertTrue(ex.getMessage().contains("đã đủ số lượng nhân viên cho ngày"));
         assertTrue(ex.getMessage().contains("chờ duyệt"));
         verify(workAvailabilityRepository, never()).saveAll(any());
     }
@@ -632,7 +665,7 @@ class StaffAvailabilityServiceImplTest {
     }
 
     @Test
-    void duplicateRegistrationForTheSameSlotIsRejected() {
+    void approvedRegistrationInAnotherWeekDoesNotFillNextWeek() {
         AuthenticatedUser staffUser = AuthenticatedUser.from(buildUser(3, "staff1", RoleName.STAFF, staff));
         LocalDate later = VietnamTime.today().plusMonths(4);
         WorkAvailability approved = patternAvailability(20, 1, ApprovalStatus.APPROVED);
@@ -646,15 +679,40 @@ class StaffAvailabilityServiceImplTest {
         when(workAvailabilityRepository.findCapacityCandidatesByShift(
                 eq(1), any(LocalDate.class), eq(ApprovalStatus.PENDING), any()))
                 .thenReturn(List.of(approved));
+        stubOpenLimit(1);
+
+        int count = service.submitNextWeekAvailability(nextWeekRequest(), staffUser);
+
+        assertEquals(1, count);
+        assertEquals(ApprovalStatus.APPROVED, approved.getStatus());
+        verify(workAvailabilityRepository).saveAll(any());
+        verify(workAvailabilityRepository, never()).deleteByIds(any());
+    }
+
+    @Test
+    void duplicateRegistrationOnTheSameDateIsRejected() {
+        AuthenticatedUser staffUser = AuthenticatedUser.from(buildUser(3, "staff1", RoleName.STAFF, staff));
+        LocalDate nextMonday = nextMonday();
+        WorkAvailability approved = patternAvailability(20, 1, ApprovalStatus.APPROVED);
+        approved.setEmployee(staff);
+        approved.setValidFrom(nextMonday);
+        approved.setValidTo(nextMonday.plusDays(6));
+        when(employeeRepository.findByIdWithStoreAndManager(20)).thenReturn(Optional.of(staff));
+        when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shift));
+        when(workAvailabilityRepository.findVisibleByEmployee(eq(20), any(LocalDate.class), eq(ApprovalStatus.PENDING)))
+                .thenReturn(List.of());
+        when(workAvailabilityRepository.findCapacityCandidatesByShift(
+                eq(1), any(LocalDate.class), eq(ApprovalStatus.PENDING), any()))
+                .thenReturn(List.of(approved));
         stubOpenLimit(4);
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.submitNextWeekAvailability(nextWeekRequest(), staffUser));
 
         assertTrue(ex.getMessage().contains("trùng"));
+        assertTrue(ex.getMessage().contains(vn(nextMonday)));
         assertEquals(ApprovalStatus.APPROVED, approved.getStatus());
         verify(workAvailabilityRepository, never()).saveAll(any());
-        verify(workAvailabilityRepository, never()).deleteByIds(any());
     }
 
     @Test
@@ -683,7 +741,7 @@ class StaffAvailabilityServiceImplTest {
     }
 
     @Test
-    void loweringTheLimitKeepsExistingRegistrationsAndWarns() {
+    void loweringTheLimitBelowOccupiedDatesIsRejectedAndDoesNotSave() {
         ShiftSlotLimit existing = slotLimit(1, 5);
         WorkAvailability approved = patternAvailability(21, 1, ApprovalStatus.APPROVED);
         WorkAvailability pending = patternAvailability(22, 1, ApprovalStatus.PENDING);
@@ -695,13 +753,15 @@ class StaffAvailabilityServiceImplTest {
                 .thenReturn(List.of(approved, pending));
         stubSchedulableStaff(10);
 
-        SlotLimitUpdateResult result = service.updateSlotLimit(1, 1, "1", managerUser);
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.updateSlotLimit(1, 1, "1", managerUser));
 
-        assertTrue(result.isWarning());
-        assertTrue(result.getMessage().contains("giữ nguyên"));
-        assertEquals(1, existing.getMaxEmployees());
+        assertTrue(ex.getMessage().contains("Không lưu"));
+        assertTrue(ex.getMessage().contains("giữ nguyên"));
+        assertEquals(5, existing.getMaxEmployees());
         assertEquals(ApprovalStatus.APPROVED, approved.getStatus());
         assertEquals(ApprovalStatus.PENDING, pending.getStatus());
+        verify(shiftSlotLimitRepository, never()).saveAndFlush(any());
         verify(workAvailabilityRepository, never()).save(any());
         verify(workAvailabilityRepository, never()).saveAll(any());
         verify(workAvailabilityRepository, never()).deleteByIds(any());
@@ -768,8 +828,7 @@ class StaffAvailabilityServiceImplTest {
         assertFalse(eight.isWarning());
         assertFalse(ten.isWarning());
         assertEquals(10, existing.getMaxEmployees());
-        assertEquals("Số lượng nhân viên trong ca không được vượt quá số nhân viên Staff hiện có tại cửa hàng (10 nhân viên).",
-                over.getMessage());
+        assertEquals(StaffAvailabilityServiceImpl.SLOT_LIMIT_HEADCOUNT_MESSAGE, over.getMessage());
         verify(employeeRepository, times(3)).countSchedulableStaff(
                 1, EmployeeStatus.ACTIVE, RoleName.STAFF, 10);
         verify(shiftSlotLimitRepository, times(2)).saveAndFlush(existing);
@@ -838,7 +897,8 @@ class StaffAvailabilityServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.submitNextWeekAvailability(nextWeekRequest(), secondUser));
 
-        assertTrue(ex.getMessage().contains("đã đủ người"));
+        assertTrue(ex.getMessage().contains("đã đủ số lượng nhân viên cho ngày"));
+        assertTrue(ex.getMessage().contains(vn(nextMonday())));
         verify(workAvailabilityRepository, times(1)).saveAll(any());
     }
 
@@ -921,12 +981,162 @@ class StaffAvailabilityServiceImplTest {
         pending.setValidTo(today.minusDays(1));
         WorkAvailability otherDay = patternAvailability(24, 2, ApprovalStatus.APPROVED);
 
-        assertFalse(StaffAvailabilityServiceImpl.occupiesSlot(rejected, 1, today));
+        LocalDate nextMonday = nextMonday();
+        WorkAvailability currentWeek = patternAvailability(25, 1, ApprovalStatus.APPROVED);
+        LocalDate thisMonday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        currentWeek.setValidFrom(thisMonday);
+        currentWeek.setValidTo(thisMonday.plusDays(6));
+        WorkAvailability nextWeekPending = patternAvailability(26, 1, ApprovalStatus.PENDING);
+        nextWeekPending.setValidFrom(nextMonday);
+        nextWeekPending.setValidTo(nextMonday.plusDays(6));
+
+        assertFalse(StaffAvailabilityServiceImpl.occupiesSlot(rejected, 1, nextMonday));
         assertFalse(StaffAvailabilityServiceImpl.occupiesSlot(expired, 1, today));
-        assertTrue(StaffAvailabilityServiceImpl.occupiesSlot(pending, 1, today));
-        assertFalse(StaffAvailabilityServiceImpl.occupiesSlot(otherDay, 1, today));
+        assertFalse(StaffAvailabilityServiceImpl.occupiesSlot(pending, 1, today));
+        assertFalse(StaffAvailabilityServiceImpl.occupiesSlot(otherDay, 1, nextMonday));
+        assertFalse(StaffAvailabilityServiceImpl.occupiesSlot(currentWeek, 1, nextMonday));
+        assertTrue(StaffAvailabilityServiceImpl.occupiesSlot(nextWeekPending, 1, nextMonday));
+        assertTrue(StaffAvailabilityServiceImpl.occupiesSlot(currentWeek, 1, thisMonday));
         assertEquals(1, StaffAvailabilityServiceImpl.remainingSeats(4, 2, 1));
         assertEquals(-1, StaffAvailabilityServiceImpl.remainingSeats(2, 1, 2));
+    }
+
+    @Test
+    void currentWeekOccupancyDoesNotBlockNextWeekRegistration() {
+        AuthenticatedUser staffUser = AuthenticatedUser.from(buildUser(3, "staff1", RoleName.STAFF, staff));
+        LocalDate thisMonday = VietnamTime.today().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        LocalDate thisSunday = thisMonday.plusDays(6);
+        List<WorkAvailability> currentWeek = new java.util.ArrayList<>();
+        for (int employeeId = 21; employeeId <= 23; employeeId++) {
+            WorkAvailability approved = patternAvailability(employeeId, 1, ApprovalStatus.APPROVED);
+            approved.setValidFrom(thisMonday);
+            approved.setValidTo(thisSunday);
+            currentWeek.add(approved);
+        }
+        when(employeeRepository.findByIdWithStoreAndManager(20)).thenReturn(Optional.of(staff));
+        when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shift));
+        when(workAvailabilityRepository.findCapacityCandidatesByShift(
+                eq(1), any(LocalDate.class), eq(ApprovalStatus.PENDING), any()))
+                .thenReturn(currentWeek);
+        stubOpenLimit(3);
+
+        int count = service.submitNextWeekAvailability(nextWeekRequest(), staffUser);
+
+        assertEquals(1, count);
+        verify(workAvailabilityRepository).saveAll(any());
+    }
+
+    @Test
+    void nextWeekGridCountsOnlyThatWeek() {
+        AuthenticatedUser staffUser = AuthenticatedUser.from(buildUser(3, "staff1", RoleName.STAFF, staff));
+        LocalDate thisMonday = VietnamTime.today().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        WorkAvailability currentWeek = patternAvailability(21, 1, ApprovalStatus.APPROVED);
+        currentWeek.setValidFrom(thisMonday);
+        currentWeek.setValidTo(thisMonday.plusDays(6));
+        WorkAvailability nextWeek = patternAvailability(22, 1, ApprovalStatus.PENDING);
+        nextWeek.setValidFrom(nextMonday());
+        nextWeek.setValidTo(nextMonday().plusDays(6));
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staff));
+        when(shiftRepository.findByStore_IdOrderByStartTimeAsc(1)).thenReturn(List.of(shift));
+        when(shiftSlotLimitRepository.findByStoreId(1)).thenReturn(List.of(slotLimit(1, 3)));
+        when(workAvailabilityRepository.findCapacityCandidatesByStore(
+                eq(1), any(LocalDate.class), eq(ApprovalStatus.PENDING), any()))
+                .thenReturn(List.of(currentWeek, nextWeek));
+
+        WeeklyAvailabilityView grid = service.getNextWeekAvailabilityGrid(staffUser);
+        WeeklyAvailabilityView.DayCell monday = grid.getShiftRows().getFirst().getDayCells().get(0);
+
+        assertEquals(nextMonday(), grid.getWeekStartDate());
+        assertEquals(vn(nextMonday()), grid.getDays().getFirst().getFormattedDate());
+        assertEquals(0, monday.getApprovedCount());
+        assertEquals(1, monday.getPendingCount());
+        assertEquals(2, monday.getRemaining());
+        assertEquals("open", monday.getSlotStatusKey());
+        assertFalse(monday.isRegistrationClosed());
+    }
+
+    @Test
+    void oneWeekRegistrationIgnoresAFullLaterWeek() {
+        AuthenticatedUser staffUser = AuthenticatedUser.from(buildUser(3, "staff1", RoleName.STAFF, staff));
+        LocalDate laterMonday = nextMonday().plusWeeks(3);
+        WorkAvailability later = patternAvailability(21, 1, ApprovalStatus.APPROVED);
+        later.setValidFrom(laterMonday);
+        later.setValidTo(laterMonday.plusDays(6));
+        when(employeeRepository.findByIdWithStoreAndManager(20)).thenReturn(Optional.of(staff));
+        when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shift));
+        when(workAvailabilityRepository.findCapacityCandidatesByShift(
+                eq(1), any(LocalDate.class), eq(ApprovalStatus.PENDING), any()))
+                .thenReturn(List.of(later));
+        stubOpenLimit(1);
+
+        assertEquals(1, service.submitNextWeekAvailability(nextWeekRequest(), staffUser));
+    }
+
+    @Test
+    void longerRegistrationIsRejectedOnTheFullLaterDate() {
+        AuthenticatedUser staffUser = AuthenticatedUser.from(buildUser(3, "staff1", RoleName.STAFF, staff));
+        LocalDate laterMonday = nextMonday().plusWeeks(3);
+        WorkAvailability later = patternAvailability(21, 1, ApprovalStatus.APPROVED);
+        later.setValidFrom(laterMonday);
+        later.setValidTo(laterMonday.plusDays(6));
+        when(employeeRepository.findByIdWithStoreAndManager(20)).thenReturn(Optional.of(staff));
+        when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shift));
+        when(workAvailabilityRepository.findCapacityCandidatesByShift(
+                eq(1), any(LocalDate.class), eq(ApprovalStatus.PENDING), any()))
+                .thenReturn(List.of(later));
+        stubOpenLimit(1);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.submitNextWeekAvailability(monthRequest(), staffUser));
+
+        assertTrue(ex.getMessage().contains("đã đủ số lượng nhân viên cho ngày " + vn(laterMonday)));
+        verify(workAvailabilityRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void sameEmployeeOccupiesOneSeatOnTheSameDate() {
+        AuthenticatedUser staffUser = AuthenticatedUser.from(buildUser(3, "staff1", RoleName.STAFF, staff));
+        LocalDate nextMonday = nextMonday();
+        WorkAvailability approved = patternAvailability(21, 1, ApprovalStatus.APPROVED);
+        approved.setValidFrom(nextMonday);
+        approved.setValidTo(nextMonday.plusDays(6));
+        WorkAvailability pending = patternAvailability(21, 1, ApprovalStatus.PENDING);
+        pending.setId(2100);
+        pending.setValidFrom(nextMonday);
+        pending.setValidTo(nextMonday.plusDays(6));
+        when(employeeRepository.findByIdWithStoreAndManager(20)).thenReturn(Optional.of(staff));
+        when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shift));
+        when(workAvailabilityRepository.findCapacityCandidatesByShift(
+                eq(1), any(LocalDate.class), eq(ApprovalStatus.PENDING), any()))
+                .thenReturn(List.of(approved, pending));
+        stubOpenLimit(2);
+
+        assertEquals(1, service.submitNextWeekAvailability(nextWeekRequest(), staffUser));
+    }
+
+    @Test
+    void pastWeekOccupancyDoesNotBlockALowerFutureLimit() {
+        ShiftSlotLimit existing = slotLimit(1, 5);
+        LocalDate thisMonday = VietnamTime.today().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        LocalDate lastMonday = thisMonday.minusWeeks(1);
+        WorkAvailability past = patternAvailability(21, 1, ApprovalStatus.APPROVED);
+        past.setValidFrom(lastMonday);
+        past.setValidTo(lastMonday.plusDays(6));
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shift));
+        when(shiftSlotLimitRepository.lockByShiftAndDay(1, 1)).thenReturn(Optional.of(existing));
+        when(workAvailabilityRepository.findCapacityCandidatesByShift(
+                eq(1), any(LocalDate.class), eq(ApprovalStatus.PENDING), any()))
+                .thenReturn(List.of(past));
+        stubSchedulableStaff(10);
+
+        SlotLimitUpdateResult result = service.updateSlotLimit(1, 1, "1", managerUser);
+
+        assertFalse(result.isWarning());
+        assertEquals(1, existing.getMaxEmployees());
+        assertTrue(result.getMessage().contains("còn 1"));
+        verify(shiftSlotLimitRepository).saveAndFlush(existing);
+        verify(workAvailabilityRepository, never()).deleteByIds(any());
     }
 
     @Test
@@ -940,6 +1150,14 @@ class StaffAvailabilityServiceImplTest {
 
         assertTrue(ex.getMessage().contains("chưa có số lượng"));
         verify(workAvailabilityRepository, never()).saveAll(any());
+    }
+
+    private LocalDate nextMonday() {
+        return VietnamTime.today().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).plusWeeks(1);
+    }
+
+    private String vn(LocalDate date) {
+        return date.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
     }
 
     private SubmitWorkAvailabilityRequest nextWeekRequest() {

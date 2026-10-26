@@ -153,7 +153,6 @@ public class TrainingController {
         model.addAttribute("displayName", user.getDisplayName());
         model.addAttribute("storeName", user.getStoreName());
         model.addAttribute("classes", classPage.getContent());
-        model.addAttribute("submittedClasses", trainingService.listSubmittedClassesForManager(user));
         model.addAttribute("endedClasses", trainingService.listEndedClassesForManager(user));
         model.addAttribute("classPage", classPage);
         model.addAttribute("hasStore", trainingService.managerHasAssignedStore(user));

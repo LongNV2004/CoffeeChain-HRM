@@ -60,9 +60,9 @@ public class StaffAvailabilityController {
             int count = staffAvailabilityService.submitNextWeekAvailability(availabilityForm, user);
             redirectAttributes.addFlashAttribute("successMessage",
                     "Đã gửi đăng ký " + count
-                            + " slot lịch làm việc định kỳ. Manager cửa hàng đã được thông báo. "
+                            + " ca lịch làm việc định kỳ. Manager cửa hàng đã được thông báo. "
                             + "Đăng ký đang chờ bị trùng sẽ được thay; lịch đã duyệt không bị đổi. "
-                            + "Số chỗ còn lại trên các slot đã được cập nhật.");
+                            + "Số chỗ còn lại trên các ca đã được cập nhật.");
             return "redirect:/availability";
         } catch (BusinessException ex) {
             populatePage(user, model);
@@ -81,11 +81,13 @@ public class StaffAvailabilityController {
             model.addAttribute("availabilityGrid", grid);
             model.addAttribute("registrations", grid.getRegistrations() != null ? grid.getRegistrations() : List.of());
             model.addAttribute("registrationBlockMessage", staffAvailabilityService.registrationBlockedMessage(user));
+            model.addAttribute("positionOptions", staffAvailabilityService.listMyWorkPositions(user));
             model.addAttribute("pageError", null);
         } catch (BusinessException ex) {
             model.addAttribute("availabilityGrid", null);
             model.addAttribute("registrations", List.of());
             model.addAttribute("registrationBlockMessage", null);
+            model.addAttribute("positionOptions", List.of());
             model.addAttribute("pageError", ex.getMessage());
         }
     }

@@ -20,7 +20,7 @@
             <span th:text="${displayName}">Admin</span>
             · thêm kỹ năng vào danh mục dùng chung cho toàn chuỗi
         </p>
-        <p class="muted"><a class="back-link" th:href="@{/admin/training}">← Danh sách duyệt</a></p>
+        <p class="muted"><a class="back-link" th:href="@{/admin/training}">← Danh sách lớp</a></p>
     </section>
 
     <p class="flash success" th:if="${successMessage}" th:text="${successMessage}">OK</p>
@@ -77,13 +77,18 @@
                     <form th:if="${skill.status.name() == 'ACTIVE'}"
                           th:action="@{/admin/training/skills/{id}/deactivate(id=${skill.id})}"
                           method="post"
-                          onsubmit="return confirm('Ngừng sử dụng kỹ năng này?');">
+                          data-coffee-confirm="Ngừng sử dụng kỹ năng này?"
+                          data-coffee-title="Ngừng sử dụng kỹ năng"
+                          data-coffee-ok="Ngừng"
+                          data-coffee-tone="danger">
                         <button class="link-btn danger" type="submit">Ngừng</button>
                     </form>
                     <form th:if="${skill.status.name() == 'INACTIVE'}"
                           th:action="@{/admin/training/skills/{id}/activate(id=${skill.id})}"
                           method="post"
-                          onsubmit="return confirm('Kích hoạt lại kỹ năng này?');">
+                          data-coffee-confirm="Kích hoạt lại kỹ năng này?"
+                          data-coffee-title="Kích hoạt kỹ năng"
+                          data-coffee-ok="Kích hoạt">
                         <button class="link-btn" type="submit">Kích hoạt</button>
                     </form>
                 </td>

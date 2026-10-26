@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tạo hợp đồng — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
+    <style>
+        .contract-facts { display: grid; grid-template-columns: 180px 1fr; gap: 8px 16px; margin: 0; }
+        .contract-facts dt, .contract-facts dd { margin: 0; }
+        .contract-facts dt { font-weight: 600; }
+        .contract-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+        @media (max-width: 720px) { .contract-facts { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<header th:replace="~{fragments/navbar :: manager('contract')}"></header>
+<main class="wrap dash-main recruit-page">
+    <section class="welcome">
+        <div class="eyebrow" th:text="${eyebrow}">Cửa hàng — Quản lý</div>
+        <h1>Tạo hợp đồng</h1>
+        <p>Chọn nhân viên, nhập điều khoản và tải file đã ký. Hợp đồng đã lưu không sửa và không xóa trên hệ thống.</p>
+    </section>
+
+    <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}"></p>
+    <p class="empty" th:if="${!formReady}">Bạn chưa thể tạo hợp đồng với quyền hiện tại.</p>
+
+    <form th:if="${formReady}" id="contract-form" class="stack-form recruit-form" method="post"
+          enctype="multipart/form-data" th:action="@{/manager/contract/create}" th:object="${form}">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+
+        <section class="panel recruit-card">
+            <h2>Thông tin nhân viên</h2>
+            <div class="recruit-grid">
+                <label class="recruit-span" for="employeeId">
+                    <span class="field-label">Nhân viên <span class="req">*</span></span>
+                    <select id="employeeId" th:field="*{employeeId}" required>
+                        <option value="">Chọn nhân viên</option>
+                        <option th:each="employee : ${employees}" th:value="${employee.id}"
+                                th:text="|${employee.id} — ${employee.fullName}|"
+                                th:attr="data-name=${employee.fullName},data-store=${employee.storeName},data-position=${employee.positionLabel},data-hire=${employee.hireDate}"></option>
+                    </select>
+                    <span class="field-error" th:if="${#fields.hasErrors('employeeId')}" th:errors="*{employeeId}"></span>
+                </label>
+            </div>
+            <dl class="contract-facts" id="employee-confirm" hidden>
+                <dt>Mã nhân viên</dt><dd id="confirm-code"></dd>
+                <dt>Họ và tên</dt><dd id="confirm-name"></dd>
+                <dt>Cửa hàng đang làm việc</dt><dd id="confirm-store"></dd>
+                <dt>Chức vụ</dt><dd id="confirm-position"></dd>
+                <dt>CCCD/CMND</dt><dd>Chưa có trong hồ sơ</dd>
+                <dt>Ngày vào làm</dt><dd id="confirm-hire"></dd>
+            </dl>
+            <p class="empty" th:if="${#lists.isEmpty(employees)}">Không có nhân viên đang làm việc trong cửa hàng của bạn.</p>
+        </section>
+
+        <section class="panel recruit-card" th:if="${!#lists.isEmpty(employees)}">
+            <h2>Thông tin hợp đồng</h2>
+            <p class="muted">Số hợp đồng do hệ thống tự sinh khi tạo, bảo đảm không trùng.</p>
+            <div class="recruit-grid">
+                <label for="startDate">
+                    <span class="field-label">Ngày bắt đầu hiệu lực <span class="req">*</span></span>
+                    <input id="startDate" name="startDate" type="date" required
+                           th:value="${form.startDate != null ? #temporals.format(form.startDate, 'yyyy-MM-dd') : ''}">
+                    <span class="field-error" th:if="${#fields.hasErrors('startDate')}" th:errors="*{startDate}"></span>
+                </label>
+                <label for="endDate">
+                    <span class="field-label">Ngày kết thúc</span>
+                    <input id="endDate" name="endDate" type="date"
+                           th:value="${form.endDate != null ? #temporals.format(form.endDate, 'yyyy-MM-dd') : ''}">
+                    <span class="muted">Để trống nếu hợp đồng không quy định ngày kết thúc.</span>
+                    <span class="field-error" id="end-client-error" hidden></span>
+                    <span class="field-error" th:if="${#fields.hasErrors('endDate')}" th:errors="*{endDate}"></span>
+                </label>
+                <label for="jobTitle">
+                    <span class="field-label">Chức danh công việc theo hợp đồng <span class="req">*</span></span>
+                    <input id="jobTitle" type="text" th:field="*{jobTitle}" maxlength="150" required>
+                    <span class="field-error" th:if="${#fields.hasErrors('jobTitle')}" th:errors="*{jobTitle}"></span>
+                </label>
+                <label for="weeklyShiftCount">
+                    <span class="field-label">Số ca làm việc tiêu chuẩn mỗi tuần</span>
+                    <input id="weeklyShiftCount" type="number" th:field="*{weeklyShiftCount}" min="1" max="14" step="1">
+                    <span class="muted">Nhập theo thỏa thuận, từ 1 đến 14. Có thể để trống.</span>
+                    <span class="field-error" th:if="${#fields.hasErrors('weeklyShiftCount')}" th:errors="*{weeklyShiftCount}"></span>
+                </label>
+            </div>
+        </section>
+
+        <section class="panel recruit-card" th:if="${!#lists.isEmpty(employees)}">
+            <h2>Lương và chế độ</h2>
+            <p class="muted">Đơn vị VNĐ. Mức lương trong hợp đồng không làm thay đổi công thức tính lương hiện tại.</p>
+            <div class="recruit-grid">
+                <label for="salary">
+                    <span class="field-label">Mức lương cơ bản <span class="req">*</span></span>
+                    <input id="salary" type="number" th:field="*{salary}" min="0.01" step="0.01" required inputmode="decimal">
+                    <span class="field-error" th:if="${#fields.hasErrors('salary')}" th:errors="*{salary}"></span>
+                </label>
+                <label for="allowance">
+                    <span class="field-label">Phụ cấp</span>
+                    <input id="allowance" type="number" th:field="*{allowance}" min="0" step="0.01" inputmode="decimal">
+                    <span class="field-error" th:if="${#fields.hasErrors('allowance')}" th:errors="*{allowance}"></span>
+                </label>
+                <label for="paymentMethod">
+                    <span class="field-label">Hình thức trả lương <span class="req">*</span></span>
+                    <select id="paymentMethod" th:field="*{paymentMethod}" required>
+                        <option value="">Chọn hình thức</option>
+                        <option th:each="method : ${T(com.example.coffee_hrm.common.enums.ContractPaymentMethod).values()}"
+                                th:value="${method.name()}" th:text="${method.label}"></option>
+                    </select>
+                    <span class="field-error" th:if="${#fields.hasErrors('paymentMethod')}" th:errors="*{paymentMethod}"></span>
+                </label>
+            </div>
+        </section>
+
+        <section class="panel recruit-card" th:if="${!#lists.isEmpty(employees)}">
+            <h2>File hợp đồng đã ký</h2>
+            <label for="contractFile">
+                <span class="field-label">File PDF hoặc DOCX <span class="req">*</span></span>
+                <input id="contractFile" name="contractFile" type="file" required
+                       accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+                <span class="muted">Tối đa 2 MB. Có thể chọn lại file trước khi tạo hợp đồng.</span>
+                <span class="field-error" id="file-client-error" hidden></span>
+                <span class="field-error" th:each="err : ${#fields.globalErrors()}" th:text="${err}"></span>
+            </label>
+            <dl class="contract-facts" id="file-confirm" hidden>
+                <dt>Tên file</dt><dd id="file-name"></dd>
+                <dt>Dung lượng</dt><dd id="file-size"></dd>
+                <dt>Trạng thái</dt><dd id="file-status">Đã chọn, sẽ gửi khi tạo hợp đồng</dd>
+            </dl>
+            <div class="contract-actions">
+                <button class="primary-btn" type="submit"
+                        data-coffee-title="Xác nhận tạo hợp đồng"
+                        data-coffee-confirm="Tạo hợp đồng với file đã ký? Hợp đồng sau khi lưu không sửa và không xóa được."
+                        data-coffee-ok="Tạo hợp đồng"
+                        data-coffee-cancel="Hủy">Tạo hợp đồng</button>
+                <a class="secondary-btn" th:href="@{${listPath}}">Hủy</a>
+            </div>
+        </section>
+    </form>
+    <p th:if="${!formReady or #lists.isEmpty(employees)}"><a class="secondary-btn" th:href="@{${listPath}}">Hủy</a></p>
+</main>
+<script>
+    (function () {
+        var select = document.getElementById("employeeId");
+        var confirmBox = document.getElementById("employee-confirm");
+        var fileInput = document.getElementById("contractFile");
+        var start = document.getElementById("startDate");
+        var end = document.getElementById("endDate");
+        if (select && confirmBox) {
+            select.addEventListener("change", showEmployee);
+            showEmployee();
+        }
+        function showEmployee() {
+            var option = select.options[select.selectedIndex];
+            if (!option || !option.value) {
+                confirmBox.hidden = true;
+                return;
+            }
+            document.getElementById("confirm-code").textContent = option.value;
+            document.getElementById("confirm-name").textContent = option.getAttribute("data-name") || "";
+            document.getElementById("confirm-store").textContent = option.getAttribute("data-store") || "";
+            document.getElementById("confirm-position").textContent = option.getAttribute("data-position") || "";
+            var hire = option.getAttribute("data-hire") || "";
+            document.getElementById("confirm-hire").textContent = hire ? hire.split("-").reverse().join("/") : "—";
+            confirmBox.hidden = false;
+        }
+        function checkEnd() {
+            if (!start || !end) return;
+            var error = document.getElementById("end-client-error");
+            if (end.value && start.value && end.value < start.value) {
+                end.setCustomValidity("Ngày kết thúc không được trước ngày bắt đầu hiệu lực.");
+                error.hidden = false;
+                error.textContent = "Ngày kết thúc không được trước ngày bắt đầu hiệu lực.";
+            } else {
+                end.setCustomValidity("");
+                error.hidden = true;
+            }
+        }
+        if (start && end) {
+            start.addEventListener("change", checkEnd);
+            end.addEventListener("input", checkEnd);
+            checkEnd();
+        }
+        if (fileInput) {
+            fileInput.addEventListener("change", function () {
+                var error = document.getElementById("file-client-error");
+                var box = document.getElementById("file-confirm");
+                var file = fileInput.files && fileInput.files[0];
+                error.hidden = true;
+                fileInput.setCustomValidity("");
+                if (!file) {
+                    box.hidden = true;
+                    return;
+                }
+                var lower = file.name.toLowerCase();
+                if (!lower.endsWith(".pdf") && !lower.endsWith(".docx")) {
+                    fileInput.setCustomValidity("File hợp đồng phải là PDF hoặc DOCX.");
+                    error.hidden = false;
+                    error.textContent = "File hợp đồng phải là PDF hoặc DOCX.";
+                    box.hidden = true;
+                    return;
+                }
+                if (file.size > 2 * 1024 * 1024) {
+                    fileInput.setCustomValidity("File hợp đồng vượt quá dung lượng cho phép (2 MB).");
+                    error.hidden = false;
+                    error.textContent = "File hợp đồng vượt quá dung lượng cho phép (2 MB).";
+                    box.hidden = true;
+                    return;
+                }
+                document.getElementById("file-name").textContent = file.name;
+                document.getElementById("file-size").textContent = file.size + " byte";
+                box.hidden = false;
+            });
+        }
+    })();
+</script>
+</body>
+</html>

@@ -229,15 +229,18 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
         List<AttendanceHistoryView.AttendanceRow> rows = new ArrayList<>();
         BigDecimal totalHours = BigDecimal.ZERO;
         int minuteTotal = 0;
-        boolean hasMinuteTotal = false;
+        boolean hasWorkedTime = false;
         for (Attendance attendance : records) {
             Employee employee = attendance.getEmployee();
             boolean completed = attendance.getCheckOutTime() != null;
-            if (completed && attendance.getWorkingMinutes() != null) {
-                minuteTotal += attendance.getWorkingMinutes();
-                hasMinuteTotal = true;
-            } else if (completed && attendance.getTotalHours() != null) {
-                totalHours = totalHours.add(attendance.getTotalHours());
+            int worked = workedMinutes(
+                    attendance.getCheckInTime(),
+                    attendance.getCheckOutTime(),
+                    attendance.getWorkingMinutes(),
+                    attendance.getTotalHours());
+            if (worked >= 0) {
+                minuteTotal += worked;
+                hasWorkedTime = true;
             }
             String shiftKey = employee.getId() + "|" + attendance.getWorkDate();
             String rowStore = attendance.getStore() != null
@@ -253,12 +256,19 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
                     .scheduledEndLabel(formatTime(attendance.getScheduledEndTime()))
                     .checkInLabel(formatClock(attendance.getWorkDate(), attendance.getCheckInTime()))
                     .checkOutLabel(formatClock(attendance.getWorkDate(), attendance.getCheckOutTime()))
-                    .totalHoursLabel(rowHoursLabel(attendance))
+                    .totalHoursLabel(workedLabel(
+                        attendance.getCheckInTime(),
+                        attendance.getCheckOutTime(),
+                        attendance.getWorkingMinutes(),
+                        attendance.getTotalHours()))
                     .lateLabel(formatMinuteValue(attendance.getLateMinutes()))
                     .earlyLabel(completed ? formatMinuteValue(attendance.getEarlyLeaveMinutes()) : "—")
                     .missingLabel(missingLabel(attendance))
                     .checkInLocation(formatCoordinates(attendance.getCheckInLatitude(), attendance.getCheckInLongitude()))
                     .checkOutLocation(formatCoordinates(attendance.getCheckOutLatitude(), attendance.getCheckOutLongitude()))
+                    .hasCheckInPhoto(hasPhoto(attendance.getCheckInPhotoName()))
+                    .hasCheckOutPhoto(hasPhoto(attendance.getCheckOutPhotoName()))
+                    .photoBase("/attendance/photos")
                     .statusLabel(statusLabel(attendance.getStatus()))
                     .statusCss(statusCss(attendance.getStatus()))
                     .shiftLabel(snapshotShiftLabel(attendance, shifts.getOrDefault(shiftKey, "Chưa phân ca")))
@@ -269,9 +279,14 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
         if (hasTraining) {
             for (TrainingAttendance training : trainingRecords) {
                 rows.add(trainingRow(training));
-                if (training.getCheckOutTime() != null && training.getWorkingMinutes() != null) {
-                    minuteTotal += training.getWorkingMinutes();
-                    hasMinuteTotal = true;
+                int worked = workedMinutes(
+                        training.getCheckInTime(),
+                        training.getCheckOutTime(),
+                        training.getWorkingMinutes(),
+                        null);
+                if (worked >= 0) {
+                    minuteTotal += worked;
+                    hasWorkedTime = true;
                 }
             }
             rows.sort(Comparator
@@ -280,9 +295,14 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
                     .thenComparing(AttendanceHistoryView.AttendanceRow::getAttendanceId, Comparator.nullsLast(Comparator.reverseOrder())));
         }
 
-        String totalLabel = hasMinuteTotal
-                ? formatMinutes(minuteTotal + hoursToMinutes(totalHours))
-                : formatHours(totalHours);
+        String totalLabel = hasWorkedTime ? formatMinutes(minuteTotal) : formatHours(totalHours);
+        List<AttendanceHistoryView.TrainingClassCard> classes = query != null
+                && query.getKind() == AttendanceHistoryKind.TRAINING
+                ? trainingClasses(trainingRecords)
+                : List.of();
+        int trainingLate = classes.stream().mapToInt(AttendanceHistoryView.TrainingClassCard::getLateCount).sum();
+        int trainingAbsent = classes.stream().mapToInt(AttendanceHistoryView.TrainingClassCard::getAbsentCount).sum();
+        int trainingLearners = classes.stream().mapToInt(card -> card.getLearners().size()).sum();
         return AttendanceHistoryView.builder()
                 .employeeId(employeeId)
                 .employeeName(employeeName)
@@ -301,9 +321,95 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
                 .shifts(shiftOptions)
                 .statuses(statusOptions())
                 .rows(rows)
+                .trainingClasses(classes)
+                .trainingLateCount(trainingLate)
+                .trainingAbsentCount(trainingAbsent)
+                .trainingLearnerCount(trainingLearners)
                 .recordCount(rows.size())
                 .totalHours(totalHours)
                 .totalHoursLabel(totalLabel)
+                .build();
+    }
+
+    private List<AttendanceHistoryView.TrainingClassCard> trainingClasses(List<TrainingAttendance> records) {
+        Map<String, List<TrainingAttendance>> grouped = new LinkedHashMap<>();
+        if (records != null) {
+            for (TrainingAttendance row : records) {
+                if (row.getEmployee() == null) {
+                    continue;
+                }
+                grouped.computeIfAbsent(trainingClassKey(row), ignored -> new ArrayList<>()).add(row);
+            }
+        }
+        List<List<TrainingAttendance>> groups = new ArrayList<>(grouped.values());
+        groups.sort(Comparator
+                .comparing((List<TrainingAttendance> group) -> group.getFirst().getWorkDate(), Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(group -> group.getFirst().getScheduledStartTime(), Comparator.nullsLast(Comparator.reverseOrder())));
+        List<AttendanceHistoryView.TrainingClassCard> cards = new ArrayList<>();
+        for (List<TrainingAttendance> group : groups) {
+            TrainingAttendance sample = group.getFirst();
+            int late = 0;
+            int absent = 0;
+            List<AttendanceHistoryView.TrainingLearner> learners = new ArrayList<>();
+            for (TrainingAttendance row : group) {
+                boolean missed = isTrainingAbsent(row);
+                boolean latePerson = !missed && isLateStatus(row.getStatus(), row.getLateMinutes());
+                if (missed) {
+                    absent++;
+                } else if (latePerson) {
+                    late++;
+                }
+                learners.add(toLearner(row, missed, latePerson));
+            }
+            learners.sort(Comparator.comparing(
+                    AttendanceHistoryView.TrainingLearner::getEmployeeName,
+                    Comparator.nullsLast(String::compareToIgnoreCase)));
+            cards.add(AttendanceHistoryView.TrainingClassCard.builder()
+                    .className(sample.getClassName() != null && !sample.getClassName().isBlank()
+                            ? sample.getClassName() : "Đào tạo")
+                    .dateLabel(sample.getWorkDate() == null ? "—" : sample.getWorkDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")))
+                    .scheduleLabel(formatTime(sample.getScheduledStartTime()) + " – " + formatTime(sample.getScheduledEndTime()))
+                    .lateCount(late)
+                    .absentCount(absent)
+                    .learners(learners)
+                    .build());
+        }
+        return cards;
+    }
+
+    private String trainingClassKey(TrainingAttendance row) {
+        Integer classId = row.getTrainingClass() == null ? null : row.getTrainingClass().getId();
+        return (classId == null ? row.getClassName() : classId)
+                + "|" + row.getWorkDate()
+                + "|" + row.getScheduledStartTime()
+                + "|" + row.getScheduledEndTime();
+    }
+
+    private boolean isTrainingAbsent(TrainingAttendance row) {
+        return row.getCheckInTime() == null
+                || row.getStatus() == AttendanceStatus.ABSENT
+                || row.getStatus() == AttendanceStatus.NOT_PARTICIPATED;
+    }
+
+    private AttendanceHistoryView.TrainingLearner toLearner(TrainingAttendance row, boolean absent, boolean late) {
+        Employee employee = row.getEmployee();
+        return AttendanceHistoryView.TrainingLearner.builder()
+                .attendanceId(row.getId())
+                .employeeName(employee.getFullName() == null ? "—" : employee.getFullName())
+                .employeeCode(employee.getId() == null ? "—" : String.format("NV%03d", employee.getId()))
+                .checkInLabel(formatClock(row.getWorkDate(), row.getCheckInTime()))
+                .checkOutLabel(formatClock(row.getWorkDate(), row.getCheckOutTime()))
+                .lateLabel(formatMinuteValue(row.getLateMinutes()))
+                .statusLabel(trainingStatusLabel(row.getStatus()))
+                .late(late)
+                .absent(absent)
+                .present(!absent && !late)
+                .hasCheckInPhoto(hasPhoto(row.getCheckInPhotoName()))
+                .hasCheckOutPhoto(hasPhoto(row.getCheckOutPhotoName()))
+                .checkInPhotoUrl(hasPhoto(row.getCheckInPhotoName()) && row.getId() != null
+                        ? "/attendance/training-photos/" + row.getId() + "/in" : null)
+                .checkOutPhotoUrl(hasPhoto(row.getCheckOutPhotoName()) && row.getId() != null
+                        ? "/attendance/training-photos/" + row.getId() + "/out" : null)
                 .build();
     }
 
@@ -316,6 +422,10 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
             return false;
         }
         return query == null || query.getKind() == null || query.getKind() != AttendanceHistoryKind.SHIFT;
+    }
+
+    private boolean hasPhoto(String name) {
+        return name != null && !name.isBlank();
     }
 
     private String kindValue(AttendanceHistoryQuery query) {
@@ -341,19 +451,34 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
                 .scheduledEndLabel(formatTime(training.getScheduledEndTime()))
                 .checkInLabel(formatClock(training.getWorkDate(), training.getCheckInTime()))
                 .checkOutLabel(formatClock(training.getWorkDate(), training.getCheckOutTime()))
-                .totalHoursLabel(completed && training.getWorkingMinutes() != null
-                        ? formatMinutes(training.getWorkingMinutes())
-                        : "—")
+                .totalHoursLabel(workedLabel(
+                        training.getCheckInTime(),
+                        training.getCheckOutTime(),
+                        training.getWorkingMinutes(),
+                        null))
                 .lateLabel(formatMinuteValue(training.getLateMinutes()))
                 .earlyLabel(completed ? formatMinuteValue(training.getEarlyLeaveMinutes()) : "—")
                 .missingLabel(completed ? formatMinuteValue(training.getEarlyLeaveMinutes()) : "—")
                 .checkInLocation(formatCoordinates(training.getCheckInLatitude(), training.getCheckInLongitude()))
                 .checkOutLocation(formatCoordinates(training.getCheckOutLatitude(), training.getCheckOutLongitude()))
-                .statusLabel(statusLabel(training.getStatus()))
+                .hasCheckInPhoto(hasPhoto(training.getCheckInPhotoName()))
+                .hasCheckOutPhoto(hasPhoto(training.getCheckOutPhotoName()))
+                .photoBase("/attendance/training-photos")
+                .statusLabel(trainingStatusLabel(training.getStatus()))
                 .statusCss(statusCss(training.getStatus()))
                 .shiftLabel(trainingShiftLabel(training))
                 .kindLabel("Chấm công đào tạo")
                 .build();
+    }
+
+    private String trainingStatusLabel(AttendanceStatus status) {
+        if (status == AttendanceStatus.LATE) {
+            return "Check-in muộn";
+        }
+        if (status == AttendanceStatus.LATE_AND_EARLY) {
+            return "Check-in muộn và về sớm";
+        }
+        return statusLabel(status);
     }
 
     private String trainingShiftLabel(TrainingAttendance training) {
@@ -612,14 +737,27 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
         return time == null ? "—" : time.format(TIME_FORMATTER);
     }
 
-    private String rowHoursLabel(Attendance attendance) {
-        if (attendance.getCheckOutTime() == null) {
-            return "—";
+    private String workedLabel(LocalDateTime checkIn, LocalDateTime checkOut,
+                               Integer workingMinutes, BigDecimal totalHours) {
+        int minutes = workedMinutes(checkIn, checkOut, workingMinutes, totalHours);
+        return minutes < 0 ? "—" : formatMinutes(minutes);
+    }
+
+    private int workedMinutes(LocalDateTime checkIn, LocalDateTime checkOut,
+                              Integer workingMinutes, BigDecimal totalHours) {
+        if (checkOut == null) {
+            return -1;
         }
-        if (attendance.getWorkingMinutes() != null) {
-            return formatMinutes(attendance.getWorkingMinutes());
+        if (checkIn != null) {
+            return (int) Math.max(0, ChronoUnit.MINUTES.between(checkIn, checkOut));
         }
-        return formatHours(attendance.getTotalHours());
+        if (workingMinutes != null) {
+            return Math.max(0, workingMinutes);
+        }
+        if (totalHours != null) {
+            return Math.max(0, hoursToMinutes(totalHours));
+        }
+        return -1;
     }
 
     private String missingLabel(Attendance attendance) {
@@ -701,6 +839,9 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
             case LATE -> "Đi muộn";
             case EARLY_LEAVE -> "Về sớm";
             case LATE_AND_EARLY -> "Đi muộn và về sớm";
+            case LATE_CHECKOUT -> "Check-out muộn";
+            case LATE_AND_LATE_CHECKOUT -> "Đi muộn và check-out muộn";
+            case NOT_PARTICIPATED -> "Không tham gia";
             case ABSENT -> "Vắng";
         };
     }
@@ -711,10 +852,10 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
         }
         return switch (status) {
             case PRESENT, ON_TIME -> "status-on-time";
-            case LATE -> "status-late";
+            case LATE, LATE_CHECKOUT -> "status-late";
             case EARLY_LEAVE -> "status-early";
-            case LATE_AND_EARLY -> "status-late-early";
-            case ABSENT -> "status-absent";
+            case LATE_AND_EARLY, LATE_AND_LATE_CHECKOUT -> "status-late-early";
+            case NOT_PARTICIPATED, ABSENT -> "status-absent";
         };
     }
 

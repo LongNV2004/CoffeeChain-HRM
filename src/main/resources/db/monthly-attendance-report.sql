@@ -26,7 +26,7 @@ BEGIN
         CONSTRAINT UQ_MonthlyAttendanceReports_StorePeriod UNIQUE (StoreId, ReportYear, ReportMonth),
         CONSTRAINT FK_MonthlyAttendanceReports_Store FOREIGN KEY (StoreId) REFERENCES dbo.Stores (StoreId),
         CONSTRAINT FK_MonthlyAttendanceReports_User FOREIGN KEY (SubmittedByUserId) REFERENCES dbo.Users (UserId),
-        CONSTRAINT CK_MonthlyAttendanceReports_Status CHECK (Status IN ('DRAFT', 'SUBMITTED')),
+        CONSTRAINT CK_MonthlyAttendanceReports_Status CHECK (Status IN ('DRAFT', 'SUBMITTED', 'APPROVED', 'REVISION')),
         CONSTRAINT CK_MonthlyAttendanceReports_Month CHECK (ReportMonth BETWEEN 1 AND 12),
         CONSTRAINT CK_MonthlyAttendanceReports_Year CHECK (ReportYear BETWEEN 2000 AND 2100)
     );

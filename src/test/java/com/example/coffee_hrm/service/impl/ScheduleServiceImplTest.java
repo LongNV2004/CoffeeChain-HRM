@@ -2,6 +2,7 @@ package com.example.coffee_hrm.service.impl;
 
 import com.example.coffee_hrm.common.enums.ApprovalStatus;
 import com.example.coffee_hrm.common.enums.AssignmentStatus;
+import com.example.coffee_hrm.common.enums.CertificationStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
@@ -12,6 +13,7 @@ import com.example.coffee_hrm.dto.response.WeeklyScheduleView;
 import com.example.coffee_hrm.entity.*;
 import com.example.coffee_hrm.repository.*;
 import com.example.coffee_hrm.security.AuthenticatedUser;
+import com.example.coffee_hrm.service.support.ApprovedLeaveCoverage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -48,6 +50,8 @@ class ScheduleServiceImplTest {
     private WorkAvailabilityRepository workAvailabilityRepository;
     @Mock
     private LeaveRequestRepository leaveRequestRepository;
+    @Mock
+    private ApprovedLeaveCoverage approvedLeaveCoverage;
 
     @InjectMocks
     private ScheduleServiceImpl scheduleService;
@@ -64,9 +68,15 @@ class ScheduleServiceImplTest {
     void setUp() {
         store = Store.builder().id(1).storeName("Store 1").build();
 
-        empManager = Employee.builder().id(10).fullName("Manager A").store(store).status(EmployeeStatus.ACTIVE).build();
-        empTuan = Employee.builder().id(20).fullName("Trần Văn Tuấn").store(store).status(EmployeeStatus.ACTIVE).build();
-        empThu = Employee.builder().id(30).fullName("Lê Thị Thu").store(store).status(EmployeeStatus.ACTIVE).build();
+        empManager = Employee.builder().id(10).fullName("Manager A").store(store).status(EmployeeStatus.ACTIVE)
+                .certificationStatus(CertificationStatus.CERTIFIED).build();
+        empTuan = Employee.builder().id(20).fullName("Trần Văn Tuấn").store(store).status(EmployeeStatus.ACTIVE)
+                .certificationStatus(CertificationStatus.CERTIFIED).build();
+        empThu = Employee.builder().id(30).fullName("Lê Thị Thu").store(store).status(EmployeeStatus.ACTIVE)
+                .certificationStatus(CertificationStatus.CERTIFIED).build();
+
+        lenient().when(approvedLeaveCoverage.index(any(), any(), any()))
+                .thenReturn(new ApprovedLeaveCoverage.WeekIndex(java.util.Set.of(), java.util.Set.of()));
 
         managerUser = AuthenticatedUser.from(buildUser(2, "manager1", RoleName.MANAGER, empManager));
         staffUser = AuthenticatedUser.from(buildUser(3, "tuanth", RoleName.STAFF, empTuan));
@@ -107,6 +117,31 @@ class ScheduleServiceImplTest {
         assertNotNull(saved.getPublishedAt());
         assertEquals(empTuan, saved.getEmployee());
         assertEquals(shiftMorning, saved.getShift());
+    }
+
+    @Test
+    void assignShiftRejectsEmployeeWithoutCertificate() {
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shiftMorning));
+        Employee uncertified = Employee.builder()
+                .id(40)
+                .fullName("Chưa chứng chỉ")
+                .store(store)
+                .status(EmployeeStatus.ACTIVE)
+                .certificationStatus(CertificationStatus.NOTCERTIFIED)
+                .build();
+        when(employeeRepository.lockByIdForLeaveRequest(40)).thenReturn(Optional.of(uncertified));
+
+        AssignShiftRequest request = AssignShiftRequest.builder()
+                .shiftId(1)
+                .employeeId(40)
+                .workDate(VietnamTime.today().plusDays(1))
+                .build();
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> scheduleService.assignShift(request, managerUser));
+        assertTrue(ex.getMessage().contains("chưa có chứng chỉ"));
+        verify(shiftAssignmentRepository, never()).save(any());
     }
 
     @Test

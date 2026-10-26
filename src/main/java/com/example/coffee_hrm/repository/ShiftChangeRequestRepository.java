@@ -14,6 +14,7 @@ import java.util.Optional;
 public interface ShiftChangeRequestRepository extends JpaRepository<ShiftChangeRequest, Integer> {
 
     long countByEmployee_Store_IdAndStatus(Integer storeId, ApprovalStatus status);
+    long countByEmployee_IdAndStatus(Integer employeeId, ApprovalStatus status);
 
     List<ShiftChangeRequest> findByEmployee_IdOrderByRequestDateDesc(Integer employeeId, Pageable pageable);
 

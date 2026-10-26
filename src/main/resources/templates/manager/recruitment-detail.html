@@ -60,7 +60,10 @@
                     <td colspan="8" class="empty">Đề xuất chưa có nhân viên.</td>
                 </tr>
                 <tr th:each="candidate : ${request.candidates}">
-                    <td th:text="${candidate.fullName}">Nguyễn Văn A</td>
+                    <td>
+                        <div th:text="${candidate.fullName}">Nguyễn Văn A</div>
+                        <div class="muted" th:if="${candidate.kindLabel != null}" th:text="${candidate.kindLabel}">Tái tuyển dụng</div>
+                    </td>
                     <td th:text="${candidate.dateOfBirth != null} ? ${#temporals.format(candidate.dateOfBirth, 'dd/MM/yyyy')} : '—'">—</td>
                     <td th:text="${candidate.genderLabel != null ? candidate.genderLabel : '—'}">—</td>
                     <td th:text="${candidate.email}">a@shop.vn</td>

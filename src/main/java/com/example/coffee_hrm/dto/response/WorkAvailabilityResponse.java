@@ -35,4 +35,5 @@ public class WorkAvailabilityResponse {
     private String statusKey;
     private String statusLabel;
     private boolean pending;
+    private String positionName;
 }

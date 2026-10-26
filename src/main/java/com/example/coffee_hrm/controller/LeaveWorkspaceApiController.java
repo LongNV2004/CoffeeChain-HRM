@@ -4,7 +4,9 @@ import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.dto.response.*;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.LeaveReplacementService;
+import java.time.LocalDate;
 import java.util.List;
+import org.springframework.format.annotation.DateTimeFormat;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -29,8 +31,10 @@ public class LeaveWorkspaceApiController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(required = false) ApprovalStatus status,
             @RequestParam(defaultValue = "") String keyword,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             @AuthenticationPrincipal AuthenticatedUser manager) {
-        return run(() -> service.search(manager, page, status, keyword));
+        return run(() -> service.search(manager, page, status, keyword, fromDate, toDate));
     }
 
     @GetMapping("/gaps")

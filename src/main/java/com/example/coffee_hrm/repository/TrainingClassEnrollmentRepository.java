@@ -60,6 +60,16 @@ public interface TrainingClassEnrollmentRepository extends JpaRepository<Trainin
     @Query("""
             SELECT e FROM TrainingClassEnrollment e
             JOIN FETCH e.trainingClass c
+            WHERE e.employee.id = :employeeId
+              AND c.status <> :rejectedStatus
+            ORDER BY c.startDate DESC, c.id DESC
+            """)
+    List<TrainingClassEnrollment> findParticipatedByEmployee(@Param("employeeId") Integer employeeId,
+                                                             @Param("rejectedStatus") TrainingClassStatus rejectedStatus);
+
+    @Query("""
+            SELECT e FROM TrainingClassEnrollment e
+            JOIN FETCH e.trainingClass c
             LEFT JOIN FETCH e.employee
             LEFT JOIN FETCH c.store
             LEFT JOIN FETCH c.trainer trainerUser

@@ -104,19 +104,6 @@ public interface TrainingClassRepository extends JpaRepository<TrainingClass, In
             JOIN FETCH c.createdBy cb
             LEFT JOIN FETCH cb.employee
             LEFT JOIN FETCH c.approvedBy
-            WHERE c.status = :status
-            ORDER BY c.createdAt ASC
-            """)
-    List<TrainingClass> findByStatusWithDetails(@Param("status") TrainingClassStatus status);
-
-    @Query("""
-            SELECT c FROM TrainingClass c
-            LEFT JOIN FETCH c.store
-            LEFT JOIN FETCH c.trainer trainerUser
-            LEFT JOIN FETCH trainerUser.employee
-            JOIN FETCH c.createdBy cb
-            LEFT JOIN FETCH cb.employee
-            LEFT JOIN FETCH c.approvedBy
             ORDER BY c.createdAt DESC
             """)
     List<TrainingClass> findAllWithDetails();
@@ -132,26 +119,6 @@ public interface TrainingClassRepository extends JpaRepository<TrainingClass, In
             WHERE c.id = :id
             """)
     Optional<TrainingClass> findByIdWithDetails(@Param("id") Integer id);
-
-    @Query("""
-            SELECT c FROM TrainingClass c
-            LEFT JOIN c.store store
-            LEFT JOIN c.trainer trainerUser
-            WHERE (
-                    c.endDate > :today
-                    OR (c.endDate = :today AND (c.endTime IS NULL OR cast(c.endTime as LocalTime) > cast(:currentTime as LocalTime)))
-                  )
-              AND (
-                    (c.trainingType = :storeType AND store.id = :storeId)
-                    OR trainerUser.id = :trainerUserId
-                  )
-            ORDER BY c.createdAt DESC
-            """)
-    List<TrainingClass> findOpenRequestsForManager(@Param("storeId") Integer storeId,
-                                                   @Param("trainerUserId") Integer trainerUserId,
-                                                   @Param("storeType") TrainingType storeType,
-                                                   @Param("today") LocalDate today,
-                                                   @Param("currentTime") LocalTime currentTime);
 
     @Query("""
             SELECT c FROM TrainingClass c
@@ -236,8 +203,6 @@ public interface TrainingClassRepository extends JpaRepository<TrainingClass, In
                                                      @Param("date") LocalDate date,
                                                      @Param("keyword") String keyword,
                                                      Pageable pageable);
-
-    long countByStatus(TrainingClassStatus status);
 
     boolean existsByClassNameIgnoreCaseAndStatusNotAndEndDateGreaterThanEqual(
             String className,

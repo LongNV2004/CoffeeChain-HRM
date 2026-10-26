@@ -200,11 +200,8 @@ th{color:var(--ink-soft);font-weight:500;}
 .recruit-summary{max-width:720px;}
 .table-scroll{overflow-x:auto;margin-top:12px;}
 .nowrap{white-space:nowrap;}
-.candidate-decide{display:grid;gap:8px;min-width:190px;}
-.candidate-decide textarea{
-  width:100%;min-height:52px;font:inherit;color:var(--espresso);
-  border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;
-}
+.candidate-decide{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+.candidate-decide form{margin:0;}
 .badge-partial{background:#E7EEF8;color:#2C4A73;}
 .recruit-empty{margin:0;}
 .recruit-form{gap:16px;max-width:960px;margin-top:0;}
@@ -252,6 +249,21 @@ th{color:var(--ink-soft);font-weight:500;}
 .badge-manager{background:#F4E2CF;color:var(--caramel-dark);font-weight:600;}
 tr.row-highlight td{background:var(--cream);}
 td form{margin:0;}
+.resign-date{min-width:9.5rem;font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;color:var(--espresso);background:#fff;}
+.resign-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;}
+.resign-bulk{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0;}
+#item-list{display:grid;gap:12px;}
+#item-list .candidate-card{padding:14px 16px;}
+#item-list .candidate-card h3{margin:0 0 4px;font-size:16px;}
+#item-list .candidate-card p{margin:0 0 6px;}
+
+.store-inactive-card { max-width:560px; margin:48px auto 0; }
+.store-inactive-card h1 { margin:8px 0 12px; }
+.store-inactive-card .form-actions { margin-top:18px; flex-wrap:wrap; }
+.store-inactive-card form { margin:0; }
+
+.leave-admin-stats{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:16px}
+.leave-admin-stats span{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 14px}
 
 @media (max-width:900px){
   .wrap,.dash-nav .wrap,.dash-main{padding-left:22px;padding-right:22px;}
@@ -262,4 +274,27 @@ td form{margin:0;}
   .entry-actions .primary-btn,.entry-actions .ghost-btn,
   .recruit-submit-bar .primary-btn,.recruit-submit-bar .ghost-btn{width:100%;}
   .recruit-toast{right:16px;left:16px;bottom:16px;max-width:none;}
+}
+
+/* Hai trang tạo đề xuất chiếm hết vùng nội dung sau sidebar. */
+body:has(.coffee-sidebar) main.wrap.recruit-page{
+  width:100%;
+  max-width:none;
+  min-width:0;
+  margin:0;
+  padding:4px 12px 48px;
+  box-sizing:border-box;
+}
+body:has(.coffee-sidebar) main.wrap.recruit-page .welcome,
+body:has(.coffee-sidebar) main.wrap.recruit-page .recruit-form,
+body:has(.coffee-sidebar) main.wrap.recruit-page .recruit-card{
+  width:100%;
+  max-width:none;
+  min-width:0;
+  box-sizing:border-box;
+}
+body:has(.coffee-sidebar) main.wrap.recruit-page .candidate-table{width:100%;}
+body:has(.coffee-sidebar) main.wrap.recruit-page #item-list{width:100%;min-width:0;}
+@media (max-width:720px){
+  body:has(.coffee-sidebar) main.wrap.recruit-page{padding:8px 16px 40px;}
 }

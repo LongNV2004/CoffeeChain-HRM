@@ -3,144 +3,196 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cấu hình số lượng ca — CoffeeHRM</title>
+    <title>Cấu hình ca làm việc — CoffeeHRM</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" th:href="@{/css/ManagerDashboard.css}">
-    <link rel="stylesheet" th:href="@{/css/StaffWork.css}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/slot-config.css}">
 </head>
 <body>
 <header th:replace="~{fragments/navbar :: manager('slot-limits')}"></header>
 
-<main class="wrap dash-main">
-    <section class="welcome">
-        <div class="eyebrow">Cửa hàng — Manager</div>
-        <h1>Cấu hình số lượng nhân viên trong ca</h1>
-        <p th:if="${displayName}" th:text="${displayName}">Manager</p>
-    </section>
+<main class="wrap dash-main slot-config-page">
+    <div class="slot-config">
+        <header class="sc-head">
+            <nav class="sc-crumb" aria-label="Đường dẫn">
+                <span>Quản lý cửa hàng</span>
+                <span aria-hidden="true">/</span>
+                <a th:href="@{/schedule/manager}">Lịch làm việc</a>
+                <span aria-hidden="true">/</span>
+                <span>Cấu hình ca</span>
+            </nav>
+            <h1>Cấu hình ca làm việc</h1>
+            <p>Phân bổ số lượng nhân viên theo từng vị trí cho mỗi ca và mỗi ngày trong tuần.</p>
+        </header>
 
-    <p class="flash success" th:if="${successMessage}" th:text="${successMessage}">OK</p>
-    <p class="flash warning" th:if="${warningMessage}" th:text="${warningMessage}">Cảnh báo</p>
-    <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}">Error</p>
-    <p class="flash error" th:if="${pageError}" th:text="${pageError}">Error</p>
+        <p class="sc-flash success" th:if="${successMessage}" th:text="${successMessage}">Đã lưu</p>
+        <p class="sc-flash warn" th:if="${warningMessage}" th:text="${warningMessage}">Cảnh báo</p>
+        <p class="sc-flash error" th:if="${errorMessage}" th:text="${errorMessage}">Lỗi</p>
+        <p class="sc-flash error" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
 
-    <section class="panel" th:if="${availabilityGrid != null}">
-        <div class="panel-head">
-            <div>
-                <h2 th:text="${availabilityGrid.storeName}">Store</h2>
-                <p>Giới hạn theo thứ và ca, áp dụng cho các tuần sau</p>
+        <div class="sc-toolbar" th:if="${weekStart != null}">
+            <div class="sc-week">
+                <a class="sc-icon-btn" th:href="@{/availability/manager/limits(week=${previousWeek})}" aria-label="Tuần trước">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6 9 12l6 6"/></svg>
+                </a>
+                <strong th:text="${#temporals.format(weekStart, 'dd/MM') + ' – ' + #temporals.format(weekStart.plusDays(6), 'dd/MM/yyyy')}">12/10 – 18/10/2026</strong>
+                <a class="sc-icon-btn" th:href="@{/availability/manager/limits(week=${nextWeek})}" aria-label="Tuần tiếp theo">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+                </a>
+                <a class="sc-text-btn" th:href="@{/availability/manager/limits(week=${currentWeek})}">Tuần hiện tại</a>
             </div>
-            <div class="bulk-actions">
-                <a class="secondary-btn" th:href="@{/availability/manager}">Đăng kí lịch làm việc</a>
+            <div class="sc-filters" role="group" aria-label="Lọc ca">
+                <button type="button" class="is-on" data-shift-filter="all">Tất cả</button>
+                <button type="button" data-shift-filter="sáng">Ca sáng</button>
+                <button type="button" data-shift-filter="chiều">Ca chiều</button>
+                <button type="button" data-shift-filter="tối">Ca tối</button>
             </div>
+            <a class="sc-text-btn" th:href="@{/availability/manager/limits(week=${weekStart})}">Làm mới</a>
         </div>
-        <p>
-            Mỗi ô là một thứ và một ca của cửa hàng này. Giới hạn giữ nguyên cho các tuần và tháng sau
-            cho đến khi bạn đổi, kể cả khi các ca cùng tên. Nếu hạ giới hạn xuống thấp hơn số đăng ký
-            đã duyệt và đang chờ, đăng ký cũ được giữ nguyên và ô đó tạm ngưng nhận thêm.
+
+        <section class="sc-stats" th:if="${availabilityGrid != null}" aria-label="Tổng quan tuần">
+            <article class="sc-stat">
+                <span class="sc-stat-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                </span>
+                <div>
+                    <strong th:text="${configTotals.weeklyDemand}">0</strong>
+                    <span>Tổng nhu cầu nhân sự trong tuần</span>
+                </div>
+            </article>
+            <article class="sc-stat">
+                <span class="sc-stat-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="3"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </span>
+                <div>
+                    <strong th:text="${eligibleStaff}">0</strong>
+                    <span>Nhân viên đủ chứng chỉ để đăng ký</span>
+                </div>
+            </article>
+            <article class="sc-stat">
+                <span class="sc-stat-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M8 2v4M16 2v4M3 10h18M5 6h14a2 2 0 0 1 2 2v12H3V8a2 2 0 0 1 2-2z"/></svg>
+                </span>
+                <div>
+                    <strong th:text="${configTotals.registrations}">0</strong>
+                    <span>Tổng lượt đăng ký ca trong tuần</span>
+                </div>
+            </article>
+            <article class="sc-stat" th:classappend="${configTotals.positionShortfall > 0 ? ' is-alert' : ''}">
+                <span class="sc-stat-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M10.3 4.8 2.6 18a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 4.8a2 2 0 0 0-3.4 0z"/></svg>
+                </span>
+                <div>
+                    <strong th:text="${configTotals.positionShortfall}">0</strong>
+                    <span th:text="${configTotals.shortfallText}">Không có vị trí thiếu</span>
+                </div>
+            </article>
+        </section>
+
+        <p class="sc-note" th:if="${availabilityGrid != null and activePositions != null and #lists.isEmpty(activePositions)}">
+            Chưa có kỹ năng đào tạo đang hoạt động để chọn vị trí.
         </p>
-        <p>
-            Mỗi ca được cấu hình từ 1 đến
-            <strong th:text="${staffSlotCapacity}">0</strong>
-            nhân viên Staff đang làm việc tại cửa hàng. Không tính quản lý, admin, nhân viên nghỉ phép hoặc đã nghỉ việc.
-            Giới hạn tính riêng cho từng ca, không cộng các ca lại.
+        <p class="sc-note" th:if="${staffSlotCapacity == 0}">
+            Cửa hàng chưa có nhân viên Staff đang làm việc nên chưa thể lưu chỉ tiêu lớn hơn 0.
         </p>
-        <p class="flash error" th:if="${staffSlotCapacity == 0}">
-            Cửa hàng chưa có nhân viên Staff. Hãy thêm nhân viên trước khi cấu hình sức chứa lớn hơn 0.
-        </p>
-        <p class="muted" th:if="${#lists.isEmpty(availabilityGrid.shiftRows)}">
+        <p class="sc-empty" th:if="${availabilityGrid != null and #lists.isEmpty(availabilityGrid.shiftRows)}">
             Cửa hàng chưa có ca làm việc.
         </p>
 
-        <div class="availability-grid-wrap" th:if="${!#lists.isEmpty(availabilityGrid.shiftRows)}">
-            <table class="availability-grid manager-view">
-                <thead>
-                <tr>
-                    <th class="shift-col">Ca làm việc</th>
-                    <th th:each="day : ${availabilityGrid.days}">
-                        <div class="day-name" th:text="${day.dayOfWeekName}">Thứ 2</div>
-                        <div class="day-date" th:text="${day.formattedDate}">Mỗi tuần</div>
-                    </th>
-                </tr>
-                </thead>
-                <tbody>
-                <tr th:each="row : ${availabilityGrid.shiftRows}">
-                    <td class="shift-cell">
-                        <div class="shift-title" th:text="${row.shiftName}">Ca sáng</div>
-                        <div class="shift-hours" th:text="${row.formattedTime}">08:00 – 12:00</div>
-                    </td>
-                    <td th:each="cell : ${row.dayCells}" class="slot-cell proposal-cell">
-                        <form class="limit-form" th:action="@{/availability/manager/limits}" method="post">
-                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                            <input type="hidden" name="shiftId" th:value="${row.shiftId}">
-                            <input type="hidden" name="dayOfWeek" th:value="${cell.dayOfWeek}">
-                            <label>
-                                Tối đa
-                                <input type="number" name="maxEmployees" step="1" required
-                                       th:min="${staffSlotCapacity > 0 ? 1 : 0}"
-                                       th:max="${staffSlotCapacity}"
-                                       th:value="${cell.maxEmployees}"
-                                       th:disabled="${staffSlotCapacity == 0}"
-                                       th:attr="aria-label=${'Số nhân viên tối đa ' + cell.dayOfWeekName + ' ' + row.shiftName}">
-                            </label>
-                            <span class="muted">Staff hiện có: <strong th:text="${staffSlotCapacity}">0</strong></span>
-                            <p class="slot-warning limit-client-error" hidden></p>
-                            <p class="slot-warning"
-                               th:if="${cell.configured and cell.maxEmployees != null and cell.maxEmployees > staffSlotCapacity}">
-                                Sức chứa đang lưu (<strong th:text="${cell.maxEmployees}">11</strong>)
-                                lớn hơn số nhân viên Staff hiện có
-                                (<strong th:text="${staffSlotCapacity}">10</strong>).
-                                Hãy điều chỉnh khi cập nhật. Cấu hình cũ, đăng ký đã duyệt và lịch làm việc được giữ nguyên.
-                            </p>
-                            <span>Đã duyệt: <strong th:text="${cell.approvedCount}">0</strong></span>
-                            <span>Chờ duyệt: <strong th:text="${cell.pendingCount}">0</strong></span>
-                            <span>Còn lại: <strong th:text="${cell.remainingText}">—</strong></span>
-                            <span class="status-badge" th:classappend="${cell.slotStatusKey}" th:text="${cell.slotStatusLabel}">Còn chỗ</span>
-                            <p class="slot-warning" th:if="${cell.overCapacity}" th:text="${cell.registrationHint}">
-                                Giới hạn thấp hơn số đăng ký hiện tại.
-                            </p>
-                            <button class="limit-save" type="submit" th:disabled="${staffSlotCapacity == 0}">Cập nhật</button>
-                        </form>
-                    </td>
-                </tr>
-                </tbody>
-            </table>
-        </div>
-    </section>
+        <form id="slotConfigForm" method="post" th:action="@{/availability/manager/limits/batch}"
+              th:if="${availabilityGrid != null and !#lists.isEmpty(availabilityGrid.shiftRows)}"
+              th:attr="data-staff=${staffSlotCapacity}">
+            <input type="hidden" name="weekStart" th:value="${weekStart}">
+            <p class="sc-form-error" id="slotConfigError" hidden></p>
+
+            <section class="sc-shift" th:each="row, rowStat : ${availabilityGrid.shiftRows}"
+                     th:attr="data-shift-name=${#strings.toLowerCase(row.shiftName)}">
+                <header class="sc-shift-head">
+                    <h2 th:text="${row.shiftName}">Ca sáng</h2>
+                    <span th:text="${row.formattedTime}">07:00 – 12:00</span>
+                </header>
+                <div class="sc-day-scroll">
+                    <div class="sc-day-grid">
+                        <article class="sc-day" th:each="cell, cellStat : ${row.dayCells}"
+                                 th:with="idx=${rowStat.index * 7 + cellStat.index},ratio=${cell.configured and cell.maxEmployees != null and cell.maxEmployees > 0 ? T(java.lang.Math).min(100, cell.registeredCount * 100 / cell.maxEmployees) : 0}"
+                                 th:attr="data-configured=${cell.positionsConfigured},data-registered=${cell.registeredCount}">
+                            <div class="sc-day-top">
+                                <div>
+                                    <strong th:text="${cell.dayOfWeekName}">Thứ 2</strong>
+                                    <span th:text="${#temporals.format(cell.date, 'dd/MM')}">12/10</span>
+                                </div>
+                                <span class="sc-badge"
+                                      th:classappend="${cell.staffingStatusKey == 'enough' ? 'is-enough' : (cell.staffingStatusKey == 'short' ? (cell.awaitingApproval ? 'is-warn' : 'is-short') : 'is-muted')}"
+                                      th:text="${cell.staffingStatusKey == 'enough' ? 'Đủ nhân sự' : (cell.staffingStatusKey == 'short' ? (cell.awaitingApproval ? 'Cần bổ sung' : 'Thiếu nhân sự') : 'Chưa cấu hình')}">
+                                    Thiếu nhân sự
+                                </span>
+                            </div>
+                            <p class="sc-demand">Tổng nhu cầu <strong class="js-demand" th:text="${cell.maxEmployees != null ? cell.maxEmployees : 0}">0</strong></p>
+                            <p class="sc-ratio">Đã đăng ký <strong th:text="${cell.registeredCount}">0</strong>/<span class="js-demand-text" th:text="${cell.maxEmployees != null ? cell.maxEmployees : 0}">0</span>
+                                · <span class="js-ratio" th:text="${ratio}">0</span>%</p>
+                            <div class="sc-bar" th:classappend="${cell.staffingStatusKey}">
+                                <span th:style="|width: ${ratio}%|"></span>
+                            </div>
+                            <p class="sc-card-error" hidden></p>
+
+                            <input type="hidden" class="js-meta" th:value="${row.shiftId}" th:attr="data-name=|slots[${idx}].shiftId|">
+                            <input type="hidden" class="js-meta" th:value="${cell.dayOfWeek}" th:attr="data-name=|slots[${idx}].dayOfWeek|">
+                            <input type="hidden" class="js-total" th:value="${cell.maxEmployees != null ? cell.maxEmployees : 0}"
+                                   th:attr="data-name=|slots[${idx}].maxEmployees|,data-initial=${cell.maxEmployees != null ? cell.maxEmployees : 0}">
+
+                            <details class="sc-details" th:open="${cell.positionsConfigured}">
+                                <summary>Nhu cầu theo vị trí</summary>
+                                <div class="sc-positions" th:if="${activePositions != null and !#lists.isEmpty(activePositions)}">
+                                    <div class="sc-pos" th:each="skill : ${activePositions}"
+                                         th:with="need=${cell.requiredCountOf(skill.id) ?: 0},activity=${cell.activityOf(skill.id)},eligible=${eligibleBySkill != null and eligibleBySkill.get(skill.id) != null ? eligibleBySkill.get(skill.id) : 0}"
+                                         th:classappend="${need == 0 ? ' is-hidden' : ''}"
+                                         th:attr="data-skill=${skill.id},data-skill-name=${skill.name},data-approved=${activity.approved},data-eligible=${eligible}">
+                                        <div class="sc-pos-head">
+                                            <strong th:text="${skill.name}">Pha chế</strong>
+                                            <button type="button" class="sc-remove" th:attr="aria-label=|Xóa ${skill.name}|">Xóa</button>
+                                        </div>
+                                        <div class="sc-stepper">
+                                            <button type="button" class="js-step" data-step="-1" aria-label="Giảm">−</button>
+                                            <input class="js-qty" type="text" inputmode="numeric" th:value="${need}"
+                                                   th:attr="data-initial=${need},data-name=|slots[${idx}].requiredCounts[${skill.id}]|,aria-label=|Số ${skill.name}|">
+                                            <button type="button" class="js-step" data-step="1" aria-label="Tăng">+</button>
+                                        </div>
+                                        <ul class="sc-pos-meta">
+                                            <li>Đủ điều kiện <b th:text="${eligible}">0</b></li>
+                                            <li>Đã đăng ký <b th:text="${activity.registered}">0</b></li>
+                                            <li>Chờ duyệt <b th:text="${activity.pending}">0</b></li>
+                                            <li>Đã duyệt <b th:text="${activity.approved}">0</b></li>
+                                            <li class="js-gap" th:classappend="${need > activity.approved ? ' is-short' : ''}">Còn thiếu <b th:text="${need > activity.approved ? need - activity.approved : 0}">0</b></li>
+                                        </ul>
+                                    </div>
+                                    <label class="sc-add">
+                                        Thêm vị trí
+                                        <select class="js-add">
+                                            <option value="">Chọn vị trí</option>
+                                            <option th:each="skill : ${activePositions}" th:value="${skill.id}" th:text="${skill.name}">Pha chế</option>
+                                        </select>
+                                    </label>
+                                </div>
+                            </details>
+                        </article>
+                    </div>
+                </div>
+            </section>
+
+            <div class="sc-summary" th:if="${configTotals != null}">
+                <div class="sc-summary-stats">
+                    <p>Tổng nhu cầu trong tuần <strong id="liveDemand" th:text="${configTotals.weeklyDemand}">0</strong></p>
+                    <p>Tổng chỉ tiêu theo vị trí <strong id="livePositions" th:text="${configTotals.positionTarget}">0</strong></p>
+                    <p>Vị trí đang thiếu <strong id="liveShort" th:text="${configTotals.shortfallText}">Không có vị trí thiếu</strong></p>
+                </div>
+                <div class="sc-summary-actions">
+                    <a class="sc-text-btn" th:href="@{/availability/manager/limits(week=${weekStart})}">Hủy thay đổi</a>
+                    <button class="sc-save" type="submit" th:disabled="${staffSlotCapacity == 0}">Lưu cấu hình</button>
+                </div>
+            </div>
+        </form>
+    </div>
 </main>
-<script th:if="${availabilityGrid != null}" th:inline="javascript">
-(function () {
-    var staffCount = /*[[${staffSlotCapacity}]]*/ 0;
-    var overLimit = "Số lượng nhân viên trong ca không được vượt quá số nhân viên Staff hiện có tại cửa hàng ("
-        + staffCount + " nhân viên).";
-    var mustBePositive = "Vui lòng nhập số lượng nhân viên lớn hơn 0.";
-    document.querySelectorAll(".limit-form").forEach(function (form) {
-        var input = form.querySelector('input[name="maxEmployees"]');
-        var button = form.querySelector(".limit-save");
-        var error = form.querySelector(".limit-client-error");
-        if (!input || !button || !error || input.disabled) {
-            return;
-        }
-        function validate(showMessage) {
-            var raw = input.value.trim();
-            var message = "";
-            if (raw !== "" && (!/^\d+$/.test(raw) || Number(raw) < 1)) {
-                message = mustBePositive;
-            } else if (raw !== "" && Number(raw) > staffCount) {
-                message = overLimit;
-            }
-            var blocked = message !== "" || raw === "";
-            error.hidden = !showMessage || message === "";
-            error.textContent = showMessage ? message : "";
-            input.classList.toggle("is-invalid", showMessage && message !== "");
-            button.disabled = blocked;
-        }
-        var raw = input.value.trim();
-        var alreadyInvalid = raw !== "" && (!/^\d+$/.test(raw) || Number(raw) < 1 || Number(raw) > staffCount);
-        validate(alreadyInvalid);
-        input.addEventListener("input", function () { validate(true); });
-    });
-})();
-</script>
+<script th:src="@{/js/slot-config.js}"></script>
 </body>
 </html>

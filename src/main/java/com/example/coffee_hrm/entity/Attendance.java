@@ -79,6 +79,12 @@ public class Attendance {
     @Column(name = "CheckOutLongitude", precision = 10, scale = 7)
     private BigDecimal checkOutLongitude;
 
+    @Column(name = "CheckInPhotoName", length = 255)
+    private String checkInPhotoName;
+
+    @Column(name = "CheckOutPhotoName", length = 255)
+    private String checkOutPhotoName;
+
     @Column(name = "WorkingMinutes")
     private Integer workingMinutes;
 

@@ -29,7 +29,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@ToString(exclude = {"request", "reviewedBy", "createdEmployee"})
+@ToString(exclude = {"request", "reviewedBy", "createdEmployee", "rehireEmployee"})
 public class RecruitmentCandidate {
 
     @Id
@@ -79,6 +79,10 @@ public class RecruitmentCandidate {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "CreatedEmployeeId")
     private Employee createdEmployee;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "RehireEmployeeId")
+    private Employee rehireEmployee;
 
     @CreationTimestamp
     @Column(name = "CreatedAt", nullable = false, updatable = false)

@@ -60,6 +60,8 @@ class AttendanceServiceImplTest {
     private EmployeeRepository employeeRepository;
     @Mock
     private StoreRepository storeRepository;
+    @Mock
+    private AttendancePhotoStore photoStore;
 
     private AttendancePolicyProperties policy;
     private AttendanceServiceImpl attendanceService;
@@ -81,6 +83,7 @@ class AttendanceServiceImplTest {
                 shiftAssignmentRepository,
                 employeeRepository,
                 storeRepository,
+                photoStore,
                 policy);
 
         store = Store.builder().id(1).storeName("Cửa hàng 1").latitude(LAT).longitude(LNG).build();
@@ -119,6 +122,27 @@ class AttendanceServiceImplTest {
         assertEquals(0, saved.getLateMinutes());
         assertEquals(AttendanceStatus.PRESENT, saved.getStatus());
         assertNull(saved.getCheckOutTime());
+    }
+
+    @Test
+    void checkInWithPhotoStoresTheFileName() {
+        stubShift(List.of(morningAssignment));
+        when(attendanceRepository.findByEmployee_IdAndShift_IdAndWorkDate(20, 1, WORK_DATE))
+                .thenReturn(Optional.empty());
+        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
+        when(attendanceRepository.saveAndFlush(any())).thenAnswer(invocation -> {
+            Attendance attendance = invocation.getArgument(0);
+            attendance.setId(101);
+            return attendance;
+        });
+        byte[] jpeg = new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF};
+        when(photoStore.save(101, "in", jpeg)).thenReturn("101-in.jpg");
+
+        attendanceService.checkIn(staffUser, here(10), WORK_DATE.atTime(7, 30), jpeg);
+
+        ArgumentCaptor<Attendance> captor = ArgumentCaptor.forClass(Attendance.class);
+        verify(attendanceRepository).save(captor.capture());
+        assertEquals("101-in.jpg", captor.getValue().getCheckInPhotoName());
     }
 
     @Test
@@ -249,6 +273,36 @@ class AttendanceServiceImplTest {
     }
 
     @Test
+    void checkOutBeforeTwoHoursAfterShiftStartIsRejected() {
+        Attendance open = openAttendance(0);
+        open.setCheckInTime(WORK_DATE.atTime(7, 0));
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
+        when(attendanceRepository.findOpenByEmployeeId(20)).thenReturn(List.of(open));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> attendanceService.checkOut(staffUser, here(10), WORK_DATE.atTime(9, 59)));
+
+        assertEquals(AttendanceServiceImpl.CHECKOUT_TOO_SOON, ex.getMessage());
+        assertNull(open.getCheckOutTime());
+        verify(attendanceRepository, never()).save(any());
+    }
+
+    @Test
+    void checkOutIsAllowedTwoHoursAfterShiftStart() {
+        Attendance open = openAttendance(0);
+        open.setCheckInTime(WORK_DATE.atTime(7, 0));
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
+        when(attendanceRepository.findOpenByEmployeeId(20)).thenReturn(List.of(open));
+        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
+
+        attendanceService.checkOut(staffUser, here(10), WORK_DATE.atTime(10, 0));
+
+        assertEquals(WORK_DATE.atTime(10, 0), open.getCheckOutTime());
+        assertEquals(180, open.getWorkingMinutes());
+        verify(attendanceRepository).save(open);
+    }
+
+    @Test
     void checkOutUpdatesTheSameRecordAndStoresEarlyLeave() {
         Attendance open = openAttendance(0);
         when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
@@ -279,6 +333,35 @@ class AttendanceServiceImplTest {
         assertEquals(540, open.getWorkingMinutes());
         assertEquals(0, open.getEarlyLeaveMinutes());
         assertEquals(AttendanceStatus.PRESENT, open.getStatus());
+    }
+
+    @Test
+    void checkOutTwoHoursAfterShiftEndIsLateCheckout() {
+        Attendance open = openAttendance(0);
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
+        when(attendanceRepository.findOpenByEmployeeId(20)).thenReturn(List.of(open));
+        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
+
+        attendanceService.checkOut(staffUser, here(10), WORK_DATE.atTime(18, 59));
+        assertEquals(AttendanceStatus.PRESENT, open.getStatus());
+
+        open.setCheckOutTime(null);
+        attendanceService.checkOut(staffUser, here(10), WORK_DATE.atTime(19, 0));
+
+        assertEquals(AttendanceStatus.LATE_CHECKOUT, open.getStatus());
+        assertEquals(0, open.getEarlyLeaveMinutes());
+    }
+
+    @Test
+    void lateArrivalAndLateCheckoutAreBothRecorded() {
+        Attendance open = openAttendance(30);
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
+        when(attendanceRepository.findOpenByEmployeeId(20)).thenReturn(List.of(open));
+        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
+
+        attendanceService.checkOut(staffUser, here(10), WORK_DATE.atTime(19, 0));
+
+        assertEquals(AttendanceStatus.LATE_AND_LATE_CHECKOUT, open.getStatus());
     }
 
     @Test
@@ -538,6 +621,99 @@ class AttendanceServiceImplTest {
         attendanceService.markAbsences(WORK_DATE, WORK_DATE.atTime(10, 0));
 
         verify(attendanceRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void checkInTargetsTheRequestedSlotWhenAnotherSlotIsAlsoEligible() {
+        Shift afternoon = Shift.builder()
+                .id(2).shiftName("Ca chiều").store(store)
+                .startTime(LocalTime.of(13, 0)).endTime(LocalTime.of(17, 0))
+                .build();
+        ShiftAssignment afternoonAssignment = ShiftAssignment.builder()
+                .id(10).employee(staffEmployee).shift(afternoon).workDate(WORK_DATE)
+                .status(AssignmentStatus.ASSIGNED).isPublished(true)
+                .build();
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
+        when(shiftAssignmentRepository.findByIdWithDetails(10)).thenReturn(Optional.of(afternoonAssignment));
+        when(attendanceRepository.findByEmployee_IdAndShift_IdAndWorkDate(20, 2, WORK_DATE))
+                .thenReturn(Optional.empty());
+        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
+        when(attendanceRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        attendanceService.checkIn(staffUser, here(10), WORK_DATE.atTime(13, 30), null, 10);
+
+        ArgumentCaptor<Attendance> captor = ArgumentCaptor.forClass(Attendance.class);
+        verify(attendanceRepository).saveAndFlush(captor.capture());
+        Attendance saved = captor.getValue();
+        assertEquals(2, saved.getShift().getId());
+        assertEquals("Ca chiều", saved.getScheduledShiftName());
+        assertEquals(LocalTime.of(13, 0), saved.getScheduledStartTime());
+        assertEquals(LocalTime.of(17, 0), saved.getScheduledEndTime());
+        assertEquals(30, saved.getLateMinutes());
+        assertEquals(AttendanceStatus.LATE, saved.getStatus());
+    }
+
+    @Test
+    void checkInRejectsASlotThatBelongsToSomeoneElse() {
+        Employee other = Employee.builder().id(99).fullName("Người khác").store(store).build();
+        ShiftAssignment foreign = ShiftAssignment.builder()
+                .id(11).employee(other).shift(morning).workDate(WORK_DATE)
+                .status(AssignmentStatus.ASSIGNED).isPublished(true)
+                .build();
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
+        when(shiftAssignmentRepository.findByIdWithDetails(11)).thenReturn(Optional.of(foreign));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> attendanceService.checkIn(staffUser, here(10), WORK_DATE.atTime(8, 0), null, 11));
+
+        assertEquals(AttendanceServiceImpl.SLOT_FORBIDDEN, ex.getMessage());
+        verify(attendanceRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void checkInRejectsAnUnpublishedSlot() {
+        morningAssignment.setIsPublished(false);
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
+        when(shiftAssignmentRepository.findByIdWithDetails(9)).thenReturn(Optional.of(morningAssignment));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> attendanceService.checkIn(staffUser, here(10), WORK_DATE.atTime(8, 0), null, 9));
+
+        assertEquals(AttendanceServiceImpl.NO_SHIFT, ex.getMessage());
+        verify(attendanceRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void checkOutClosesOnlyTheChosenSlot() {
+        Shift afternoon = Shift.builder()
+                .id(2).shiftName("Ca chiều").store(store)
+                .startTime(LocalTime.of(13, 0)).endTime(LocalTime.of(17, 0))
+                .build();
+        ShiftAssignment afternoonAssignment = ShiftAssignment.builder()
+                .id(10).employee(staffEmployee).shift(afternoon).workDate(WORK_DATE)
+                .status(AssignmentStatus.ASSIGNED).isPublished(true)
+                .build();
+        Attendance morningOpen = openAttendance(0);
+        Attendance afternoonOpen = Attendance.builder()
+                .id(102).employee(staffEmployee).store(store).shift(afternoon).workDate(WORK_DATE)
+                .scheduledShiftName("Ca chiều")
+                .scheduledStartTime(LocalTime.of(13, 0))
+                .scheduledEndTime(LocalTime.of(17, 0))
+                .checkInTime(WORK_DATE.atTime(13, 10))
+                .lateMinutes(0).earlyLeaveMinutes(0).status(AttendanceStatus.PRESENT)
+                .build();
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
+        when(shiftAssignmentRepository.findByIdWithDetails(10)).thenReturn(Optional.of(afternoonAssignment));
+        when(attendanceRepository.findByEmployee_IdAndShift_IdAndWorkDate(20, 2, WORK_DATE))
+                .thenReturn(Optional.of(afternoonOpen));
+        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
+
+        attendanceService.checkOut(staffUser, here(10), WORK_DATE.atTime(15, 30), null, 10);
+
+        assertNull(morningOpen.getCheckOutTime());
+        assertEquals(WORK_DATE.atTime(15, 30), afternoonOpen.getCheckOutTime());
+        assertEquals(140, afternoonOpen.getWorkingMinutes());
+        verify(attendanceRepository).save(afternoonOpen);
     }
 
     @Test

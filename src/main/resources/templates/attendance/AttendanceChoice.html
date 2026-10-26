@@ -31,7 +31,7 @@
             <p>Check-in và Check-out theo buổi đào tạo được phân công.</p>
         </a>
     </section>
-    <a class="link-btn" th:href="@{${historyUrl}}">Xem lịch sử chấm công</a>
+    <a class="link-btn" th:if="${navbarRole != 'staff'}" th:href="@{${historyUrl}}">Xem lịch sử chấm công</a>
 </main>
 </body>
 </html>

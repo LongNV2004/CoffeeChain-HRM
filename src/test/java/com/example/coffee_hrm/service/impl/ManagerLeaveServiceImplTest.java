@@ -2,24 +2,30 @@ package com.example.coffee_hrm.service.impl;
 
 import com.example.coffee_hrm.common.enums.ApprovalStatus;
 import com.example.coffee_hrm.common.enums.AssignmentStatus;
+import com.example.coffee_hrm.common.enums.LeaveType;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.ReviewLeaveRequest;
 import com.example.coffee_hrm.entity.Employee;
 import com.example.coffee_hrm.entity.LeaveBalance;
 import com.example.coffee_hrm.entity.LeaveRequest;
+import com.example.coffee_hrm.entity.LeaveRequestSlot;
 import com.example.coffee_hrm.entity.Shift;
 import com.example.coffee_hrm.entity.ShiftAssignment;
 import com.example.coffee_hrm.entity.ShiftChangeRequest;
 import com.example.coffee_hrm.entity.Store;
 import com.example.coffee_hrm.entity.User;
+import com.example.coffee_hrm.repository.AttendanceRepository;
 import com.example.coffee_hrm.repository.EmployeeRepository;
 import com.example.coffee_hrm.repository.LeaveBalanceRepository;
 import com.example.coffee_hrm.repository.LeaveRequestRepository;
+import com.example.coffee_hrm.repository.LeaveRequestSlotRepository;
 import com.example.coffee_hrm.repository.ShiftAssignmentRepository;
 import com.example.coffee_hrm.repository.ShiftChangeRequestRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.repository.UserRepository;
+import com.example.coffee_hrm.service.NotificationService;
+import com.example.coffee_hrm.service.support.ApprovedLeaveCoverage;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -33,9 +39,16 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ManagerLeaveServiceImplTest {
@@ -43,9 +56,13 @@ class ManagerLeaveServiceImplTest {
     @Mock private UserRepository users;
     @Mock private EmployeeRepository employees;
     @Mock private LeaveRequestRepository requests;
+    @Mock private LeaveRequestSlotRepository slots;
     @Mock private LeaveBalanceRepository balances;
     @Mock private ShiftAssignmentRepository assignments;
+    @Mock private AttendanceRepository attendance;
+    @Mock private ApprovedLeaveCoverage coverage;
     @Mock private ShiftChangeRequestRepository changes;
+    @Mock private NotificationService notifications;
     @Mock private AuthenticatedUser manager;
     @InjectMocks private ManagerLeaveServiceImpl service;
 
@@ -58,7 +75,7 @@ class ManagerLeaveServiceImplTest {
     @BeforeEach
     void setup() {
         date = VietnamTime.today().plusDays(2);
-        store = Store.builder().id(3).totalLeaveDays(12).isActive(true).build();
+        store = Store.builder().id(3).totalLeaveDays(12).totalLeaveSlots(20).isActive(true).build();
         employee = Employee.builder().id(7).fullName("Nhân viên A").store(store).build();
         leave = LeaveRequest.builder().id(19).employee(employee).startDate(date)
                 .endDate(date).status(ApprovalStatus.PENDING).reason("Nghỉ cá nhân").build();
@@ -79,67 +96,116 @@ class ManagerLeaveServiceImplTest {
         when(users.findById(12)).thenReturn(Optional.of(reviewer));
     }
 
-    private ShiftAssignment shiftAssignment(int id) {
-        Shift shift = Shift.builder().id(id).shiftName("Ca sáng")
-                .startTime(LocalTime.of(8, 0)).endTime(LocalTime.of(12, 0))
+    private ShiftAssignment shiftAssignment(int id, LocalTime start, LocalDate workDate) {
+        Shift shift = Shift.builder().id(id).shiftName("Ca " + id)
+                .startTime(start).endTime(start.plusHours(4))
                 .store(store).build();
         return ShiftAssignment.builder().id(id).employee(employee).shift(shift)
-                .workDate(date).status(AssignmentStatus.ASSIGNED).build();
+                .workDate(workDate).status(AssignmentStatus.ASSIGNED).build();
+    }
+
+    private void link(ShiftAssignment... rows) {
+        when(slots.findDetailedByRequestIds(List.of(19))).thenReturn(java.util.Arrays.stream(rows)
+                .map(row -> LeaveRequestSlot.builder().leaveRequest(leave).assignment(row).build())
+                .toList());
     }
 
     @Test
-    void approvingTwoShiftsSameDateConsumesOneDayAndCancelsBoth() {
+    void approvingOneOfThreeSlotsChargesOneSlotAndLeavesTheOthersAssigned() {
         stubPendingReview();
-        ShiftAssignment first = shiftAssignment(81);
-        ShiftAssignment second = shiftAssignment(82);
-        when(assignments.findActiveAssignmentsForLeave(7, 3, date, date, AssignmentStatus.ASSIGNED))
-                .thenReturn(List.of(first, second));
-        when(assignments.findPendingLeaveWorkDatesExcluding(
-                eq(7), eq(3), any(), any(), eq(AssignmentStatus.ASSIGNED),
-                eq(ApprovalStatus.PENDING), eq(19))).thenReturn(List.of());
+        ShiftAssignment morning = shiftAssignment(81, LocalTime.of(7, 0), date);
+        ShiftAssignment afternoon = shiftAssignment(82, LocalTime.of(12, 0), date);
+        ShiftAssignment evening = shiftAssignment(83, LocalTime.of(17, 0), date);
+        link(morning);
+        LeaveBalance existing = LeaveBalance.builder().id(44).employee(employee).year(date.getYear())
+                .totalDays(12).usedDays(4).remainingDays(8).usedSlots(0).build();
+        when(balances.lockByEmployeeIdAndYear(7, date.getYear())).thenReturn(Optional.of(existing));
+        when(changes.findPendingForAffectedAssignments(List.of(81), ApprovalStatus.PENDING)).thenReturn(List.of());
+
+        var result = service.review(19, new ReviewLeaveRequest(ApprovalStatus.APPROVED, null), manager);
+
+        assertEquals(1, result.chargedWorkDays());
+        assertEquals(1, result.releasedShifts());
+        assertEquals(AssignmentStatus.CANCELLED, morning.getStatus());
+        assertEquals(AssignmentStatus.ASSIGNED, afternoon.getStatus());
+        assertEquals(AssignmentStatus.ASSIGNED, evening.getStatus());
+        assertEquals(1, existing.getUsedSlots());
+        assertEquals(4, existing.getUsedDays());
+        assertEquals(12, existing.getTotalDays());
+        assertEquals(8, existing.getRemainingDays());
+    }
+
+    @Test
+    void approvingTwoSlotsSameDateChargesTwoSlots() {
+        stubPendingReview();
+        ShiftAssignment first = shiftAssignment(81, LocalTime.of(7, 0), date);
+        ShiftAssignment second = shiftAssignment(82, LocalTime.of(17, 0), date);
+        link(first, second);
         when(balances.lockByEmployeeIdAndYear(7, date.getYear())).thenReturn(Optional.empty());
-        ShiftChangeRequest change = ShiftChangeRequest.builder().id(22)
-                .status(ApprovalStatus.PENDING).build();
+        ShiftChangeRequest change = ShiftChangeRequest.builder().id(22).status(ApprovalStatus.PENDING).build();
         when(changes.findPendingForAffectedAssignments(List.of(81, 82), ApprovalStatus.PENDING))
                 .thenReturn(List.of(change));
 
         var result = service.review(19, new ReviewLeaveRequest(ApprovalStatus.APPROVED, null), manager);
 
-        assertEquals(1, result.chargedWorkDays());
+        assertEquals(2, result.chargedWorkDays());
         assertEquals(2, result.releasedShifts());
-        assertEquals(ApprovalStatus.APPROVED, leave.getStatus());
         assertEquals(AssignmentStatus.CANCELLED, first.getStatus());
         assertEquals(AssignmentStatus.CANCELLED, second.getStatus());
         assertEquals(ApprovalStatus.REJECTED, change.getStatus());
         ArgumentCaptor<LeaveBalance> saved = ArgumentCaptor.forClass(LeaveBalance.class);
         verify(balances).save(saved.capture());
-        assertEquals(1, saved.getValue().getUsedDays());
-        assertEquals(11, saved.getValue().getRemainingDays());
+        assertEquals(2, saved.getValue().getUsedSlots());
+        assertEquals(0, saved.getValue().getUsedDays());
+        assertEquals(12, saved.getValue().getTotalDays());
+        assertEquals(18, saved.getValue().getRemainingSlots());
     }
 
     @Test
-    void approvalIsBlockedStartingOnFirstLeaveDay() {
-        date = VietnamTime.today();
-        leave.setStartDate(date);
-        leave.setEndDate(date);
+    void approvalIsBlockedWhenASelectedSlotAlreadyStarted() {
+        LocalDate today = VietnamTime.today().minusDays(1);
+        leave.setStartDate(today);
+        leave.setEndDate(today);
         stubPendingReview();
+        link(shiftAssignment(81, LocalTime.of(8, 0), today));
+
         assertThrows(BusinessException.class,
                 () -> service.review(19, new ReviewLeaveRequest(ApprovalStatus.APPROVED, null), manager));
-        verifyNoInteractions(assignments, balances, changes);
         assertEquals(ApprovalStatus.PENDING, leave.getStatus());
+        verify(assignments, never()).saveAll(any());
+        verify(balances, never()).save(any());
+    }
+
+    @Test
+    void requestWithoutSlotsCannotBeApproved() {
+        stubPendingReview();
+        link();
+        assertThrows(BusinessException.class,
+                () -> service.review(19, new ReviewLeaveRequest(ApprovalStatus.APPROVED, null), manager));
+        assertEquals(ApprovalStatus.PENDING, leave.getStatus());
+        verifyNoInteractions(balances);
+    }
+
+    @Test
+    void unsetSlotQuotaDoesNotFallBackToLeaveDays() {
+        store.setTotalLeaveSlots(null);
+        stubPendingReview();
+        link(shiftAssignment(81, LocalTime.of(7, 0), date));
+
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> service.review(19, new ReviewLeaveRequest(ApprovalStatus.APPROVED, null), manager));
+        assertEquals(true, error.getMessage().contains("chưa được admin thiết lập"));
+        verify(balances, never()).save(any());
     }
 
     @Test
     void lateRejectionIsAllowedAndPersistsReason() {
-        date = VietnamTime.today().minusDays(2);
-        leave.setStartDate(date);
-        leave.setEndDate(date);
         stubPendingReview();
         var result = service.review(19,
                 new ReviewLeaveRequest(ApprovalStatus.REJECTED, " Lịch làm việc không đủ người "), manager);
         assertEquals(ApprovalStatus.REJECTED, result.status());
         assertEquals("Lịch làm việc không đủ người", leave.getRejectReason());
-        verifyNoInteractions(assignments, balances, changes);
+        verifyNoInteractions(balances, changes);
     }
 
     @Test
@@ -175,38 +241,21 @@ class ManagerLeaveServiceImplTest {
     }
 
     @Test
-    void approvedLeaveWithoutAssignmentsConsumesNoDaysButBlocksFutureScheduling() {
+    void approvalAcrossYearBoundaryUpdatesSlotCountersOnly() {
         stubPendingReview();
-        when(assignments.findActiveAssignmentsForLeave(7, 3, date, date, AssignmentStatus.ASSIGNED))
-                .thenReturn(List.of());
-        var result = service.review(19, new ReviewLeaveRequest(ApprovalStatus.APPROVED, null), manager);
-        assertEquals(0, result.chargedWorkDays());
-        assertEquals(0, result.releasedShifts());
-        assertEquals(ApprovalStatus.APPROVED, leave.getStatus());
-        verifyNoInteractions(balances, changes);
-    }
-
-    @Test
-    void approvalAcrossYearBoundaryUpdatesBothBalances() {
-        stubPendingReview();
-        date = LocalDate.of(VietnamTime.today().getYear() + 1, 12, 31);
-        LocalDate secondDate = date.plusDays(1);
-        leave.setStartDate(date);
+        LocalDate firstDate = LocalDate.of(VietnamTime.today().getYear() + 1, 12, 31);
+        LocalDate secondDate = firstDate.plusDays(1);
+        leave.setStartDate(firstDate);
         leave.setEndDate(secondDate);
-        ShiftAssignment first = shiftAssignment(91);
-        ShiftAssignment second = ShiftAssignment.builder().id(92).employee(employee)
-                .shift(first.getShift()).workDate(secondDate)
-                .status(AssignmentStatus.ASSIGNED).build();
-        when(assignments.findActiveAssignmentsForLeave(7, 3, date, secondDate, AssignmentStatus.ASSIGNED))
-                .thenReturn(List.of(first, second));
-        when(assignments.findPendingLeaveWorkDatesExcluding(
-                eq(7), eq(3), any(), any(), eq(AssignmentStatus.ASSIGNED),
-                eq(ApprovalStatus.PENDING), eq(19))).thenReturn(List.of());
-        when(balances.lockByEmployeeIdAndYear(7, date.getYear())).thenReturn(Optional.empty());
+        ShiftAssignment first = shiftAssignment(91, LocalTime.of(7, 0), firstDate);
+        ShiftAssignment second = shiftAssignment(92, LocalTime.of(7, 0), secondDate);
+        link(first, second);
+        when(balances.lockByEmployeeIdAndYear(7, firstDate.getYear())).thenReturn(Optional.empty());
         when(balances.lockByEmployeeIdAndYear(7, secondDate.getYear())).thenReturn(Optional.empty());
-        when(changes.findPendingForAffectedAssignments(List.of(91, 92), ApprovalStatus.PENDING))
-                .thenReturn(List.of());
+        when(changes.findPendingForAffectedAssignments(List.of(91, 92), ApprovalStatus.PENDING)).thenReturn(List.of());
+
         var result = service.review(19, new ReviewLeaveRequest(ApprovalStatus.APPROVED, null), manager);
+
         assertEquals(2, result.chargedWorkDays());
         verify(balances, times(2)).save(any(LeaveBalance.class));
     }
@@ -214,20 +263,46 @@ class ManagerLeaveServiceImplTest {
     @Test
     void quotaExhaustedPreventsApprovalAndCancellation() {
         stubPendingReview();
-        ShiftAssignment shift = shiftAssignment(81);
-        when(assignments.findActiveAssignmentsForLeave(7, 3, date, date, AssignmentStatus.ASSIGNED))
-                .thenReturn(List.of(shift));
-        when(assignments.findPendingLeaveWorkDatesExcluding(
-                eq(7), eq(3), any(), any(), eq(AssignmentStatus.ASSIGNED),
-                eq(ApprovalStatus.PENDING), eq(19))).thenReturn(List.of());
+        ShiftAssignment shift = shiftAssignment(81, LocalTime.of(7, 0), date);
+        link(shift);
         LeaveBalance used = LeaveBalance.builder().id(44).employee(employee)
-                .year(date.getYear()).totalDays(12).usedDays(12).remainingDays(0).build();
+                .year(date.getYear()).totalDays(12).usedDays(1).remainingDays(11)
+                .totalSlots(20).usedSlots(20).remainingSlots(0).build();
         when(balances.lockByEmployeeIdAndYear(7, date.getYear())).thenReturn(Optional.of(used));
 
         assertThrows(BusinessException.class,
                 () -> service.review(19, new ReviewLeaveRequest(ApprovalStatus.APPROVED, null), manager));
         assertEquals(ApprovalStatus.PENDING, leave.getStatus());
         assertEquals(AssignmentStatus.ASSIGNED, shift.getStatus());
+        assertEquals(1, used.getUsedDays());
+        assertEquals(20, used.getUsedSlots());
         verify(assignments, never()).saveAll(any());
+    }
+
+    @Test
+    void unpaidApprovalReleasesOnlyTheSelectedShiftWithoutDeductingSlots() {
+        leave.setLeaveType(LeaveType.UNPAID);
+        stubPendingReview();
+        ShiftAssignment selected = shiftAssignment(81, LocalTime.of(7, 0), date);
+        ShiftAssignment other = shiftAssignment(82, LocalTime.of(13, 0), date);
+        link(selected);
+        when(changes.findPendingForAffectedAssignments(List.of(81), ApprovalStatus.PENDING)).thenReturn(List.of());
+
+        var result = service.review(19, new ReviewLeaveRequest(ApprovalStatus.APPROVED, null), manager);
+
+        assertEquals(0, result.chargedWorkDays());
+        assertEquals(1, result.releasedShifts());
+        assertEquals(AssignmentStatus.CANCELLED, selected.getStatus());
+        assertEquals(AssignmentStatus.ASSIGNED, other.getStatus());
+        verify(balances, never()).save(any());
+        verify(balances, never()).lockByEmployeeIdAndYear(anyInt(), any());
+    }
+
+    @Test
+    void rejectedLeaveDoesNotChangeBalance() {
+        stubPendingReview();
+        service.review(19, new ReviewLeaveRequest(ApprovalStatus.REJECTED, "Thiếu người"), manager);
+        assertEquals(ApprovalStatus.REJECTED, leave.getStatus());
+        verifyNoInteractions(balances);
     }
 }

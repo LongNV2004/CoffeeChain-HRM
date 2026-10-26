@@ -186,32 +186,6 @@ public class AdminTrainingController {
         }
     }
 
-    @PostMapping("/classes/{id}/approve")
-    public String approve(@PathVariable Integer id,
-                          @AuthenticationPrincipal AuthenticatedUser user,
-                          RedirectAttributes redirectAttributes) {
-        try {
-            trainingService.approveClass(id, user);
-            redirectAttributes.addFlashAttribute("successMessage", "Đã phê duyệt lớp đào tạo.");
-        } catch (BusinessException ex) {
-            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
-        }
-        return "redirect:/admin/training";
-    }
-
-    @PostMapping("/classes/{id}/reject")
-    public String reject(@PathVariable Integer id,
-                         @AuthenticationPrincipal AuthenticatedUser user,
-                         RedirectAttributes redirectAttributes) {
-        try {
-            trainingService.rejectClass(id, user);
-            redirectAttributes.addFlashAttribute("successMessage", "Đã từ chối lớp đào tạo.");
-        } catch (BusinessException ex) {
-            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
-        }
-        return "redirect:/admin/training";
-    }
-
     private void populateCreatePage(AuthenticatedUser user, Model model) {
         model.addAttribute("displayName", user.getDisplayName());
         model.addAttribute("stores", trainingService.listActiveStores(user));

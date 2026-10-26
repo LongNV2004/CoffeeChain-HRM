@@ -41,7 +41,10 @@ public class AdminAttendanceReportPage {
         private final String periodLabel;
         private final LocalDate periodStart;
         private final LocalDate periodEnd;
+        private final String statusCode;
         private final String statusLabel;
+        private final String statusCss;
+        private final String reviewNote;
         private final boolean submitted;
         private final boolean stale;
         private final String senderName;

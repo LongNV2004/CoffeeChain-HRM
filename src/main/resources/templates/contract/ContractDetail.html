@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chi tiết hợp đồng — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
+    <style>
+        .contract-facts { display: grid; grid-template-columns: 220px 1fr; gap: 10px 16px; margin: 16px 0 0; }
+        .contract-facts dt, .contract-facts dd { margin: 0; }
+        .contract-facts dt { font-weight: 600; }
+        .contract-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+        @media (max-width: 720px) { .contract-facts { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<th:block th:if="${navRole == 'admin'}"><header th:replace="~{fragments/navbar :: admin('contract')}"></header></th:block>
+<th:block th:if="${navRole == 'manager'}"><header th:replace="~{fragments/navbar :: manager('contract')}"></header></th:block>
+<th:block th:if="${navRole == 'staff'}"><header th:replace="~{fragments/navbar :: staff('contract')}"></header></th:block>
+
+<main class="wrap dash-main">
+    <section class="welcome">
+        <div class="eyebrow" th:text="${eyebrow}">CoffeeHRM</div>
+        <h1>Chi tiết hợp đồng</h1>
+        <p th:text="${contract.contractCode}">HD</p>
+    </section>
+
+    <section class="panel">
+        <h2>Thông tin nhân viên</h2>
+        <dl class="contract-facts">
+            <dt>Mã nhân viên</dt><dd th:text="${contract.employeeId}">1</dd>
+            <dt>Họ và tên</dt><dd th:text="${contract.employeeName}">Nguyễn Văn A</dd>
+            <dt>Cửa hàng đang làm việc</dt><dd th:text="${contract.storeName}">Cửa hàng</dd>
+            <dt>Chức vụ</dt><dd th:text="${contract.positionLabel}">Nhân viên</dd>
+            <dt>CCCD/CMND</dt><dd>Chưa có trong hồ sơ</dd>
+            <dt>Ngày vào làm</dt>
+            <dd th:text="${contract.hireDate != null ? #temporals.format(contract.hireDate, 'dd/MM/yyyy') : '—'}">01/01/2026</dd>
+        </dl>
+    </section>
+
+    <section class="panel">
+        <h2>Thông tin hợp đồng</h2>
+        <dl class="contract-facts">
+            <dt>Số hợp đồng</dt><dd th:text="${contract.contractCode}">HD</dd>
+            <dt>Ngày hiệu lực</dt>
+            <dd th:text="${#temporals.format(contract.startDate, 'dd/MM/yyyy')}">01/10/2026</dd>
+            <dt>Ngày kết thúc</dt>
+            <dd th:text="${contract.endDate == null ? 'Không xác định thời hạn' : #temporals.format(contract.endDate, 'dd/MM/yyyy')}">Không xác định thời hạn</dd>
+            <dt>Chức danh theo hợp đồng</dt><dd th:text="${contract.jobTitle}">Pha chế</dd>
+            <dt>Số ca tiêu chuẩn mỗi tuần</dt>
+            <dd th:text="${contract.weeklyShiftCount != null ? contract.weeklyShiftCount : 'Theo thỏa thuận'}">6</dd>
+            <dt>Trạng thái</dt>
+            <dd><span class="badge" th:text="${contract.validityStatusLabel}">Đang hiệu lực</span></dd>
+            <dt>Người tạo</dt><dd th:text="${contract.createdByName != null ? contract.createdByName : '—'}">Quản lý</dd>
+            <dt>Thời điểm tạo</dt>
+            <dd th:text="${contract.createdAt != null ? #temporals.format(contract.createdAt, 'dd/MM/yyyy HH:mm') : '—'}">01/10/2026</dd>
+        </dl>
+    </section>
+
+    <section class="panel">
+        <h2>Lương và chế độ</h2>
+        <p class="muted">Các mức này được lưu trong hợp đồng và không thay đổi công thức tính lương của hệ thống.</p>
+        <dl class="contract-facts">
+            <dt>Mức lương cơ bản</dt>
+            <dd th:text="${#numbers.formatDecimal(contract.salary, 1, 'POINT', 2, 'COMMA') + ' đ'}">0 đ</dd>
+            <dt>Phụ cấp</dt>
+            <dd th:text="${contract.allowance != null ? #numbers.formatDecimal(contract.allowance, 1, 'POINT', 2, 'COMMA') + ' đ' : 'Không có'}">Không có</dd>
+            <dt>Hình thức trả lương</dt><dd th:text="${contract.paymentMethodLabel}">Tiền mặt</dd>
+        </dl>
+    </section>
+
+    <section class="panel">
+        <h2>File hợp đồng đã ký</h2>
+        <dl class="contract-facts">
+            <dt>Tên file</dt><dd th:text="${contract.originalFileName != null ? contract.originalFileName : 'Chưa có file'}">hop-dong.pdf</dd>
+            <dt>Dung lượng</dt>
+            <dd th:text="${contract.fileSizeBytes != null ? #numbers.formatInteger(contract.fileSizeBytes, 0, 'POINT') + ' byte' : '—'}">0 byte</dd>
+        </dl>
+        <div class="contract-actions">
+            <a class="primary-btn" th:if="${contract.hasFile}" th:href="@{|${listPath}/${contract.id}/file|}">Tải file</a>
+            <a class="secondary-btn" th:href="@{${listPath}}">Quay lại danh sách</a>
+        </div>
+    </section>
+</main>
+</body>
+</html>

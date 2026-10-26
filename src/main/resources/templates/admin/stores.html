@@ -23,8 +23,10 @@
         <p>Theo dõi chi nhánh, nhân sự và trạng thái vận hành toàn chuỗi.</p>
     </section>
 
-    <p class="flash success" th:if="${successMessage}" th:text="${successMessage}" role="status"></p>
-    <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}" role="alert"></p>
+    <p class="flash success store-toast" th:if="${successMessage}" th:text="${successMessage}" role="status" data-store-toast></p>
+    <p class="flash warning store-toast" th:if="${warningMessage}" th:text="${warningMessage}" role="status" data-store-toast></p>
+    <p class="flash error store-toast" th:if="${errorMessage}" th:text="${errorMessage}" role="alert" data-store-toast></p>
+    <p id="storeStatusNotice" class="flash success" role="status" hidden></p>
     <p id="storeFeedback" class="flash error" role="alert" hidden></p>
 
     <section class="store-stats" aria-label="Thống kê cửa hàng">
@@ -50,6 +52,20 @@
             <span class="store-stat-icon store-stat-icon--green">
             <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="m5 12 4 4L19 6"/>
+            </svg>
+        </span>
+        </article>
+
+        <article class="store-stat">
+            <div>
+                <span>Chuẩn bị khai trương</span>
+                <strong data-stat="pre-opening">0</strong>
+                <small>Chưa đến ngày khai trương</small>
+            </div>
+            <span class="store-stat-icon store-stat-icon--amber">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="3" y="5" width="18" height="16" rx="2"/>
+                <path d="M7 3v4M17 3v4M3 10h18"/>
             </svg>
         </span>
         </article>
@@ -84,317 +100,119 @@
         <div class="store-panel-top">
             <div><h2 id="storeListTitle">Danh sách chi nhánh</h2>
                 <p>Quản lý địa điểm, trạng thái và nhân sự tại từng cửa hàng.</p></div>
-            <div class="store-panel-actions">
-                <a class="store-btn store-btn--secondary" th:href="@{/admin/employees}">Quản lý nhân sự</a>
-                <a class="store-btn store-btn--primary" th:href="@{/admin/stores/create}"
-                   data-store-modal data-modal-title="Thêm chi nhánh mới">+ Thêm chi nhánh mới</a>
-            </div>
         </div>
         <div class="store-toolbar">
             <div class="store-tabs" role="group" aria-label="Lọc theo trạng thái">
                 <button type="button" class="is-current" data-status-filter="all" aria-pressed="true">Tất cả <span data-count="all">0</span></button>
                 <button type="button" data-status-filter="active" aria-pressed="false">Hoạt động <span data-count="active">0</span></button>
+                <button type="button" data-status-filter="pre-opening" aria-pressed="false">Chuẩn bị khai trương <span data-count="pre-opening">0</span></button>
                 <button type="button" data-status-filter="inactive" aria-pressed="false">Ngừng hoạt động <span data-count="inactive">0</span></button>
             </div>
             <label class="store-search"><span class="sr-only">Tìm kiếm cửa hàng</span>
                 <input type="search" data-store-search placeholder="Tìm theo mã cửa hàng..." autocomplete="off">
             </label>
         </div>
-        <div class="store-table-scroll">
-            <table class="store-table">
-                <thead><tr>
-                    <th scope="col">STT</th><th scope="col">Mã / Tên chi nhánh</th>
-                    <th scope="col">Địa chỉ</th><th scope="col">Store Manager</th>
-                    <th scope="col">Nhân sự</th><th scope="col">Trạng thái</th>
-                    <th scope="col">Hành động</th>
-                </tr></thead>
-                <tbody>
-                <tr th:if="${#lists.isEmpty(stores)}"><td colspan="7" class="store-empty">Chưa có cửa hàng nào.</td></tr>
-                <tr th:each="store, position : ${stores}" class="store-data-row"
-                    th:attr="data-state=${store.isActive ? 'active' : 'inactive'},data-employee-count=${store.employeeCount},data-manager-assigned=${store.managerName != null}">
-                    <td class="store-index" th:text="${position.count}">1</td>
-                    <td>
-                        <div class="store-name-cell">
-                            <div>
-                                <strong th:text="${store.storeName}">Tên cửa hàng</strong>
-                                <small>Mã cửa hàng: <span th:text="${store.id}">1</span></small>
-                                <small th:if="${store.latitude == null or store.longitude == null}">Chưa có vị trí chấm công</small>
-                            </div>
+        <p class="store-empty branch-card-empty" th:if="${#lists.isEmpty(stores)}">Chưa có cửa hàng nào.</p>
+        <div class="branch-card-grid" th:unless="${#lists.isEmpty(stores)}">
+            <article th:each="store : ${stores}" class="branch-card store-data-row"
+                     th:with="state=${store.stateKey != null ? store.stateKey : (store.isActive ? 'active' : 'inactive')}"
+                     th:attr="data-state=${state},data-employee-count=${store.employeeCount},data-manager-assigned=${store.managerName != null}">
+                <div class="branch-card-top">
+                    <div class="store-name-cell">
+                        <div>
+                            <p class="chain-store-kicker">Chi nhánh</p>
+                            <h3 th:text="${store.storeName}">Tên cửa hàng</h3>
+                            <small>Mã cửa hàng: <span th:text="${store.id}">1</span></small>
+                            <small th:if="${store.latitude == null or store.longitude == null}">Chưa có vị trí chấm công</small>
                         </div>
-                    </td>
-                    <td class="store-address" th:text="${store.address}">Địa chỉ</td>
-                    <td><span th:if="${store.managerName != null}" class="store-manager"
-                              th:text="${store.managerName}">Manager</span>
-                        <span th:if="${store.managerName == null}" class="store-unassigned">Chưa phân công</span></td>
-                    <td><span class="store-count"><svg aria-hidden="true"><use href="#coffee-i-people"/></svg>
-                        <span th:text="${store.employeeCount}">0</span> NV</span></td>
-                    <td><span class="store-badge" th:classappend="${store.isActive} ? ' store-badge--active' : ' store-badge--inactive'"
-                              th:text="${store.isActive} ? 'Hoạt động' : 'Ngừng hoạt động'">Hoạt động</span></td>
-                    <td><div class="store-actions">
-                        <a class="store-action store-action--view"
-                           th:href="@{/admin/stores/{id}/employees(id=${store.id})}"
-                           data-store-drawer
-                           title="Xem nhân viên"
-                           aria-label="Xem nhân viên">
-                            <svg aria-hidden="true">
-                                <use href="#coffee-i-people"/>
-                            </svg>
-                        </a>
-
-                        <a class="store-action"
-                           th:href="@{/admin/stores/{id}/edit(id=${store.id})}"
-                           data-store-modal
-                           data-modal-title="Chỉnh sửa chi nhánh"
-                           title="Sửa cửa hàng"
-                           aria-label="Sửa cửa hàng">
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L9 17l-4 1 1-4L16.5 3.5Z"/>
-                            </svg>
-                        </a>
-                        <a class="store-switch" th:href="@{/admin/stores/{id}/edit(id=${store.id})}"
-                           data-store-toggle th:title="${store.isActive} ? 'Ngừng hoạt động' : 'Kích hoạt'"
-                           th:attr="aria-label=|${store.isActive ? 'Ngừng hoạt động' : 'Kích hoạt'} cửa hàng ${store.storeName}|">
-                            <span></span></a>
-                    </div></td>
-                </tr>
-                <tr id="storeNoMatch" hidden><td colspan="7" class="store-empty">Không tìm thấy cửa hàng phù hợp.</td></tr>
-                </tbody>
-            </table>
+                    </div>
+                    <span class="store-badge"
+                          th:classappend="${state == 'pre-opening'} ? ' store-badge--preopening' : (${state == 'inactive'} ? ' store-badge--inactive' : ' store-badge--active')"
+                          th:text="${store.statusLabel != null ? store.statusLabel : (state == 'inactive' ? 'Ngừng hoạt động' : (state == 'pre-opening' ? 'Chuẩn bị khai trương' : 'Hoạt động'))}">Hoạt động</span>
+                </div>
+                <p class="store-address" th:text="${store.address}">Địa chỉ</p>
+                <dl class="branch-card-facts">
+                    <div>
+                        <dt>Khai trương</dt>
+                        <dd class="store-opening"
+                            th:text="${store.openingDate != null ? #temporals.format(store.openingDate, 'dd/MM/yyyy') : '—'}">01/01/2026</dd>
+                    </div>
+                    <div>
+                        <dt>Nhân sự</dt>
+                        <dd>
+                            <span class="store-count">
+                                <svg aria-hidden="true"><use href="#coffee-i-people"/></svg>
+                                <span th:text="${store.employeeCount}">0</span> NV
+                            </span>
+                        </dd>
+                    </div>
+                </dl>
+                <div class="store-manager-cell" th:if="${store.managerName != null}">
+                    <span class="store-manager" th:text="${store.managerName}">Manager</span>
+                    <small class="store-assignment"
+                           th:text="${store.managerAssignmentLabel != null ? store.managerAssignmentLabel : 'Đã phân công'}">Đã phân công</small>
+                    <a class="store-btn store-btn--secondary store-btn--compact"
+                       th:href="@{/admin/stores/{id}/managers(id=${store.id})}">Xem Manager</a>
+                </div>
+                <div class="store-manager-cell" th:if="${store.managerName == null}">
+                    <span class="store-unassigned">Chưa phân công</span>
+                    <a th:if="${state != 'inactive'}" class="store-btn store-btn--secondary store-btn--compact"
+                       th:href="@{/admin/stores/{id}/managers/new(id=${store.id})}">Thêm Manager</a>
+                </div>
+                <div class="store-actions branch-card-actions">
+                    <a class="store-action"
+                       th:href="@{/admin/stores/{id}/edit(id=${store.id})}"
+                       data-store-modal
+                       data-modal-title="Chỉnh sửa chi nhánh"
+                       title="Sửa cửa hàng"
+                       aria-label="Sửa cửa hàng">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L9 17l-4 1 1-4L16.5 3.5Z"/>
+                        </svg>
+                    </a>
+                    <a class="store-switch" href="#"
+                       data-store-toggle
+                       th:data-store-id="${store.id}"
+                       th:data-store-name="${store.storeName}"
+                       th:data-opening="${store.openingDate != null ? #temporals.format(store.openingDate, 'dd/MM/yyyy') : ''}"
+                       th:title="${state == 'inactive'} ? 'Kích hoạt lại' : 'Ngừng hoạt động'"
+                       th:attr="aria-label=|${state == 'inactive' ? 'Kích hoạt lại' : 'Ngừng hoạt động'} cửa hàng ${store.storeName}|">
+                        <span></span></a>
+                </div>
+            </article>
         </div>
+        <p id="storeNoMatch" class="store-empty branch-card-empty" hidden>Không tìm thấy cửa hàng phù hợp.</p>
     </section>
 </main>
 
 <div class="store-overlay" id="storeModalBackdrop" hidden data-close-modal></div>
 <section class="store-modal" id="storeModal" role="dialog" aria-modal="true" aria-labelledby="storeModalTitle" hidden>
     <div class="store-dialog-head"><div><h2 id="storeModalTitle">Thông tin cửa hàng</h2>
-        <p>Mã cửa hàng do hệ thống tự sinh; Manager được phân công tại Quản lý nhân sự.</p></div>
+        <p>Mã cửa hàng do hệ thống tự sinh. Manager được thêm từ danh sách cửa hàng.</p></div>
         <button class="store-dialog-close" type="button" data-close-modal aria-label="Đóng">×</button></div>
     <div class="store-modal-body" id="storeModalBody" aria-live="polite"></div>
 </section>
-
-<div class="store-overlay" id="storeDrawerBackdrop" hidden data-close-drawer></div>
-
-<aside class="store-drawer" id="storeDrawer"
-       role="dialog" aria-modal="true"
-       aria-labelledby="storeDrawerTitle" hidden>
-
+<div class="store-overlay" id="storeStatusBackdrop" hidden></div>
+<section class="store-modal store-status-dialog" id="storeStatusDialog" role="dialog" aria-modal="true"
+         aria-labelledby="storeStatusTitle" hidden>
     <div class="store-dialog-head">
         <div>
-            <small>CHI NHÁNH / NHÂN SỰ</small>
-            <h2 id="storeDrawerTitle">Nhân sự cửa hàng</h2>
-            <p id="storeDrawerMeta"></p>
+            <h2 id="storeStatusTitle">Xác nhận thay đổi trạng thái</h2>
+            <p id="storeStatusLead">Thao tác này chỉ đổi trạng thái vận hành.</p>
         </div>
-        <button class="store-dialog-close" type="button"
-                data-close-drawer aria-label="Đóng">×</button>
+        <button class="store-dialog-close" type="button" data-close-status aria-label="Đóng">×</button>
     </div>
-
-    <div class="store-drawer-toolbar">
-        <label class="store-employee-search">
-            <span class="sr-only">Tìm nhân viên</span>
-            <input id="storeEmployeeSearch" type="search"
-                   placeholder="Tìm theo tên nhân viên..."
-                   autocomplete="off">
-        </label>
-
-        <button id="storeAddEmployeeButton"
-                class="store-btn store-btn--primary"
-                type="button">
-            + Thêm nhân viên
-        </button>
-    </div>
-
-    <div class="store-drawer-body" id="storeDrawerBody"
-         aria-live="polite"></div>
-
-    <div class="store-drawer-foot">
-        <a class="store-btn store-btn--primary"
-           id="storeEmployeePageLink"
-           th:href="@{/admin/employees}">
-            Mở trang quản lý nhân sự ↗
-        </a>
-    </div>
-</aside>
-<!-- Modal thêm/sửa nhân viên -->
-<div id="employeeModalBackdrop"
-     class="store-overlay employee-overlay"
-     data-close-employee hidden></div>
-
-<section id="employeeModal"
-         class="store-modal employee-modal"
-         role="dialog"
-         aria-modal="true"
-         aria-labelledby="employeeModalTitle"
-         hidden>
-
-    <div class="store-dialog-head">
-        <div>
-            <h2 id="employeeModalTitle">Thêm nhân viên mới</h2>
-            <p id="employeeModalSubtitle">Thông tin nhân sự và phân công chi nhánh</p>
-        </div>
-
-        <button type="button"
-                class="store-dialog-close"
-                data-close-employee
-                aria-label="Đóng">×</button>
-    </div>
-
     <div class="store-modal-body">
-        <p id="employeeFormError"
-           class="flash error"
-           role="alert"
-           hidden></p>
-
-        <form id="employeeForm" class="stack-form employee-form">
-
-            <!-- Chỉ hiện khi THÊM nhân viên -->
-            <div id="employeePersonalSection">
-
-                <label>
-                    Họ và tên nhân viên *
-                    <input name="fullName"
-                           type="text"
-                           maxlength="100"
-                           autocomplete="name"
-                           required>
-                </label>
-
-                <div class="employee-form-grid">
-                    <label>
-                        Số điện thoại *
-                        <input name="phone"
-                               type="tel"
-                               maxlength="15"
-                               autocomplete="tel"
-                               required>
-                    </label>
-
-                    <label>
-                        Email *
-                        <input name="email"
-                               type="email"
-                               maxlength="100"
-                               autocomplete="email"
-                               required>
-                    </label>
-                </div>
-
-                <label>
-                    Địa chỉ
-                    <input name="address"
-                           type="text"
-                           maxlength="255">
-                </label>
-
-                <label>
-                    Ngày vào làm *
-                    <input name="hireDate"
-                           type="date"
-                           required>
-                </label>
-
-            </div>
-
-            <!-- Thêm và sửa đều dùng -->
-            <label>
-                Chi nhánh làm việc *
-                <select id="employeeStoreSelect"
-                        name="storeId"
-                        required></select>
-            </label>
-
-            <fieldset class="employee-role-fieldset">
-                <legend>Chức vụ *</legend>
-
-                <div class="employee-role-options">
-                    <label>
-                        <input type="radio"
-                               name="role"
-                               value="STAFF"
-                               checked>
-                        Nhân viên
-                    </label>
-
-                    <label>
-                        <input type="radio"
-                               name="role"
-                               value="MANAGER">
-                        Quản lý
-                    </label>
-                </div>
-            </fieldset>
-
-            <!-- Chỉ hiện khi SỬA -->
-            <div id="employeeStatusSection" hidden>
-                <label>
-                    Trạng thái
-                    <select name="status">
-                        <option value="ACTIVE">Đang làm việc</option>
-                        <option value="ON_LEAVE">Đang nghỉ phép</option>
-                        <option value="TERMINATED">Đã nghỉ việc</option>
-                    </select>
-                </label>
-            </div>
-
-            <!-- Giữ ngầm để backend dùng, JS sau sẽ không cho hiện -->
-            <div id="employeeTerminationSection" hidden>
-                <label>
-                    Ngày nghỉ việc
-                    <input name="terminationDate"
-                           type="date">
-                </label>
-            </div>
-
-            <!-- Chỉ dùng khi THÊM nhân viên -->
-            <div id="employeeAccountSection"
-                 class="employee-account-section">
-
-                <label class="employee-account-toggle">
-                    <input id="employeeCreateAccount"
-                           type="checkbox"
-                           name="createAccount">
-
-                    Cấp tài khoản đăng nhập hệ thống
-                </label>
-
-                <div id="employeeAccountFields"
-                     class="employee-account-fields"
-                     hidden>
-
-                    <label>
-                        Tên đăng nhập *
-                        <input name="username"
-                               maxlength="50"
-                               autocomplete="off">
-                    </label>
-
-                    <label>
-                        Mật khẩu tạm thời *
-                        <input name="temporaryPassword"
-                               type="password"
-                               autocomplete="new-password">
-                    </label>
-                </div>
-            </div>
-
-            <div class="employee-form-actions">
-
-                <button type="button"
-                        class="store-btn store-btn--secondary"
-                        data-close-employee>
-                    Hủy bỏ
-                </button>
-
-                <button type="submit"
-                        class="store-btn store-btn--primary">
-                    Lưu thay đổi
-                </button>
-
-            </div>
-
-        </form>
+        <p id="storeStatusDetail"></p>
+        <p id="storeStatusError" class="flash error" role="alert" hidden></p>
+        <div class="form-actions">
+            <button type="button" class="store-btn store-btn--secondary" data-close-status>Hủy</button>
+            <button type="button" class="store-btn store-btn--primary" id="storeStatusConfirm">Xác nhận</button>
+        </div>
     </div>
 </section>
 <script th:src="@{/js/AdminDashboard.js}"></script>
+<script th:src="@{/js/store-form.js}" defer></script>
 <script th:src="@{/js/store-location.js}" defer></script>
 <script th:src="@{/js/StoreManagement.js}" defer></script>
 </body>

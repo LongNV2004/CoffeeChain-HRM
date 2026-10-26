@@ -12,7 +12,10 @@ import com.example.coffee_hrm.common.security.TemporaryPasswordGenerator;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.CreateRecruitmentRequest;
 import com.example.coffee_hrm.dto.request.RecruitmentCandidateRequest;
+import com.example.coffee_hrm.dto.response.CandidateApprovalResult;
 import com.example.coffee_hrm.dto.response.CandidateRejectionResult;
+import com.example.coffee_hrm.security.StaffEmploymentGuard;
+import com.example.coffee_hrm.dto.response.RecruitmentContactCheckResponse;
 import com.example.coffee_hrm.dto.response.RecruitmentCandidateResponse;
 import com.example.coffee_hrm.dto.response.RecruitmentManagerOption;
 import com.example.coffee_hrm.dto.response.RecruitmentRequestResponse;
@@ -57,15 +60,25 @@ import java.util.regex.Pattern;
 public class RecruitmentRequestServiceImpl implements RecruitmentRequestService {
 
     static final String EMAIL_EXISTS = "Email đã tồn tại trong hệ thống.";
+    static final String EMAIL_APPROVED_OR_WORKING = "Email đã trùng với nhân viên đã được duyệt hoặc đang làm việc.";
+    static final String EMAIL_ACTIVE_EMPLOYEE = "Email đã trùng với nhân viên đang hoạt động trong hệ thống.";
+    static final String PHONE_ACTIVE_EMPLOYEE = "Số điện thoại đã trùng với nhân viên đang hoạt động trong hệ thống.";
     static final String EMAIL_PENDING = "Email này đang được dùng trong một đề xuất tuyển nhân sự đang chờ duyệt.";
     static final String EMAIL_INVALID = "Email không đúng định dạng.";
+    static final String NAME_NOT_LETTERS = "Họ và tên chỉ được chứa chữ cái, không được nhập số.";
+    static final String TITLE_EXISTS = "Tên đề xuất đã trùng với một đơn đã gửi cho Admin.";
     static final String PHONE_EXISTS = "Số điện thoại đã tồn tại trong hệ thống.";
     static final String PHONE_PENDING = "Số điện thoại này đang được dùng trong một đề xuất tuyển nhân sự đang chờ duyệt.";
     static final String ALREADY_APPROVED = "Nhân viên này đã được duyệt. Không tạo thêm tài khoản.";
+    static final String REHIRE_WORKING = "Không thể đề xuất tuyển dụng lại nhân viên đang làm việc.";
+    static final String REHIRE_PENDING = "Nhân viên này đang có đề xuất tuyển dụng lại chờ duyệt.";
+    static final String REHIRE_NOT_STAFF = "Chỉ được tuyển dụng lại nhân viên Staff đã nghỉ việc.";
     private static final int MAX_CANDIDATES = 30;
     private static final LocalDate EARLIEST_BIRTH_DATE = LocalDate.of(1900, 1, 1);
     private static final String RECRUITMENT_REF = "RECRUITMENT_REQUEST";
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
+    private static final Pattern PERSON_NAME_PATTERN = Pattern.compile("^[\\p{L}]+(?:\\s+[\\p{L}]+)*$");
+    private static final List<EmployeeStatus> WORKING_STATUSES = List.of(EmployeeStatus.ACTIVE, EmployeeStatus.ON_LEAVE);
 
     private final RecruitmentRequestRepository recruitmentRequestRepository;
     private final RecruitmentCandidateRepository recruitmentCandidateRepository;
@@ -107,6 +120,7 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
                     .phone(person.phone())
                     .address(person.address())
                     .status(RecruitmentStatus.PENDING)
+                    .rehireEmployee(person.rehireEmployee())
                     .build();
             candidate.setRequest(proposal);
             proposal.getCandidates().add(candidate);
@@ -162,6 +176,18 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
 
     @Override
     @Transactional(readOnly = true)
+    public RecruitmentContactCheckResponse checkActiveEmployeeContact(AuthenticatedUser actor,
+                                                                       String email,
+                                                                       String phone) {
+        requireManager(actor);
+        return RecruitmentContactCheckResponse.builder()
+                .emailMessage(activeEmailMessage(email))
+                .phoneMessage(activePhoneMessage(phone))
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<RecruitmentRequestResponse> listForAdmin(AuthenticatedUser actor,
                                                           Integer storeId,
                                                           Integer managerId,
@@ -201,37 +227,46 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
 
     @Override
     @Transactional
-    public String approveCandidate(AuthenticatedUser actor, Integer requestId, Integer candidateId) {
+    public CandidateApprovalResult approveCandidate(AuthenticatedUser actor, Integer requestId, Integer candidateId) {
         requireAdmin(actor);
         LockedProposal locked = lockProposal(requestId);
         RecruitmentCandidate candidate = requireCandidate(locked.candidates(), candidateId);
         requirePendingCandidate(candidate, true);
-        if (emailTaken(candidate.getEmail())) {
-            throw new BusinessException(EMAIL_EXISTS + " Không thể tạo tài khoản.");
-        }
 
         String temporaryPassword = temporaryPasswordGenerator.generate();
         Employee employee;
         User account;
+        boolean reactivated;
         try {
-            employee = employeeRepository.save(Employee.builder()
-                    .fullName(candidate.getFullName())
-                    .phone(candidate.getPhone())
-                    .email(candidate.getEmail())
-                    .address(candidate.getAddress())
-                    .store(locked.request().getStore())
-                    .status(EmployeeStatus.ACTIVE)
-                    .certificationStatus(CertificationStatus.NOTCERTIFIED)
-                    .hasCertificate(false)
-                    .hireDate(VietnamTime.today())
-                    .build());
-            account = userRepository.save(User.builder()
-                    .username(candidate.getEmail())
-                    .passwordHash(passwordEncoder.encode(temporaryPassword))
-                    .role(requireStaffRole())
-                    .employee(employee)
-                    .isActive(true)
-                    .build());
+            Employee former = resolveFormerForApproval(candidate);
+            if (former != null) {
+                account = reactivateFormerEmployee(former, candidate, locked.request().getStore(), temporaryPassword);
+                employee = former;
+                reactivated = true;
+            } else {
+                if (emailTaken(candidate.getEmail())) {
+                    throw new BusinessException(EMAIL_EXISTS + " Không thể tạo tài khoản.");
+                }
+                employee = employeeRepository.save(Employee.builder()
+                        .fullName(candidate.getFullName())
+                        .phone(candidate.getPhone())
+                        .email(candidate.getEmail())
+                        .address(candidate.getAddress())
+                        .store(locked.request().getStore())
+                        .status(EmployeeStatus.ACTIVE)
+                        .certificationStatus(CertificationStatus.NOTCERTIFIED)
+                        .hasCertificate(false)
+                        .hireDate(VietnamTime.today())
+                        .build());
+                account = userRepository.save(User.builder()
+                        .username(candidate.getEmail())
+                        .passwordHash(passwordEncoder.encode(temporaryPassword))
+                        .role(requireStaffRole())
+                        .employee(employee)
+                        .isActive(true)
+                        .build());
+                reactivated = false;
+            }
             candidate.setStatus(RecruitmentStatus.APPROVED);
             candidate.setReviewedAt(VietnamTime.now());
             candidate.setReviewedBy(requireUser(actor.getUserId()));
@@ -239,6 +274,18 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
             candidate.setRejectReason(null);
             refreshProposalStatus(locked.request(), locked.candidates());
             recruitmentRequestRepository.save(locked.request());
+            if (account.getUsername() == null || !account.getUsername().equalsIgnoreCase(candidate.getEmail())) {
+                account.setUsername(candidate.getEmail());
+                account = userRepository.save(account);
+            }
+            userRepository.flush();
+            employeeRepository.flush();
+            if (!passwordEncoder.matches(temporaryPassword, account.getPasswordHash())
+                    || !Boolean.TRUE.equals(account.getIsActive())
+                    || account.getEmployee() == null
+                    || account.getEmployee().getStatus() == EmployeeStatus.TERMINATED) {
+                throw new BusinessException("Không mở được tài khoản email để đăng nhập. Chưa gửi mật khẩu mới.");
+            }
         } catch (DataIntegrityViolationException ex) {
             log.error("Không tạo được tài khoản cho nhân viên {} trong đề xuất {} vì email bị trùng",
                     candidateId, requestId, ex);
@@ -255,11 +302,13 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
         accountMailService.sendTemporaryPassword(
                 candidate.getEmail(),
                 candidate.getFullName(),
-                account.getUsername(),
+                candidate.getEmail(),
                 temporaryPassword);
-        log.info("Admin {} đã duyệt nhân viên {} trong đề xuất {} và tạo nhân viên {}",
-                actor.getUserId(), candidateId, requestId, employee.getId());
-        return candidate.getFullName();
+        log.info("Admin {} đã duyệt nhân viên {} trong đề xuất {} và {} nhân viên {}",
+                actor.getUserId(), candidateId, requestId,
+                reactivated ? "kích hoạt lại" : "tạo",
+                employee.getId());
+        return new CandidateApprovalResult(candidate.getFullName(), reactivated);
     }
 
     @Override
@@ -375,14 +424,168 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
                     candidate.getGender(),
                     normalizeEmail(candidate.getEmail()),
                     normalizePhone(candidate.getPhone()),
-                    normalizeAddress(candidate.getAddress())));
+                    normalizeAddress(candidate.getAddress()),
+                    candidate.getRehireEmployeeId(),
+                    null));
         }
         assertUniqueInProposal(normalized);
+        List<NormalizedCandidate> linked = new ArrayList<>();
+        Set<Integer> rehireIds = new HashSet<>();
         for (NormalizedCandidate candidate : normalized) {
-            assertEmailAvailable(candidate.email());
-            assertPhoneAvailable(candidate.phone());
+            Employee rehire = resolveRehire(candidate);
+            if (rehire != null && !rehireIds.add(rehire.getId())) {
+                throw new BusinessException("Mỗi nhân viên đã nghỉ việc chỉ được chọn một lần trong đề xuất.");
+            }
+            assertPhoneAvailable(candidate.phone(), rehire);
+            linked.add(new NormalizedCandidate(
+                    candidate.fullName(),
+                    candidate.dateOfBirth(),
+                    candidate.gender(),
+                    candidate.email(),
+                    candidate.phone(),
+                    candidate.address(),
+                    candidate.rehireEmployeeId(),
+                    rehire));
         }
-        return normalized;
+        return linked;
+    }
+
+    private Employee resolveFormerForApproval(RecruitmentCandidate candidate) {
+        Employee linked = candidate.getRehireEmployee();
+        if (linked != null && linked.getId() != null) {
+            Employee locked = employeeRepository.lockByIdForLeaveRequest(linked.getId())
+                    .orElseThrow(() -> new BusinessException("Không tìm thấy hồ sơ nhân viên để tuyển dụng lại."));
+            if (locked.getStatus() != EmployeeStatus.TERMINATED) {
+                throw new BusinessException(REHIRE_WORKING);
+            }
+            return locked;
+        }
+        return employeeRepository.findByEmailIgnoreCaseWithAccount(candidate.getEmail())
+                .filter(employee -> employee.getStatus() == EmployeeStatus.TERMINATED)
+                .filter(employee -> StaffEmploymentGuard.isRehirableStaff(employee.getUser()))
+                .map(employee -> employeeRepository.lockByIdForLeaveRequest(employee.getId()).orElse(employee))
+                .filter(employee -> employee.getStatus() == EmployeeStatus.TERMINATED)
+                .orElse(null);
+    }
+
+    private User reactivateFormerEmployee(Employee employee,
+                                          RecruitmentCandidate candidate,
+                                          Store store,
+                                          String temporaryPassword) {
+        if (!StaffEmploymentGuard.isRehirableStaff(employee.getUser())) {
+            throw new BusinessException(REHIRE_NOT_STAFF);
+        }
+        User account = employee.getUser();
+        if (account == null || account.getId() == null) {
+            account = userRepository.findByEmployee_Id(employee.getId()).orElse(null);
+        }
+        if (account == null && employee.getEmail() != null) {
+            account = userRepository.findByUsername(employee.getEmail())
+                    .filter(found -> found.getEmployee() == null
+                            || found.getEmployee().getId() == null
+                            || found.getEmployee().getId().equals(employee.getId()))
+                    .orElse(null);
+        }
+        if (account != null && !StaffEmploymentGuard.isRehirableStaff(account)) {
+            throw new BusinessException(REHIRE_NOT_STAFF);
+        }
+        applyRehireProfile(employee, candidate, store);
+        String passwordHash = passwordEncoder.encode(temporaryPassword);
+        if (account == null) {
+            account = userRepository.save(User.builder()
+                    .username(employee.getEmail())
+                    .passwordHash(passwordHash)
+                    .role(requireStaffRole())
+                    .employee(employee)
+                    .isActive(true)
+                    .build());
+            employee.setUser(account);
+        } else {
+            account.setUsername(employee.getEmail());
+            account.setPasswordHash(passwordHash);
+            account.setRole(requireStaffRole());
+            account.setEmployee(employee);
+            account.setIsActive(true);
+            account.setMustChangePassword(false);
+            userRepository.save(account);
+        }
+        employeeRepository.save(employee);
+        return account;
+    }
+
+    private void applyRehireProfile(Employee employee, RecruitmentCandidate candidate, Store store) {
+        Store current = employee.getStore();
+        if (current != null && current.getManager() != null && employee.getId().equals(current.getManager().getId())) {
+            current.setManager(null);
+            storeRepository.flush();
+        }
+        if (employee.getEmail() == null || !candidate.getEmail().equalsIgnoreCase(employee.getEmail())) {
+            if (employeeRepository.existsByEmailIgnoreCase(candidate.getEmail())
+                    || userRepository.existsByUsernameIgnoreCase(candidate.getEmail())) {
+                throw new BusinessException(EMAIL_EXISTS + " Không thể tạo tài khoản.");
+            }
+            employee.setEmail(candidate.getEmail());
+        }
+        employee.setFullName(candidate.getFullName());
+        employee.setPhone(candidate.getPhone());
+        employee.setAddress(candidate.getAddress());
+        employee.setStatus(EmployeeStatus.ACTIVE);
+        employee.setTerminationDate(null);
+        employee.setStore(store);
+    }
+
+    private Employee resolveRehire(NormalizedCandidate candidate) {
+        if (employeeRepository.existsByEmailIgnoreCaseAndStatusIn(candidate.email(), WORKING_STATUSES)) {
+            throw new BusinessException(EMAIL_APPROVED_OR_WORKING + " (" + candidate.email() + ")");
+        }
+        Employee requested = null;
+        if (candidate.rehireEmployeeId() != null) {
+            requested = employeeRepository.findByIdWithStoreAccount(candidate.rehireEmployeeId())
+                    .orElseThrow(() -> new BusinessException("Không tìm thấy nhân viên để tuyển dụng lại."));
+            if (requested.getStatus() != EmployeeStatus.TERMINATED) {
+                throw new BusinessException(REHIRE_WORKING);
+            }
+            if (!StaffEmploymentGuard.isRehirableStaff(requested.getUser())) {
+                throw new BusinessException(REHIRE_NOT_STAFF);
+            }
+        }
+        Employee byEmail = employeeRepository.findByEmailIgnoreCaseWithAccount(candidate.email()).orElse(null);
+        if (byEmail != null && byEmail.getStatus() != EmployeeStatus.TERMINATED) {
+            throw new BusinessException(EMAIL_APPROVED_OR_WORKING + " (" + candidate.email() + ")");
+        }
+        if (requested != null && byEmail != null && !requested.getId().equals(byEmail.getId())) {
+            throw new BusinessException(EMAIL_EXISTS + " (" + candidate.email() + ")");
+        }
+        Employee former = requested != null ? requested : byEmail;
+        if (former != null) {
+            if (!StaffEmploymentGuard.isRehirableStaff(former.getUser())) {
+                throw new BusinessException(REHIRE_NOT_STAFF);
+            }
+            if (recruitmentCandidateRepository.existsByRehireEmployee_IdAndStatus(former.getId(), RecruitmentStatus.PENDING)) {
+                throw new BusinessException(REHIRE_PENDING + " (" + displayName(former) + ")");
+            }
+            if (recruitmentCandidateRepository.existsByEmailIgnoreCaseAndStatus(candidate.email(), RecruitmentStatus.PENDING)) {
+                throw new BusinessException(EMAIL_PENDING + " (" + candidate.email() + ")");
+            }
+            return former;
+        }
+        if (recruitmentCandidateRepository.existsApprovedByEmailIgnoreCase(candidate.email())) {
+            throw new BusinessException(EMAIL_APPROVED_OR_WORKING + " (" + candidate.email() + ")");
+        }
+        if (emailTaken(candidate.email())) {
+            throw new BusinessException(EMAIL_EXISTS + " (" + candidate.email() + ")");
+        }
+        if (recruitmentCandidateRepository.existsByEmailIgnoreCaseAndStatus(candidate.email(), RecruitmentStatus.PENDING)) {
+            throw new BusinessException(EMAIL_PENDING + " (" + candidate.email() + ")");
+        }
+        return null;
+    }
+
+    private String displayName(Employee employee) {
+        if (employee == null || employee.getFullName() == null || employee.getFullName().isBlank()) {
+            return "nhân viên";
+        }
+        return employee.getFullName().trim();
     }
 
     private void assertUniqueInProposal(List<NormalizedCandidate> candidates) {
@@ -398,17 +601,40 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
         }
     }
 
-    private void assertEmailAvailable(String email) {
-        if (emailTaken(email)) {
-            throw new BusinessException(EMAIL_EXISTS + " (" + email + ")");
+    private String activeEmailMessage(String email) {
+        if (email == null || email.isBlank()) {
+            return null;
         }
-        if (recruitmentCandidateRepository.existsByEmailIgnoreCaseAndStatus(email, RecruitmentStatus.PENDING)) {
-            throw new BusinessException(EMAIL_PENDING + " (" + email + ")");
+        String normalized = email.trim().toLowerCase(Locale.ROOT);
+        if (!employeeRepository.existsByEmailIgnoreCaseAndStatusIn(normalized, List.of(EmployeeStatus.ACTIVE))) {
+            return null;
         }
+        return EMAIL_ACTIVE_EMPLOYEE + " (" + normalized + ")";
     }
 
-    private void assertPhoneAvailable(String phone) {
-        if (employeeRepository.countByNormalizedPhone(phone) > 0) {
+    private String activePhoneMessage(String phone) {
+        if (phone == null || phone.isBlank()) {
+            return null;
+        }
+        String normalized = phone.replaceAll("[\\s.\\-]", "");
+        if (!normalized.matches("^[0-9]{9,15}$")) {
+            return null;
+        }
+        if (employeeRepository.countByNormalizedPhoneAndStatus(normalized, EmployeeStatus.ACTIVE.getDbValue()) == 0) {
+            return null;
+        }
+        return PHONE_ACTIVE_EMPLOYEE + " (" + normalized + ")";
+    }
+
+    private void assertPhoneAvailable(String phone, Employee rehire) {
+        boolean sameFormerPhone = rehire != null && rehire.getPhone() != null
+                && phone.equals(rehire.getPhone().replaceAll("[\\s.\\-]", ""));
+        if (sameFormerPhone) {
+            if (employeeRepository.countByNormalizedPhoneAndStatus(phone, EmployeeStatus.ACTIVE.getDbValue()) > 0
+                    || employeeRepository.countByNormalizedPhoneAndStatus(phone, EmployeeStatus.ON_LEAVE.getDbValue()) > 0) {
+                throw new BusinessException(PHONE_ACTIVE_EMPLOYEE + " (" + phone + ")");
+            }
+        } else if (employeeRepository.countByNormalizedPhone(phone) > 0) {
             throw new BusinessException(PHONE_EXISTS + " (" + phone + ")");
         }
         if (recruitmentCandidateRepository.existsByPhoneAndStatus(phone, RecruitmentStatus.PENDING)) {
@@ -447,9 +673,12 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
         if (fullName == null || fullName.isBlank()) {
             throw new BusinessException("Vui lòng nhập họ và tên.");
         }
-        String normalized = fullName.trim();
+        String normalized = fullName.trim().replaceAll("\\s+", " ");
         if (normalized.length() > 100) {
             throw new BusinessException("Họ và tên tối đa 100 ký tự.");
+        }
+        if (!PERSON_NAME_PATTERN.matcher(normalized).matches()) {
+            throw new BusinessException(NAME_NOT_LETTERS);
         }
         return normalized;
     }
@@ -461,6 +690,9 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
         String normalized = title.trim();
         if (normalized.length() > 150) {
             throw new BusinessException("Tên đề xuất tối đa 150 ký tự.");
+        }
+        if (recruitmentRequestRepository.existsByTitleIgnoreCase(normalized)) {
+            throw new BusinessException(TITLE_EXISTS);
         }
         return normalized;
     }
@@ -602,6 +834,8 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
                     .rejectReason(candidate.getRejectReason())
                     .reviewedAt(candidate.getReviewedAt())
                     .createdEmployeeId(createdEmployee != null ? createdEmployee.getId() : null)
+                    .rehire(candidate.getRehireEmployee() != null)
+                    .kindLabel(kindLabel(candidate.getRehireEmployee() != null, status))
                     .build());
         }
         RecruitmentProposalStatus status = request.getStatus();
@@ -624,13 +858,26 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
                 .build();
     }
 
+    private String kindLabel(boolean rehire, RecruitmentStatus status) {
+        if (!rehire) {
+            return null;
+        }
+        return switch (status) {
+            case PENDING -> "Ứng viên đang được đề xuất tuyển dụng lại";
+            case APPROVED -> "Ứng viên được Admin duyệt tuyển dụng lại";
+            case REJECTED -> "Ứng viên bị Admin từ chối tuyển dụng lại";
+        };
+    }
+
     private record NormalizedCandidate(
             String fullName,
             LocalDate dateOfBirth,
             Gender gender,
             String email,
             String phone,
-            String address) {
+            String address,
+            Integer rehireEmployeeId,
+            Employee rehireEmployee) {
     }
 
     private record LockedProposal(RecruitmentRequest request, List<RecruitmentCandidate> candidates) {

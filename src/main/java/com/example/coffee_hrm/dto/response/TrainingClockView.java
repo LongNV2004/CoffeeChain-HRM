@@ -21,8 +21,14 @@ public class TrainingClockView {
         private final String typeLabel;
         private final String dateLabel;
         private final String timeLabel;
+        private final String statusKey;
         private final String statusLabel;
+        private final String checkInLabel;
+        private final String checkOutLabel;
         private final boolean canCheckIn;
+        private final String checkInNotice;
         private final boolean canCheckOut;
+        private final String checkOutNotice;
+        private final String checkoutHint;
     }
 }

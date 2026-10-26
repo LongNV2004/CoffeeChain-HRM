@@ -4,8 +4,10 @@ import com.example.coffee_hrm.common.enums.NotificationType;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.dto.response.NotificationResponse;
+import com.example.coffee_hrm.entity.MonthlyAttendanceReport;
 import com.example.coffee_hrm.entity.Notification;
 import com.example.coffee_hrm.entity.User;
+import com.example.coffee_hrm.repository.MonthlyAttendanceReportRepository;
 import com.example.coffee_hrm.repository.NotificationRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.NotificationService;
@@ -21,6 +23,7 @@ import java.util.List;
 public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
+    private final MonthlyAttendanceReportRepository attendanceReportRepository;
 
     @Override
     @Transactional
@@ -82,6 +85,23 @@ public class NotificationServiceImpl implements NotificationService {
         notificationRepository.markAllReadByRecipientId(user.getUserId());
     }
 
+    private String managerReportUrl(Integer reportId) {
+        if (reportId == null) {
+            return "/attendance/manager/reports";
+        }
+        return attendanceReportRepository.findById(reportId)
+                .map(this::managerReportUrl)
+                .orElse("/attendance/manager/reports");
+    }
+
+    private String managerReportUrl(MonthlyAttendanceReport report) {
+        if (report.getReportYear() == null || report.getReportMonth() == null) {
+            return "/attendance/manager/reports";
+        }
+        return "/attendance/manager/reports?year=" + report.getReportYear()
+                + "&month=" + report.getReportMonth();
+    }
+
     private void requireUser(AuthenticatedUser user) {
         if (user == null || user.getUserId() == null) {
             throw new BusinessException("Vui lòng đăng nhập để xem thông báo.");
@@ -121,6 +141,11 @@ public class NotificationServiceImpl implements NotificationService {
                         : "/schedule/staff";
                 case ADMIN -> null;
             };
+            case "SHIFT_CHANGE" -> switch (user.getRoleName()) {
+                case MANAGER -> "/schedule/manager";
+                case STAFF -> "/schedule/staff";
+                case ADMIN -> null;
+            };
             case "RECRUITMENT_REQUEST" -> switch (user.getRoleName()) {
                 case ADMIN -> notification.getReferenceId() == null
                         ? "/admin/recruitment"
@@ -128,6 +153,27 @@ public class NotificationServiceImpl implements NotificationService {
                 case MANAGER -> notification.getReferenceId() == null
                         ? "/manager/recruitment"
                         : "/manager/recruitment/" + notification.getReferenceId();
+                case STAFF -> null;
+            };
+            case "RESIGNATION_PROPOSAL" -> switch (user.getRoleName()) {
+                case ADMIN -> notification.getReferenceId() == null
+                        ? "/admin/resignation"
+                        : "/admin/resignation/" + notification.getReferenceId();
+                case MANAGER -> notification.getReferenceId() == null
+                        ? "/manager/resignation"
+                        : "/manager/resignation/" + notification.getReferenceId();
+                case STAFF -> null;
+            };
+            case "LEAVE_REQUEST" -> switch (user.getRoleName()) {
+                case ADMIN -> "/admin/leaves";
+                case MANAGER -> "/manager/leaves";
+                case STAFF -> "/staff/leave";
+            };
+            case "ATTENDANCE_REPORT" -> switch (user.getRoleName()) {
+                case ADMIN -> notification.getReferenceId() == null
+                        ? "/attendance/admin/reports"
+                        : "/attendance/admin/reports/" + notification.getReferenceId();
+                case MANAGER -> managerReportUrl(notification.getReferenceId());
                 case STAFF -> null;
             };
             default -> null;

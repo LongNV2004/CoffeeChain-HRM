@@ -3,14 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lịch Làm Việc & Đổi Ca — CoffeeHRM</title>
+    <title th:text="${shiftChangePage} ? 'Đổi ca — CoffeeHRM' : 'Lịch làm việc — CoffeeHRM'">Lịch làm việc — CoffeeHRM</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/StaffSchedule.css}">
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
-<header th:replace="~{fragments/navbar :: staff('schedule')}"></header>
+<th:block th:if="${shiftChangePage}">
+    <header th:replace="~{fragments/navbar :: staff('shift-change')}"></header>
+</th:block>
+<th:block th:unless="${shiftChangePage}">
+    <header th:replace="~{fragments/navbar :: staff('schedule')}"></header>
+</th:block>
 
 <main class="wrap dash-main">
 
@@ -25,24 +30,24 @@
     <!-- Header bar -->
     <section class="schedule-header">
         <div class="store-info">
-            <div class="eyebrow">Cửa hàng của tôi</div>
-            <h1 th:text="${schedule.storeName}">The Coffee House</h1>
-            <p th:text="${schedule.storeAddress}">Địa chỉ</p>
+            <div class="eyebrow" th:text="${shiftChangePage} ? 'Đổi ca' : 'Cửa hàng của tôi'">Cửa hàng của tôi</div>
+            <h1 th:text="${shiftChangePage} ? 'Đổi ca làm việc' : ${schedule.storeName}">The Coffee House</h1>
+            <p th:text="${shiftChangePage} ? ${schedule.storeName + ' — ' + schedule.storeAddress} : ${schedule.storeAddress}">Địa chỉ</p>
         </div>
 
         <!-- Week navigation -->
         <div class="nav-controls">
-            <a class="nav-btn" th:href="@{/schedule/staff(date=${schedule.prevWeekDate})}">← Tuần trước</a>
+            <a class="nav-btn" th:href="@{${schedulePath}(date=${schedule.prevWeekDate})}">← Tuần trước</a>
             <span class="week-label" th:text="${#temporals.format(schedule.weekStartDate, 'dd/MM') + ' – ' + #temporals.format(schedule.weekEndDate, 'dd/MM/yyyy')}">
                 21/09 – 27/09/2026
             </span>
-            <a class="nav-btn" th:href="@{/schedule/staff(date=${schedule.nextWeekDate})}">Tuần sau →</a>
-            <a class="nav-btn" th:href="@{/schedule/staff}">Tuần này</a>
+            <a class="nav-btn" th:href="@{${schedulePath}(date=${schedule.nextWeekDate})}">Tuần sau →</a>
+            <a class="nav-btn" th:href="@{${schedulePath}}">Tuần này</a>
         </div>
     </section>
 
-    <!-- My Schedule Section -->
-    <section class="panel">
+    <!-- My Schedule Section: chỉ dùng để gửi yêu cầu ở trang Đổi ca -->
+    <section class="panel" th:if="${shiftChangePage}">
         <div class="panel-header">
             <h2>Ca làm việc của tôi trong tuần này</h2>
         </div>
@@ -81,10 +86,10 @@
     </section>
 
     <!-- Overall Store Schedule -->
-    <section class="panel">
+    <section class="panel" th:unless="${shiftChangePage}">
         <div class="panel-header">
             <h2>Lịch làm việc chung tại cửa hàng</h2>
-            <small style="color:var(--ink-soft);">Xem lịch đồng nghiệp để thuận tiện đề xuất đổi ca</small>
+            <small style="color:var(--ink-soft);">Ca làm đã được phân trong tuần</small>
         </div>
 
         <div class="grid-container">
@@ -120,7 +125,7 @@
     </section>
 
     <!-- Incoming Shift Change Requests (from peers) -->
-    <section class="panel incoming-requests-panel" th:if="${!#lists.isEmpty(schedule.incomingRequests)}">
+    <section class="panel incoming-requests-panel" th:if="${shiftChangePage and !#lists.isEmpty(schedule.incomingRequests)}">
         <div class="panel-header">
             <div style="display:flex;align-items:center;gap:12px;">
                 <div style="width:36px;height:36px;border-radius:50%;background:#FFF8E1;display:flex;align-items:center;justify-content:center;color:#B78103;flex-shrink:0;">
@@ -169,14 +174,23 @@
 
                 <div class="incoming-card-actions">
                     <form th:action="@{/schedule/staff/requests/{id}/respond(id=${inReq.requestId})}" method="post" style="display:inline;">
+                        <input type="hidden" name="origin" value="shift-change" th:if="${shiftChangePage}">
                         <input type="hidden" name="agreed" value="true">
-                        <button type="submit" class="btn-agree" onclick="return confirm('Bạn có chắc chắn ĐỒNG Ý yêu cầu đổi ca này? Sau khi đồng ý, đơn sẽ được gửi lên Quản lý cửa hàng phê duyệt.')">
+                        <button type="submit" class="btn-agree"
+                                data-coffee-confirm="Bạn có chắc chắn đồng ý yêu cầu đổi ca này? Sau khi đồng ý, đơn sẽ được gửi lên Quản lý cửa hàng phê duyệt."
+                                data-coffee-title="Đồng ý đổi ca"
+                                data-coffee-ok="Đồng ý">
                             <i data-lucide="check" style="width:14px;height:14px;vertical-align:middle;margin-right:2px;"></i> Đồng ý hỗ trợ
                         </button>
                     </form>
                     <form th:action="@{/schedule/staff/requests/{id}/respond(id=${inReq.requestId})}" method="post" style="display:inline;">
+                        <input type="hidden" name="origin" value="shift-change" th:if="${shiftChangePage}">
                         <input type="hidden" name="agreed" value="false">
-                        <button type="submit" class="btn-decline" onclick="return confirm('Bạn có chắc chắn muốn TỪ CHỐI yêu cầu đổi ca này?')">
+                        <button type="submit" class="btn-decline"
+                                data-coffee-confirm="Bạn có chắc chắn muốn từ chối yêu cầu đổi ca này?"
+                                data-coffee-title="Từ chối đổi ca"
+                                data-coffee-ok="Từ chối"
+                                data-coffee-tone="danger">
                             <i data-lucide="x" style="width:14px;height:14px;vertical-align:middle;margin-right:2px;"></i> Từ chối
                         </button>
                     </form>
@@ -186,7 +200,7 @@
     </section>
 
     <!-- Shift Change Request History -->
-    <section class="panel" id="requests-history">
+    <section class="panel" id="requests-history" th:if="${shiftChangePage}">
         <div class="panel-header">
             <h2>Lịch sử yêu cầu đổi ca của tôi</h2>
         </div>
@@ -247,7 +261,7 @@
 </main>
 
 <!-- Request Shift Change Modal -->
-<div class="modal" id="changeModal">
+<div class="modal" id="changeModal" th:if="${shiftChangePage}">
     <div class="modal-dialog" style="max-width:540px;">
         <div class="modal-header">
             <h2>Yêu cầu đổi ca làm việc</h2>
@@ -256,6 +270,7 @@
         <form th:action="@{/schedule/staff/request-change}" th:object="${changeForm}" method="post">
             <input type="hidden" id="assignmentIdInput" name="assignmentId">
             <input type="hidden" name="currentWeek" th:value="${schedule.weekStartDate}">
+            <input type="hidden" name="origin" value="shift-change" th:if="${shiftChangePage}">
 
             <div class="form-group">
                 <label>Ca làm việc của bạn cần đổi:</label>
@@ -314,7 +329,7 @@
                 <select id="transferSelect" name="targetEmployeeId" class="form-control">
                     <option value="">-- Chọn đồng nghiệp nhận ca --</option>
                     <option th:each="emp : ${schedule.storeEmployees}"
-                            th:if="${emp.employeeId != currentEmployeeId}"
+                            th:if="${emp.certified and emp.employeeId != currentEmployeeId}"
                             th:value="${emp.employeeId}"
                             th:text="${emp.fullName + ' (' + emp.email + ')'}">
                         Lê Thị Thu (thult@fpt.edu.vn)
@@ -388,7 +403,7 @@
     }
     window.onclick = function(event) {
         const modal = document.getElementById('changeModal');
-        if (event.target === modal) {
+        if (modal && event.target === modal) {
             closeChangeModal();
         }
     };

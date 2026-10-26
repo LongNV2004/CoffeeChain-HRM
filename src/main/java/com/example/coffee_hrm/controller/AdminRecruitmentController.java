@@ -2,6 +2,7 @@ package com.example.coffee_hrm.controller;
 
 import com.example.coffee_hrm.common.enums.RecruitmentProposalStatus;
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.dto.response.CandidateApprovalResult;
 import com.example.coffee_hrm.dto.response.CandidateRejectionResult;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.RecruitmentRequestService;
@@ -77,9 +78,15 @@ public class AdminRecruitmentController {
                           @AuthenticationPrincipal AuthenticatedUser user,
                           RedirectAttributes redirectAttributes) {
         try {
-            String fullName = recruitmentRequestService.approveCandidate(user, id, candidateId);
-            redirectAttributes.addFlashAttribute("successMessage",
-                    "Đã duyệt " + fullName + ", tạo tài khoản Staff và gửi mật khẩu tạm thời qua email.");
+            CandidateApprovalResult result = recruitmentRequestService.approveCandidate(user, id, candidateId);
+            if (result.reactivatedExistingAccount()) {
+                redirectAttributes.addFlashAttribute("successMessage",
+                        "Đã duyệt tuyển dụng lại " + result.fullName()
+                                + ". Hồ sơ và tài khoản cũ được kích hoạt, mật khẩu mới đã gửi qua email.");
+            } else {
+                redirectAttributes.addFlashAttribute("successMessage",
+                        "Đã duyệt " + result.fullName() + ", tạo tài khoản Staff và gửi mật khẩu tạm thời qua email.");
+            }
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
         }

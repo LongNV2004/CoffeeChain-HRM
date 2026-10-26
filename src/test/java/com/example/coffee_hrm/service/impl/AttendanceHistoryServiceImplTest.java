@@ -117,12 +117,41 @@ class AttendanceHistoryServiceImplTest {
 
         assertEquals(20, view.getEmployeeId());
         assertEquals(1, view.getRecordCount());
-        assertEquals("8.5 giờ", view.getTotalHoursLabel());
+        assertEquals("8 giờ 55 phút", view.getTotalHoursLabel());
         assertEquals("Đi muộn", view.getRows().getFirst().getStatusLabel());
         assertEquals("Ca sáng (08:00–12:00)", view.getRows().getFirst().getShiftLabel());
         assertEquals("08:05", view.getRows().getFirst().getCheckInLabel());
+        assertEquals("17:00", view.getRows().getFirst().getCheckOutLabel());
+        assertEquals("8 giờ 55 phút", view.getRows().getFirst().getTotalHoursLabel());
         verify(attendanceRepository).findHistoryByEmployee(eq(20), eq(from), eq(to));
         verify(attendanceRepository, never()).findHistoryByStore(any(), any(), any());
+    }
+
+    @Test
+    void historyShowsTheExactCheckInAndCheckOutDuration() {
+        LocalDate day = VietnamTime.today().minusDays(1);
+        Attendance attendance = Attendance.builder()
+                .id(8)
+                .employee(staffEmployee)
+                .workDate(day)
+                .checkInTime(day.atTime(9, 3, 42))
+                .checkOutTime(day.atTime(9, 25, 26))
+                .workingMinutes(22)
+                .lateMinutes(0)
+                .earlyLeaveMinutes(0)
+                .status(AttendanceStatus.PRESENT)
+                .build();
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(staffEmployee));
+        when(attendanceRepository.findHistoryByEmployee(20, day, day)).thenReturn(List.of(attendance));
+        when(shiftAssignmentRepository.findWeeklyAssignmentsForEmployee(20, day, day, AssignmentStatus.ASSIGNED))
+                .thenReturn(List.of());
+
+        AttendanceHistoryView view = attendanceHistoryService.getStaffHistory(staffUser, day, day);
+
+        assertEquals("09:03", view.getRows().getFirst().getCheckInLabel());
+        assertEquals("09:25", view.getRows().getFirst().getCheckOutLabel());
+        assertEquals("21 phút", view.getRows().getFirst().getTotalHoursLabel());
+        assertEquals("21 phút", view.getTotalHoursLabel());
     }
 
     @Test
@@ -235,6 +264,10 @@ class AttendanceHistoryServiceImplTest {
         assertEquals("training", view.getFilterKind());
         assertEquals("Chấm công đào tạo", view.getRows().getFirst().getKindLabel());
         assertEquals("Pha chế (08:00–12:00)", view.getRows().getFirst().getShiftLabel());
+        assertEquals(1, view.getTrainingClasses().size());
+        assertEquals(0, view.getTrainingLateCount());
+        assertEquals(0, view.getTrainingAbsentCount());
+        assertTrue(view.getTrainingClasses().getFirst().getLearners().getFirst().isPresent());
         verify(trainingAttendanceRepository).findHistoryByEmployee(20, day, day);
         verify(attendanceRepository, never()).findHistoryByEmployee(any(), any(), any());
     }
@@ -257,6 +290,50 @@ class AttendanceHistoryServiceImplTest {
         assertTrue(ex.getMessage().contains("không thuộc cửa hàng"));
         verify(trainingAttendanceRepository, never()).findHistoryByEmployee(any(), any(), any());
         verify(attendanceRepository, never()).findHistoryByStoreAndEmployee(any(), any(), any(), any());
+    }
+
+    @Test
+    void managerTrainingHistoryGroupsEachClassAndCountsLateAndAbsentPeople() {
+        LocalDate day = VietnamTime.today().minusDays(1);
+        Employee missed = Employee.builder()
+                .id(21).fullName("Lê Thị Thu").store(store).status(EmployeeStatus.ACTIVE).build();
+        TrainingClass serving = TrainingClass.builder().id(4).className("Phục vụ 1").build();
+        TrainingAttendance late = TrainingAttendance.builder()
+                .id(1).employee(staffEmployee).trainingClass(serving).workDate(day)
+                .className("Phục vụ 1").scheduledStartTime(LocalTime.of(10, 46)).scheduledEndTime(LocalTime.of(10, 50))
+                .checkInTime(day.atTime(10, 58)).lateMinutes(12).status(AttendanceStatus.LATE)
+                .checkInPhotoName("t1-in.jpg").build();
+        TrainingAttendance absent = TrainingAttendance.builder()
+                .id(2).employee(missed).trainingClass(serving).workDate(day)
+                .className("Phục vụ 1").scheduledStartTime(LocalTime.of(10, 46)).scheduledEndTime(LocalTime.of(10, 50))
+                .status(AttendanceStatus.NOT_PARTICIPATED).build();
+        TrainingAttendance other = TrainingAttendance.builder()
+                .id(3).employee(staffEmployee).workDate(day)
+                .className("Pha chế").scheduledStartTime(LocalTime.of(9, 0)).scheduledEndTime(LocalTime.of(11, 0))
+                .checkInTime(day.atTime(9, 0)).status(AttendanceStatus.PRESENT).build();
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        when(employeeRepository.findByStore_IdAndStatus(eq(1), any())).thenReturn(List.of());
+        when(shiftRepository.findByStore_IdOrderByStartTimeAsc(1)).thenReturn(List.of());
+        when(trainingAttendanceRepository.findHistoryForManager(eq(1), eq(10), eq(day), eq(day)))
+                .thenReturn(List.of(late, absent, other));
+
+        AttendanceHistoryView view = attendanceHistoryService.getManagerHistory(managerUser, AttendanceHistoryQuery.builder()
+                .fromDate(day)
+                .toDate(day)
+                .kind(AttendanceHistoryKind.TRAINING)
+                .build());
+
+        assertEquals(2, view.getTrainingClasses().size());
+        AttendanceHistoryView.TrainingClassCard servingCard = view.getTrainingClasses().getFirst();
+        assertEquals("Phục vụ 1", servingCard.getClassName());
+        assertEquals(1, servingCard.getLateCount());
+        assertEquals(1, servingCard.getAbsentCount());
+        assertEquals(2, servingCard.getLearners().size());
+        assertEquals("/attendance/training-photos/1/in", servingCard.getLearners().stream()
+                .filter(AttendanceHistoryView.TrainingLearner::isLate)
+                .findFirst().orElseThrow().getCheckInPhotoUrl());
+        assertEquals(1, view.getTrainingLateCount());
+        assertEquals(1, view.getTrainingAbsentCount());
     }
 
     private User buildUser(Integer id, String username, RoleName roleName, Employee employee) {

@@ -79,6 +79,15 @@ public class MonthlyAttendanceReport {
     @Column(name = "PreparedByName", length = 100)
     private String preparedByName;
 
+    @Column(name = "ReviewedAt")
+    private LocalDateTime reviewedAt;
+
+    @Column(name = "ReviewedByName", length = 100)
+    private String reviewedByName;
+
+    @Column(name = "ReviewNote", length = 500)
+    private String reviewNote;
+
     @Column(name = "EmployeeCount", nullable = false)
     @Builder.Default
     private Integer employeeCount = 0;

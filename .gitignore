@@ -35,5 +35,9 @@ build/
 # Consolidated DB setup script (share manually with team)
 coffee_hrm_full_setup.sql
 
+# Ảnh chấm công ca, không đưa vào git
+storage/attendance-photos/
+storage/contract-files/
+
 # OS metadata
 .DS_Store

@@ -9,6 +9,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.springframework.format.annotation.DateTimeFormat;
+
+import java.time.LocalDate;
 
 @Getter
 @Setter
@@ -25,12 +28,16 @@ public class CreateStoreRequest {
     @Size(max = 255, message = "Địa chỉ tối đa 255 ký tự")
     private String address;
 
-    @NotNull(message = "Vui lòng nhập số ngày phép")
-    @Min(value = 0, message = "Số ngày phép không được âm")
+    @NotNull(message = "Vui lòng nhập số ca phép")
+    @Min(value = 0, message = "Số ca phép không được âm")
+    private Integer totalLeaveSlots;
+
+    /** Kept so existing day balances are not rewritten from this form. */
     private Integer totalLeaveDays;
 
-    @NotNull(message = "Vui lòng chọn trạng thái")
-    private Boolean isActive;
+    @NotNull(message = "Vui lòng chọn ngày khai trương")
+    @DateTimeFormat(pattern = "dd/MM/yyyy")
+    private LocalDate openingDate;
 
     @NotBlank(message = "Vui lòng nhập vĩ độ")
     @Size(max = 20, message = "Vĩ độ tối đa 20 ký tự")

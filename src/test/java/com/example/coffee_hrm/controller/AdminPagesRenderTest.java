@@ -4,6 +4,7 @@ import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RecruitmentProposalStatus;
 import com.example.coffee_hrm.common.enums.RecruitmentStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
+import com.example.coffee_hrm.common.enums.StoreStatus;
 import com.example.coffee_hrm.dto.response.EmployeeResponse;
 import com.example.coffee_hrm.dto.response.RecruitmentCandidateResponse;
 import com.example.coffee_hrm.dto.response.RecruitmentRequestResponse;
@@ -17,6 +18,7 @@ import com.example.coffee_hrm.security.SecurityConfig;
 import com.example.coffee_hrm.service.EmployeeService;
 import com.example.coffee_hrm.service.NotificationService;
 import com.example.coffee_hrm.service.RecruitmentRequestService;
+import com.example.coffee_hrm.service.ResignationProposalService;
 import com.example.coffee_hrm.service.StoreService;
 import com.example.coffee_hrm.service.TrainingService;
 import org.junit.jupiter.api.Test;
@@ -59,6 +61,8 @@ class AdminPagesRenderTest {
     @MockitoBean
     private RecruitmentRequestService recruitmentRequestService;
     @MockitoBean
+    private ResignationProposalService resignationProposalService;
+    @MockitoBean
     private DatabaseUserDetailsService userDetailsService;
     @MockitoBean
     private NotificationService notificationService;
@@ -88,39 +92,98 @@ class AdminPagesRenderTest {
 
     @Test
     void employeesHomeListsStoresToChoose() throws Exception {
-        when(storeService.getStores(any())).thenReturn(List.of(storeResponse()));
+        when(storeService.getStores(any())).thenReturn(List.of(StoreResponse.builder()
+                .id(5)
+                .storeName("Coffee Nguyễn Trãi")
+                .address("12 Nguyễn Trãi")
+                .employeeCount(4)
+                .status(StoreStatus.ACTIVE)
+                .statusLabel("Hoạt động")
+                .stateKey("active")
+                .build()));
 
-        mockMvc.perform(get("/admin/employees").with(user(admin())))
+        String html = mockMvc.perform(get("/admin/employees").with(user(admin())))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("— Chọn cửa hàng —")))
-                .andExpect(content().string(containsString("/admin/stores/5/employees")));
+                .andExpect(content().string(containsString("Danh sách cửa hàng")))
+                .andExpect(content().string(containsString("Coffee Nguyễn Trãi")))
+                .andExpect(content().string(containsString("12 Nguyễn Trãi")))
+                .andExpect(content().string(containsString("Mã cửa hàng")))
+                .andExpect(content().string(containsString("Hoạt động")))
+                .andExpect(content().string(containsString("Xem nhân viên")))
+                .andExpect(content().string(containsString("/admin/stores/5/employees")))
+                .andExpect(content().string(not(containsString("Chỉnh sửa nhân viên"))))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        int storeName = html.indexOf("Coffee Nguyễn Trãi");
+        int viewEmployees = html.indexOf("Xem nhân viên");
+        org.junit.jupiter.api.Assertions.assertTrue(storeName >= 0 && viewEmployees > storeName);
+        verify(employeeService, never()).getAllEmployees(any());
     }
 
     @Test
-    void storeEmployeesPageShowsRoleCertificateAndActions() throws Exception {
+    void storeEmployeesPageShowsReadOnlyRosterWithActualStatus() throws Exception {
         StoreResponse store = StoreResponse.builder().id(5).storeName("Coffee Nguyễn Trãi").address("12 Nguyễn Trãi")
                 .totalLeaveDays(12).isActive(true).employeeCount(2).managerName("Nguyễn Văn A").build();
         when(storeService.getStore(any(), eq(5))).thenReturn(store);
-        when(storeService.getStores(any())).thenReturn(List.of(store));
         when(employeeService.getStoreEmployees(any(), eq(5))).thenReturn(List.of(
                 EmployeeResponse.builder().id(1).fullName("Nguyễn Văn A").email("a@x.vn").phone("0901")
                         .storeId(5).status(EmployeeStatus.ACTIVE).roleName(RoleName.MANAGER)
                         .storeManager(true).hasCertificate(true).build(),
                 EmployeeResponse.builder().id(2).fullName("Trần Thị B").email("b@x.vn").phone("0902")
                         .storeId(5).status(EmployeeStatus.ON_LEAVE).roleName(RoleName.STAFF).build(),
-                EmployeeResponse.builder().id(3).fullName("Lê Văn C").email("c@x.vn")
-                        .storeId(5).status(EmployeeStatus.ACTIVE).build()));
+                EmployeeResponse.builder().id(3).fullName("Lê Văn C")
+                        .storeId(5).status(EmployeeStatus.TERMINATED).build()));
 
-        mockMvc.perform(get("/admin/stores/5/employees").with(user(admin())))
+        String html = mockMvc.perform(get("/admin/stores/5/employees").with(user(admin())))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Có chứng chỉ")))
-                .andExpect(content().string(containsString("Không có chứng chỉ")))
+                .andExpect(content().string(containsString("Coffee Nguyễn Trãi")))
+                .andExpect(content().string(containsString("12 Nguyễn Trãi")))
+                .andExpect(content().string(containsString("Đang làm việc")))
                 .andExpect(content().string(containsString("Đang nghỉ phép")))
-                .andExpect(content().string(containsString("Chuyển về Staff")))
-                .andExpect(content().string(containsString("Chỉ định Manager")))
+                .andExpect(content().string(containsString("Đã nghỉ việc")))
                 .andExpect(content().string(containsString("Chưa có tài khoản")))
-                .andExpect(content().string(containsString("/admin/stores/5/employees/1/role")))
-                .andExpect(content().string(containsString("Cửa hàng đã có Manager")));
+                .andExpect(content().string(containsString("Xem chi tiết")))
+                .andExpect(content().string(containsString("/admin/stores/5/employees/1")))
+                .andExpect(content().string(containsString("Chưa cập nhật")))
+                .andExpect(content().string(not(containsString("Chỉnh sửa nhân viên"))))
+                .andExpect(content().string(not(containsString("Lưu thay đổi"))))
+                .andExpect(content().string(not(containsString("name=\"status\""))))
+                .andExpect(content().string(not(containsString("password"))))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        org.junit.jupiter.api.Assertions.assertTrue(html.indexOf("Nguyễn Văn A") < html.indexOf("Trần Thị B"));
+        org.junit.jupiter.api.Assertions.assertTrue(html.indexOf("Trần Thị B") < html.indexOf("Lê Văn C"));
+    }
+
+    @Test
+    void employeeDetailIsReadOnlyAndShowsStoredStatus() throws Exception {
+        when(storeService.getStore(any(), eq(5))).thenReturn(StoreResponse.builder()
+                .id(5).storeName("Coffee Nguyễn Trãi").address("12 Nguyễn Trãi").employeeCount(2).build());
+        when(employeeService.getStoreEmployee(any(), eq(5), eq(2))).thenReturn(EmployeeResponse.builder()
+                .id(2)
+                .fullName("Trần Thị B")
+                .storeId(5)
+                .storeName("Coffee Nguyễn Trãi")
+                .status(EmployeeStatus.ON_LEAVE)
+                .roleName(RoleName.STAFF)
+                .build());
+
+        mockMvc.perform(get("/admin/stores/5/employees/2").with(user(admin())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Trần Thị B")))
+                .andExpect(content().string(containsString("Đang nghỉ phép")))
+                .andExpect(content().string(containsString("Chưa cập nhật")))
+                .andExpect(content().string(containsString("/admin/stores/5/employees")))
+                .andExpect(content().string(containsString("Quay lại danh sách nhân viên")))
+                .andExpect(content().string(not(containsString("<select"))))
+                .andExpect(content().string(not(containsString("name=\"status\""))))
+                .andExpect(content().string(not(containsString("Lưu thay đổi"))))
+                .andExpect(content().string(not(containsString("employeeEditForm"))))
+                .andExpect(content().string(not(containsString("passwordHash"))));
     }
 
     @Test
@@ -193,7 +256,11 @@ class AdminPagesRenderTest {
                 .andExpect(content().string(containsString("/admin/recruitment/3/candidates/9/reject")))
                 .andExpect(content().string(not(containsString("/admin/recruitment/3/candidates/10/approve"))))
                 .andExpect(content().string(not(containsString("/admin/recruitment/3/candidates/10/reject"))))
-                .andExpect(content().string(containsString("name=\"rejectReason\"")))
+                .andExpect(content().string(containsString(">Duyệt</button>")))
+                .andExpect(content().string(containsString(">Từ chối</button>")))
+                .andExpect(content().string(containsString("data-coffee-reason=\"rejectReason\"")))
+                .andExpect(content().string(not(containsString("name=\"rejectReason\""))))
+                .andExpect(content().string(not(containsString("<textarea"))))
                 .andExpect(content().string(not(containsString("name=\"password\""))));
     }
 

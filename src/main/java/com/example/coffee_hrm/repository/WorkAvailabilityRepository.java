@@ -131,8 +131,10 @@ public interface WorkAvailabilityRepository extends JpaRepository<WorkAvailabili
     int deleteByIds(@Param("ids") Collection<Integer> ids);
 
     /**
-     * Đăng ký còn chiếm chỗ của một ca: chờ duyệt, hoặc đã duyệt và còn hiệu lực.
+     * Đăng ký còn có thể chiếm chỗ của một ca: chờ duyệt, hoặc đã duyệt và chưa hết hạn.
      * Bản từ chối không nằm trong {@code statuses}.
+     * Kết quả là tập ứng viên. Người gọi phải lọc thêm theo đúng ngày làm việc,
+     * vì một đăng ký của tuần này không chiếm chỗ của tuần khác.
      */
     @Query("""
             SELECT wa FROM WorkAvailability wa
@@ -169,4 +171,17 @@ public interface WorkAvailabilityRepository extends JpaRepository<WorkAvailabili
             @Param("today") LocalDate today,
             @Param("pending") ApprovalStatus pending,
             @Param("statuses") Collection<ApprovalStatus> statuses);
+
+    /**
+     * Mỗi dòng là một ca trong đơn đăng ký đang chờ. Người gọi gom theo registrationKey
+     * để một đơn nhiều ca chỉ tính một yêu cầu.
+     */
+    @Query("""
+            SELECT wa.registrationKey, wa.id
+            FROM WorkAvailability wa
+            WHERE wa.employee.store.id = :storeId
+              AND wa.status = :pending
+            """)
+    List<Object[]> findPendingRegistrationIdentities(@Param("storeId") Integer storeId,
+                                                     @Param("pending") ApprovalStatus pending);
 }

@@ -15,5 +15,10 @@ public record ManagerLeaveItem(
         LocalDateTime createdAt,
         LocalDateTime resolvedDate,
         String rejectReason,
-        String reviewedByName) {
+        String reviewedByName,
+        String leaveType,
+        String leaveTypeLabel,
+        Integer requestedWorkDays,
+        String contactPhone,
+        boolean deductsAnnualLeave) {
 }

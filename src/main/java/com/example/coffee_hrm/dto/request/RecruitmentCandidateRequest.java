@@ -25,6 +25,7 @@ public class RecruitmentCandidateRequest {
 
     @NotBlank(message = "Vui lòng nhập họ và tên")
     @Size(max = 100, message = "Họ và tên tối đa 100 ký tự")
+    @Pattern(regexp = "^\\p{L}+(?:\\s+\\p{L}+)*$", message = "Họ và tên chỉ được chứa chữ cái, không được nhập số")
     private String fullName;
 
     @NotNull(message = "Vui lòng chọn ngày sinh")
@@ -44,6 +45,8 @@ public class RecruitmentCandidateRequest {
 
     @Size(max = 255, message = "Địa chỉ tối đa 255 ký tự")
     private String address;
+
+    private Integer rehireEmployeeId;
 
     public void setFullName(String fullName) {
         this.fullName = fullName == null ? null : fullName.trim();

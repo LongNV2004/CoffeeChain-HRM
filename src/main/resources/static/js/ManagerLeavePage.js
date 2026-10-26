@@ -11,7 +11,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const suggestionsOverlay = ids('mlSuggestionsOverlay');
     const approve = ids('mlApprove');
     const reject = ids('mlReject');
-    const showSuggestions = ids('mlShowSuggestions');
     const rejectForm = ids('mlRejectForm');
     const reason = ids('mlRejectReason');
     const gapList = ids('mlGapsList');
@@ -45,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return `${values.year}-${values.month}-${values.day}`;
     }
     function label(value) {
-        return { PENDING: 'Chờ duyệt', APPROVED: 'Đã duyệt', REJECTED: 'Đã từ chối' }[value] || value;
+        return { PENDING: 'Chờ duyệt', APPROVED: 'Đã duyệt', REJECTED: 'Đã từ chối', CANCELLED: 'Đã hủy' }[value] || value;
     }
     function toast(content, error = false) {
         const box = ids('mlToast');
@@ -110,12 +109,26 @@ document.addEventListener('DOMContentLoaded', () => {
         tableBody.replaceChildren();
         const waiting = el('tr');
         const waitCell = el('td', 'Đang tải danh sách...', 'ml-empty');
-        waitCell.colSpan = 5;
+        waitCell.colSpan = 7;
         waiting.append(waitCell);
         tableBody.append(waiting);
         syncFilterButtons();
         const params = new URLSearchParams({ page: String(page), keyword: search.value.trim() });
         if (status.value) params.set('status', status.value);
+        const from = ids('mlFrom');
+        const to = ids('mlTo');
+        if (from?.value && to?.value && to.value < from.value) {
+            tableBody.replaceChildren();
+            const row = el('tr');
+            const cell = el('td', 'Ngày kết thúc bộ lọc phải từ ngày bắt đầu trở đi.', 'ml-empty');
+            cell.colSpan = 7;
+            row.append(cell);
+            tableBody.append(row);
+            toast('Ngày kết thúc bộ lọc phải từ ngày bắt đầu trở đi.', true);
+            return;
+        }
+        if (from?.value) params.set('fromDate', from.value);
+        if (to?.value) params.set('toDate', to.value);
         try {
             const result = await get(`${api}/requests?${params}`);
             if (version !== listVersion) return;
@@ -124,14 +137,16 @@ document.addEventListener('DOMContentLoaded', () => {
             if (result.items.length === 0) {
                 const row = el('tr');
                 const cell = el('td', 'Không có đơn phù hợp.', 'ml-empty');
-                cell.colSpan = 5;
+                cell.colSpan = 7;
                 row.append(cell);
                 tableBody.append(row);
             }
             result.items.forEach(item => {
                 const row = el('tr');
-                row.append(el('td', item.employeeName, 'ml-person'));
+                row.append(el('td', `${item.employeeName} · ${item.employeeCode || ''}`, 'ml-person'));
+                row.append(el('td', item.leaveTypeLabel || 'Nghỉ phép năm'));
                 row.append(el('td', `${date(item.startDate)} – ${date(item.endDate)}`));
+                row.append(el('td', item.requestedWorkDays == null ? '—' : String(item.requestedWorkDays)));
                 const reasonCell = el('td', item.reason || '—', 'ml-reason');
                 reasonCell.title = item.reason || '';
                 row.append(reasonCell);
@@ -155,7 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tableBody.replaceChildren();
             const row = el('tr');
             const cell = el('td', error.message, 'ml-empty');
-            cell.colSpan = 5;
+            cell.colSpan = 7;
             row.append(cell);
             tableBody.append(row);
             ids('mlPrevious').disabled = true;
@@ -174,42 +189,49 @@ document.addEventListener('DOMContentLoaded', () => {
         body.replaceChildren();
         const grid = el('div', '', 'ml-detail-grid');
         detailField(grid, 'Nhân viên', request.employeeName);
+        detailField(grid, 'Loại nghỉ', request.leaveTypeLabel || 'Nghỉ phép năm');
+        detailField(grid, 'Số ca', request.requestedWorkDays == null ? '—' : String(request.requestedWorkDays));
+        detailField(grid, 'Trừ phép năm', request.deductsAnnualLeave ? 'Có, khi duyệt' : 'Không');
         detailField(grid, 'Trạng thái', label(request.status));
-        detailField(grid, 'Từ ngày', date(request.startDate));
-        detailField(grid, 'Đến ngày', date(request.endDate));
+        detailField(grid, 'Ca sớm nhất', date(request.startDate));
+        detailField(grid, 'Ca muộn nhất', date(request.endDate));
+        detailField(grid, 'Điện thoại', request.contactPhone || '—');
         detailField(grid, 'Lý do xin nghỉ', request.reason || '—', true);
         if (request.rejectReason) detailField(grid, 'Lý do từ chối', request.rejectReason, true);
-        if (request.reviewedByName) detailField(grid, 'Người xử lý', request.reviewedByName, true);
+        if (request.reviewedByName) detailField(grid, 'Người xử lý', request.reviewedByName);
+        if (request.resolvedDate) detailField(grid, 'Thời điểm xử lý', String(request.resolvedDate).replace('T', ' ').slice(0, 16));
         body.append(grid);
         const approved = request.status === 'APPROVED';
         const historicalShifts = data.cancelledLeaveShifts;
-        body.append(el('h3', approved ? 'Ngày có ca đã giải phóng' : 'Số ngày công dự kiến tính phép', 'ml-section-label'));
+        const quotaTitle = approved
+            ? 'Ca đã duyệt nghỉ'
+            : (request.deductsAnnualLeave ? 'Số ca phép năm dự kiến bị trừ' : 'Số ca bị ảnh hưởng');
+        body.append(el('h3', quotaTitle, 'ml-section-label'));
         const quota = el('div', '', 'ml-detail-box');
         if (approved) {
             if (Array.isArray(historicalShifts)) {
                 const dates = new Set(historicalShifts.map(item => item.workDate));
-                quota.append(el('strong', `${dates.size} ngày`));
-                quota.append(el('p', `${historicalShifts.length} ca CANCELLED trong khoảng nghỉ, mỗi ngày chỉ tính một lần.`, 'ml-muted'));
+                quota.append(el('strong', `${historicalShifts.length} ca`));
+                quota.append(el('p', 'Mỗi ca đã chọn được tính riêng, kể cả khi nhiều ca nằm cùng ngày.', 'ml-muted'));
             } else {
-                quota.append(el('p', 'Chưa tải được lịch sử ca đã hủy; không thể xác định số ngày.', 'ml-muted'));
+                quota.append(el('p', 'Chưa tải được các ca của đơn.', 'ml-muted'));
             }
-            quota.append(el('p', 'Đây là số ngày suy ra từ các ca đã hủy, không phải bản ghi số phép thực trừ riêng cho đơn. Nếu ca được hủy thủ công, số này có thể khác.', 'ml-muted'));
         } else {
-            quota.append(el('strong', `${data.workDaysToCharge} ngày`));
+            quota.append(el('strong', `${data.workDaysToCharge} ca`));
             for (const y of data.yearlyCharges || []) {
-                quota.append(el('p', `Năm ${y.year}: ${y.chargedDays} ngày · Định mức ${y.totalDays} · Đã dùng ${y.usedDays} · Chờ khác ${y.pendingOtherDays} · Còn sau duyệt ${y.remainingAfterApproval}`));
+                quota.append(el('p', `Năm ${y.year}: ${y.chargedDays} ca · Định mức ${y.totalDays} · Đã dùng ${y.usedDays} · Chờ khác ${y.pendingOtherDays} · Còn sau duyệt ${y.remainingAfterApproval}`));
             }
         }
         body.append(quota);
-        body.append(el('h3', approved ? 'Ca đã giải phóng' : 'Ca bị ảnh hưởng', 'ml-section-label'));
+        body.append(el('h3', 'Ca trong đơn', 'ml-section-label'));
         const box = el('div', '', 'ml-detail-box');
-        const shifts = approved ? (historicalShifts || []) : (data.affectedShifts || []);
+        const shifts = (data.affectedShifts && data.affectedShifts.length)
+            ? data.affectedShifts
+            : (approved ? (historicalShifts || []) : []);
         if (!shifts.length) {
             const emptyText = approved
-                ? (Array.isArray(historicalShifts)
-                    ? 'Không tìm thấy ca CANCELLED trong khoảng nghỉ.'
-                    : 'Không tải được danh sách ca đã giải phóng.')
-                : 'Không có ca ASSIGNED trong khoảng nghỉ.';
+                ? 'Đơn không còn ca được gắn.'
+                : 'Đơn chưa gắn ca làm việc.';
             box.append(el('p', emptyText));
         } else {
             const ul = el('ul');
@@ -222,10 +244,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const pending = request.status === 'PENDING';
         approve.hidden = !pending;
-        approve.disabled = busy || !data.canApprove || request.startDate <= todayInVietnam();
+        approve.disabled = busy || !data.canApprove;
         reject.hidden = !pending;
         reject.disabled = busy;
-        showSuggestions.hidden = request.status !== 'APPROVED';
         rejectForm.hidden = true;
         reason.value = '';
     }
@@ -256,14 +277,26 @@ document.addEventListener('DOMContentLoaded', () => {
             reason.focus();
             return;
         }
-        if (nextStatus === 'APPROVED' && (!detail.canApprove || detail.request.startDate <= todayInVietnam())) {
-            toast('Ngày nghỉ đã bắt đầu/đã qua hoặc không đủ quỹ phép.', true);
+        if (nextStatus === 'APPROVED' && !detail.canApprove) {
+            toast('Ca đã bắt đầu, đã qua hoặc quỹ ca phép không đủ.', true);
             return;
         }
-        const confirmation = nextStatus === 'APPROVED'
-            ? 'Duyệt đơn và giải phóng những ca liên quan?'
-            : 'Xác nhận từ chối đơn này?';
-        if (!window.confirm(confirmation)) return;
+        const slotCount = detail.workDaysToCharge ?? detail.request.requestedWorkDays ?? 0;
+        const accepted = await window.CoffeeDialog.confirm(nextStatus === 'APPROVED'
+            ? {
+                title: 'Duyệt đơn nghỉ phép',
+                message: detail.request.deductsAnnualLeave
+                    ? `Duyệt đơn này sẽ trừ ${slotCount} ca phép năm và chỉ hủy ${slotCount} ca đã chọn.`
+                    : 'Duyệt đơn này không trừ ca phép năm. Chỉ các ca đã chọn bị hủy.',
+                confirmText: 'Duyệt'
+            }
+            : {
+                title: 'Từ chối đơn nghỉ phép',
+                message: 'Xác nhận từ chối đơn này?',
+                confirmText: 'Từ chối',
+                tone: 'danger'
+            });
+        if (!accepted) return;
         busy = true;
         approve.disabled = true;
         reject.disabled = true;
@@ -278,7 +311,9 @@ document.addEventListener('DOMContentLoaded', () => {
             detail = null;
             closeAll();
             toast(nextStatus === 'APPROVED'
-                ? `Đã duyệt. Trừ ${result.chargedWorkDays} ngày phép, giải phóng ${result.releasedShifts} ca.`
+                ? (result.chargedWorkDays > 0
+                    ? `Đã duyệt. Trừ ${result.chargedWorkDays} ca phép, giải phóng ${result.releasedShifts} ca.`
+                    : `Đã duyệt. Không trừ phép năm, giải phóng ${result.releasedShifts} ca.`)
                 : 'Đã từ chối và lưu lý do.');
             await Promise.all([summary(), loadList()]);
             if (nextStatus === 'APPROVED' && result.releasedShifts > 0) await openSuggestions(leaveId);
@@ -313,7 +348,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     async function confirmReplacement(gap, candidate, button) {
         if (busy) return;
-        if (!window.confirm(`Phân công ${candidate.employeeName} thay ${gap.absentEmployeeName} vào ${date(gap.workDate)} · ${gap.shiftName}?`)) return;
+        const accepted = await window.CoffeeDialog.confirm({
+            title: 'Phân công người thay',
+            message: `Phân công ${candidate.employeeName} thay ${gap.absentEmployeeName} vào ${date(gap.workDate)} · ${gap.shiftName}?`,
+            confirmText: 'Phân công'
+        });
+        if (!accepted) return;
         busy = true;
         button.disabled = true;
         try {
@@ -458,7 +498,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const queryStatus = new URLSearchParams(window.location.search).get('status');
-    if (queryStatus && ['PENDING', 'APPROVED', 'REJECTED'].includes(queryStatus)) status.value = queryStatus;
+    if (queryStatus && ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'].includes(queryStatus)) status.value = queryStatus;
     document.querySelectorAll('.ml-stat[data-filter]').forEach(button => button.addEventListener('click', () => {
         status.value = button.dataset.filter;
         page = 0;
@@ -467,6 +507,8 @@ document.addEventListener('DOMContentLoaded', () => {
     ids('mlStatGaps').addEventListener('click', () => openSuggestions());
     ids('mlOpenGaps').addEventListener('click', () => openSuggestions());
     status.addEventListener('change', () => { page = 0; loadList(); });
+    ids('mlFrom')?.addEventListener('change', () => { page = 0; loadList(); });
+    ids('mlTo')?.addEventListener('change', () => { page = 0; loadList(); });
     search.addEventListener('input', () => {
         if (searchTimer) clearTimeout(searchTimer);
         searchTimer = setTimeout(() => { page = 0; loadList(); }, 250);
@@ -486,9 +528,6 @@ document.addEventListener('DOMContentLoaded', () => {
     ids('mlReject').addEventListener('click', () => { rejectForm.hidden = false; reason.focus(); });
     ids('mlCancelReject').addEventListener('click', () => { rejectForm.hidden = true; reason.value = ''; });
     ids('mlConfirmReject').addEventListener('click', () => review('REJECTED'));
-    showSuggestions.addEventListener('click', () => {
-        if (detail?.request?.status === 'APPROVED') openSuggestions(detail.request.id);
-    });
     summary();
     loadList();
 });

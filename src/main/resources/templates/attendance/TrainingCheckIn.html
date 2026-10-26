@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chấm công đào tạo — CoffeeHRM</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/AttendanceHistory.css}">
 </head>
-<body>
+<body data-gps-manual="true">
 <th:block th:if="${navbarRole == 'manager'}">
 <header th:replace="~{fragments/navbar :: manager('attendance')}"></header>
 </th:block>
@@ -28,44 +28,66 @@
     <p class="flash-ok" th:if="${pageMessage}" th:text="${pageMessage}">Thành công</p>
     <p class="flash" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
 
-    <section class="panel" th:if="${clock != null and #lists.isEmpty(clock.sessions)}">
-        <h2>Buổi đào tạo</h2>
-        <p class="empty">Bạn không có buổi đào tạo cần chấm công hôm nay.</p>
-    </section>
-
-    <th:block th:if="${clock != null}">
-    <section class="panel" th:each="lesson : ${clock.sessions}">
-        <h2 th:text="${lesson.className}">Lớp đào tạo</h2>
-        <p class="ip-line" th:text="${lesson.typeLabel}">Đào tạo tại cửa hàng</p>
-        <p class="ip-line" th:text="${lesson.dateLabel}">10/10/2026</p>
-        <p class="ip-line" th:text="${lesson.timeLabel}">08:00 – 12:00</p>
-        <p class="note">Trạng thái: <strong th:text="${lesson.statusLabel}">Chưa Check-in</strong></p>
-        <div class="clock-actions">
-            <form class="gps-form" th:if="${lesson.canCheckIn}"
-                  th:action="@{|${actionBase}/check-in|}" method="post" data-max-accuracy="50">
-                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                <input type="hidden" name="classId" th:value="${lesson.classId}">
-                <input type="hidden" name="latitude">
-                <input type="hidden" name="longitude">
-                <input type="hidden" name="accuracy">
-                <button class="primary-btn" type="submit">Check-in</button>
-            </form>
-            <form class="gps-form" th:if="${lesson.canCheckOut}"
-                  th:action="@{|${actionBase}/check-out|}" method="post" data-max-accuracy="50">
-                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                <input type="hidden" name="classId" th:value="${lesson.classId}">
-                <input type="hidden" name="latitude">
-                <input type="hidden" name="longitude">
-                <input type="hidden" name="accuracy">
-                <button class="secondary-btn" type="submit">Check-out</button>
-            </form>
+    <section class="punch-board" th:if="${clock != null}">
+        <h2>Ca hôm nay</h2>
+        <p class="empty" th:if="${#lists.isEmpty(clock.sessions)}">Hôm nay bạn không có ca đào tạo.</p>
+        <div class="punch-list" th:if="${!#lists.isEmpty(clock.sessions)}">
+            <article class="punch-card" th:each="lesson : ${clock.sessions}">
+                <div class="slot-top">
+                    <h3 th:text="${lesson.className}">Lớp đào tạo</h3>
+                    <span class="day-badge" th:classappend="${lesson.statusKey}" th:text="${lesson.statusLabel}">Chưa Check-in</span>
+                </div>
+                <p class="slot-schedule" th:text="${lesson.typeLabel}">Đào tạo tại cửa hàng</p>
+                <p class="slot-schedule">Giờ theo lịch: <span th:text="${lesson.timeLabel}">08:00 – 12:00</span></p>
+                <div class="slot-times">
+                    <div>
+                        <span>Check-in</span>
+                        <strong th:text="${lesson.checkInLabel}">—</strong>
+                    </div>
+                    <div>
+                        <span>Check-out</span>
+                        <strong th:text="${lesson.checkOutLabel}">—</strong>
+                    </div>
+                </div>
+                <div class="clock-actions">
+                    <form class="gps-form" th:if="${lesson.canCheckIn}"
+                          th:action="@{|${actionBase}/check-in|}" method="post"
+                          enctype="multipart/form-data"
+                          th:data-preview-url="@{|${actionBase}/check-in/preview|}"
+                          data-require-photo="true">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                        <input type="hidden" name="classId" th:value="${lesson.classId}">
+                        <input type="hidden" name="latitude">
+                        <input type="hidden" name="longitude">
+                        <input type="hidden" name="accuracy">
+                        <input type="file" name="photo" accept="image/jpeg" hidden>
+                        <button class="primary-btn" type="submit">Check-in</button>
+                    </form>
+                    <button class="primary-btn" type="button" th:if="${!lesson.canCheckIn}"
+                            th:attr="data-check-notice=${lesson.checkInNotice}">Check-in</button>
+                    <form class="gps-form" th:if="${lesson.canCheckOut}"
+                          th:action="@{|${actionBase}/check-out|}" method="post"
+                          enctype="multipart/form-data"
+                          th:data-preview-url="@{|${actionBase}/check-out/preview|}"
+                          data-require-photo="true">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                        <input type="hidden" name="classId" th:value="${lesson.classId}">
+                        <input type="hidden" name="latitude">
+                        <input type="hidden" name="longitude">
+                        <input type="hidden" name="accuracy">
+                        <input type="file" name="photo" accept="image/jpeg" hidden>
+                        <button class="secondary-btn" type="submit">Check-out</button>
+                    </form>
+                    <button class="secondary-btn" type="button" th:if="${!lesson.canCheckOut}"
+                            th:attr="data-check-notice=${lesson.checkOutNotice}">Check-out</button>
+                </div>
+            </article>
         </div>
     </section>
-    </th:block>
 
     <a class="link-btn" th:href="@{${chooseUrl}}">Chọn loại chấm công</a>
-    <a class="link-btn" th:href="@{${historyUrl}}">Xem lịch sử</a>
+    <a class="link-btn" th:if="${navbarRole != 'staff'}" th:href="@{${historyUrl}}">Xem lịch sử</a>
 </main>
-<script th:src="@{/js/attendance-gps.js(v=5)}"></script>
+<script th:src="@{/js/attendance-gps.js(v=9)}"></script>
 </body>
 </html>

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duyệt đề xuất nghỉ việc — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
+</head>
+<body>
+<header th:replace="~{fragments/navbar :: admin('resignation')}"></header>
+<main class="wrap dash-main">
+    <section class="welcome">
+        <div class="eyebrow">Trụ sở — Admin</div>
+        <h1>Đề xuất nghỉ việc nhân sự</h1>
+        <p>Xem đề xuất của mọi cửa hàng. Mở chi tiết để duyệt hoặc từ chối từng nhân sự.</p>
+    </section>
+
+    <p class="flash success" th:if="${successMessage}" th:text="${successMessage}"></p>
+    <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}"></p>
+
+    <section class="panel">
+        <h2>Tìm kiếm và lọc</h2>
+        <form class="filter-grid" th:action="@{/admin/resignation}" method="get">
+            <label>
+                Từ khóa
+                <input type="search" name="keyword" th:value="${keyword}" placeholder="Mã, tên đề xuất, cửa hàng, Manager">
+            </label>
+            <label>
+                Cửa hàng
+                <select name="storeId">
+                    <option value="">Tất cả cửa hàng</option>
+                    <option th:each="store : ${stores}"
+                            th:value="${store.id}"
+                            th:text="${store.storeName}"
+                            th:selected="${storeId != null and storeId == store.id}">Store</option>
+                </select>
+            </label>
+            <label>
+                Trạng thái đề xuất
+                <select name="status">
+                    <option value="">Tất cả trạng thái</option>
+                    <option th:each="item : ${statuses}"
+                            th:value="${item.name()}"
+                            th:text="${item.label}"
+                            th:selected="${selectedStatus == item}">Chờ duyệt</option>
+                </select>
+            </label>
+            <div class="form-actions">
+                <button class="primary-btn" type="submit">Lọc</button>
+                <a class="back-link" th:href="@{/admin/resignation}">Xóa lọc</a>
+            </div>
+        </form>
+
+        <div class="table-scroll">
+            <table>
+                <thead>
+                <tr>
+                    <th>Mã</th>
+                    <th>Tên đề xuất</th>
+                    <th>Manager</th>
+                    <th>Cửa hàng</th>
+                    <th>Ngày gửi</th>
+                    <th>Nhân sự</th>
+                    <th>Trạng thái</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:if="${#lists.isEmpty(requests)}">
+                    <td colspan="8" class="empty">Không có đề xuất nghỉ việc phù hợp.</td>
+                </tr>
+                <tr th:each="request : ${requests}">
+                    <td class="nowrap" th:text="${request.id}">1</td>
+                    <td th:text="${request.title}">Đề xuất</td>
+                    <td th:text="${request.managerName}">Manager</td>
+                    <td th:text="${request.storeName}">Store</td>
+                    <td class="nowrap" th:text="${request.createdAt != null} ? ${#temporals.format(request.createdAt, 'dd/MM/yyyy HH:mm')} : '—'">—</td>
+                    <td>
+                        <strong th:text="${request.totalCount}">0</strong>
+                        <div class="muted" th:text="'Chờ ' + ${request.pendingCount} + ' · Duyệt ' + ${request.approvedCount} + ' · Từ chối ' + ${request.rejectedCount}">Chờ 0</div>
+                    </td>
+                    <td>
+                        <span class="badge"
+                              th:classappend="${request.status.name() == 'COMPLETED'} ? ' badge-ok' : (${request.status.name() == 'PARTIALLY_PROCESSED'} ? ' badge-partial' : ' badge-wait')"
+                              th:text="${request.statusLabel}">Chờ duyệt</span>
+                        <div class="muted" th:if="${request.outcomeLabel != null}" th:text="${request.outcomeLabel}">Xử lý hỗn hợp</div>
+                    </td>
+                    <td><a class="row-link" th:href="@{/admin/resignation/{id}(id=${request.id})}">Chi tiết</a></td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+</body>
+</html>

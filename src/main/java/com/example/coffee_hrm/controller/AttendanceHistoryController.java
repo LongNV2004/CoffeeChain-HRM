@@ -6,10 +6,17 @@ import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.AttendanceHistoryQuery;
 import com.example.coffee_hrm.dto.response.AttendanceHistoryView;
+import com.example.coffee_hrm.dto.response.ManagerMonthAttendanceView;
+import com.example.coffee_hrm.report.MonthAttendanceExcel;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.AttendanceHistoryService;
+import com.example.coffee_hrm.service.ManagerDayAttendanceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
@@ -28,26 +35,19 @@ import java.util.List;
 public class AttendanceHistoryController {
 
     private final AttendanceHistoryService attendanceHistoryService;
+    private final ManagerDayAttendanceService managerDayAttendanceService;
 
     @GetMapping("/staff/history")
     @PreAuthorize("hasRole('STAFF')")
-    public String staffHistory(@RequestParam(value = "from", required = false)
-                               @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-                               @RequestParam(value = "to", required = false)
-                               @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-                               @RequestParam(value = "kind", required = false) String kind,
+    public String staffHistory(@RequestParam(value = "date", required = false)
+                               @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
                                @AuthenticationPrincipal AuthenticatedUser user,
                                Model model) {
         try {
-            AttendanceHistoryQuery query = AttendanceHistoryQuery.builder()
-                    .fromDate(from)
-                    .toDate(to)
-                    .kind(AttendanceHistoryKind.parse(kind))
-                    .build();
-            model.addAttribute("history", attendanceHistoryService.getStaffHistory(user, query));
+            model.addAttribute("board", managerDayAttendanceService.getOwnDay(user, date));
             model.addAttribute("pageError", null);
         } catch (BusinessException ex) {
-            model.addAttribute("history", emptyHistory(user, from, to, null, null));
+            model.addAttribute("board", managerDayAttendanceService.emptyOwnDay(date));
             model.addAttribute("pageError", ex.getMessage());
         }
         return "staff/StaffAttendance";
@@ -65,17 +65,69 @@ public class AttendanceHistoryController {
                                  @RequestParam(value = "to", required = false)
                                  @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
                                  @RequestParam(value = "kind", required = false) String kind,
+                                 @RequestParam(value = "self", required = false) Boolean self,
                                  @AuthenticationPrincipal AuthenticatedUser user,
                                  Model model) {
+        boolean ownHistory = Boolean.TRUE.equals(self);
+        Integer scopedEmployeeId = ownHistory ? user.getEmployeeId() : employeeId;
+        model.addAttribute("selfHistory", ownHistory);
+        model.addAttribute("historyNav", !ownHistory && "training".equals(kind)
+                ? "attendance-training-history" : "attendance-history");
         try {
             model.addAttribute("history", attendanceHistoryService.getManagerHistory(user, historyQuery(
-                    from, to, employeeId, null, shiftId, status, late, early, kind)));
+                    from, to, scopedEmployeeId, null, shiftId, status, late, early, kind)));
             model.addAttribute("pageError", null);
         } catch (BusinessException ex) {
             model.addAttribute("history", emptyHistory(user, from, to, employeeId, null));
             model.addAttribute("pageError", ex.getMessage());
         }
         return "manager/ManagerAttendance";
+    }
+
+    @GetMapping("/manager/day")
+    @PreAuthorize("hasRole('MANAGER')")
+    public String managerDay(@RequestParam(value = "date", required = false)
+                             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+                             @AuthenticationPrincipal AuthenticatedUser user,
+                             Model model) {
+        try {
+            model.addAttribute("board", managerDayAttendanceService.getDay(user, date));
+            model.addAttribute("pageError", null);
+        } catch (BusinessException ex) {
+            model.addAttribute("board", managerDayAttendanceService.empty(date));
+            model.addAttribute("pageError", ex.getMessage());
+        }
+        return "manager/ManagerDayAttendance";
+    }
+
+    @GetMapping("/manager/month")
+    @PreAuthorize("hasRole('MANAGER')")
+    public String managerMonth(@RequestParam(value = "month", required = false) String month,
+                               @AuthenticationPrincipal AuthenticatedUser user,
+                               Model model) {
+        try {
+            model.addAttribute("board", managerDayAttendanceService.getMonth(user, month));
+            model.addAttribute("pageError", null);
+        } catch (BusinessException ex) {
+            model.addAttribute("board", managerDayAttendanceService.emptyMonth());
+            model.addAttribute("pageError", ex.getMessage());
+        }
+        return "manager/ManagerMonthAttendance";
+    }
+
+    @GetMapping("/manager/month/export")
+    @PreAuthorize("hasRole('MANAGER')")
+    public ResponseEntity<byte[]> exportManagerMonth(@RequestParam(value = "month", required = false) String month,
+                                                     @AuthenticationPrincipal AuthenticatedUser user) {
+        ManagerMonthAttendanceView board = managerDayAttendanceService.getMonth(user, month);
+        byte[] body = MonthAttendanceExcel.write(board);
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename(MonthAttendanceExcel.fileName(board))
+                .build();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .contentType(MediaType.parseMediaType("application/vnd.ms-excel"))
+                .body(body);
     }
 
     @GetMapping("/admin")

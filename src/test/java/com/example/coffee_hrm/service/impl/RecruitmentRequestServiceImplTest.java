@@ -11,7 +11,9 @@ import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.security.TemporaryPasswordGenerator;
 import com.example.coffee_hrm.dto.request.CreateRecruitmentRequest;
 import com.example.coffee_hrm.dto.request.RecruitmentCandidateRequest;
+import com.example.coffee_hrm.dto.response.CandidateApprovalResult;
 import com.example.coffee_hrm.dto.response.CandidateRejectionResult;
+import com.example.coffee_hrm.dto.response.RecruitmentContactCheckResponse;
 import com.example.coffee_hrm.entity.Employee;
 import com.example.coffee_hrm.entity.RecruitmentCandidate;
 import com.example.coffee_hrm.entity.RecruitmentRequest;
@@ -54,6 +56,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -110,6 +113,11 @@ class RecruitmentRequestServiceImplTest {
         adminUser = User.builder().id(1).username("admin").passwordHash("x").role(adminRole).isActive(true).build();
         manager = AuthenticatedUser.from(managerUser);
         admin = AuthenticatedUser.from(adminUser);
+        lenient().when(passwordEncoder.matches(any(), any())).thenAnswer(invocation -> {
+            String raw = invocation.getArgument(0);
+            String hash = invocation.getArgument(1);
+            return hash != null && hash.equals("bcrypt:" + raw);
+        });
     }
 
     @Test
@@ -154,6 +162,53 @@ class RecruitmentRequestServiceImplTest {
                 eq("RECRUITMENT_REQUEST"),
                 eq(7));
         verifyNoInteractions(accountMailService, passwordEncoder);
+    }
+
+    @Test
+    void createAllowsTheSameFullNameForDifferentCandidates() {
+        when(storeRepository.findByManager_Id(9)).thenReturn(Optional.of(store));
+        when(employeeRepository.findById(9)).thenReturn(Optional.of(managerEmployee));
+        stubAvailable("an@shop.vn", "0901234567");
+        stubAvailable("binh@shop.vn", "0907654321");
+        when(userRepository.findActiveByRoleName(RoleName.ADMIN)).thenReturn(List.of(adminUser));
+        when(recruitmentRequestRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.create(manager, proposal(
+                person("Nguyễn Văn An", "an@shop.vn", "0901234567", Gender.MALE, null),
+                person("Nguyễn Văn An", "binh@shop.vn", "0907654321", Gender.FEMALE, null)));
+
+        ArgumentCaptor<RecruitmentRequest> captor = ArgumentCaptor.forClass(RecruitmentRequest.class);
+        verify(recruitmentRequestRepository).save(captor.capture());
+        assertEquals("Nguyễn Văn An", captor.getValue().getCandidates().get(0).getFullName());
+        assertEquals("Nguyễn Văn An", captor.getValue().getCandidates().get(1).getFullName());
+    }
+
+    @Test
+    void checkActiveEmployeeContactRejectsEmailAndPhoneUsedByAnActiveEmployee() {
+        when(employeeRepository.existsByEmailIgnoreCaseAndStatusIn("an@shop.vn", List.of(EmployeeStatus.ACTIVE)))
+                .thenReturn(true);
+        when(employeeRepository.countByNormalizedPhoneAndStatus("0901234567", EmployeeStatus.ACTIVE.getDbValue()))
+                .thenReturn(1);
+
+        RecruitmentContactCheckResponse result = service.checkActiveEmployeeContact(
+                manager, "  An@Shop.vn  ", "0901 234 567");
+
+        assertEquals(RecruitmentRequestServiceImpl.EMAIL_ACTIVE_EMPLOYEE + " (an@shop.vn)", result.getEmailMessage());
+        assertEquals(RecruitmentRequestServiceImpl.PHONE_ACTIVE_EMPLOYEE + " (0901234567)", result.getPhoneMessage());
+    }
+
+    @Test
+    void checkActiveEmployeeContactAllowsContactThatNoActiveEmployeeUses() {
+        when(employeeRepository.existsByEmailIgnoreCaseAndStatusIn("moi@shop.vn", List.of(EmployeeStatus.ACTIVE)))
+                .thenReturn(false);
+        when(employeeRepository.countByNormalizedPhoneAndStatus("0909999999", EmployeeStatus.ACTIVE.getDbValue()))
+                .thenReturn(0);
+
+        RecruitmentContactCheckResponse result = service.checkActiveEmployeeContact(
+                manager, "moi@shop.vn", "0909999999");
+
+        assertNull(result.getEmailMessage());
+        assertNull(result.getPhoneMessage());
     }
 
     @Test
@@ -228,6 +283,71 @@ class RecruitmentRequestServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class, () -> service.create(manager, proposal(candidate())));
 
         assertEquals(RecruitmentRequestServiceImpl.PHONE_PENDING + " (0901234567)", ex.getMessage());
+        verify(recruitmentRequestRepository, never()).save(any());
+    }
+
+    @Test
+    void createRejectsFullNameThatContainsDigitsAfterTrim() {
+        when(storeRepository.findByManager_Id(9)).thenReturn(Optional.of(store));
+        when(employeeRepository.findById(9)).thenReturn(Optional.of(managerEmployee));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(manager, proposal(
+                person("  Nguyen 1  ", "an@shop.vn", "0901234567", Gender.MALE, null))));
+
+        assertEquals(RecruitmentRequestServiceImpl.NAME_NOT_LETTERS, ex.getMessage());
+        verify(recruitmentRequestRepository, never()).save(any());
+    }
+
+    @Test
+    void createRejectsEmailThatIsNotAnEmailAfterTrim() {
+        when(storeRepository.findByManager_Id(9)).thenReturn(Optional.of(store));
+        when(employeeRepository.findById(9)).thenReturn(Optional.of(managerEmployee));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(manager, proposal(
+                person("An Nguyễn", "  khong-phai-email  ", "0901234567", Gender.MALE, null))));
+
+        assertEquals(RecruitmentRequestServiceImpl.EMAIL_INVALID, ex.getMessage());
+        verify(recruitmentRequestRepository, never()).save(any());
+    }
+
+    @Test
+    void createRejectsEmailUsedByAWorkingEmployee() {
+        when(storeRepository.findByManager_Id(9)).thenReturn(Optional.of(store));
+        when(employeeRepository.findById(9)).thenReturn(Optional.of(managerEmployee));
+        when(employeeRepository.existsByEmailIgnoreCaseAndStatusIn(
+                "an@shop.vn", List.of(EmployeeStatus.ACTIVE, EmployeeStatus.ON_LEAVE))).thenReturn(true);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(manager, proposal(candidate())));
+
+        assertEquals(RecruitmentRequestServiceImpl.EMAIL_APPROVED_OR_WORKING + " (an@shop.vn)", ex.getMessage());
+        verify(recruitmentRequestRepository, never()).save(any());
+    }
+
+    @Test
+    void createRejectsEmailUsedByAnApprovedCandidate() {
+        when(storeRepository.findByManager_Id(9)).thenReturn(Optional.of(store));
+        when(employeeRepository.findById(9)).thenReturn(Optional.of(managerEmployee));
+        when(recruitmentCandidateRepository.existsApprovedByEmailIgnoreCase("an@shop.vn")).thenReturn(true);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(manager, proposal(candidate())));
+
+        assertEquals(RecruitmentRequestServiceImpl.EMAIL_APPROVED_OR_WORKING + " (an@shop.vn)", ex.getMessage());
+        verify(recruitmentRequestRepository, never()).save(any());
+    }
+
+    @Test
+    void createRejectsTitleAlreadySentToAdminAfterTrim() {
+        when(storeRepository.findByManager_Id(9)).thenReturn(Optional.of(store));
+        when(employeeRepository.findById(9)).thenReturn(Optional.of(managerEmployee));
+        when(recruitmentRequestRepository.existsByTitleIgnoreCase("Tuyển ca tối")).thenReturn(true);
+        CreateRecruitmentRequest request = CreateRecruitmentRequest.builder()
+                .title("  Tuyển ca tối  ")
+                .candidates(new ArrayList<>(List.of(candidate())))
+                .build();
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(manager, request));
+
+        assertEquals(RecruitmentRequestServiceImpl.TITLE_EXISTS, ex.getMessage());
         verify(recruitmentRequestRepository, never()).save(any());
     }
 
@@ -324,7 +444,7 @@ class RecruitmentRequestServiceImplTest {
                 .thenReturn(Optional.of(Role.builder().id(3).roleName(RoleName.STAFF).build()));
         when(userRepository.findById(1)).thenReturn(Optional.of(adminUser));
         when(userRepository.findByEmployee_Id(9)).thenReturn(Optional.of(managerUser));
-        when(passwordEncoder.encode(any())).thenReturn("bcrypt-hash");
+        when(passwordEncoder.encode(any())).thenAnswer(invocation -> "bcrypt:" + invocation.getArgument(0));
         when(employeeRepository.save(any())).thenAnswer(invocation -> {
             Employee employee = invocation.getArgument(0);
             employee.setId(51);
@@ -370,7 +490,7 @@ class RecruitmentRequestServiceImplTest {
                 .thenReturn(Optional.of(Role.builder().id(3).roleName(RoleName.STAFF).build()));
         when(userRepository.findById(1)).thenReturn(Optional.of(adminUser));
         when(userRepository.findByEmployee_Id(9)).thenReturn(Optional.of(managerUser));
-        when(passwordEncoder.encode(any())).thenReturn("bcrypt-hash");
+        when(passwordEncoder.encode(any())).thenAnswer(invocation -> "bcrypt:" + invocation.getArgument(0));
         when(employeeRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(userRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         doThrow(new BusinessException(
@@ -485,6 +605,172 @@ class RecruitmentRequestServiceImplTest {
         assertEquals(RecruitmentStatus.PENDING, request.getCandidates().get(1).getStatus());
         verify(accountMailService).sendRecruitmentRejection("khong-hop-le", "An Nguyễn", null);
         verify(accountMailService, never()).sendRecruitmentRejection(eq("binh@shop.vn"), any(), any());
+    }
+
+    @Test
+    void createAllowsRehireOfATerminatedEmployeeWithoutActivatingTheAccount() {
+        Employee former = terminatedStaff();
+        when(storeRepository.findByManager_Id(9)).thenReturn(Optional.of(store));
+        when(employeeRepository.findById(9)).thenReturn(Optional.of(managerEmployee));
+        when(employeeRepository.findByEmailIgnoreCaseWithAccount("an@shop.vn")).thenReturn(Optional.of(former));
+        when(userRepository.findActiveByRoleName(RoleName.ADMIN)).thenReturn(List.of(adminUser));
+        when(recruitmentRequestRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.create(manager, proposal(candidate()));
+
+        ArgumentCaptor<RecruitmentRequest> captor = ArgumentCaptor.forClass(RecruitmentRequest.class);
+        verify(recruitmentRequestRepository).save(captor.capture());
+        RecruitmentCandidate saved = captor.getValue().getCandidates().get(0);
+        assertEquals(former, saved.getRehireEmployee());
+        assertEquals(RecruitmentStatus.PENDING, saved.getStatus());
+        assertEquals(EmployeeStatus.TERMINATED, former.getStatus());
+        assertFalse(former.getUser().getIsActive());
+        verify(employeeRepository, never()).save(any());
+        verify(userRepository, never()).save(any());
+        verifyNoInteractions(accountMailService, passwordEncoder);
+    }
+
+    @Test
+    void createRejectsRehireOfAWorkingEmployee() {
+        Employee working = terminatedStaff();
+        working.setStatus(EmployeeStatus.ACTIVE);
+        working.getUser().setIsActive(true);
+        when(storeRepository.findByManager_Id(9)).thenReturn(Optional.of(store));
+        when(employeeRepository.findById(9)).thenReturn(Optional.of(managerEmployee));
+        when(employeeRepository.findByIdWithStoreAccount(30)).thenReturn(Optional.of(working));
+        RecruitmentCandidateRequest person = candidate();
+        person.setRehireEmployeeId(30);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(manager, proposal(person)));
+
+        assertEquals(RecruitmentRequestServiceImpl.REHIRE_WORKING, ex.getMessage());
+        verify(recruitmentRequestRepository, never()).save(any());
+        verify(employeeRepository, never()).save(any());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void createRejectsASecondPendingRehireForTheSameEmployee() {
+        Employee former = terminatedStaff();
+        when(storeRepository.findByManager_Id(9)).thenReturn(Optional.of(store));
+        when(employeeRepository.findById(9)).thenReturn(Optional.of(managerEmployee));
+        when(employeeRepository.findByEmailIgnoreCaseWithAccount("an@shop.vn")).thenReturn(Optional.of(former));
+        when(recruitmentCandidateRepository.existsByRehireEmployee_IdAndStatus(30, RecruitmentStatus.PENDING))
+                .thenReturn(true);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(manager, proposal(candidate())));
+
+        assertTrue(ex.getMessage().contains(RecruitmentRequestServiceImpl.REHIRE_PENDING));
+        verify(recruitmentRequestRepository, never()).save(any());
+    }
+
+    @Test
+    void approveRehireReactivatesTheSameAccountAndDoesNotCreateAnother() {
+        RecruitmentRequest request = pendingRequest();
+        Employee former = terminatedStaff();
+        LocalDate originalHireDate = former.getHireDate();
+        request.getCandidates().get(0).setRehireEmployee(former);
+        lock(request);
+        when(employeeRepository.lockByIdForLeaveRequest(30)).thenReturn(Optional.of(former));
+        when(roleRepository.findByRoleName(RoleName.STAFF))
+                .thenReturn(Optional.of(Role.builder().id(3).roleName(RoleName.STAFF).build()));
+        when(userRepository.findById(1)).thenReturn(Optional.of(adminUser));
+        when(userRepository.findByEmployee_Id(9)).thenReturn(Optional.of(managerUser));
+        when(passwordEncoder.encode(any())).thenAnswer(invocation -> "bcrypt:" + invocation.getArgument(0));
+        when(employeeRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        CandidateApprovalResult result = service.approveCandidate(admin, 7, 11);
+
+        assertTrue(result.reactivatedExistingAccount());
+        assertEquals(EmployeeStatus.ACTIVE, former.getStatus());
+        assertNull(former.getTerminationDate());
+        assertEquals(originalHireDate, former.getHireDate());
+        assertEquals(CertificationStatus.CERTIFIED, former.getCertificationStatus());
+        assertEquals(store, former.getStore());
+        assertTrue(former.getUser().getIsActive());
+        assertEquals(80, former.getUser().getId());
+        assertTrue(former.getUser().getPasswordHash().startsWith("bcrypt:"));
+        assertNotEquals(former.getUser().getPasswordHash().substring("bcrypt:".length()), former.getUser().getPasswordHash());
+        assertEquals(30, request.getCandidates().get(0).getCreatedEmployee().getId());
+        assertEquals(RecruitmentStatus.PENDING, request.getCandidates().get(1).getStatus());
+        verify(employeeRepository, times(1)).save(any());
+        verify(userRepository, times(1)).save(any());
+        verify(accountMailService).sendTemporaryPassword(eq("an@shop.vn"), eq("An Nguyễn"), eq("an@shop.vn"), any());
+    }
+
+    @Test
+    void approveRehireLetsTheEmployeeEmailLogInWithTheMailedPassword() {
+        RecruitmentRequest request = pendingRequest();
+        Employee former = terminatedStaff();
+        former.getUser().setUsername("an.nguyen");
+        request.getCandidates().get(0).setRehireEmployee(former);
+        lock(request);
+        when(employeeRepository.lockByIdForLeaveRequest(30)).thenReturn(Optional.of(former));
+        when(roleRepository.findByRoleName(RoleName.STAFF))
+                .thenReturn(Optional.of(Role.builder().id(3).roleName(RoleName.STAFF).build()));
+        when(userRepository.findById(1)).thenReturn(Optional.of(adminUser));
+        when(userRepository.findByEmployee_Id(9)).thenReturn(Optional.of(managerUser));
+        when(passwordEncoder.encode(any())).thenAnswer(invocation -> "bcrypt:" + invocation.getArgument(0));
+        when(employeeRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.approveCandidate(admin, 7, 11);
+
+        ArgumentCaptor<String> mailedPassword = ArgumentCaptor.forClass(String.class);
+        verify(accountMailService).sendTemporaryPassword(
+                eq("an@shop.vn"), eq("An Nguyễn"), eq("an@shop.vn"), mailedPassword.capture());
+        assertEquals("an@shop.vn", former.getUser().getUsername());
+        assertEquals("bcrypt:" + mailedPassword.getValue(), former.getUser().getPasswordHash());
+        assertTrue(former.getUser().getIsActive());
+        assertEquals(EmployeeStatus.ACTIVE, former.getStatus());
+        assertNull(former.getTerminationDate());
+    }
+
+    @Test
+    void rejectRehireLeavesTheOldAccountDisabled() {
+        RecruitmentRequest request = pendingRequest();
+        Employee former = terminatedStaff();
+        request.getCandidates().get(0).setRehireEmployee(former);
+        lock(request);
+        when(userRepository.findById(1)).thenReturn(Optional.of(adminUser));
+        when(userRepository.findByEmployee_Id(9)).thenReturn(Optional.of(managerUser));
+        when(accountMailService.sendRecruitmentRejection("an@shop.vn", "An Nguyễn", null)).thenReturn(true);
+
+        service.rejectCandidate(admin, 7, 11, null);
+
+        assertEquals(EmployeeStatus.TERMINATED, former.getStatus());
+        assertFalse(former.getUser().getIsActive());
+        assertEquals(RecruitmentStatus.REJECTED, request.getCandidates().get(0).getStatus());
+        verify(employeeRepository, never()).save(any());
+        verify(userRepository, never()).save(any());
+        verify(accountMailService, never()).sendTemporaryPassword(any(), any(), any(), any());
+    }
+
+    private Employee terminatedStaff() {
+        Store oldStore = Store.builder().id(8).storeName("Store B").build();
+        Employee former = Employee.builder()
+                .id(30)
+                .fullName("An Nguyễn")
+                .email("an@shop.vn")
+                .phone("0901234567")
+                .store(oldStore)
+                .status(EmployeeStatus.TERMINATED)
+                .hireDate(LocalDate.of(2019, 1, 1))
+                .terminationDate(LocalDate.of(2024, 6, 1))
+                .certificationStatus(CertificationStatus.CERTIFIED)
+                .hasCertificate(true)
+                .build();
+        User account = User.builder()
+                .id(80)
+                .username("an@shop.vn")
+                .passwordHash("old-hash")
+                .role(Role.builder().id(3).roleName(RoleName.STAFF).build())
+                .employee(former)
+                .isActive(false)
+                .build();
+        former.setUser(account);
+        return former;
     }
 
     private void stubAvailable(String email, String phone) {

@@ -1,6 +1,7 @@
 package com.example.coffee_hrm.entity;
 
 import com.example.coffee_hrm.common.enums.ApprovalStatus;
+import com.example.coffee_hrm.common.enums.LeaveType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -34,6 +35,17 @@ public class LeaveRequest {
 
     @Column(name = "EndDate", nullable = false)
     private LocalDate endDate;
+
+    @Column(name = "LeaveType", nullable = false, length = 20)
+    @Builder.Default
+    private LeaveType leaveType = LeaveType.ANNUAL;
+
+    /** Số ca được chọn. Không còn là số ngày lịch. */
+    @Column(name = "RequestedWorkDays")
+    private Integer requestedWorkDays;
+
+    @Column(name = "ContactPhone", length = 15)
+    private String contactPhone;
 
     @Column(name = "Reason", length = 255)
     private String reason;

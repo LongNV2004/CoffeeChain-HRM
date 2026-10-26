@@ -32,11 +32,14 @@
             Bạn chưa có chứng chỉ nên không thể đăng ký ca làm việc.
         </p>
         <p th:if="${registrationBlockMessage == null}">
-            Chọn các thứ và ca bạn có thể làm. Mỗi ô chỉ hiện số lượng tối đa, số chỗ còn lại
-            và trạng thái slot. Chỗ đã đủ người hoặc chưa được cấu hình không chọn được.
+            Chọn các thứ và ca bạn có thể làm. Mỗi ô hiện sức chứa, số chỗ còn lại
+            và trạng thái của
+            <strong th:text="${availabilityGrid.formattedWeekRange}">Tuần kế tiếp</strong>.
+            Số người của tuần hiện tại không làm đầy tuần kế tiếp.
+            Chỗ đã đủ người trong tuần đó, hoặc chưa được cấu hình, không chọn được.
             Lịch bắt đầu từ thứ Hai tuần kế tiếp theo giờ Việt Nam
             và lặp lại đúng những thứ đã chọn cho đến hết thời hạn.
-            Không áp dụng trước ngày bắt đầu hoặc sau ngày kết thúc.
+            Thời hạn dài hơn một tuần được kiểm tra từng ngày; một tuần đã đủ người sẽ chặn đúng ngày đó.
         </p>
         <p th:if="${registrationBlockMessage != null}">
             Bạn vẫn xem được các ca của cửa hàng, nhưng chưa thể gửi đăng ký.
@@ -50,6 +53,20 @@
             <p class="flash error"
                th:if="${availabilityError != null and availabilityError != registrationBlockMessage}"
                th:text="${availabilityError}">Error</p>
+
+            <label class="duration-field" th:if="${positionOptions != null and !#lists.isEmpty(positionOptions)}">
+                Vị trí làm việc
+                <select th:field="*{skillId}" th:disabled="${registrationBlockMessage != null}">
+                    <option value="">-- Chọn vị trí theo chứng chỉ --</option>
+                    <option th:each="opt : ${positionOptions}"
+                            th:value="${opt.id}"
+                            th:text="${opt.name}">Pha chế</option>
+                </select>
+            </label>
+            <p class="muted" th:if="${positionOptions != null and !#lists.isEmpty(positionOptions)}">
+                Chọn một vị trí. Bạn chỉ được tính vào đúng vị trí đã đăng ký, không được tính thành nhiều người khi có nhiều kỹ năng.
+                Ca chưa cấu hình vị trí vẫn đăng ký như trước.
+            </p>
 
             <label class="duration-field">
                 Thời hạn áp dụng
@@ -83,6 +100,7 @@
                                 <span>Tối đa: <strong th:text="${cell.configured ? cell.maxEmployees : '—'}">—</strong></span>
                                 <span>Còn lại: <strong th:text="${cell.remainingText}">—</strong></span>
                                 <span class="status-badge" th:classappend="${cell.slotStatusKey}" th:text="${cell.slotStatusLabel}">Còn chỗ</span>
+                                <span class="muted" th:text="${cell.registrationHint}">Còn chỗ</span>
                             </div>
                             <label class="slot-check" th:classappend="${cell.registrationClosed} ? 'is-disabled' : ''">
                                 <input type="checkbox"
@@ -158,7 +176,7 @@
             <tr>
                 <th>Thời hạn</th>
                 <th>Hiệu lực</th>
-                <th>Slot đã chọn</th>
+                <th>Ca đã chọn</th>
                 <th>Lịch dự kiến</th>
                 <th>Trạng thái</th>
             </tr>

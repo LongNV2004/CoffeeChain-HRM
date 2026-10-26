@@ -41,11 +41,23 @@ public class User {
     @Builder.Default
     private Boolean isActive = true;
 
+    /** Cột giữ lại cho dữ liệu cũ. Tài khoản Manager mới không bị buộc đổi mật khẩu. */
+    @Column(name = "MustChangePassword", nullable = false)
+    @Builder.Default
+    private Boolean mustChangePassword = false;
+
     @CreationTimestamp
     @Column(name = "CreatedAt", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "LastLogin")
     private LocalDateTime lastLogin;
+
+    @PrePersist
+    void defaultMustChangePassword() {
+        if (mustChangePassword == null) {
+            mustChangePassword = false;
+        }
+    }
 }
 

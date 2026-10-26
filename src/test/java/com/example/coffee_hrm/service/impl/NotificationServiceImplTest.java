@@ -3,9 +3,11 @@ package com.example.coffee_hrm.service.impl;
 import com.example.coffee_hrm.common.enums.NotificationType;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.entity.MonthlyAttendanceReport;
 import com.example.coffee_hrm.entity.Notification;
 import com.example.coffee_hrm.entity.Role;
 import com.example.coffee_hrm.entity.User;
+import com.example.coffee_hrm.repository.MonthlyAttendanceReportRepository;
 import com.example.coffee_hrm.repository.NotificationRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,6 +33,8 @@ class NotificationServiceImplTest {
 
     @Mock
     private NotificationRepository notificationRepository;
+    @Mock
+    private MonthlyAttendanceReportRepository attendanceReportRepository;
 
     @InjectMocks
     private NotificationServiceImpl notificationService;
@@ -199,5 +203,67 @@ class NotificationServiceImplTest {
         assertEquals("Lớp đào tạo chờ duyệt", saved.getTitle());
         assertEquals(Boolean.FALSE, saved.getIsRead());
         assertEquals(22, saved.getReferenceId());
+    }
+
+    @Test
+    void resignationNotificationOpensTheMatchingProposal() {
+        when(notificationRepository.findByRecipient_IdOrderByCreatedAtDesc(2)).thenReturn(List.of(
+                Notification.builder()
+                        .id(21)
+                        .recipient(ownerEntity)
+                        .title("Đề xuất nghỉ việc đã được duyệt")
+                        .message("Nhân sự An trong đề xuất mã 7 đã được duyệt.")
+                        .type(NotificationType.RESIGNATION_PROPOSAL_APPROVED)
+                        .isRead(false)
+                        .referenceType("RESIGNATION_PROPOSAL")
+                        .referenceId(7)
+                        .createdAt(LocalDateTime.now())
+                        .build()));
+
+        var items = notificationService.listMine(owner);
+
+        assertEquals("/manager/resignation/7", items.getFirst().getActionUrl());
+    }
+
+    @Test
+    void attendanceReportNotificationOpensTheMatchingPeriod() {
+        User admin = User.builder()
+                .id(1)
+                .username("admin")
+                .passwordHash("hash")
+                .role(Role.builder().id(1).roleName(RoleName.ADMIN).build())
+                .isActive(true)
+                .build();
+        when(notificationRepository.findByRecipient_IdOrderByCreatedAtDesc(1)).thenReturn(List.of(
+                Notification.builder()
+                        .id(30)
+                        .recipient(admin)
+                        .title("Báo cáo chấm công mới")
+                        .message("Quản lý đã gửi báo cáo.")
+                        .type(NotificationType.ATTENDANCE_REPORT_SUBMITTED)
+                        .isRead(false)
+                        .referenceType("ATTENDANCE_REPORT")
+                        .referenceId(15)
+                        .createdAt(LocalDateTime.now())
+                        .build()));
+        when(notificationRepository.findByRecipient_IdOrderByCreatedAtDesc(2)).thenReturn(List.of(
+                Notification.builder()
+                        .id(31)
+                        .recipient(ownerEntity)
+                        .title("Báo cáo cần gửi lại")
+                        .message("Admin yêu cầu gửi lại.")
+                        .type(NotificationType.ATTENDANCE_REPORT_REVISION)
+                        .isRead(false)
+                        .referenceType("ATTENDANCE_REPORT")
+                        .referenceId(15)
+                        .createdAt(LocalDateTime.now())
+                        .build()));
+        when(attendanceReportRepository.findById(15)).thenReturn(Optional.of(
+                MonthlyAttendanceReport.builder().id(15).reportYear(2026).reportMonth(10).build()));
+
+        assertEquals("/attendance/admin/reports/15",
+                notificationService.listMine(AuthenticatedUser.from(admin)).getFirst().getActionUrl());
+        assertEquals("/attendance/manager/reports?year=2026&month=10",
+                notificationService.listMine(owner).getFirst().getActionUrl());
     }
 }

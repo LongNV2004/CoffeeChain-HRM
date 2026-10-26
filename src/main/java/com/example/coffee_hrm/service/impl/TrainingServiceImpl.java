@@ -80,7 +80,6 @@ public class TrainingServiceImpl implements TrainingService {
     private final NotificationService notificationService;
 
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-    private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
     private static final String TRAINING_CLASS_REF = "TRAINING_CLASS";
     static final int CLASS_LIST_PAGE_SIZE = 6;
 
@@ -264,21 +263,6 @@ public class TrainingServiceImpl implements TrainingService {
     }
 
     @Override
-    public List<TrainingClassResponse> listSubmittedClassesForManager(AuthenticatedUser manager) {
-        requireManager(manager);
-        Store store = resolveManagerStore(manager);
-        Integer storeId = store == null ? -1 : store.getId();
-        return trainingClassRepository.findOpenRequestsForManager(
-                        storeId,
-                        manager.getUserId(),
-                        TrainingType.STORE_TRAINING,
-                        VietnamTime.today(),
-                        VietnamTime.currentTime()).stream()
-                .map(this::toClassResponse)
-                .toList();
-    }
-
-    @Override
     public List<TrainingClassResponse> listEndedClassesForManager(AuthenticatedUser manager) {
         requireManager(manager);
         Store store = resolveManagerStore(manager);
@@ -459,13 +443,19 @@ public class TrainingServiceImpl implements TrainingService {
     }
 
     @Override
+    public List<EmployeeSkillStatusLine> listCurrentSkillStatuses(Integer employeeId) {
+        if (employeeId == null) {
+            return List.of();
+        }
+        Map<Integer, SkillSnapshot> snapshots = skillSnapshotsByEmployeeIds(List.of(employeeId))
+                .getOrDefault(employeeId, Map.of());
+        return historyLines(snapshots, Set.of());
+    }
+
+    @Override
     @Transactional
     public void deleteClassForManager(Integer classId, AuthenticatedUser manager) {
-        TrainingClass trainingClass = requireVisibleApprovedClass(classId, manager);
-        if (trainingClass.getTrainingType() == TrainingType.CENTRALIZED_TRAINING) {
-            throw new BusinessException("Không thể xóa lớp đào tạo tập trung.");
-        }
-        trainingClassRepository.delete(trainingClass);
+        throw new BusinessException("Manager không được xóa lớp đào tạo.");
     }
 
     @Override
@@ -507,8 +497,6 @@ public class TrainingServiceImpl implements TrainingService {
                 .notes(blankToNull(request.getNotes()))
                 .status(TrainingClassStatus.APPROVED)
                 .createdBy(creator)
-                .approvedBy(creator)
-                .approvedAt(VietnamTime.now())
                 .build();
 
         TrainingClass saved = trainingClassRepository.save(trainingClass);
@@ -571,50 +559,10 @@ public class TrainingServiceImpl implements TrainingService {
     }
 
     @Override
-    public List<TrainingClassResponse> listPendingClasses() {
-        return trainingClassRepository.findByStatusWithDetails(TrainingClassStatus.PENDING_APPROVAL).stream()
-                .map(this::toClassResponse)
-                .toList();
-    }
-
-    @Override
     public List<TrainingClassResponse> listAllClassesForAdmin() {
         return trainingClassRepository.findAllWithDetails().stream()
                 .map(this::toClassResponse)
                 .toList();
-    }
-
-    @Override
-    @Transactional
-    public TrainingClassResponse approveClass(Integer classId, AuthenticatedUser admin) {
-        return reviewClass(classId, admin, TrainingClassStatus.APPROVED);
-    }
-
-    @Override
-    @Transactional
-    public TrainingClassResponse rejectClass(Integer classId, AuthenticatedUser admin) {
-        return reviewClass(classId, admin, TrainingClassStatus.REJECTED);
-    }
-
-    @Override
-    public long countPendingClasses() {
-        return trainingClassRepository.countByStatus(TrainingClassStatus.PENDING_APPROVAL);
-    }
-
-    private TrainingClassResponse reviewClass(Integer classId, AuthenticatedUser admin, TrainingClassStatus targetStatus) {
-        requireAdmin(admin);
-        TrainingClass trainingClass = trainingClassRepository.findByIdWithDetails(classId)
-                .orElseThrow(() -> new BusinessException("Không tìm thấy lớp đào tạo."));
-        if (trainingClass.getStatus() != TrainingClassStatus.PENDING_APPROVAL) {
-            throw new BusinessException("Chỉ được duyệt lớp đang chờ phê duyệt.");
-        }
-
-        User reviewer = loadUser(admin.getUserId());
-        trainingClass.setStatus(targetStatus);
-        trainingClass.setApprovedBy(reviewer);
-        trainingClass.setApprovedAt(VietnamTime.now());
-        notifyManagerReviewResult(trainingClass, targetStatus);
-        return toClassResponse(trainingClass);
     }
 
     private void validateSchedule(LocalDate startDate, LocalDate endDate, LocalTime startTime, LocalTime endTime) {
@@ -673,24 +621,6 @@ public class TrainingServiceImpl implements TrainingService {
             return startTimeSort;
         }
         return Sort.by(Sort.Direction.ASC, "startDate").and(startTimeSort);
-    }
-
-    private void notifyAdminsNewClass(TrainingClass trainingClass, AuthenticatedUser actor) {
-        List<User> admins = userRepository.findActiveByRoleName(RoleName.ADMIN);
-        String actorName = actor.getDisplayName() != null ? actor.getDisplayName() : actor.getUsername();
-        String roleLabel = actor.getRoleName() == RoleName.ADMIN ? "Admin " : "Manager ";
-        String schedule = formatClassSchedule(trainingClass);
-        String message = roleLabel + actorName
-                + " đã tạo lớp \"" + trainingClass.getClassName() + "\""
-                + (schedule.isEmpty() ? "" : " (" + schedule + ")")
-                + ". Vui lòng kiểm tra và duyệt/từ chối.";
-        notificationService.notifyUsers(
-                admins,
-                "Lớp đào tạo chờ duyệt",
-                message,
-                NotificationType.TRAINING_CLASS_CREATED,
-                TRAINING_CLASS_REF,
-                trainingClass.getId());
     }
 
     private void notifyAssignedTrainer(TrainingClass trainingClass, User trainer) {
@@ -754,61 +684,6 @@ public class TrainingServiceImpl implements TrainingService {
                 trainingClass.getId());
     }
 
-    private void notifyManagerReviewResult(TrainingClass trainingClass, TrainingClassStatus targetStatus) {
-        List<User> recipients = new ArrayList<>();
-        User creator = trainingClass.getCreatedBy();
-        if (creator != null) {
-            recipients.add(creator);
-        }
-        User trainer = trainingClass.getTrainer();
-        if (trainer != null && recipients.stream().noneMatch(user -> user.getId().equals(trainer.getId()))) {
-            recipients.add(trainer);
-        }
-        if (recipients.isEmpty()) {
-            return;
-        }
-        boolean approved = targetStatus == TrainingClassStatus.APPROVED;
-        String title = approved ? "Lớp đào tạo đã được duyệt" : "Lớp đào tạo bị từ chối";
-        String message = approved
-                ? "Lớp \"" + trainingClass.getClassName() + "\" đã được Admin duyệt."
-                : "Lớp \"" + trainingClass.getClassName() + "\" đã bị từ chối.";
-        notificationService.notifyUsers(
-                recipients,
-                title,
-                message,
-                approved ? NotificationType.TRAINING_CLASS_APPROVED : NotificationType.TRAINING_CLASS_REJECTED,
-                TRAINING_CLASS_REF,
-                trainingClass.getId());
-    }
-
-    private String formatClassSchedule(TrainingClass trainingClass) {
-        StringBuilder builder = new StringBuilder();
-        if (trainingClass.getStartDate() != null) {
-            builder.append(DATE_FORMAT.format(trainingClass.getStartDate()));
-            if (trainingClass.getEndDate() != null && !trainingClass.getEndDate().equals(trainingClass.getStartDate())) {
-                builder.append(" → ").append(DATE_FORMAT.format(trainingClass.getEndDate()));
-            }
-        }
-        if (trainingClass.getStartTime() != null) {
-            if (!builder.isEmpty()) {
-                builder.append(", ");
-            }
-            builder.append(TIME_FORMAT.format(trainingClass.getStartTime()));
-            if (trainingClass.getEndTime() != null) {
-                builder.append("–").append(TIME_FORMAT.format(trainingClass.getEndTime()));
-            }
-        }
-        return builder.toString();
-    }
-
-    private TrainingClass requireVisibleApprovedClass(Integer classId, AuthenticatedUser manager) {
-        TrainingClass trainingClass = requireManagedApprovedClass(classId, manager);
-        if (trainingClass.getEndDate() != null && trainingClass.getEndDate().isBefore(VietnamTime.today())) {
-            throw new BusinessException("Không tìm thấy lớp đào tạo.");
-        }
-        return trainingClass;
-    }
-
     private TrainingClass requireManagedApprovedClass(Integer classId, AuthenticatedUser manager) {
         requireManager(manager);
         TrainingClass trainingClass = trainingClassRepository.findByIdWithDetails(classId)
@@ -846,6 +721,26 @@ public class TrainingServiceImpl implements TrainingService {
 
     private boolean isStoreTraining(TrainingClass trainingClass) {
         return trainingClass.getTrainingType() != TrainingType.CENTRALIZED_TRAINING;
+    }
+
+    private String scheduleLabel(TrainingClass trainingClass) {
+        if (hasEnded(trainingClass)) {
+            return "Đã kết thúc";
+        }
+        if (hasStarted(trainingClass)) {
+            return "Đang diễn ra";
+        }
+        return "Sắp tới";
+    }
+
+    private String scheduleTone(TrainingClass trainingClass) {
+        if (hasEnded(trainingClass)) {
+            return "badge-ended";
+        }
+        if (hasStarted(trainingClass)) {
+            return "badge-live";
+        }
+        return "badge-upcoming";
     }
 
     private boolean hasEnded(TrainingClass trainingClass) {
@@ -1001,10 +896,6 @@ public class TrainingServiceImpl implements TrainingService {
         if (actor == null || actor.getRoleName() != RoleName.MANAGER) {
             throw new BusinessException("Chỉ Manager mới được thực hiện thao tác này.");
         }
-    }
-
-    private void requireAdmin(AuthenticatedUser actor) {
-        requireAdmin(actor, "Chỉ Admin mới được duyệt lớp đào tạo.");
     }
 
     private void requireAdmin(AuthenticatedUser actor, String message) {
@@ -1318,6 +1209,8 @@ public class TrainingServiceImpl implements TrainingService {
                 .maxParticipants(trainingClass.getMaxParticipants())
                 .notes(trainingClass.getNotes())
                 .status(trainingClass.getStatus())
+                .scheduleLabel(scheduleLabel(trainingClass))
+                .scheduleTone(scheduleTone(trainingClass))
                 .ended(hasEnded(trainingClass))
                 .createdByName(userDisplayName(trainingClass.getCreatedBy()))
                 .students(toStudentResponses(trainingClass, enrollments))

@@ -25,4 +25,7 @@ public class SubmitWorkAvailabilityRequest {
     private List<String> selectedSlots = new ArrayList<>();
 
     private String durationCode;
+
+    /** Kỹ năng/vị trí nhân viên đảm nhận trong các ca của đơn này. */
+    private Integer skillId;
 }

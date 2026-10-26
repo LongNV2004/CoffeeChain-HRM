@@ -144,13 +144,35 @@ public class ScheduleController {
             @AuthenticationPrincipal AuthenticatedUser user,
             Model model) {
 
+        prepareStaffSchedule(user, date, model, false);
+        return "staff/StaffSchedule";
+    }
+
+    @GetMapping("/staff/shift-change")
+    @PreAuthorize("hasRole('STAFF')")
+    public String staffShiftChangePage(
+            @RequestParam(value = "date", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @AuthenticationPrincipal AuthenticatedUser user,
+            Model model) {
+
+        prepareStaffSchedule(user, date, model, true);
+        return "staff/StaffSchedule";
+    }
+
+    private void prepareStaffSchedule(AuthenticatedUser user, LocalDate date, Model model, boolean shiftChangePage) {
         WeeklyScheduleView scheduleView = scheduleService.getWeeklyScheduleForStaff(user, date);
         model.addAttribute("schedule", scheduleView);
         model.addAttribute("currentEmployeeId", user.getEmployeeId());
+        model.addAttribute("shiftChangePage", shiftChangePage);
+        model.addAttribute("schedulePath", shiftChangePage ? "/schedule/staff/shift-change" : "/schedule/staff");
         if (!model.containsAttribute("changeForm")) {
             model.addAttribute("changeForm", new CreateShiftChangeRequestDto());
         }
-        return "staff/StaffSchedule";
+    }
+
+    private String staffScheduleRedirect(String origin, LocalDate currentWeek) {
+        String path = "shift-change".equals(origin) ? "/schedule/staff/shift-change" : "/schedule/staff";
+        return "redirect:" + path + (currentWeek != null ? "?date=" + currentWeek : "");
     }
 
     @PostMapping("/staff/request-change")
@@ -159,15 +181,14 @@ public class ScheduleController {
             @Valid @ModelAttribute("changeForm") CreateShiftChangeRequestDto changeForm,
             BindingResult bindingResult,
             @RequestParam(value = "currentWeek", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate currentWeek,
+            @RequestParam(value = "origin", required = false) String origin,
             @AuthenticationPrincipal AuthenticatedUser user,
             RedirectAttributes redirectAttributes) {
-
-        String returnDateParam = currentWeek != null ? "?date=" + currentWeek : "";
 
         if (bindingResult.hasErrors()) {
             String errorMsg = bindingResult.getAllErrors().getFirst().getDefaultMessage();
             redirectAttributes.addFlashAttribute("errorMessage", errorMsg != null ? errorMsg : "Dữ liệu yêu cầu đổi ca không hợp lệ.");
-            return "redirect:/schedule/staff" + returnDateParam;
+            return staffScheduleRedirect(origin, currentWeek);
         }
 
         try {
@@ -181,7 +202,7 @@ public class ScheduleController {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
         }
 
-        return "redirect:/schedule/staff" + returnDateParam;
+        return staffScheduleRedirect(origin, currentWeek);
     }
 
     @PostMapping("/staff/requests/{id}/respond")
@@ -190,10 +211,9 @@ public class ScheduleController {
             @PathVariable("id") Integer id,
             @RequestParam("agreed") boolean agreed,
             @RequestParam(value = "currentWeek", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate currentWeek,
+            @RequestParam(value = "origin", required = false) String origin,
             @AuthenticationPrincipal AuthenticatedUser user,
             RedirectAttributes redirectAttributes) {
-
-        String returnDateParam = currentWeek != null ? "?date=" + currentWeek : "";
 
         try {
             scheduleService.respondToIncomingShiftChange(id, agreed, user);
@@ -206,6 +226,6 @@ public class ScheduleController {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
         }
 
-        return "redirect:/schedule/staff" + returnDateParam;
+        return staffScheduleRedirect(origin, currentWeek);
     }
 }

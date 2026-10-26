@@ -4,6 +4,7 @@ import com.example.coffee_hrm.common.enums.AssignmentStatus;
 import com.example.coffee_hrm.entity.ShiftAssignment;
 import jakarta.persistence.LockModeType;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Pageable;
@@ -80,6 +81,35 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
             Integer employeeId, Integer shiftId, LocalDate workDate);
 
     boolean existsByReplacesAssignment_Id(Integer originalAssignmentId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT sa FROM ShiftAssignment sa WHERE sa.id IN :ids")
+    List<ShiftAssignment> lockByIds(@Param("ids") Collection<Integer> ids);
+
+    @Query("""
+            SELECT sa FROM ShiftAssignment sa
+            JOIN FETCH sa.shift s
+            JOIN FETCH s.store
+            JOIN FETCH sa.employee e
+            JOIN FETCH e.store
+            WHERE sa.id IN :ids
+            """)
+    List<ShiftAssignment> findForLeaveSelection(@Param("ids") Collection<Integer> ids);
+
+    @Query("""
+            SELECT sa FROM ShiftAssignment sa
+            JOIN FETCH sa.shift s
+            JOIN FETCH s.store
+            JOIN FETCH sa.employee e
+            JOIN FETCH e.store
+            WHERE sa.employee.id = :employeeId
+              AND sa.workDate >= :fromDate
+              AND sa.workDate <= :toDate
+            ORDER BY sa.workDate ASC, s.startTime ASC, sa.id ASC
+            """)
+    List<ShiftAssignment> findScheduleForLeavePicker(@Param("employeeId") Integer employeeId,
+                                                     @Param("fromDate") LocalDate fromDate,
+                                                     @Param("toDate") LocalDate toDate);
 
     Optional<ShiftAssignment> findByReplacesAssignment_Id(Integer originalAssignmentId);
 
@@ -185,6 +215,7 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
                 SELECT lr.id FROM LeaveRequest lr
                 WHERE lr.employee.id = :employeeId
                   AND lr.status = :pendingStatus
+                  AND (lr.leaveType IS NULL OR lr.leaveType = :annualType)
                   AND sa.workDate BETWEEN lr.startDate AND lr.endDate
               )
             """)
@@ -195,7 +226,8 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
             @Param("endDate") LocalDate endDate,
             @Param("assignmentStatus") AssignmentStatus assignmentStatus,
             @Param("pendingStatus")
-            com.example.coffee_hrm.common.enums.ApprovalStatus pendingStatus);
+            com.example.coffee_hrm.common.enums.ApprovalStatus pendingStatus,
+            @Param("annualType") com.example.coffee_hrm.common.enums.LeaveType annualType);
 
     @Query(
             """
@@ -227,6 +259,7 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
                 WHERE lr.employee.id = :employeeId
                   AND lr.id <> :excludingRequestId
                   AND lr.status = :pendingStatus
+                  AND (lr.leaveType IS NULL OR lr.leaveType = :annualType)
                   AND sa.workDate BETWEEN lr.startDate AND lr.endDate
               )
             """)
@@ -237,5 +270,37 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
             @Param("endDate") LocalDate endDate,
             @Param("assignmentStatus") AssignmentStatus assignmentStatus,
             @Param("pendingStatus") com.example.coffee_hrm.common.enums.ApprovalStatus pendingStatus,
-            @Param("excludingRequestId") Integer excludingRequestId);
+            @Param("excludingRequestId") Integer excludingRequestId,
+            @Param("annualType") com.example.coffee_hrm.common.enums.LeaveType annualType);
+
+    @Query("""
+            SELECT sa FROM ShiftAssignment sa
+            JOIN FETCH sa.shift s
+            JOIN FETCH sa.employee e
+            WHERE s.store.id = :storeId
+              AND sa.workDate = :workDate
+              AND sa.status = :status
+              AND sa.isPublished = true
+            ORDER BY s.startTime ASC, e.fullName ASC, sa.id ASC
+            """)
+    List<ShiftAssignment> findPublishedAssignedForStoreOnDate(
+            @Param("storeId") Integer storeId,
+            @Param("workDate") LocalDate workDate,
+            @Param("status") AssignmentStatus status);
+
+    @Query("""
+            SELECT sa FROM ShiftAssignment sa
+            JOIN FETCH sa.shift s
+            JOIN FETCH sa.employee e
+            WHERE s.store.id = :storeId
+              AND sa.workDate >= :startDate
+              AND sa.workDate <= :endDate
+              AND sa.status = :status
+              AND sa.isPublished = true
+            """)
+    List<ShiftAssignment> findPublishedAssignedForStoreBetween(
+            @Param("storeId") Integer storeId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("status") AssignmentStatus status);
 }

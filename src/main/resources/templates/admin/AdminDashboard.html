@@ -3,95 +3,171 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard — CoffeeHRM</title>
+    <title>Tổng quan hệ thống — CoffeeHRM</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
+    <link rel="stylesheet" th:href="@{/css/admin-home.css}">
 </head>
 <body>
 <header th:replace="~{fragments/navbar :: admin('dashboard')}"></header>
 
-<main class="wrap dash-main hrm-board">
-    <section class="welcome">
+<main class="wrap dash-main admin-home">
+    <header class="admin-page-head">
         <div>
-            <div class="eyebrow">Trụ sở — Admin</div>
-            <h1>Xin chào Admin</h1>
-            <p>
-                <span th:text="${dashboard.displayName}">Admin</span>
-                · tài khoản <strong th:text="${dashboard.username}">username</strong>
-            </p>
+            <h1>Tổng quan hệ thống</h1>
         </div>
-        <div class="hrm-hero-actions">
-            <button type="button" class="hrm-chip notif-open-link" data-open-notifications>Thông báo</button>
+        <time class="admin-today" th:datetime="${dashboard.today}" th:text="${dashboard.todayLabel}">23/10/2026</time>
+    </header>
+
+    <section class="admin-kpi-grid" aria-label="Chỉ số chính">
+        <a class="admin-kpi" th:href="@{/admin/stores}">
+            <span class="admin-kpi-icon admin-kpi-icon-store" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 10h16v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-9Z"/><path d="m3 10 2-5h14l2 5"/><path d="M9 20v-6h6v6"/></svg>
+            </span>
+            <span class="admin-kpi-label">Tổng cửa hàng</span>
+            <strong class="admin-kpi-value" th:text="${#numbers.formatInteger(dashboard.totalStores, 0, 'POINT')}">0</strong>
+            <span class="admin-kpi-hint">Trong hệ thống</span>
+        </a>
+
+        <article class="admin-kpi">
+            <span class="admin-kpi-icon admin-kpi-icon-active" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="m8.5 12.2 2.3 2.3 4.7-5"/></svg>
+            </span>
+            <span class="admin-kpi-label">Cửa hàng đang hoạt động</span>
+            <strong class="admin-kpi-value" th:text="${#numbers.formatInteger(dashboard.activeStores, 0, 'POINT')}">0</strong>
+            <span class="admin-kpi-hint">Không gồm ngừng hoạt động và chuẩn bị khai trương</span>
+        </article>
+
+        <a class="admin-kpi" th:href="@{/admin/employees}">
+            <span class="admin-kpi-icon admin-kpi-icon-people" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 19v-1.2A4.8 4.8 0 0 1 8.3 13h1.4A4.8 4.8 0 0 1 14.5 17.8V19"/><circle cx="17" cy="9" r="2.2"/><path d="M16 13.2a4 4 0 0 1 4 3.6V19"/></svg>
+            </span>
+            <span class="admin-kpi-label">Tổng nhân viên</span>
+            <strong class="admin-kpi-value" th:text="${#numbers.formatInteger(dashboard.totalEmployees, 0, 'POINT')}">0</strong>
+            <span class="admin-kpi-hint">Không gồm Admin và nhân viên đã nghỉ việc</span>
+        </a>
+
+        <a class="admin-kpi" th:href="@{/attendance/admin/reports}">
+            <span class="admin-kpi-icon admin-kpi-icon-report" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 16l4-4 3 2 5-7"/></svg>
+            </span>
+            <span class="admin-kpi-label">Báo cáo toàn chuỗi</span>
+            <strong class="admin-kpi-value" th:text="${#numbers.formatInteger(dashboard.waitingChainReportCount, 0, 'POINT')}">0</strong>
+            <span class="admin-kpi-hint">Đang chờ duyệt trong tháng này</span>
+        </a>
+    </section>
+
+    <section class="admin-card" aria-labelledby="adminTasksTitle">
+        <div class="admin-card-head">
+            <h2 id="adminTasksTitle">Công việc cần xử lý</h2>
+            <p>Các nghiệp vụ đang chờ Admin giải quyết</p>
+        </div>
+        <div class="admin-tasks">
+            <a class="admin-task" th:href="@{/admin/recruitment}">
+                <span class="admin-task-icon admin-kpi-icon-people" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><circle cx="10" cy="8" r="3"/><path d="M4 19v-1.2A5 5 0 0 1 9 13h2a5 5 0 0 1 5 4.8V19"/><path d="M18 8v6M15 11h6"/></svg>
+                </span>
+                <span class="admin-task-copy">
+                    <strong>Đề xuất tuyển dụng</strong>
+                    <p>Đề xuất đang chờ Admin xử lý.</p>
+                </span>
+                <span class="admin-badge"
+                      th:classappend="${pendingRecruitments != null and pendingRecruitments > 0} ? 'is-pending' : ''"
+                      th:text="${#numbers.formatInteger(pendingRecruitments != null ? pendingRecruitments : 0, 0, 'POINT')}">0</span>
+                <svg class="admin-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+            </a>
+
+            <a class="admin-task" th:href="@{/admin/resignation}">
+                <span class="admin-task-icon admin-kpi-icon-resign" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><circle cx="10" cy="8" r="3"/><path d="M4 19v-1.2A5 5 0 0 1 9 13h2a5 5 0 0 1 4.2 2.2"/><path d="M15 16h6"/></svg>
+                </span>
+                <span class="admin-task-copy">
+                    <strong>Đề xuất nghỉ việc</strong>
+                    <p>Hồ sơ đang chờ Admin xử lý.</p>
+                </span>
+                <span class="admin-badge"
+                      th:classappend="${pendingResignations != null and pendingResignations > 0} ? 'is-pending' : ''"
+                      th:text="${#numbers.formatInteger(pendingResignations != null ? pendingResignations : 0, 0, 'POINT')}">0</span>
+                <svg class="admin-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+            </a>
         </div>
     </section>
 
-    <aside class="hrm-spotlight" aria-label="Lớp đào tạo chờ duyệt">
-        <span>Cần xử lý</span>
-        <div>
-            <strong th:text="${dashboard.pendingTrainingClassCount}">0</strong>
-            <p>Lớp đào tạo chờ duyệt</p>
-        </div>
-        <a th:href="@{/admin/training}">Mở đào tạo</a>
-    </aside>
+    <section class="admin-charts" aria-label="Biểu đồ nhân sự">
+        <article class="admin-card">
+            <div class="admin-card-head">
+                <h2>Cơ cấu nhân sự</h2>
+                <p>Theo vai trò Manager và Staff. Không gồm Admin và nhân viên đã nghỉ việc.</p>
+            </div>
+            <div class="admin-role" th:if="${dashboard.totalEmployees > 0}">
+                <div id="adminRoleChart"
+                     class="admin-role-chart"
+                     th:data-manager="${dashboard.managerCount}"
+                     th:data-staff="${dashboard.staffCount}"
+                     th:data-unassigned="${dashboard.unassignedRoleCount}"
+                     th:data-other="${dashboard.otherRoleCount}"></div>
+                <ul class="admin-legend">
+                    <li>
+                        <span class="admin-swatch admin-swatch-manager"></span>
+                        <span>Manager</span>
+                        <strong th:text="${#numbers.formatInteger(dashboard.managerCount, 0, 'POINT')}">0</strong>
+                    </li>
+                    <li>
+                        <span class="admin-swatch admin-swatch-staff"></span>
+                        <span>Staff</span>
+                        <strong th:text="${#numbers.formatInteger(dashboard.staffCount, 0, 'POINT')}">0</strong>
+                    </li>
+                    <li th:if="${dashboard.unassignedRoleCount > 0}">
+                        <span class="admin-swatch admin-swatch-open"></span>
+                        <span>Chưa có tài khoản</span>
+                        <strong th:text="${#numbers.formatInteger(dashboard.unassignedRoleCount, 0, 'POINT')}">0</strong>
+                    </li>
+                    <li th:if="${dashboard.otherRoleCount > 0}">
+                        <span class="admin-swatch admin-swatch-other"></span>
+                        <span>Vai trò khác</span>
+                        <strong th:text="${#numbers.formatInteger(dashboard.otherRoleCount, 0, 'POINT')}">0</strong>
+                    </li>
+                </ul>
+            </div>
+            <p class="admin-empty" th:if="${dashboard.totalEmployees == 0}">Chưa có nhân sự đang làm việc.</p>
+        </article>
 
-    <section class="stat-grid">
-        <article class="stat-card">
-            <div class="label">Tổng số cửa hàng</div>
-            <div class="value" th:text="${dashboard.totalStores}">0</div>
-        </article>
-        <article class="stat-card">
-            <div class="label">Cửa hàng đang hoạt động</div>
-            <div class="value" th:text="${dashboard.activeStores}">0</div>
-        </article>
-        <article class="stat-card">
-            <div class="label">Tổng số nhân viên</div>
-            <div class="value" th:text="${dashboard.totalEmployees}">0</div>
-        </article>
-        <article class="stat-card">
-            <div class="label">Lớp đào tạo chờ duyệt</div>
-            <div class="value" th:text="${dashboard.pendingTrainingClassCount}">0</div>
-        </article>
-    </section>
-
-    <section class="action-grid hrm-modules" id="accounts">
-        <article class="action-card">
-            <h2>Quản lý tài khoản</h2>
-            <p>Tạo và khóa tài khoản Admin, Manager, Staff theo nghiệp vụ hệ thống.</p>
-        </article>
-
-        <article class="action-card" id="stores">
-            <h2>
-                <a th:href="@{/admin/stores}">Quản lý cửa hàng</a>
-            </h2>
-            <p>Xem danh sách, thêm mới và cập nhật thông tin cửa hàng.</p>
-        </article>
-        <article class="action-card">
-            <h2>
-                <a th:href="@{/admin/employees}">Quản lý nhân sự</a>
-            </h2>
-            <p>Xem nhân viên theo từng cửa hàng và phân quyền Manager / Staff.</p>
-        </article>
-        <article class="action-card">
-            <h2>
-                <a th:href="@{/admin/recruitment}">
-                    Duyệt đề xuất tuyển nhân sự
-                    <span th:if="${pendingRecruitments > 0}"
-                          th:text="'(' + ${pendingRecruitments} + ')'"></span>
-                </a>
-            </h2>
-            <p>Duyệt đề xuất của Manager, tạo tài khoản Staff và gửi mật khẩu tạm thời qua email.</p>
-        </article>
-        <article class="action-card">
-            <h2><a th:href="@{/admin/training}">Đào tạo</a></h2>
-            <p>Xem lớp PENDING_APPROVAL, phê duyệt hoặc từ chối đề xuất của Manager.</p>
-        </article>
-        <article class="action-card" id="reports">
-            <h2><a th:href="@{/attendance/admin/reports}">Báo cáo toàn chuỗi</a></h2>
-            <p>Xem báo cáo chấm công của tất cả cửa hàng và đối chiếu cửa hàng đã gửi hoặc chưa gửi.</p>
+        <article class="admin-card">
+            <div class="admin-card-head">
+                <h2>Biến động nhân sự</h2>
+                <p>Tuyển mới theo ngày vào làm. Nghỉ việc theo ngày nghỉ việc đã áp dụng. 6 tháng gần nhất.</p>
+            </div>
+            <ul class="admin-legend admin-legend-inline">
+                <li><span class="admin-swatch admin-swatch-hired"></span><span>Tuyển mới</span></li>
+                <li><span class="admin-swatch admin-swatch-left"></span><span>Nghỉ việc</span></li>
+            </ul>
+            <div id="adminTrendChart"
+                 class="admin-trend-chart"
+                 th:data-labels="${dashboard.trendLabelsJoined}"
+                 th:data-hired="${dashboard.hiredJoined}"
+                 th:data-resigned="${dashboard.resignedJoined}"></div>
+            <p class="admin-note" th:if="${dashboard.trendQuiet}">Không có tuyển mới hoặc nghỉ việc trong 6 tháng gần nhất.</p>
+            <table class="admin-sr-only" th:if="${dashboard.trend != null}">
+                <caption>Biến động nhân sự 6 tháng gần nhất</caption>
+                <thead>
+                <tr>
+                    <th>Tháng</th>
+                    <th>Tuyển mới</th>
+                    <th>Nghỉ việc</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="point : ${dashboard.trend}">
+                    <td th:text="${point.label}">05/2026</td>
+                    <td th:text="${point.hired}">0</td>
+                    <td th:text="${point.resigned}">0</td>
+                </tr>
+                </tbody>
+            </table>
         </article>
     </section>
 </main>
-<script th:src="@{/js/AdminDashboard.js}"></script>
+<script th:src="@{/js/admin-home.js}"></script>
 </body>
 </html>

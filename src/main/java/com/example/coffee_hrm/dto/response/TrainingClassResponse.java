@@ -37,6 +37,8 @@ public class TrainingClassResponse {
     private Integer maxParticipants;
     private String notes;
     private TrainingClassStatus status;
+    private String scheduleLabel;
+    private String scheduleTone;
     private boolean ended;
     private String createdByName;
     private List<TrainingClassStudentResponse> students;

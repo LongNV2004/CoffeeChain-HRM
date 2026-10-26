@@ -141,8 +141,13 @@
         initAccountMenus();
     }
 
-    document.addEventListener('click', closeAccountMenus);
+    document.addEventListener('click', function (event) {
+        if (event.target.closest('#coffeeConfirmDialog')) return;
+        closeAccountMenus();
+    });
     document.addEventListener('keydown', function (event) {
+        const dialog = document.getElementById('coffeeConfirmDialog');
+        if (dialog && !dialog.hidden) return;
         if (event.key === 'Escape') closeAccountMenus();
     });
 
@@ -150,5 +155,23 @@
         document.addEventListener('DOMContentLoaded', initAll, { once: true });
     } else {
         initAll();
+    }
+
+    if (window.fetch && !window.fetch.storeInactiveGuard) {
+        const originalFetch = window.fetch.bind(window);
+        const guardedFetch = function () {
+            return originalFetch.apply(null, arguments).then(function (response) {
+                if (response.status === 403) {
+                    response.clone().json().then(function (body) {
+                        if (body && body.code === 'STORE_INACTIVE') {
+                            window.location.assign('/store-inactive');
+                        }
+                    }).catch(function () { /* Phản hồi 403 không phải JSON thì giữ nguyên xử lý của trang. */ });
+                }
+                return response;
+            });
+        };
+        guardedFetch.storeInactiveGuard = true;
+        window.fetch = guardedFetch;
     }
 })();

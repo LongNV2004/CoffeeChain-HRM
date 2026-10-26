@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Theo dõi chấm công — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/AttendanceHistory.css}">
+</head>
+<body>
+<header th:replace="~{fragments/navbar :: manager('attendance-day')}"></header>
+
+<main class="wrap dash-main attn-screen track-board">
+    <section class="day-board">
+        <div class="day-head">
+            <div>
+                <h1>Theo dõi chấm công</h1>
+                <p class="day-date" th:text="${board.dateLabel}">Thứ Tư, 21/10/2026</p>
+            </div>
+            <form method="get" th:action="@{/attendance/manager/day}">
+                <label class="day-pick">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>
+                    <span>Chọn ngày</span>
+                    <input type="date" name="date" th:max="${vietnamToday}"
+                           th:value="${#temporals.format(board.workDate, 'yyyy-MM-dd')}"
+                           onchange="this.form.submit()" aria-label="Chọn ngày">
+                </label>
+            </form>
+        </div>
+
+        <nav class="track-tabs" aria-label="Theo dõi chấm công">
+            <a class="is-on" th:href="@{/attendance/manager/day}">Theo ngày</a>
+            <a th:href="@{/attendance/manager/month}">Theo tháng</a>
+            <a th:href="@{/attendance/manager/history(kind='training')}">Đào tạo</a>
+        </nav>
+
+        <p class="flash" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
+
+        <div class="day-stats">
+            <article th:each="shift : ${board.shifts}">
+                <div class="day-stat-name" th:text="${shift.shiftName}">Ca sáng</div>
+                <div class="day-stat-value"><span th:text="${shift.slots}">0</span> ca</div>
+            </article>
+            <article>
+                <div class="day-stat-name">Tổng vi phạm</div>
+                <div class="day-stat-value"><span th:text="${board.violationSlots}">0</span> ca</div>
+            </article>
+        </div>
+
+        <h2>Danh sách ca chấm công</h2>
+        <div class="day-tools">
+            <label class="day-search">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg>
+                <input id="slotSearch" type="search" placeholder="Tìm mã hoặc tên nhân viên..." autocomplete="off">
+            </label>
+            <label>Lọc ca
+                <select id="slotShift">
+                    <option value="">Tất cả ca</option>
+                    <option th:each="shift : ${board.shifts}" th:value="${shift.shiftId}" th:text="${shift.shiftName}">Ca sáng</option>
+                </select>
+            </label>
+            <label>Trạng thái
+                <select id="slotStatus">
+                    <option value="">Tất cả</option>
+                    <option value="late">Đi muộn</option>
+                    <option value="early">Về sớm</option>
+                    <option value="on-time">Đúng giờ</option>
+                    <option value="missing">Chưa check-in</option>
+                    <option value="absent">Vắng</option>
+                </select>
+            </label>
+        </div>
+
+        <p class="day-empty" id="slotEmpty" th:if="${#lists.isEmpty(board.slots)}">Không có ca chấm công trong ngày này.</p>
+        <p class="day-empty" id="slotFilteredEmpty" hidden>Không có nhân viên khớp bộ lọc.</p>
+
+        <div class="slot-list" th:if="${!#lists.isEmpty(board.slots)}">
+            <article class="slot-card" th:each="slot : ${board.slots}"
+                     th:attr="data-search=${slot.searchText},data-shift=${slot.shiftId},data-status=${slot.statusKey},data-late=${slot.late},data-early=${slot.early}">
+                <div class="slot-top">
+                    <h3 th:text="${slot.employeeName}">Nguyễn Minh Anh</h3>
+                    <span class="day-badge" th:classappend="${slot.statusKey}" th:text="${slot.statusLabel}">Đi muộn</span>
+                </div>
+                <p class="slot-meta" th:text="${slot.employeeCode + ' · ' + slot.shiftName}">NV001 · Ca sáng</p>
+                <p class="slot-schedule">Giờ theo lịch: <span th:text="${slot.scheduleLabel}">07:00–11:00</span></p>
+                <div class="slot-times">
+                    <div>
+                        <span>Check-in</span>
+                        <strong th:text="${slot.checkInLabel}">07:10:00</strong>
+                    </div>
+                    <div>
+                        <span>Check-out</span>
+                        <strong th:text="${slot.checkOutLabel}">11:00:00</strong>
+                    </div>
+                </div>
+                <div class="slot-times slot-minutes">
+                    <div>
+                        <span>Đi muộn</span>
+                        <strong th:classappend="${slot.late} ? 'is-alert' : ''" th:text="${slot.lateLabel}">10 phút</strong>
+                    </div>
+                    <div>
+                        <span>Về sớm</span>
+                        <strong th:classappend="${slot.early} ? 'is-alert' : ''" th:text="${slot.earlyLabel}">0 phút</strong>
+                    </div>
+                </div>
+                <button type="button" class="row-detail day-detail"
+                        th:data-name="${slot.employeeName}"
+                        th:data-code="${slot.employeeCode}"
+                        th:data-shift="${slot.shiftName}"
+                        th:data-schedule="${slot.scheduleLabel}"
+                        th:data-in="${slot.checkInLabel}"
+                        th:data-out="${slot.checkOutLabel}"
+                        th:data-late="${slot.lateLabel}"
+                        th:data-early="${slot.earlyLabel}"
+                        th:data-worked="${slot.workedLabel}"
+                        th:data-status="${slot.statusLabel}"
+                        th:data-in-photo="${slot.hasCheckInPhoto} ? @{|${slot.photoBase}/${slot.attendanceId}/in|} : ''"
+                        th:data-out-photo="${slot.hasCheckOutPhoto} ? @{|${slot.photoBase}/${slot.attendanceId}/out|} : ''">
+                    Xem chi tiết
+                </button>
+            </article>
+        </div>
+    </section>
+</main>
+<dialog class="detail-dialog" id="dayDetail">
+    <form method="dialog" class="detail-card">
+        <div class="slot-top">
+            <div>
+                <h3 id="dayName">Nhân viên</h3>
+                <p class="slot-schedule" id="dayMeta">NV001 · Ca sáng</p>
+            </div>
+            <span class="day-badge" id="dayStatus">Đi muộn</span>
+        </div>
+        <p class="slot-schedule">Giờ theo lịch: <span id="daySchedule">07:00 – 11:00</span></p>
+        <div class="slot-times">
+            <div><span>Check-in</span><strong id="dayIn">07:10</strong></div>
+            <div><span>Check-out</span><strong id="dayOut">11:00</strong></div>
+        </div>
+        <div class="slot-times slot-minutes">
+            <div><span>Đi muộn</span><strong id="dayLate">10 phút</strong></div>
+            <div><span>Về sớm</span><strong id="dayEarly">0 phút</strong></div>
+        </div>
+        <div class="mine-hours"><span>Giờ công</span><strong id="dayWorked">3 giờ 50 phút</strong></div>
+        <div class="detail-photos">
+            <figure>
+                <figcaption>Ảnh check-in</figcaption>
+                <img id="dayInPhoto" alt="Ảnh check-in" hidden>
+                <p id="dayInEmpty">Chưa có ảnh</p>
+            </figure>
+            <figure>
+                <figcaption>Ảnh check-out</figcaption>
+                <img id="dayOutPhoto" alt="Ảnh check-out" hidden>
+                <p id="dayOutEmpty">Chưa có ảnh</p>
+            </figure>
+        </div>
+        <button class="primary-btn" value="close">Đóng</button>
+    </form>
+</dialog>
+<script>
+(function () {
+    var search = document.getElementById("slotSearch");
+    var shift = document.getElementById("slotShift");
+    var status = document.getElementById("slotStatus");
+    var cards = Array.prototype.slice.call(document.querySelectorAll(".slot-card"));
+    var filteredEmpty = document.getElementById("slotFilteredEmpty");
+    if (!search || cards.length === 0) {
+        return;
+    }
+    function apply() {
+        var text = search.value.trim().toLowerCase();
+        var shiftId = shift.value;
+        var statusKey = status.value;
+        var shown = 0;
+        cards.forEach(function (card) {
+            var matchesText = !text || (card.getAttribute("data-search") || "").indexOf(text) >= 0;
+            var matchesShift = !shiftId || card.getAttribute("data-shift") === shiftId;
+            var matchesStatus = !statusKey
+                || card.getAttribute("data-status") === statusKey
+                || (statusKey === "late" && card.getAttribute("data-late") === "true")
+                || (statusKey === "early" && card.getAttribute("data-early") === "true");
+            var visible = matchesText && matchesShift && matchesStatus;
+            card.hidden = !visible;
+            if (visible) {
+                shown += 1;
+            }
+        });
+        if (filteredEmpty) {
+            filteredEmpty.hidden = shown !== 0;
+        }
+    }
+    search.addEventListener("input", apply);
+    shift.addEventListener("change", apply);
+    status.addEventListener("change", apply);
+})();
+(function () {
+    var dialog = document.getElementById("dayDetail");
+    if (!dialog) {
+        return;
+    }
+    function showPhoto(img, placeholder, src) {
+        if (src) {
+            img.src = src;
+            img.hidden = false;
+            placeholder.hidden = true;
+        } else {
+            img.removeAttribute("src");
+            img.hidden = true;
+            placeholder.hidden = false;
+        }
+    }
+    document.querySelectorAll(".day-detail").forEach(function (button) {
+        button.addEventListener("click", function () {
+            document.getElementById("dayName").textContent = button.getAttribute("data-name") || "";
+            document.getElementById("dayMeta").textContent = (button.getAttribute("data-code") || "") + " · " + (button.getAttribute("data-shift") || "");
+            document.getElementById("daySchedule").textContent = button.getAttribute("data-schedule") || "—";
+            document.getElementById("dayIn").textContent = button.getAttribute("data-in") || "—";
+            document.getElementById("dayOut").textContent = button.getAttribute("data-out") || "—";
+            document.getElementById("dayLate").textContent = button.getAttribute("data-late") || "—";
+            document.getElementById("dayEarly").textContent = button.getAttribute("data-early") || "—";
+            document.getElementById("dayWorked").textContent = button.getAttribute("data-worked") || "—";
+            document.getElementById("dayStatus").textContent = button.getAttribute("data-status") || "";
+            showPhoto(document.getElementById("dayInPhoto"), document.getElementById("dayInEmpty"), button.getAttribute("data-in-photo"));
+            showPhoto(document.getElementById("dayOutPhoto"), document.getElementById("dayOutEmpty"), button.getAttribute("data-out-photo"));
+            dialog.showModal();
+        });
+    });
+})();
+</script>
+</body>
+</html>

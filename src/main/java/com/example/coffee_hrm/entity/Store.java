@@ -1,10 +1,12 @@
 package com.example.coffee_hrm.entity;
 
+import com.example.coffee_hrm.common.enums.StoreStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,9 +42,21 @@ public class Store {
     @Builder.Default
     private Integer totalLeaveDays = 12;
 
+    /** Annual allowance in work slots. Null means admin has not set it; never copied from TotalLeaveDays. */
+    @Column(name = "TotalLeaveSlots")
+    private Integer totalLeaveSlots;
+
     @Column(name = "IsActive", nullable = false)
     @Builder.Default
     private Boolean isActive = true;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "Status", nullable = false, length = 20)
+    @Builder.Default
+    private StoreStatus status = StoreStatus.ACTIVE;
+
+    @Column(name = "OpeningDate")
+    private LocalDate openingDate;
 
     @Column(name = "Latitude", precision = 10, scale = 7)
     private BigDecimal latitude;
@@ -56,6 +70,20 @@ public class Store {
     @CreationTimestamp
     @Column(name = "CreatedAt", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @PrePersist
+    @PreUpdate
+    void alignOperationalFlag() {
+        if (status == null) {
+            status = Boolean.FALSE.equals(isActive) ? StoreStatus.INACTIVE : StoreStatus.ACTIVE;
+        }
+        isActive = status != StoreStatus.INACTIVE;
+    }
+
+    public void assignStatus(StoreStatus next) {
+        this.status = next;
+        this.isActive = next != null && next != StoreStatus.INACTIVE;
+    }
 
     @Builder.Default
     @OneToMany(mappedBy = "store", fetch = FetchType.LAZY)

@@ -18,7 +18,29 @@ public class AttendanceClockView {
     private final String scheduledEndLabel;
     private final String statusLabel;
     private final boolean manager;
+    private final boolean canCheckIn;
+    private final String checkInNotice;
+    private final boolean canCheckOut;
+    private final String checkOutNotice;
     private final List<RecentItem> recent;
+    @Builder.Default
+    private final List<Slot> slots = List.of();
+
+    @Getter
+    @Builder
+    public static class Slot {
+        private final Integer assignmentId;
+        private final String shiftName;
+        private final String scheduleLabel;
+        private final String statusKey;
+        private final String statusLabel;
+        private final String checkInLabel;
+        private final String checkOutLabel;
+        private final boolean canCheckIn;
+        private final String checkInNotice;
+        private final boolean canCheckOut;
+        private final String checkOutNotice;
+    }
 
     @Getter
     @Builder
