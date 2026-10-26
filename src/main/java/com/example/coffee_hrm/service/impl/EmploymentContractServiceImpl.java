@@ -7,6 +7,7 @@ import com.example.coffee_hrm.common.enums.ContractValidityStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.common.security.CitizenIds;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.ContractFilePayload;
 import com.example.coffee_hrm.dto.request.CreateEmploymentContractRequest;
@@ -79,7 +80,7 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
 
     @Override
     public List<EmploymentContractResponse> list(AuthenticatedUser actor) {
-        return scoped(actor).stream().map(this::toResponse).toList();
+        return scoped(actor).stream().map(contract -> toResponse(contract, false)).toList();
     }
 
     @Override
@@ -127,7 +128,7 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
 
     @Override
     public EmploymentContractResponse detail(AuthenticatedUser actor, Integer contractId) {
-        return toResponse(loadAuthorized(actor, contractId));
+        return toResponse(loadAuthorized(actor, contractId), true);
     }
 
     @Override
@@ -157,6 +158,7 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
                 .map(employee -> ContractEmployeeOption.builder()
                         .id(employee.getId())
                         .fullName(employee.getFullName())
+                        .citizenId(employee.getCitizenId())
                         .storeName(store.getStoreName())
                         .positionLabel(positionLabel(employee))
                         .hireDate(employee.getHireDate())
@@ -197,6 +199,9 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
         if (!managed.getId().equals(employee.getStore().getId())) {
             throw new BusinessException("Nhân viên không thuộc cửa hàng bạn quản lý.");
         }
+        if (!CitizenIds.isValid(employee.getCitizenId())) {
+            throw new BusinessException(CitizenIds.MISSING_FOR_CONTRACT);
+        }
         requireNoUnresolvedOverlap(employee.getId(), startDate, endDate);
         User creator = actor.getUserId() == null ? null : userRepository.findById(actor.getUserId()).orElse(null);
         StoredContractFile stored = fileStore.store(file);
@@ -231,7 +236,7 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
             fileStore.delete(stored.storedName());
             throw new BusinessException("Không tạo được hợp đồng vì số hợp đồng bị trùng. Hãy thử lại.");
         }
-        return toResponse(saved);
+        return toResponse(saved, true);
     }
 
     private List<EmploymentContract> scoped(AuthenticatedUser actor) {
@@ -307,7 +312,7 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
         return prefix + String.format("%04d", max + 1);
     }
 
-    private EmploymentContractResponse toResponse(EmploymentContract contract) {
+    private EmploymentContractResponse toResponse(EmploymentContract contract, boolean revealCitizenId) {
         Employee employee = contract.getEmployee();
         Store store = employee == null ? null : employee.getStore();
         ContractValidityStatus validity = ContractValidityRules.resolve(
@@ -324,6 +329,7 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
                 .contractCode(contract.getContractCode())
                 .employeeId(employee == null ? null : employee.getId())
                 .employeeName(employee == null ? null : employee.getFullName())
+                .citizenId(revealCitizenId && employee != null ? employee.getCitizenId() : null)
                 .positionLabel(positionLabel(employee))
                 .hireDate(employee == null ? null : employee.getHireDate())
                 .storeId(store == null ? null : store.getId())

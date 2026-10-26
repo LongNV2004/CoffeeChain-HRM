@@ -8,6 +8,7 @@ import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.enums.TrainingClassStatus;
 import com.example.coffee_hrm.common.enums.TrainingResult;
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.common.security.CitizenIds;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.response.EmployeeResponse;
 import com.example.coffee_hrm.dto.response.ManagedEmployeeDetail;
@@ -32,6 +33,7 @@ import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.EmployeeService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -122,7 +124,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (employee.getStore() == null || !store.getId().equals(employee.getStore().getId())) {
             throw new BusinessException(EMPLOYEE_NOT_IN_STORE);
         }
-        return toResponse(employee, employee.getUser(), store);
+        return toResponse(employee, employee.getUser(), store, true);
     }
 
     @Override
@@ -143,7 +145,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (employee.getStore() == null || !store.getId().equals(employee.getStore().getId())) {
             throw new BusinessException(EMPLOYEE_NOT_IN_STORE);
         }
-        EmployeeResponse profile = toResponse(employee, employee.getUser(), store);
+        EmployeeResponse profile = toResponse(employee, employee.getUser(), store, true);
         String certificationLabel = employee.getCertificationStatus() == null
                 ? null
                 : employee.getCertificationStatus().getLabel();
@@ -184,6 +186,14 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new BusinessException("Email đã được sử dụng");
         }
 
+        String citizenId = CitizenIds.require(request.getCitizenId());
+        Employee citizenOwner = employeeRepository.findByCitizenId(citizenId).orElse(null);
+        if (citizenOwner != null) {
+            throw new BusinessException(citizenOwner.getStatus() == EmployeeStatus.TERMINATED
+                    ? CitizenIds.BELONGS_TO_FORMER
+                    : CitizenIds.DUPLICATE_MESSAGE);
+        }
+
         String username = null;
 
         if (request.isCreateAccount()) {
@@ -214,6 +224,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         Employee employee = Employee.builder()
                 .fullName(request.getFullName().trim())
                 .phone(request.getPhone().trim())
+                .citizenId(citizenId)
                 .email(email)
                 .address(request.getAddress())
                 .avatarUrl(request.getAvatarUrl())
@@ -222,7 +233,11 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .hireDate(request.getHireDate())
                 .build();
 
-        employeeRepository.save(employee);
+        try {
+            employeeRepository.save(employee);
+        } catch (DataIntegrityViolationException ex) {
+            throw new BusinessException("Email hoặc số căn cước công dân đã được sử dụng.");
+        }
 
         User account = null;
 
@@ -244,7 +259,7 @@ public class EmployeeServiceImpl implements EmployeeService {
             }
         }
 
-        return toResponse(employee, account, store);
+        return toResponse(employee, account, store, true);
     }
     @Override
     @Transactional
@@ -264,6 +279,7 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new BusinessException(EMPLOYEE_NOT_IN_STORE);
         }
 
+        String nextCitizenId = resolveNextCitizenId(employee, request.getCitizenId());
         RoleName targetRole = parseAssignableRole(request.getRole());
         User account = userRepository.findByEmployee_Id(employeeId).orElse(null);
 
@@ -333,6 +349,7 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         employee.setFullName(request.getFullName().trim());
         employee.setPhone(request.getPhone().trim());
+        employee.setCitizenId(nextCitizenId);
         employee.setEmail(email);
         employee.setAddress(request.getAddress());
         employee.setAvatarUrl(request.getAvatarUrl());
@@ -359,7 +376,35 @@ public class EmployeeServiceImpl implements EmployeeService {
             promoteToManager(employee, account, targetStore);
         }
 
-        return toResponse(employee, account, targetStore);
+        return toResponse(employee, account, targetStore, true);
+    }
+
+    @Override
+    @Transactional
+    public EmployeeResponse updateCitizenId(AuthenticatedUser actor,
+                                            Integer storeId,
+                                            Integer employeeId,
+                                            String citizenId) {
+        requireAdmin(actor);
+        Employee employee = employeeRepository.findByIdWithStoreAndManager(employeeId)
+                .orElseThrow(() -> new BusinessException(EMPLOYEE_NOT_FOUND));
+        if (employee.getStore() == null || !storeId.equals(employee.getStore().getId())) {
+            throw new BusinessException(EMPLOYEE_NOT_IN_STORE);
+        }
+        String normalized = CitizenIds.require(citizenId);
+        if (!normalized.equals(employee.getCitizenId())) {
+            if (employeeRepository.existsByCitizenIdAndIdNot(normalized, employee.getId())) {
+                throw new BusinessException(CitizenIds.DUPLICATE_MESSAGE);
+            }
+            employee.setCitizenId(normalized);
+            try {
+                employeeRepository.save(employee);
+            } catch (DataIntegrityViolationException ex) {
+                throw new BusinessException(CitizenIds.DUPLICATE_MESSAGE);
+            }
+        }
+        User account = userRepository.findByEmployee_Id(employeeId).orElse(null);
+        return toResponse(employee, account, employee.getStore(), true);
     }
     @Override
     @Transactional
@@ -658,11 +703,29 @@ public class EmployeeServiceImpl implements EmployeeService {
     }
 
     private EmployeeResponse toResponse(Employee employee, User user, Store store) {
+        return toResponse(employee, user, store, false);
+    }
+
+    private String resolveNextCitizenId(Employee employee, String raw) {
+        String normalized = CitizenIds.optional(raw);
+        if (normalized == null || normalized.equals(employee.getCitizenId())) {
+            return employee.getCitizenId();
+        }
+        if (employeeRepository.existsByCitizenIdAndIdNot(normalized, employee.getId())) {
+            throw new BusinessException(CitizenIds.DUPLICATE_MESSAGE);
+        }
+        return normalized;
+    }
+
+    private EmployeeResponse toResponse(Employee employee, User user, Store store, boolean revealCitizenId) {
         Employee manager = store.getManager();
+        String citizenId = employee.getCitizenId();
         return EmployeeResponse.builder()
                 .id(employee.getId())
                 .fullName(employee.getFullName())
                 .phone(employee.getPhone())
+                .citizenId(revealCitizenId ? citizenId : null)
+                .citizenIdMasked(CitizenIds.mask(citizenId))
                 .email(employee.getEmail())
                 .address(employee.getAddress())
                 .avatarUrl(employee.getAvatarUrl())

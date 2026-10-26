@@ -145,6 +145,7 @@ public class ManagerRecruitmentController {
         row.put("dateOfBirth", candidate.getDateOfBirth() == null ? "" : candidate.getDateOfBirth().toString());
         row.put("gender", candidate.getGender() == null ? "" : candidate.getGender().name());
         row.put("phone", candidate.getPhone() == null ? "" : candidate.getPhone());
+        row.put("citizenId", candidate.getCitizenId() == null ? "" : candidate.getCitizenId());
         row.put("email", candidate.getEmail() == null ? "" : candidate.getEmail());
         row.put("address", candidate.getAddress() == null ? "" : candidate.getAddress());
         return row;

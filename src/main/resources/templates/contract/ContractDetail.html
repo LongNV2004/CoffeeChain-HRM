@@ -34,7 +34,8 @@
             <dt>Họ và tên</dt><dd th:text="${contract.employeeName}">Nguyễn Văn A</dd>
             <dt>Cửa hàng đang làm việc</dt><dd th:text="${contract.storeName}">Cửa hàng</dd>
             <dt>Chức vụ</dt><dd th:text="${contract.positionLabel}">Nhân viên</dd>
-            <dt>CCCD/CMND</dt><dd>Chưa có trong hồ sơ</dd>
+            <dt>Số căn cước công dân (CCCD)</dt>
+            <dd th:text="${contract.citizenId != null ? contract.citizenId : 'Chưa có trong hồ sơ'}">Chưa có trong hồ sơ</dd>
             <dt>Ngày vào làm</dt>
             <dd th:text="${contract.hireDate != null ? #temporals.format(contract.hireDate, 'dd/MM/yyyy') : '—'}">01/01/2026</dd>
         </dl>

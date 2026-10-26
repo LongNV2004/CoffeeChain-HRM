@@ -42,6 +42,10 @@
                 <dd th:text="${store.managerPhone != null and !#strings.isEmpty(store.managerPhone) ? store.managerPhone : '—'}">0901234567</dd>
             </div>
             <div>
+                <dt>Số căn cước công dân (CCCD)</dt>
+                <dd th:text="${store.managerCitizenId != null and !#strings.isEmpty(store.managerCitizenId) ? store.managerCitizenId : 'Chưa cập nhật'}">079203000123</dd>
+            </div>
+            <div>
                 <dt>Trạng thái làm việc</dt>
                 <dd th:text="${store.managerStatusLabel != null ? store.managerStatusLabel : '—'}">Đang làm việc</dd>
             </div>

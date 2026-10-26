@@ -19,6 +19,8 @@ public class EmploymentContractResponse {
     private final String contractCode;
     private final Integer employeeId;
     private final String employeeName;
+    /** CCCD hiện đọc từ hồ sơ nhân viên. Null ở danh sách. File hợp đồng đã ký không lưu và không bị ghi lại số này. */
+    private final String citizenId;
     private final String positionLabel;
     private final LocalDate hireDate;
     private final Integer storeId;

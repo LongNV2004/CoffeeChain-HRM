@@ -22,6 +22,16 @@ public interface EmployeeService {
             Integer employeeId,
             UpdateEmployeeRequest request
     );
+
+    /**
+     * Chỉ Admin sửa CCCD. Các trường hồ sơ khác không bị đổi.
+     */
+    EmployeeResponse updateCitizenId(
+            AuthenticatedUser actor,
+            Integer storeId,
+            Integer employeeId,
+            String citizenId
+    );
     EmployeeResponse changeEmployeeRole(AuthenticatedUser actor, Integer storeId, Integer employeeId, String role);
 
     /**

@@ -5,6 +5,7 @@ import com.example.coffee_hrm.common.enums.ContractValidityStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.common.security.CitizenIds;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.ContractFilePayload;
 import com.example.coffee_hrm.dto.request.CreateEmploymentContractRequest;
@@ -32,10 +33,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.stream.Stream;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -77,7 +80,8 @@ class EmploymentContractServiceImplTest {
         store = Store.builder().id(1).storeName("Cửa hàng A").manager(managerEmployee).build();
         otherStore = Store.builder().id(2).storeName("Cửa hàng B").build();
         managerEmployee.setStore(store);
-        employee = Employee.builder().id(30).fullName("Nhân viên").store(store).status(EmployeeStatus.ACTIVE).build();
+        employee = Employee.builder().id(30).fullName("Nhân viên").store(store).status(EmployeeStatus.ACTIVE)
+                .citizenId("079203000123").build();
         manager = user(2, RoleName.MANAGER, managerEmployee);
         admin = user(1, RoleName.ADMIN, null);
         staff = user(3, RoleName.STAFF, employee);
@@ -346,6 +350,39 @@ class EmploymentContractServiceImplTest {
         BusinessException salary = assertThrows(BusinessException.class,
                 () -> service.create(manager, request(null, BigDecimal.ZERO), pdf("luong.pdf")));
         assertEquals("Mức lương phải lớn hơn 0.", salary.getMessage());
+    }
+
+    @Test
+    void missingCitizenIdBlocksTheContractAndLeavesTheSignedFileUntouched() throws Exception {
+        allowEmployee();
+        employee.setCitizenId(null);
+
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> service.create(manager, request(null, new BigDecimal("1000")), pdf("thieu-cccd.pdf")));
+
+        assertEquals(CitizenIds.MISSING_FOR_CONTRACT, error.getMessage());
+        verify(contractRepository, never()).saveAndFlush(any());
+        try (Stream<Path> files = Files.walk(storage)) {
+            assertEquals(1, files.count());
+        }
+    }
+
+    @Test
+    void changingTheProfileCitizenIdDoesNotRewriteTheSignedFile() throws Exception {
+        allowEmployee();
+        EmploymentContractResponse created = service.create(
+                manager, request(null, new BigDecimal("1000")), pdf("giu-file.pdf"));
+        assertEquals("079203000123", created.getCitizenId());
+        Path file;
+        try (Stream<Path> files = Files.walk(storage)) {
+            file = files.filter(Files::isRegularFile).findFirst().orElseThrow();
+        }
+        byte[] before = Files.readAllBytes(file);
+
+        employee.setCitizenId("079203000999");
+
+        assertArrayEquals(before, Files.readAllBytes(file));
+        assertEquals("079203000123", created.getCitizenId());
     }
 
     private void allowEmployee() {

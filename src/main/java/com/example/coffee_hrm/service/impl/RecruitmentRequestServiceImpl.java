@@ -8,6 +8,7 @@ import com.example.coffee_hrm.common.enums.RecruitmentProposalStatus;
 import com.example.coffee_hrm.common.enums.RecruitmentStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.common.security.CitizenIds;
 import com.example.coffee_hrm.common.security.TemporaryPasswordGenerator;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.CreateRecruitmentRequest;
@@ -69,6 +70,10 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
     static final String TITLE_EXISTS = "Tên đề xuất đã trùng với một đơn đã gửi cho Admin.";
     static final String PHONE_EXISTS = "Số điện thoại đã tồn tại trong hệ thống.";
     static final String PHONE_PENDING = "Số điện thoại này đang được dùng trong một đề xuất tuyển nhân sự đang chờ duyệt.";
+    static final String CITIZEN_ID_PENDING =
+            "Số căn cước công dân này đang được dùng trong một đề xuất tuyển nhân sự đang chờ duyệt.";
+    static final String CITIZEN_ID_MISMATCH =
+            "Số căn cước công dân không khớp với hồ sơ nhân viên đã nghỉ việc.";
     static final String ALREADY_APPROVED = "Nhân viên này đã được duyệt. Không tạo thêm tài khoản.";
     static final String REHIRE_WORKING = "Không thể đề xuất tuyển dụng lại nhân viên đang làm việc.";
     static final String REHIRE_PENDING = "Nhân viên này đang có đề xuất tuyển dụng lại chờ duyệt.";
@@ -118,6 +123,7 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
                     .gender(person.gender())
                     .email(person.email())
                     .phone(person.phone())
+                    .citizenId(person.citizenId())
                     .address(person.address())
                     .status(RecruitmentStatus.PENDING)
                     .rehireEmployee(person.rehireEmployee())
@@ -130,8 +136,9 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
         try {
             saved = recruitmentRequestRepository.save(proposal);
         } catch (DataIntegrityViolationException ex) {
-            log.error("Không lưu được đề xuất tuyển nhân sự vì email hoặc số điện thoại bị trùng", ex);
-            throw new BusinessException("Email hoặc số điện thoại bị trùng với một đề xuất đang chờ duyệt.");
+            log.error("Không lưu được đề xuất tuyển nhân sự vì email, số điện thoại hoặc số căn cước công dân bị trùng");
+            throw new BusinessException(
+                    "Email, số điện thoại hoặc số căn cước công dân bị trùng với một đề xuất đang chờ duyệt.");
         }
 
         String managerName = manager.getFullName() != null ? manager.getFullName() : actor.getDisplayName();
@@ -247,9 +254,13 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
                 if (emailTaken(candidate.getEmail())) {
                     throw new BusinessException(EMAIL_EXISTS + " Không thể tạo tài khoản.");
                 }
+                if (candidate.getCitizenId() != null && !CitizenIds.isValid(candidate.getCitizenId())) {
+                    throw new BusinessException(CitizenIds.INVALID_MESSAGE);
+                }
                 employee = employeeRepository.save(Employee.builder()
                         .fullName(candidate.getFullName())
                         .phone(candidate.getPhone())
+                        .citizenId(candidate.getCitizenId())
                         .email(candidate.getEmail())
                         .address(candidate.getAddress())
                         .store(locked.request().getStore())
@@ -287,9 +298,9 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
                 throw new BusinessException("Không mở được tài khoản email để đăng nhập. Chưa gửi mật khẩu mới.");
             }
         } catch (DataIntegrityViolationException ex) {
-            log.error("Không tạo được tài khoản cho nhân viên {} trong đề xuất {} vì email bị trùng",
-                    candidateId, requestId, ex);
-            throw new BusinessException(EMAIL_EXISTS + " Không thể tạo tài khoản.");
+            log.error("Không tạo được hồ sơ cho nhân viên {} trong đề xuất {} vì email hoặc số căn cước công dân bị trùng",
+                    candidateId, requestId);
+            throw new BusinessException("Email hoặc số căn cước công dân đã được sử dụng. Không thể tạo hồ sơ.");
         }
 
         notifyManager(
@@ -425,6 +436,7 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
                     normalizeEmail(candidate.getEmail()),
                     normalizePhone(candidate.getPhone()),
                     normalizeAddress(candidate.getAddress()),
+                    CitizenIds.require(candidate.getCitizenId()),
                     candidate.getRehireEmployeeId(),
                     null));
         }
@@ -444,6 +456,7 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
                     candidate.email(),
                     candidate.phone(),
                     candidate.address(),
+                    candidate.citizenId(),
                     candidate.rehireEmployeeId(),
                     rehire));
         }
@@ -458,14 +471,67 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
             if (locked.getStatus() != EmployeeStatus.TERMINATED) {
                 throw new BusinessException(REHIRE_WORKING);
             }
+            assertCitizenIdMatchesProfile(locked, candidate.getCitizenId());
             return locked;
         }
-        return employeeRepository.findByEmailIgnoreCaseWithAccount(candidate.getEmail())
+        Employee byEmail = employeeRepository.findByEmailIgnoreCaseWithAccount(candidate.getEmail())
                 .filter(employee -> employee.getStatus() == EmployeeStatus.TERMINATED)
                 .filter(employee -> StaffEmploymentGuard.isRehirableStaff(employee.getUser()))
-                .map(employee -> employeeRepository.lockByIdForLeaveRequest(employee.getId()).orElse(employee))
-                .filter(employee -> employee.getStatus() == EmployeeStatus.TERMINATED)
                 .orElse(null);
+        Employee byCitizen = terminatedByCitizenId(candidate.getCitizenId());
+        if (byEmail != null && byCitizen != null && !byEmail.getId().equals(byCitizen.getId())) {
+            throw new BusinessException(CITIZEN_ID_MISMATCH);
+        }
+        Employee former = byEmail != null ? byEmail : byCitizen;
+        if (former == null) {
+            return null;
+        }
+        assertCitizenIdMatchesProfile(former, candidate.getCitizenId());
+        Employee locked = employeeRepository.lockByIdForLeaveRequest(former.getId()).orElse(former);
+        if (locked.getStatus() != EmployeeStatus.TERMINATED) {
+            throw new BusinessException(REHIRE_WORKING);
+        }
+        return locked;
+    }
+
+    private Employee terminatedByCitizenId(String citizenId) {
+        if (citizenId == null || citizenId.isBlank()) {
+            return null;
+        }
+        Employee owner = employeeRepository.findByCitizenId(citizenId).orElse(null);
+        if (owner == null) {
+            return null;
+        }
+        if (owner.getStatus() != EmployeeStatus.TERMINATED) {
+            throw new BusinessException(CitizenIds.DUPLICATE_MESSAGE);
+        }
+        if (!StaffEmploymentGuard.isRehirableStaff(owner.getUser())) {
+            throw new BusinessException(REHIRE_NOT_STAFF);
+        }
+        return owner;
+    }
+
+    private void assertCitizenIdMatchesProfile(Employee employee, String citizenId) {
+        if (employee.getCitizenId() != null && citizenId != null && !employee.getCitizenId().equals(citizenId)) {
+            throw new BusinessException(CITIZEN_ID_MISMATCH);
+        }
+    }
+
+    private void syncCitizenId(Employee employee, String citizenId) {
+        if (citizenId == null || citizenId.isBlank()) {
+            return;
+        }
+        if (!CitizenIds.isValid(citizenId)) {
+            throw new BusinessException(CitizenIds.INVALID_MESSAGE);
+        }
+        if (employee.getCitizenId() != null && !employee.getCitizenId().equals(citizenId)) {
+            throw new BusinessException(CITIZEN_ID_MISMATCH);
+        }
+        Employee owner = employeeRepository.findByCitizenId(citizenId).orElse(null);
+        if (owner != null && employee.getId() != null && !owner.getId().equals(employee.getId())) {
+            throw new BusinessException(CitizenIds.DUPLICATE_MESSAGE);
+        }
+        employee.setCitizenId(citizenId);
     }
 
     private User reactivateFormerEmployee(Employee employee,
@@ -529,6 +595,7 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
         employee.setFullName(candidate.getFullName());
         employee.setPhone(candidate.getPhone());
         employee.setAddress(candidate.getAddress());
+        syncCitizenId(employee, candidate.getCitizenId());
         employee.setStatus(EmployeeStatus.ACTIVE);
         employee.setTerminationDate(null);
         employee.setStore(store);
@@ -556,16 +623,29 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
         if (requested != null && byEmail != null && !requested.getId().equals(byEmail.getId())) {
             throw new BusinessException(EMAIL_EXISTS + " (" + candidate.email() + ")");
         }
+        Employee byCitizen = terminatedByCitizenId(candidate.citizenId());
         Employee former = requested != null ? requested : byEmail;
+        if (former != null && byCitizen != null && !former.getId().equals(byCitizen.getId())) {
+            throw new BusinessException(CITIZEN_ID_MISMATCH);
+        }
+        if (former == null) {
+            former = byCitizen;
+        }
         if (former != null) {
             if (!StaffEmploymentGuard.isRehirableStaff(former.getUser())) {
                 throw new BusinessException(REHIRE_NOT_STAFF);
+            }
+            if (former.getCitizenId() != null && !former.getCitizenId().equals(candidate.citizenId())) {
+                throw new BusinessException(CITIZEN_ID_MISMATCH);
             }
             if (recruitmentCandidateRepository.existsByRehireEmployee_IdAndStatus(former.getId(), RecruitmentStatus.PENDING)) {
                 throw new BusinessException(REHIRE_PENDING + " (" + displayName(former) + ")");
             }
             if (recruitmentCandidateRepository.existsByEmailIgnoreCaseAndStatus(candidate.email(), RecruitmentStatus.PENDING)) {
                 throw new BusinessException(EMAIL_PENDING + " (" + candidate.email() + ")");
+            }
+            if (recruitmentCandidateRepository.existsByCitizenIdAndStatus(candidate.citizenId(), RecruitmentStatus.PENDING)) {
+                throw new BusinessException(CITIZEN_ID_PENDING);
             }
             return former;
         }
@@ -577,6 +657,9 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
         }
         if (recruitmentCandidateRepository.existsByEmailIgnoreCaseAndStatus(candidate.email(), RecruitmentStatus.PENDING)) {
             throw new BusinessException(EMAIL_PENDING + " (" + candidate.email() + ")");
+        }
+        if (recruitmentCandidateRepository.existsByCitizenIdAndStatus(candidate.citizenId(), RecruitmentStatus.PENDING)) {
+            throw new BusinessException(CITIZEN_ID_PENDING);
         }
         return null;
     }
@@ -591,12 +674,16 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
     private void assertUniqueInProposal(List<NormalizedCandidate> candidates) {
         Set<String> emails = new HashSet<>();
         Set<String> phones = new HashSet<>();
+        Set<String> citizenIds = new HashSet<>();
         for (NormalizedCandidate candidate : candidates) {
             if (!emails.add(candidate.email())) {
                 throw new BusinessException("Email " + candidate.email() + " bị trùng trong danh sách nhân viên.");
             }
             if (!phones.add(candidate.phone())) {
                 throw new BusinessException("Số điện thoại " + candidate.phone() + " bị trùng trong danh sách nhân viên.");
+            }
+            if (!citizenIds.add(candidate.citizenId())) {
+                throw new BusinessException("Số căn cước công dân bị trùng trong danh sách nhân viên.");
             }
         }
     }
@@ -828,6 +915,7 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
                     .genderLabel(candidate.getGender() != null ? candidate.getGender().getLabel() : null)
                     .email(candidate.getEmail())
                     .phone(candidate.getPhone())
+                    .citizenId(candidate.getCitizenId())
                     .address(candidate.getAddress())
                     .status(status)
                     .statusLabel(status.getLabel())
@@ -876,6 +964,7 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
             String email,
             String phone,
             String address,
+            String citizenId,
             Integer rehireEmployeeId,
             Employee rehireEmployee) {
     }

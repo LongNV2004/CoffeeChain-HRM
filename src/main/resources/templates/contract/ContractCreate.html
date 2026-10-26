@@ -42,7 +42,7 @@
                         <option value="">Chọn nhân viên</option>
                         <option th:each="employee : ${employees}" th:value="${employee.id}"
                                 th:text="|${employee.id} — ${employee.fullName}|"
-                                th:attr="data-name=${employee.fullName},data-store=${employee.storeName},data-position=${employee.positionLabel},data-hire=${employee.hireDate}"></option>
+                                th:attr="data-name=${employee.fullName},data-store=${employee.storeName},data-position=${employee.positionLabel},data-hire=${employee.hireDate},data-citizen=${employee.citizenId != null ? employee.citizenId : ''}"></option>
                     </select>
                     <span class="field-error" th:if="${#fields.hasErrors('employeeId')}" th:errors="*{employeeId}"></span>
                 </label>
@@ -52,7 +52,9 @@
                 <dt>Họ và tên</dt><dd id="confirm-name"></dd>
                 <dt>Cửa hàng hiện tại</dt><dd id="confirm-store"></dd>
                 <dt>Chức vụ hiện tại</dt><dd id="confirm-position"></dd>
+                <dt>Số căn cước công dân (CCCD)</dt><dd id="confirm-citizen"></dd>
             </dl>
+            <p id="citizen-missing" class="flash error" hidden>Nhân viên chưa có số căn cước công dân. Hãy cập nhật hồ sơ nhân viên trước khi tạo hợp đồng.</p>
             <p class="empty" th:if="${#lists.isEmpty(employees)}">Không có nhân viên đang làm việc trong cửa hàng của bạn.</p>
         </section>
 
@@ -130,20 +132,41 @@
         var fileInput = document.getElementById("contractFile");
         var start = document.getElementById("startDate");
         var end = document.getElementById("endDate");
+        var contractForm = document.getElementById("contract-form");
         if (select && confirmBox) {
             select.addEventListener("change", showEmployee);
             showEmployee();
         }
+        if (contractForm) {
+            contractForm.addEventListener("submit", function (event) {
+                if (!selectedCitizenId()) {
+                    event.preventDefault();
+                    showEmployee();
+                }
+            });
+        }
+        function selectedCitizenId() {
+            var option = select && select.options[select.selectedIndex];
+            return option ? (option.getAttribute("data-citizen") || "") : "";
+        }
         function showEmployee() {
             var option = select.options[select.selectedIndex];
+            var missing = document.getElementById("citizen-missing");
+            var submit = contractForm ? contractForm.querySelector("button[type=submit]") : null;
             if (!option || !option.value) {
                 confirmBox.hidden = true;
+                if (missing) missing.hidden = true;
+                if (submit) submit.disabled = false;
                 return;
             }
+            var citizen = option.getAttribute("data-citizen") || "";
             document.getElementById("confirm-code").textContent = option.value;
             document.getElementById("confirm-name").textContent = option.getAttribute("data-name") || "";
             document.getElementById("confirm-store").textContent = option.getAttribute("data-store") || "";
             document.getElementById("confirm-position").textContent = option.getAttribute("data-position") || "";
+            document.getElementById("confirm-citizen").textContent = citizen || "Chưa có trong hồ sơ";
+            if (missing) missing.hidden = citizen.length > 0;
+            if (submit) submit.disabled = citizen.length === 0;
             confirmBox.hidden = false;
         }
         function checkEnd() {

@@ -19,6 +19,10 @@ public class EmployeeResponse {
     private Integer id;
     private String fullName;
     private String phone;
+    /** Chỉ có ở màn hình chi tiết hoặc form sửa của người có quyền. Danh sách để null. */
+    private String citizenId;
+    /** Dạng che số, dùng cho danh sách và bảng. */
+    private String citizenIdMasked;
     private String email;
     private String address;
     private String avatarUrl;

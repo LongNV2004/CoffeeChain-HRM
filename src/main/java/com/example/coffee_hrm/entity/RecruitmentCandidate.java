@@ -29,7 +29,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@ToString(exclude = {"request", "reviewedBy", "createdEmployee", "rehireEmployee"})
+@ToString(exclude = {"citizenId", "request", "reviewedBy", "createdEmployee", "rehireEmployee"})
 public class RecruitmentCandidate {
 
     @Id
@@ -58,6 +58,9 @@ public class RecruitmentCandidate {
 
     @Column(name = "Phone", nullable = false, length = 15)
     private String phone;
+
+    @Column(name = "CitizenId", length = 12)
+    private String citizenId;
 
     @Column(name = "Address", length = 255)
     private String address;

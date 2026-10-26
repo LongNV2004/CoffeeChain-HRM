@@ -18,6 +18,7 @@ public class ResignationItemResponse {
     private Integer id;
     private Integer employeeId;
     private String employeeName;
+    private String citizenId;
     private String positionLabel;
     private Integer storeId;
     private String storeName;

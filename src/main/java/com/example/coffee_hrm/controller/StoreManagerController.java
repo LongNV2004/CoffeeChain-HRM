@@ -2,6 +2,7 @@ package com.example.coffee_hrm.controller;
 
 import com.example.coffee_hrm.common.enums.StoreStatus;
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.common.security.CitizenIds;
 import com.example.coffee_hrm.dto.request.CreateStoreManagerRequest;
 import com.example.coffee_hrm.dto.response.ManagerProvisionResult;
 import com.example.coffee_hrm.dto.response.StoreResponse;
@@ -142,7 +143,11 @@ public class StoreManagerController {
                 || StoreManagerAccountServiceImpl.PHONE_EXISTS.equals(message)
                 || StoreManagerAccountServiceImpl.PHONE_INVALID.equals(message)
                 || StoreManagerAccountServiceImpl.PHONE_REQUIRED.equals(message)
-                || StoreManagerAccountServiceImpl.NAME_REQUIRED.equals(message);
+                || StoreManagerAccountServiceImpl.NAME_REQUIRED.equals(message)
+                || CitizenIds.REQUIRED_MESSAGE.equals(message)
+                || CitizenIds.INVALID_MESSAGE.equals(message)
+                || CitizenIds.DUPLICATE_MESSAGE.equals(message)
+                || CitizenIds.BELONGS_TO_FORMER.equals(message);
     }
 
     private void exposeFieldError(BindingResult bindingResult, BusinessException ex) {
@@ -153,6 +158,11 @@ public class StoreManagerController {
                 || StoreManagerAccountServiceImpl.EMAIL_INVALID.equals(message)
                 || StoreManagerAccountServiceImpl.EMAIL_REQUIRED.equals(message)) {
             bindingResult.rejectValue("email", "business", message);
+        } else if (CitizenIds.REQUIRED_MESSAGE.equals(message)
+                || CitizenIds.INVALID_MESSAGE.equals(message)
+                || CitizenIds.DUPLICATE_MESSAGE.equals(message)
+                || CitizenIds.BELONGS_TO_FORMER.equals(message)) {
+            bindingResult.rejectValue("citizenId", "business", message);
         } else {
             bindingResult.rejectValue("phone", "business", message);
         }

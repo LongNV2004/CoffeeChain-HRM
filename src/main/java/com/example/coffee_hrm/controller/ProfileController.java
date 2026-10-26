@@ -3,6 +3,8 @@ package com.example.coffee_hrm.controller;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.dto.request.ChangePasswordRequest;
+import com.example.coffee_hrm.dto.request.UpdateProfileRequest;
+import com.example.coffee_hrm.dto.response.MyProfileView;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.ProfileService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -35,6 +37,31 @@ public class ProfileController {
             return "redirect:/login";
         }
         return render(user, model);
+    }
+
+    @PostMapping
+    public String updateProfile(@Valid @ModelAttribute("profileForm") UpdateProfileRequest profileForm,
+                                BindingResult bindingResult,
+                                @AuthenticationPrincipal AuthenticatedUser user,
+                                Model model,
+                                RedirectAttributes redirectAttributes) {
+        if (user == null) {
+            return "redirect:/login";
+        }
+        if (bindingResult.hasErrors()) {
+            model.addAttribute("errorMessage", firstError(bindingResult));
+            model.addAttribute("profileFormOpen", true);
+            return render(user, model);
+        }
+        try {
+            profileService.updateProfile(user, profileForm);
+            redirectAttributes.addFlashAttribute("successMessage", "Đã cập nhật hồ sơ cá nhân.");
+            return "redirect:/profile";
+        } catch (BusinessException ex) {
+            model.addAttribute("errorMessage", ex.getMessage());
+            model.addAttribute("profileFormOpen", true);
+            return render(user, model);
+        }
     }
 
     @PostMapping("/password")
@@ -79,8 +106,9 @@ public class ProfileController {
             model.addAttribute("passwordForm", new ChangePasswordRequest());
         }
         model.addAttribute("sidebarRole", sidebarRole(user));
+        MyProfileView profile = null;
         try {
-            var profile = profileService.getProfile(user);
+            profile = profileService.getProfile(user);
             model.addAttribute("profile", profile);
             if (profile.getSidebarRole() != null) {
                 model.addAttribute("sidebarRole", profile.getSidebarRole());
@@ -88,7 +116,22 @@ public class ProfileController {
         } catch (BusinessException ex) {
             model.addAttribute("errorMessage", ex.getMessage());
         }
+        if (!model.containsAttribute("profileForm")) {
+            model.addAttribute("profileForm", formFrom(profile));
+        }
         return "profile/MyProfile";
+    }
+
+    private UpdateProfileRequest formFrom(MyProfileView profile) {
+        if (profile == null) {
+            return new UpdateProfileRequest();
+        }
+        return UpdateProfileRequest.builder()
+                .fullName(profile.getFullName())
+                .phone(profile.getPhone())
+                .email(profile.getEmail())
+                .address(profile.getAddress())
+                .build();
     }
 
     private void clearSecrets(ChangePasswordRequest passwordForm) {

@@ -133,12 +133,24 @@ public class AdminEmployeeController {
             @PathVariable Integer employeeId,
             @AuthenticationPrincipal AuthenticatedUser user
     ) {
-        return employeeService.getStoreEmployees(user, storeId)
-                .stream()
-                .filter(employee -> employeeId.equals(employee.getId()))
-                .findFirst()
-                .orElseThrow(() ->
-                        new BusinessException("Không tìm thấy nhân viên"));
+        return employeeService.getStoreEmployee(user, storeId, employeeId);
+    }
+
+    @PostMapping("/stores/{storeId}/employees/{employeeId}/citizen-id")
+    public String updateCitizenId(
+            @PathVariable Integer storeId,
+            @PathVariable Integer employeeId,
+            @RequestParam(required = false) String citizenId,
+            @AuthenticationPrincipal AuthenticatedUser user,
+            RedirectAttributes redirectAttributes
+    ) {
+        try {
+            employeeService.updateCitizenId(user, storeId, employeeId, citizenId);
+            redirectAttributes.addFlashAttribute("successMessage", "Đã cập nhật số căn cước công dân.");
+        } catch (BusinessException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
+        }
+        return "redirect:/admin/stores/" + storeId + "/employees/" + employeeId;
     }
 
     @PostMapping("/stores/{storeId}/employees/{employeeId}/edit")

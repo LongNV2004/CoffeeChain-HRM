@@ -4,6 +4,7 @@ import com.example.coffee_hrm.common.enums.CertificationStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.dto.request.UpdateProfileRequest;
 import com.example.coffee_hrm.dto.response.EmployeeSkillStatusLine;
 import com.example.coffee_hrm.dto.response.MyProfileView;
 import com.example.coffee_hrm.entity.Employee;
@@ -19,6 +20,8 @@ import com.example.coffee_hrm.service.RecruitmentRequestService;
 import com.example.coffee_hrm.service.ResignationProposalService;
 import com.example.coffee_hrm.service.TrainingService;
 import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -78,7 +81,10 @@ class ProfileControllerTest {
                 .andExpect(content().string(containsString("CERTIFIED · Đã chứng nhận")))
                 .andExpect(content().string(containsString("NOTCERTIFIED · Chưa chứng nhận")))
                 .andExpect(content().string(containsString("Ngày cấp 01/10/2026")))
-                .andExpect(content().string(containsString("Hồ sơ cá nhân")));
+                .andExpect(content().string(containsString("Hồ sơ cá nhân")))
+                .andExpect(content().string(containsString("Chỉnh sửa thông tin")))
+                .andExpect(content().string(containsString("Lưu")))
+                .andExpect(content().string(not(containsString("name=\"citizenId\""))));
 
         verify(profileService).getProfile(manager);
     }
@@ -108,7 +114,16 @@ class ProfileControllerTest {
                         .param("newPassword", "newpass1")
                         .param("confirmPassword", "newpass1"))
                 .andExpect(redirectedUrl("/dashboard/admin"));
+        mockMvc.perform(post("/profile")
+                        .with(csrf())
+                        .with(user(actor(RoleName.ADMIN, 1)))
+                        .param("fullName", "An Nguyễn")
+                        .param("phone", "0901234567")
+                        .param("email", "an@shop.vn")
+                        .param("citizenId", "079203000123"))
+                .andExpect(redirectedUrl("/dashboard/admin"));
         verify(profileService, never()).getProfile(any());
+        verify(profileService, never()).updateProfile(any(), any());
         verify(profileService, never()).changePassword(any(), any(), any(), any());
     }
 
@@ -173,6 +188,68 @@ class ProfileControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Mật khẩu hiện tại không chính xác.")))
                 .andExpect(content().string(not(containsString("wrongpass"))));
+    }
+
+    @Test
+    void staffCanUpdateTheirOwnProfileAndCannotSkipCsrf() throws Exception {
+        AuthenticatedUser staff = actor(RoleName.STAFF, 11);
+        mockMvc.perform(post("/profile")
+                        .with(user(staff))
+                        .param("fullName", "Bình Trần")
+                        .param("phone", "0912345678")
+                        .param("email", "binh@shop.vn")
+                        .param("citizenId", "079203000999")
+                        .param("employeeId", "99"))
+                .andExpect(redirectedUrl("/dashboard/staff"));
+        verify(profileService, never()).updateProfile(any(), any());
+
+        mockMvc.perform(post("/profile")
+                        .with(csrf())
+                        .with(user(staff))
+                        .param("fullName", "Bình Trần")
+                        .param("phone", "0912345678")
+                        .param("email", "binh@shop.vn")
+                        .param("address", "20 Lê Lợi")
+                        .param("citizenId", "079203000999")
+                        .param("employeeId", "99"))
+                .andExpect(redirectedUrl("/profile"))
+                .andExpect(flash().attribute("successMessage", "Đã cập nhật hồ sơ cá nhân."));
+
+        org.mockito.ArgumentCaptor<UpdateProfileRequest> captor =
+                org.mockito.ArgumentCaptor.forClass(UpdateProfileRequest.class);
+        verify(profileService).updateProfile(org.mockito.ArgumentMatchers.eq(staff), captor.capture());
+        assertEquals("Bình Trần", captor.getValue().getFullName());
+        assertEquals("0912345678", captor.getValue().getPhone());
+        assertEquals("binh@shop.vn", captor.getValue().getEmail());
+        assertEquals("20 Lê Lợi", captor.getValue().getAddress());
+    }
+
+    @Test
+    void profileUpdateShowsValidationAndBusinessErrors() throws Exception {
+        AuthenticatedUser manager = actor(RoleName.MANAGER, 4);
+        when(profileService.getProfile(manager)).thenReturn(profile(RoleName.MANAGER, List.of()));
+
+        mockMvc.perform(post("/profile")
+                        .with(csrf())
+                        .with(user(manager))
+                        .param("fullName", "An1")
+                        .param("phone", "0901234567")
+                        .param("email", "an@shop.vn"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Họ và tên chỉ được chứa chữ cái, không được nhập số.")));
+        verify(profileService, never()).updateProfile(any(), any());
+
+        doThrow(new BusinessException("Email đã được sử dụng."))
+                .when(profileService).updateProfile(org.mockito.ArgumentMatchers.eq(manager), any());
+        mockMvc.perform(post("/profile")
+                        .with(csrf())
+                        .with(user(manager))
+                        .param("fullName", "An Nguyễn")
+                        .param("phone", "0901234567")
+                        .param("email", "khac@shop.vn"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Email đã được sử dụng.")))
+                .andExpect(content().string(not(containsString("079203000123"))));
     }
 
     private AuthenticatedUser actor(RoleName roleName, int userId) {

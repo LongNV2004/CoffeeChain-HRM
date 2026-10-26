@@ -238,6 +238,7 @@ public class StoreServiceImpl implements StoreService {
                 .managerName(manager != null ? manager.getFullName() : null)
                 .managerEmail(manager != null ? manager.getEmail() : null)
                 .managerPhone(manager != null ? manager.getPhone() : null)
+                .managerCitizenId(manager != null ? manager.getCitizenId() : null)
                 .managerStatusLabel(manager != null ? employeeStatusLabel(manager.getStatus()) : null)
                 .managerAssignmentLabel(manager != null ? "Đã phân công" : "Chưa phân công")
                 .managerCredentialsPending(managerAccount != null

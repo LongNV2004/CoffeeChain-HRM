@@ -71,6 +71,10 @@
                     <span class="field-label">Chức vụ</span>
                     <input id="draft-position" type="text" readonly value="Chọn nhân viên để hiện chức vụ">
                 </label>
+                <label>
+                    <span class="field-label">Số căn cước công dân (CCCD)</span>
+                    <input id="draft-citizen" type="text" readonly value="Chọn nhân viên để hiện CCCD">
+                </label>
                 <label class="recruit-span" for="draft-reason">
                     <span class="field-label">Lý do đề xuất nghỉ việc <span class="req">*</span></span>
                     <textarea id="draft-reason" maxlength="500" rows="2" placeholder="Lý do riêng của nhân sự này"></textarea>
@@ -198,9 +202,16 @@
         toastTimer = window.setTimeout(function () { toast.hidden = true; }, 2800);
     }
 
+    const citizenInput = document.getElementById("draft-citizen");
+
     function syncPosition() {
         const person = personById(employeeSelect.value);
         positionInput.value = person ? person.positionLabel : "Chọn nhân viên để hiện chức vụ";
+        if (citizenInput) {
+            citizenInput.value = person
+                ? (person.citizenId || "Chưa cập nhật")
+                : "Chọn nhân viên để hiện CCCD";
+        }
     }
 
     function clearDraft() {
@@ -236,7 +247,11 @@
             title.textContent = row.fullName;
             const meta = document.createElement("p");
             meta.className = "muted";
-            meta.textContent = row.positionLabel;
+            meta.textContent = row.positionLabel
+                + " · CCCD: "
+                + ((personById(row.employeeId) && personById(row.employeeId).citizenId)
+                    ? personById(row.employeeId).citizenId
+                    : "Chưa cập nhật");
             const reason = document.createElement("p");
             reason.textContent = row.reason;
             card.append(title, meta, reason);

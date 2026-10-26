@@ -25,6 +25,9 @@
         <p>Thông tin chỉ để xem. Trạng thái lấy từ hồ sơ nhân viên trong hệ thống.</p>
     </header>
 
+    <p class="flash success" th:if="${successMessage}" th:text="${successMessage}"></p>
+    <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}"></p>
+
     <div class="employee-detail-grid">
         <section class="store-create-card" aria-labelledby="employee-personal-title">
             <h2 id="employee-personal-title">Thông tin cá nhân</h2>
@@ -49,6 +52,11 @@
                         th:classappend="${employee.phone == null or #strings.isEmpty(employee.phone)} ? ' is-placeholder'">SĐT</dd>
                 </div>
                 <div>
+                    <dt>Số căn cước công dân (CCCD)</dt>
+                    <dd th:text="${employee.citizenId != null and !#strings.isEmpty(employee.citizenId) ? employee.citizenId : 'Chưa cập nhật'}"
+                        th:classappend="${employee.citizenId == null or #strings.isEmpty(employee.citizenId)} ? ' is-placeholder'">079203000123</dd>
+                </div>
+                <div>
                     <dt>Địa chỉ</dt>
                     <dd th:text="${employee.address != null and !#strings.isEmpty(employee.address) ? employee.address : 'Chưa cập nhật'}"
                         th:classappend="${employee.address == null or #strings.isEmpty(employee.address)} ? ' is-placeholder'">Địa chỉ</dd>
@@ -71,6 +79,18 @@
                     <dd th:if="${employee.terminationDate == null}" class="is-placeholder">Chưa cập nhật</dd>
                 </div>
             </dl>
+            <form class="stack-form" method="post" autocomplete="off"
+                  th:action="@{/admin/stores/{storeId}/employees/{employeeId}/citizen-id(storeId=${store.id}, employeeId=${employee.id})}">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <label>Số căn cước công dân (CCCD)
+                    <input type="text" name="citizenId" inputmode="numeric" maxlength="12" autocomplete="off"
+                           pattern="[0-9]{12}" title="Số căn cước công dân phải gồm đúng 12 chữ số"
+                           th:value="${employee.citizenId}" placeholder="079203000123">
+                </label>
+                <div class="form-actions store-create-actions">
+                    <button class="store-btn store-btn--primary" type="submit">Cập nhật CCCD</button>
+                </div>
+            </form>
         </section>
 
         <section class="store-create-card" aria-labelledby="employee-work-title">

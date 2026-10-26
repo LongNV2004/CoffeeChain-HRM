@@ -54,6 +54,11 @@
                         th:classappend="${detail.employee.phone == null or #strings.isEmpty(detail.employee.phone)} ? ' is-placeholder'">SĐT</dd>
                 </div>
                 <div>
+                    <dt>Số căn cước công dân (CCCD)</dt>
+                    <dd th:text="${detail.employee.citizenId != null and !#strings.isEmpty(detail.employee.citizenId) ? detail.employee.citizenId : 'Chưa cập nhật'}"
+                        th:classappend="${detail.employee.citizenId == null or #strings.isEmpty(detail.employee.citizenId)} ? ' is-placeholder'">079203000123</dd>
+                </div>
+                <div>
                     <dt>Địa chỉ</dt>
                     <dd th:text="${detail.employee.address != null and !#strings.isEmpty(detail.employee.address) ? detail.employee.address : 'Chưa cập nhật'}"
                         th:classappend="${detail.employee.address == null or #strings.isEmpty(detail.employee.address)} ? ' is-placeholder'">Địa chỉ</dd>

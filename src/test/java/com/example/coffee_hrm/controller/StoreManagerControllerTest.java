@@ -128,7 +128,8 @@ class StoreManagerControllerTest {
         mockMvc.perform(post("/admin/stores/5/managers").with(user(actor(RoleName.ADMIN))).with(csrf())
                         .param("fullName", "Lan Nguyen")
                         .param("email", "lan@coffee.vn")
-                        .param("phone", "0901234567"))
+                        .param("phone", "0901234567")
+                        .param("citizenId", "079203000123"))
                 .andExpect(redirectedUrl("/admin/stores"))
                 .andExpect(flash().attribute("successMessage",
                         containsString("gửi email thông tin đăng nhập")));
@@ -143,7 +144,8 @@ class StoreManagerControllerTest {
         mockMvc.perform(post("/admin/stores/5/managers").with(user(actor(RoleName.ADMIN))).with(csrf())
                         .param("fullName", "Lan Nguyen")
                         .param("email", "lan@coffee.vn")
-                        .param("phone", "0901234567"))
+                        .param("phone", "0901234567")
+                        .param("citizenId", "079203000123"))
                 .andExpect(redirectedUrl("/admin/stores"))
                 .andExpect(flash().attribute("warningMessage", containsString("gửi email thất bại")))
                 .andExpect(flash().attribute("warningMessage", containsString("không bị xóa")));
@@ -158,7 +160,8 @@ class StoreManagerControllerTest {
         mockMvc.perform(post("/admin/stores/5/managers").with(user(actor(RoleName.ADMIN))).with(csrf())
                         .param("fullName", "Lan Nguyen")
                         .param("email", "lan@coffee.vn")
-                        .param("phone", "0901234567"))
+                        .param("phone", "0901234567")
+                        .param("citizenId", "079203000123"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("admin/store-manager-create"))
                 .andExpect(content().string(containsString("Email đã được sử dụng.")));

@@ -1,6 +1,7 @@
 package com.example.coffee_hrm.dto.request;
 
 import com.example.coffee_hrm.common.enums.Gender;
+import com.example.coffee_hrm.common.security.CitizenIds;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -43,6 +44,10 @@ public class RecruitmentCandidateRequest {
     @Pattern(regexp = "^[0-9]{9,15}$", message = "Số điện thoại gồm 9 đến 15 chữ số")
     private String phone;
 
+    @NotBlank(message = "Vui lòng nhập số căn cước công dân.")
+    @Pattern(regexp = "^[0-9]{12}$", message = "Số căn cước công dân phải gồm đúng 12 chữ số.")
+    private String citizenId;
+
     @Size(max = 255, message = "Địa chỉ tối đa 255 ký tự")
     private String address;
 
@@ -54,6 +59,10 @@ public class RecruitmentCandidateRequest {
 
     public void setEmail(String email) {
         this.email = email == null ? null : email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    public void setCitizenId(String citizenId) {
+        this.citizenId = CitizenIds.normalize(citizenId);
     }
 
     public void setPhone(String phone) {

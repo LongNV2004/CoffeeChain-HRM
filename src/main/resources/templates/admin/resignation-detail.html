@@ -90,6 +90,7 @@
                         <a class="row-link"
                            th:href="@{/admin/stores/{storeId}/employees/{employeeId}(storeId=${item.storeId}, employeeId=${item.employeeId})}"
                            th:text="${item.employeeName}">An</a>
+                        <div class="muted" th:text="${item.citizenId != null ? 'CCCD: ' + item.citizenId : 'CCCD: Chưa cập nhật'}">CCCD</div>
                         <div class="muted" th:text="${item.currentStatusLabel}">Đang làm việc</div>
                     </td>
                     <td th:text="${item.storeName}">Store</td>
