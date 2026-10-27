@@ -98,27 +98,9 @@
                             <p class="rv-ratio">Đã đăng ký <strong th:text="${cell.registeredCount}">0</strong>/<span th:text="${cell.maxEmployees != null ? cell.maxEmployees : 0}">0</span>
                                 · <span th:text="${ratio}">0</span>%</p>
                             <div class="rv-bar" th:classappend="${cell.staffingStatusKey}"><span th:style="|width: ${ratio}%|"></span></div>
-
-                            <details class="rv-details" th:open="${cell.awaitingApproval or (cell.positionsConfigured and cell.shortfall > 0)}">
-                                <summary>Nhu cầu theo vị trí</summary>
-                                <p class="rv-hint" th:if="${!cell.positionsConfigured}">Ca này chưa cấu hình chỉ tiêu theo vị trí.</p>
-                                <div class="rv-pos" th:each="skill : ${activePositions}"
-                                     th:with="need=${cell.requiredCountOf(skill.id) != null ? cell.requiredCountOf(skill.id) : 0}, activity=${cell.activityOf(skill.id)}">
-                                    <div class="rv-pos-head">
-                                        <strong th:text="${skill.name}">Pha chế</strong>
-                                        <span th:if="${need > 0 and need > activity.approved}" class="rv-gap">Thiếu <b th:text="${need - activity.approved}">1</b></span>
-                                        <span th:if="${need > 0 and need <= activity.approved}" class="rv-ok">Đủ</span>
-                                    </div>
-                                    <ul>
-                                        <li>Chỉ tiêu <b th:text="${need}">0</b></li>
-                                        <li>Đã đăng ký <b th:text="${activity.registered}">0</b></li>
-                                        <li>Chờ duyệt <b th:text="${activity.pending}">0</b></li>
-                                        <li>Đã duyệt <b th:text="${activity.approved}">0</b></li>
-                                        <li>Còn thiếu <b th:text="${need > activity.approved ? need - activity.approved : 0}">0</b></li>
-                                    </ul>
-                                </div>
-                                <p class="rv-hint" th:if="${activePositions == null or #lists.isEmpty(activePositions)}">Chưa có kỹ năng đào tạo đang hoạt động.</p>
-                            </details>
+                            <p class="rv-hint" th:if="${cell.configured and cell.shortfall > 0}">
+                                Còn thiếu <strong th:text="${cell.shortfall}">0</strong> người so với số đã duyệt.
+                            </p>
 
                             <button type="button" class="rv-toggle">Xem danh sách nhân viên đăng ký</button>
                             <div class="rv-people is-closed">
@@ -129,7 +111,6 @@
                                     <div class="rv-person-top">
                                         <div>
                                             <strong th:text="${item.employeeName}">Nhân viên</strong>
-                                            <span th:text="${item.positionName != null ? item.positionName : 'Chưa chọn vị trí'}">Pha chế</span>
                                         </div>
                                         <span class="rv-badge"
                                               th:classappend="${item.statusKey == 'approved' ? 'is-enough' : (item.statusKey == 'pending' ? 'is-warn' : 'is-short')}"

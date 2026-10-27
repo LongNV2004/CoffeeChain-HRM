@@ -7,6 +7,8 @@ import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.enums.TrainingClassStatus;
 import com.example.coffee_hrm.common.enums.TrainingResult;
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.common.security.CitizenIds;
+import com.example.coffee_hrm.dto.request.CreateEmployeeRequest;
 import com.example.coffee_hrm.dto.request.UpdateEmployeeRequest;
 import com.example.coffee_hrm.dto.response.EmployeeResponse;
 import com.example.coffee_hrm.dto.response.ManagedEmployeeDetail;
@@ -534,6 +536,93 @@ class EmployeeServiceImplTest {
         assertMessage(EmployeeServiceImpl.STORE_NOT_ASSIGNED,
                 () -> employeeService.getManagedDirectory(AuthenticatedUser.from(managerUser)));
         verify(employeeRepository, never()).findByStoreIdWithAccount(any());
+    }
+
+    @Test
+    void createEmployeeStoresAValidCitizenIdAndRejectsInvalidOrDuplicateValues() {
+        when(storeRepository.findById(1)).thenReturn(Optional.of(storeA));
+        when(employeeRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertMessage(CitizenIds.INVALID_MESSAGE,
+                () -> employeeService.createEmployee(admin, createRequest("07920300012A")));
+        assertMessage(CitizenIds.INVALID_MESSAGE,
+                () -> employeeService.createEmployee(admin, createRequest("12345")));
+
+        EmployeeResponse created = employeeService.createEmployee(admin, createRequest("079203000123"));
+        assertEquals("079203000123", created.getCitizenId());
+        assertEquals("079******123", created.getCitizenIdMasked());
+
+        Employee other = employee(99, storeA, EmployeeStatus.ACTIVE);
+        when(employeeRepository.findByCitizenId("079203000123")).thenReturn(Optional.of(other));
+        assertMessage(CitizenIds.DUPLICATE_MESSAGE,
+                () -> employeeService.createEmployee(admin, createRequest("079203000123")));
+
+        other.setStatus(EmployeeStatus.TERMINATED);
+        assertMessage(CitizenIds.BELONGS_TO_FORMER,
+                () -> employeeService.createEmployee(admin, createRequest("079203000123")));
+    }
+
+    @Test
+    void profileUpdateKeepsCitizenIdUnlessANewValidValueIsProvided() {
+        staffEmployee.setCitizenId("079203000123");
+        staffEmployee.setEmail("e10@x.vn");
+        when(employeeRepository.findByIdWithStoreAndManager(10)).thenReturn(Optional.of(staffEmployee));
+        UpdateEmployeeRequest request = UpdateEmployeeRequest.builder()
+                .fullName("An")
+                .phone("0900000000")
+                .email("e10@x.vn")
+                .storeId(1)
+                .status(EmployeeStatus.ACTIVE)
+                .hireDate(LocalDate.of(2020, 1, 1))
+                .role("STAFF")
+                .build();
+
+        EmployeeResponse kept = employeeService.updateEmployee(admin, 1, 10, request);
+        assertEquals("079203000123", staffEmployee.getCitizenId());
+        assertEquals("079203000123", kept.getCitizenId());
+
+        request.setCitizenId("079203000999");
+        employeeService.updateEmployee(admin, 1, 10, request);
+        assertEquals("079203000999", staffEmployee.getCitizenId());
+
+        request.setCitizenId("12ab");
+        assertMessage(CitizenIds.INVALID_MESSAGE, () -> employeeService.updateEmployee(admin, 1, 10, request));
+        assertEquals("079203000999", staffEmployee.getCitizenId());
+
+        when(employeeRepository.existsByCitizenIdAndIdNot("079203000111", 10)).thenReturn(true);
+        request.setCitizenId("079203000111");
+        assertMessage(CitizenIds.DUPLICATE_MESSAGE, () -> employeeService.updateEmployee(admin, 1, 10, request));
+        assertEquals("079203000999", staffEmployee.getCitizenId());
+    }
+
+    @Test
+    void onlyAdminCanChangeCitizenIdDirectly() {
+        staffEmployee.setCitizenId("079203000123");
+        when(employeeRepository.findByIdWithStoreAndManager(10)).thenReturn(Optional.of(staffEmployee));
+
+        assertMessage(EmployeeServiceImpl.ACCESS_DENIED,
+                () -> employeeService.updateCitizenId(actor(RoleName.MANAGER), 1, 10, "079203000111"));
+        assertMessage(EmployeeServiceImpl.ACCESS_DENIED,
+                () -> employeeService.updateCitizenId(actor(RoleName.STAFF), 1, 10, "079203000111"));
+        assertEquals("079203000123", staffEmployee.getCitizenId());
+
+        when(employeeRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        EmployeeResponse updated = employeeService.updateCitizenId(admin, 1, 10, "079 203 000 999");
+        assertEquals("079203000999", staffEmployee.getCitizenId());
+        assertEquals("079203000999", updated.getCitizenId());
+        assertEquals("Employee 10", staffEmployee.getFullName());
+    }
+
+    private CreateEmployeeRequest createRequest(String citizenId) {
+        return CreateEmployeeRequest.builder()
+                .fullName("An")
+                .phone("0900000000")
+                .citizenId(citizenId)
+                .email("moi@shop.vn")
+                .storeId(1)
+                .hireDate(LocalDate.of(2026, 1, 1))
+                .role("STAFF")
+                .build();
     }
 
     private EmployeeSkillTrainingFact skillFact(TrainingResult result) {

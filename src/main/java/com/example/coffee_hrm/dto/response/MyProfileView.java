@@ -26,6 +26,8 @@ public class MyProfileView {
     private String username;
     private String email;
     private String phone;
+    /** Luôn là dạng che số. Hồ sơ cá nhân không chứa CCCD đầy đủ. */
+    private String citizenIdMasked;
     private String address;
     private String avatarUrl;
     private RoleName roleName;

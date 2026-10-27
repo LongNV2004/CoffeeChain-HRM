@@ -230,10 +230,7 @@ public class ContractPageController {
             binding.rejectValue("endDate", "endDate", "Ngày kết thúc không được trước ngày bắt đầu hiệu lực.");
         }
         if (form.getSalary() != null && form.getSalary().compareTo(BigDecimal.ZERO) <= 0) {
-            binding.rejectValue("salary", "salary", "Mức lương cơ bản phải lớn hơn 0.");
-        }
-        if (form.getAllowance() != null && form.getAllowance().compareTo(BigDecimal.ZERO) < 0) {
-            binding.rejectValue("allowance", "allowance", "Phụ cấp không được âm.");
+            binding.rejectValue("salary", "salary", "Mức lương phải lớn hơn 0.");
         }
     }
 
@@ -259,18 +256,14 @@ public class ContractPageController {
             binding.rejectValue("employeeId", "employeeId", message);
         } else if (message.contains("kết thúc")) {
             binding.rejectValue("endDate", "endDate", message);
+        } else if (message.contains("Ghi chú") || message.contains("ghi chú")) {
+            binding.rejectValue("internalNote", "internalNote", message);
+        } else if (message.contains("ca làm việc") || message.contains("ca/tuần")) {
+            binding.rejectValue("weeklyShiftCount", "weeklyShiftCount", message);
         } else if (message.contains("bắt đầu")) {
             binding.rejectValue("startDate", "startDate", message);
-        } else if (message.contains("Chức danh") || message.contains("chức danh")) {
-            binding.rejectValue("jobTitle", "jobTitle", message);
-        } else if (message.contains("ca mỗi tuần")) {
-            binding.rejectValue("weeklyShiftCount", "weeklyShiftCount", message);
-        } else if (message.contains("Phụ cấp") || message.contains("phụ cấp")) {
-            binding.rejectValue("allowance", "allowance", message);
         } else if (message.contains("lương") || message.contains("Lương")) {
             binding.rejectValue("salary", "salary", message);
-        } else if (message.contains("Hình thức") || message.contains("hình thức")) {
-            binding.rejectValue("paymentMethod", "paymentMethod", message);
         } else if (message.contains("file") || message.contains("File")) {
             binding.reject("contractFile", message);
         } else {

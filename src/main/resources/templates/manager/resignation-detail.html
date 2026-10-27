@@ -65,6 +65,7 @@
                 <tr th:each="item : ${request.items}">
                     <td>
                         <a class="row-link" th:href="@{/manager/employees/{id}(id=${item.employeeId})}" th:text="${item.employeeName}">An</a>
+                        <div class="muted" th:text="${item.citizenId != null ? 'CCCD: ' + item.citizenId : 'CCCD: Chưa cập nhật'}">CCCD</div>
                         <div class="muted" th:text="${item.currentStatusLabel}">Đang làm việc</div>
                     </td>
                     <td th:text="${item.positionLabel}">Nhân viên</td>

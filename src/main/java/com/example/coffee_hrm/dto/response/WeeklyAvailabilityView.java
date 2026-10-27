@@ -28,6 +28,8 @@ public class WeeklyAvailabilityView {
     private List<ShiftRow> shiftRows;
     private List<RegistrationGroup> registrations;
     private List<String> shortageAlerts;
+    private Integer contractWeeklyShifts;
+    private String contractShiftMessage;
 
     public String getFormattedWeekRange() {
         if (patternMode) {

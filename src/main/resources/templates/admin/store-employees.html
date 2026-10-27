@@ -77,6 +77,7 @@
                 <th>Nhân viên</th>
                 <th>Chức vụ</th>
                 <th>Số điện thoại</th>
+                <th>CCCD</th>
                 <th>Chứng chỉ</th>
                 <th>Trạng thái</th>
                 <th>Hành động</th>
@@ -84,7 +85,7 @@
             </thead>
             <tbody>
             <tr th:if="${employees == null or #lists.isEmpty(employees)}">
-                <td colspan="8" class="empty">Cửa hàng chưa có nhân viên.</td>
+                <td colspan="9" class="empty">Cửa hàng chưa có nhân viên.</td>
             </tr>
 
             <tr th:each="employee : ${employees}" class="employee-row"
@@ -107,6 +108,7 @@
                     <span th:if="${!employee.storeManager and employee.roleName == null}" class="muted">Chưa có tài khoản</span>
                 </td>
                 <td th:text="${employee.phone != null and !#strings.isEmpty(employee.phone) ? employee.phone : 'Chưa cập nhật'}">SĐT</td>
+                <td th:text="${employee.citizenIdMasked != null ? employee.citizenIdMasked : 'Chưa cập nhật'}">079******123</td>
                 <td>
                     <span th:if="${employee.hasCertificate}" class="badge badge-ok">Có</span>
                     <span th:unless="${employee.hasCertificate}" class="muted">Chưa có</span>
@@ -132,7 +134,7 @@
             </tr>
 
             <tr id="employeeNoMatch" hidden>
-                <td colspan="8" class="empty">Không tìm thấy nhân viên phù hợp.</td>
+                <td colspan="9" class="empty">Không tìm thấy nhân viên phù hợp.</td>
             </tr>
             </tbody>
         </table>

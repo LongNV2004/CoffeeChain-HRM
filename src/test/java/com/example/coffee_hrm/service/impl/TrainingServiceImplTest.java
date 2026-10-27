@@ -756,13 +756,15 @@ class TrainingServiceImplTest {
     }
 
     @Test
-    void availableEmployeesAreCertifiedOnlyWhenTheyPassedEveryClassSkill() {
+    void availableEmployeesUseTheEmployeeCertificateInsteadOfPassedSkills() {
         Store store = Store.builder().id(5).storeName("Store A").build();
         TrainingClass trainingClass = approvedClass(store, VietnamTime.today().plusDays(1));
         trainingClass.setSkills(Set.of(
                 TrainingSkill.builder().id(1).skillName("Pha Chế").build(),
                 TrainingSkill.builder().id(2).skillName("Phục Vụ").build()));
         Employee both = employee(30, "Nguyễn Văn A", store, EmployeeStatus.ACTIVE);
+        both.setCertificationStatus(CertificationStatus.CERTIFIED);
+        both.setHasCertificate(true);
         Employee brewOnly = employee(31, "Lê Văn C", store, EmployeeStatus.ACTIVE);
         Employee none = employee(32, "Trần Văn B", store, EmployeeStatus.ACTIVE);
         when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
@@ -1113,7 +1115,7 @@ class TrainingServiceImplTest {
         verify(notificationService).notifyUsers(
                 eq(List.of(staff)),
                 eq("Bạn đã được đánh giá lớp đào tạo"),
-                eq("Bạn đã được đánh giá lớp \"Lớp Barista\". Kết quả: Không đạt. Ghi chú: Cần luyện thêm."),
+                eq("Bạn đã được đánh giá lớp \"Lớp Barista\". Kết quả: Không đạt. Ghi chú: Cần luyện thêm. Chưa cấp Chứng chỉ nhân viên."),
                 eq(NotificationType.TRAINING_CLASS_EVALUATED),
                 eq("TRAINING_CLASS"),
                 eq(10));
@@ -1155,7 +1157,7 @@ class TrainingServiceImplTest {
         verify(notificationService).notifyUsers(
                 eq(List.of(staff)),
                 eq("Kết quả đánh giá đã được cập nhật"),
-                eq("Kết quả đánh giá lớp \"Lớp Barista\" đã được cập nhật thành Không đạt. Ghi chú: Cập nhật."),
+                eq("Kết quả đánh giá lớp \"Lớp Barista\" đã được cập nhật thành Không đạt. Ghi chú: Cập nhật. Chưa cấp Chứng chỉ nhân viên."),
                 eq(NotificationType.TRAINING_CLASS_EVALUATED),
                 eq("TRAINING_CLASS"),
                 eq(10));
@@ -1351,6 +1353,15 @@ class TrainingServiceImplTest {
                 .build(), manager);
 
         assertEquals(CertificationStatus.CERTIFIED, learner.getCertificationStatus());
+        assertEquals(Boolean.TRUE, learner.getHasCertificate());
+        assertEquals(VietnamTime.today(), learner.getCertificateIssuedOn());
+
+        LocalDate firstIssuedOn = learner.getCertificateIssuedOn();
+        trainingService.evaluateStudent(10, 30, EvaluateTrainingStudentRequest.builder()
+                .result(TrainingResult.PASS)
+                .updating(true)
+                .build(), manager);
+        assertEquals(firstIssuedOn, learner.getCertificateIssuedOn());
 
         trainingService.evaluateStudent(10, 30, EvaluateTrainingStudentRequest.builder()
                 .result(TrainingResult.NOT_PASS)
@@ -1358,13 +1369,26 @@ class TrainingServiceImplTest {
                 .build(), manager);
 
         assertEquals(CertificationStatus.NOTCERTIFIED, learner.getCertificationStatus());
+        assertEquals(Boolean.FALSE, learner.getHasCertificate());
+        assertNull(learner.getCertificateIssuedOn());
+
+        trainingService.evaluateStudent(10, 30, EvaluateTrainingStudentRequest.builder()
+                .result(TrainingResult.PASS)
+                .updating(true)
+                .build(), manager);
+
+        assertEquals(CertificationStatus.CERTIFIED, learner.getCertificationStatus());
+        assertEquals(Boolean.TRUE, learner.getHasCertificate());
+        assertEquals(VietnamTime.today(), learner.getCertificateIssuedOn());
     }
 
     @Test
-    void notPassKeepsEmployeeCertifiedWhenAnotherSkillWasAlreadyPassed() {
+    void notPassClearsTheEmployeeCertificateEvenWhenAnotherSkillWasPassed() {
         Store store = Store.builder().id(5).storeName("Store A").build();
         Employee learner = employee(30, "Trần Văn Tuấn", store, EmployeeStatus.ACTIVE);
         learner.setCertificationStatus(CertificationStatus.CERTIFIED);
+        learner.setHasCertificate(true);
+        learner.setCertificateIssuedOn(VietnamTime.today().minusDays(10));
         TrainingClass ended = approvedClass(store, VietnamTime.today().minusDays(1));
         TrainingClassEnrollment enrollment = TrainingClassEnrollment.builder()
                 .trainingClass(ended)
@@ -1374,9 +1398,6 @@ class TrainingServiceImplTest {
         when(trainingClassRepository.findByIdWithDetails(10)).thenReturn(Optional.of(ended));
         when(trainingClassEnrollmentRepository.findByClassAndEmployee(10, 30)).thenReturn(Optional.of(enrollment));
         when(userRepository.findById(2)).thenReturn(Optional.of(user(2, RoleName.MANAGER, 20)));
-        when(trainingClassEnrollmentRepository.findPassedSkillsByEmployees(
-                any(), eq(TrainingResult.PASS), eq(TrainingClassStatus.APPROVED)))
-                .thenReturn(List.of(new EmployeePassedSkill(30, 2)));
 
         trainingService.evaluateStudent(10, 30, EvaluateTrainingStudentRequest.builder()
                 .result(TrainingResult.NOT_PASS)
@@ -1384,7 +1405,9 @@ class TrainingServiceImplTest {
                 .build(), manager);
 
         assertEquals(TrainingResult.NOT_PASS, enrollment.getResult());
-        assertEquals(CertificationStatus.CERTIFIED, learner.getCertificationStatus());
+        assertEquals(CertificationStatus.NOTCERTIFIED, learner.getCertificationStatus());
+        assertEquals(Boolean.FALSE, learner.getHasCertificate());
+        assertNull(learner.getCertificateIssuedOn());
     }
 
     @Test
@@ -1722,48 +1745,31 @@ class TrainingServiceImplTest {
     }
 
     @Test
-    void currentSkillStatusKeepsTheApprovedPassWhenALaterClassIsNotPass() {
-        when(trainingClassEnrollmentRepository.findSkillTrainingFacts(List.of(30), TrainingClassStatus.REJECTED))
-                .thenReturn(List.of(
-                        fact(30, 1, "Pha chế", TrainingResult.PASS, LocalDateTime.of(2026, 10, 1, 9, 0)),
-                        fact(30, 1, "Pha chế", TrainingResult.NOT_PASS, LocalDateTime.of(2026, 10, 5, 9, 0)),
-                        fact(30, 2, "Phục vụ", TrainingResult.NOT_PASS, LocalDateTime.of(2026, 10, 6, 9, 0)),
-                        new EmployeeSkillTrainingFact(
-                                30, 3, "Thu ngân", TrainingResult.PASS,
-                                LocalDateTime.of(2026, 10, 7, 9, 0),
-                                LocalDate.of(2026, 10, 6),
-                                LocalDate.of(2026, 10, 7),
-                                LocalTime.of(17, 0),
-                                TrainingClassStatus.PENDING_APPROVAL),
-                        fact(99, 9, "Người khác", TrainingResult.PASS, LocalDateTime.of(2026, 10, 8, 9, 0))));
+    void currentSkillStatusShowsTheSingleEmployeeCertificate() {
+        Employee certified = Employee.builder()
+                .id(30)
+                .certificationStatus(CertificationStatus.CERTIFIED)
+                .certificateIssuedOn(LocalDate.of(2026, 10, 1))
+                .build();
+        when(employeeRepository.findById(30)).thenReturn(Optional.of(certified));
 
         List<EmployeeSkillStatusLine> lines = trainingService.listCurrentSkillStatuses(30);
 
-        assertEquals(3, lines.size());
-        assertTrue(lines.stream().noneMatch(line -> Integer.valueOf(9).equals(line.getSkillId())));
-        EmployeeSkillStatusLine brew = line(lines, 1);
-        assertEquals(CertificationStatus.CERTIFIED, brew.getCertificationStatus());
-        assertEquals("CERTIFIED - Pha chế", brew.getCertificationLabel());
-        assertEquals("01/10/2026", brew.getCertifiedDateLabel());
-        assertEquals("NOT PASS", brew.getLatestResultLabel());
-        EmployeeSkillStatusLine service = line(lines, 2);
-        assertEquals(CertificationStatus.NOTCERTIFIED, service.getCertificationStatus());
-        assertEquals("NOTCERTIFIED - Phục vụ", service.getCertificationLabel());
-        assertNull(service.getCertifiedDateLabel());
-        EmployeeSkillStatusLine cashier = line(lines, 3);
-        assertEquals(CertificationStatus.NOTCERTIFIED, cashier.getCertificationStatus());
-        assertNull(cashier.getCertifiedDateLabel());
+        assertEquals(1, lines.size());
+        assertEquals("Chứng chỉ nhân viên", lines.get(0).getSkillName());
+        assertEquals(CertificationStatus.CERTIFIED, lines.get(0).getCertificationStatus());
+        assertEquals("Đã có chứng chỉ", lines.get(0).getCertificationLabel());
+        assertEquals("01/10/2026", lines.get(0).getCertifiedDateLabel());
+        assertTrue(trainingService.listCurrentSkillStatuses(null).isEmpty());
     }
 
     @Test
-    void currentSkillStatusIsEmptyWhenTheEmployeeHasNoCertificate() {
-        when(trainingClassEnrollmentRepository.findSkillTrainingFacts(List.of(30), TrainingClassStatus.REJECTED))
-                .thenReturn(List.of());
+    void currentSkillStatusIsEmptyWhenTheEmployeeDoesNotExist() {
+        when(employeeRepository.findById(30)).thenReturn(Optional.empty());
 
         assertTrue(trainingService.listCurrentSkillStatuses(30).isEmpty());
         assertTrue(trainingService.listCurrentSkillStatuses(null).isEmpty());
-        verify(trainingClassEnrollmentRepository, times(1))
-                .findSkillTrainingFacts(List.of(30), TrainingClassStatus.REJECTED);
+        verify(trainingClassEnrollmentRepository, never()).findSkillTrainingFacts(any(), any());
     }
 
     private EmployeeSkillStatusLine line(List<EmployeeSkillStatusLine> lines, Integer skillId) {

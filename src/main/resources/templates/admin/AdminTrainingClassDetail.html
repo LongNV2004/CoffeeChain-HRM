@@ -114,14 +114,7 @@
                           th:text="${student.resultLabel}">Chưa đánh giá</span>
                     <div class="muted" th:if="${student.evaluationNote != null}" th:text="${student.evaluationNote}">Ghi chú</div>
                 </td>
-                <td>
-                    <span class="skill-line" th:each="skill : ${student.skillStatuses}">
-                        <span th:text="${skill.certificationLabel}">CERTIFIED - Pha chế</span>
-                        <span class="muted" th:if="${skill.certifiedDateLabel != null}"
-                              th:text="|Ngày đạt: ${skill.certifiedDateLabel}|">Ngày đạt: 01/10/2026</span>
-                    </span>
-                    <span th:if="${student.skillStatuses == null or #lists.isEmpty(student.skillStatuses)}">—</span>
-                </td>
+                <td th:text="${student.certificationLabel} ?: 'Chưa có Chứng chỉ nhân viên'">Chưa có Chứng chỉ nhân viên</td>
             </tr>
             </tbody>
         </table>

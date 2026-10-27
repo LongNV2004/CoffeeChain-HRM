@@ -3,9 +3,11 @@ package com.example.coffee_hrm.service.impl;
 import com.example.coffee_hrm.common.enums.CertificationStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.Gender;
+import com.example.coffee_hrm.common.enums.RecruitmentStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.dto.request.ChangePasswordRequest;
+import com.example.coffee_hrm.dto.request.UpdateProfileRequest;
 import com.example.coffee_hrm.dto.response.EmployeeSkillStatusLine;
 import com.example.coffee_hrm.dto.response.MyProfileView;
 import com.example.coffee_hrm.entity.Employee;
@@ -13,6 +15,7 @@ import com.example.coffee_hrm.entity.RecruitmentCandidate;
 import com.example.coffee_hrm.entity.Role;
 import com.example.coffee_hrm.entity.Store;
 import com.example.coffee_hrm.entity.User;
+import com.example.coffee_hrm.repository.EmployeeRepository;
 import com.example.coffee_hrm.repository.RecruitmentCandidateRepository;
 import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
@@ -54,6 +57,8 @@ class ProfileServiceImplTest {
     @Mock
     private UserRepository userRepository;
     @Mock
+    private EmployeeRepository employeeRepository;
+    @Mock
     private RecruitmentCandidateRepository recruitmentCandidateRepository;
     @Mock
     private TrainingService trainingService;
@@ -70,6 +75,7 @@ class ProfileServiceImplTest {
     void setUp() {
         service = new ProfileServiceImpl(
                 userRepository,
+                employeeRepository,
                 recruitmentCandidateRepository,
                 trainingService,
                 passwordEncoder,
@@ -94,15 +100,10 @@ class ProfileServiceImplTest {
                         .build()));
         when(trainingService.listCurrentSkillStatuses(40)).thenReturn(List.of(
                 EmployeeSkillStatusLine.builder()
-                        .skillId(1)
-                        .skillName("Pha chế")
+                        .skillName("Chứng chỉ nhân viên")
                         .certificationStatus(CertificationStatus.CERTIFIED)
+                        .certificationLabel("Đã có chứng chỉ")
                         .certifiedDateLabel("01/10/2026")
-                        .build(),
-                EmployeeSkillStatusLine.builder()
-                        .skillId(2)
-                        .skillName("Phục vụ")
-                        .certificationStatus(CertificationStatus.NOTCERTIFIED)
                         .build()));
 
         MyProfileView profile = service.getProfile(AuthenticatedUser.from(manager));
@@ -112,11 +113,12 @@ class ProfileServiceImplTest {
         assertEquals("manager", profile.getSidebarRole());
         assertEquals("Coffee Quận 1", profile.getStoreName());
         assertEquals("an@shop.vn", profile.getEmail());
+        assertEquals("079******123", profile.getCitizenIdMasked());
         assertEquals(LocalDate.of(1994, 3, 12), profile.getDateOfBirth());
         assertEquals("Nam", profile.getGenderLabel());
-        assertEquals(2, profile.getSkillCertificates().size());
+        assertEquals(1, profile.getSkillCertificates().size());
+        assertEquals("Chứng chỉ nhân viên", profile.getSkillCertificates().get(0).getSkillName());
         assertEquals(CertificationStatus.CERTIFIED, profile.getSkillCertificates().get(0).getCertificationStatus());
-        assertEquals(CertificationStatus.NOTCERTIFIED, profile.getSkillCertificates().get(1).getCertificationStatus());
         verify(trainingService).listCurrentSkillStatuses(40);
         verify(trainingService, never()).listCurrentSkillStatuses(99);
         verify(userRepository, never()).findById(any());
@@ -188,6 +190,7 @@ class ProfileServiceImplTest {
         PasswordEncoder encoder = new BCryptPasswordEncoder();
         ProfileServiceImpl local = new ProfileServiceImpl(
                 userRepository,
+                employeeRepository,
                 recruitmentCandidateRepository,
                 trainingService,
                 encoder,
@@ -224,6 +227,112 @@ class ProfileServiceImplTest {
         verify(rememberMeServices).loginSuccess(eq(request), any(), any());
     }
 
+    @Test
+    void staffAndManagerCanUpdateTheirOwnContactDetails() {
+        User staff = account(RoleName.STAFF, 11, 20);
+        when(userRepository.findByIdWithRole(11)).thenReturn(Optional.of(staff));
+        when(employeeRepository.countOtherEmployeesByNormalizedPhone("0912345678", 20)).thenReturn(0);
+        when(recruitmentCandidateRepository.existsByPhoneAndStatus("0912345678", RecruitmentStatus.PENDING)).thenReturn(false);
+        when(employeeRepository.existsByEmailIgnoreCaseAndIdNot("binh@shop.vn", 20)).thenReturn(false);
+        when(recruitmentCandidateRepository.existsByEmailIgnoreCaseAndStatus("binh@shop.vn", RecruitmentStatus.PENDING))
+                .thenReturn(false);
+
+        service.updateProfile(AuthenticatedUser.from(staff), UpdateProfileRequest.builder()
+                .fullName("  Bình   Trần ")
+                .phone("091 234 5678")
+                .email(" BINH@shop.vn ")
+                .address("  20 Lê Lợi  ")
+                .build());
+
+        Employee employee = staff.getEmployee();
+        assertEquals("Bình Trần", employee.getFullName());
+        assertEquals("0912345678", employee.getPhone());
+        assertEquals("binh@shop.vn", employee.getEmail());
+        assertEquals("20 Lê Lợi", employee.getAddress());
+        assertEquals("079203000123", employee.getCitizenId());
+        assertEquals(EmployeeStatus.ACTIVE, employee.getStatus());
+        assertEquals(4, employee.getStore().getId());
+        assertEquals("an.nguyen", staff.getUsername());
+        assertEquals(RoleName.STAFF, staff.getRole().getRoleName());
+        verify(employeeRepository).save(employee);
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void profileUpdateRejectsInvalidOrDuplicateContactDetailsAndKeepsTheRecord() {
+        User manager = account(RoleName.MANAGER, 4, 40);
+        when(userRepository.findByIdWithRole(4)).thenReturn(Optional.of(manager));
+
+        BusinessException name = assertThrows(BusinessException.class, () -> service.updateProfile(
+                AuthenticatedUser.from(manager), contact("An1", "0901234567", "an@shop.vn", "12 Nguyễn Huệ")));
+        assertEquals("Họ và tên chỉ được chứa chữ cái, không được nhập số.", name.getMessage());
+
+        BusinessException phone = assertThrows(BusinessException.class, () -> service.updateProfile(
+                AuthenticatedUser.from(manager), contact("An Nguyễn", "12ab", "an@shop.vn", "12 Nguyễn Huệ")));
+        assertEquals("Số điện thoại gồm 9 đến 15 chữ số.", phone.getMessage());
+        assertFalse(phone.getMessage().contains("12ab"));
+
+        when(employeeRepository.countOtherEmployeesByNormalizedPhone("0987654321", 40)).thenReturn(1);
+        BusinessException taken = assertThrows(BusinessException.class, () -> service.updateProfile(
+                AuthenticatedUser.from(manager), contact("An Nguyễn", "0987654321", "an@shop.vn", "12 Nguyễn Huệ")));
+        assertEquals("Số điện thoại đã được sử dụng.", taken.getMessage());
+
+        when(employeeRepository.countOtherEmployeesByNormalizedPhone("0987000000", 40)).thenReturn(0);
+        when(recruitmentCandidateRepository.existsByPhoneAndStatus("0987000000", RecruitmentStatus.PENDING)).thenReturn(true);
+        BusinessException pending = assertThrows(BusinessException.class, () -> service.updateProfile(
+                AuthenticatedUser.from(manager), contact("An Nguyễn", "0987000000", "an@shop.vn", "12 Nguyễn Huệ")));
+        assertEquals("Số điện thoại đang được dùng trong một đề xuất tuyển dụng.", pending.getMessage());
+
+        when(employeeRepository.countOtherEmployeesByNormalizedPhone("0987111111", 40)).thenReturn(0);
+        when(recruitmentCandidateRepository.existsByPhoneAndStatus("0987111111", RecruitmentStatus.PENDING)).thenReturn(false);
+        when(employeeRepository.existsByEmailIgnoreCaseAndIdNot("khac@shop.vn", 40)).thenReturn(true);
+        BusinessException email = assertThrows(BusinessException.class, () -> service.updateProfile(
+                AuthenticatedUser.from(manager), contact("An Nguyễn", "0987111111", "khac@shop.vn", "12 Nguyễn Huệ")));
+        assertEquals("Email đã được sử dụng.", email.getMessage());
+        assertFalse(email.getMessage().contains("khac@shop.vn"));
+
+        assertEquals("An Nguyễn", manager.getEmployee().getFullName());
+        assertEquals("0901234567", manager.getEmployee().getPhone());
+        assertEquals("an@shop.vn", manager.getEmployee().getEmail());
+        assertEquals("079203000123", manager.getEmployee().getCitizenId());
+        verify(employeeRepository, never()).save(any());
+    }
+
+    @Test
+    void unchangedContactDetailsDoNotNeedAUniquenessLookup() {
+        User staff = account(RoleName.STAFF, 11, 20);
+        when(userRepository.findByIdWithRole(11)).thenReturn(Optional.of(staff));
+
+        service.updateProfile(AuthenticatedUser.from(staff), contact("Lan Phạm", "090 123 4567", "An@shop.vn", " "));
+
+        assertEquals("Lan Phạm", staff.getEmployee().getFullName());
+        assertEquals("0901234567", staff.getEmployee().getPhone());
+        assertEquals("an@shop.vn", staff.getEmployee().getEmail());
+        assertNull(staff.getEmployee().getAddress());
+        assertEquals("079203000123", staff.getEmployee().getCitizenId());
+        verify(employeeRepository, never()).countOtherEmployeesByNormalizedPhone(any(), any());
+        verify(employeeRepository, never()).existsByEmailIgnoreCaseAndIdNot(any(), any());
+    }
+
+    @Test
+    void adminCannotUpdateAPersonalProfile() {
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.updateProfile(actor(RoleName.ADMIN, 1), contact("An Nguyễn", "0901234567", "an@shop.vn", "1 Lê Lợi")));
+
+        assertEquals("Bạn không có quyền chỉnh sửa hồ sơ này.", ex.getMessage());
+        verify(userRepository, never()).findByIdWithRole(any());
+        verify(employeeRepository, never()).save(any());
+    }
+
+    private UpdateProfileRequest contact(String fullName, String phone, String email, String address) {
+        return UpdateProfileRequest.builder()
+                .fullName(fullName)
+                .phone(phone)
+                .email(email)
+                .address(address)
+                .build();
+    }
+
     private AuthenticatedUser actor(RoleName roleName, int userId) {
         return AuthenticatedUser.from(account(roleName, userId, userId * 10));
     }
@@ -243,6 +352,7 @@ class ProfileServiceImplTest {
                 .fullName("An Nguyễn")
                 .email("an@shop.vn")
                 .phone("0901234567")
+                .citizenId("079203000123")
                 .address("12 Nguyễn Huệ")
                 .status(EmployeeStatus.ACTIVE)
                 .hireDate(LocalDate.of(2024, 1, 15))

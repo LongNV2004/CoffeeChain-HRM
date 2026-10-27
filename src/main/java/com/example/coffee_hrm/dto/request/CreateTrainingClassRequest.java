@@ -2,7 +2,6 @@ package com.example.coffee_hrm.dto.request;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -29,7 +28,6 @@ public class CreateTrainingClassRequest implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    @NotEmpty(message = "Vui lòng chọn ít nhất một kỹ năng đào tạo")
     private List<@NotNull(message = "Kỹ năng không hợp lệ") Integer> skillIds = new ArrayList<>();
 
     private List<@NotNull(message = "Nhân viên không hợp lệ") Integer> employeeIds = new ArrayList<>();

@@ -19,7 +19,7 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-@ToString(exclude = {"store", "user", "shiftAssignments", "shiftChangeRequests",
+@ToString(exclude = {"citizenId", "store", "user", "shiftAssignments", "shiftChangeRequests",
         "attendances", "leaveRequests", "leaveBalances", "trainingParticipants"})
 public class Employee {
 
@@ -34,6 +34,9 @@ public class Employee {
 
     @Column(name = "Phone", length = 15)
     private String phone;
+
+    @Column(name = "CitizenId", length = 12)
+    private String citizenId;
 
     @Column(name = "Email", unique = true, length = 100)
     private String email;
@@ -65,6 +68,10 @@ public class Employee {
     @Column(name = "HasCertificate", nullable = false)
     @Builder.Default
     private Boolean hasCertificate = false;
+
+    /** Ngày cấp Chứng chỉ nhân viên. Null khi chưa cấp hoặc chưa xác định được từ dữ liệu cũ. */
+    @Column(name = "CertificateIssuedOn")
+    private LocalDate certificateIssuedOn;
 
     @Column(name = "ReliabilityScore", nullable = false)
     @Builder.Default

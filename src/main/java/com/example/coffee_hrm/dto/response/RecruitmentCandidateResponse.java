@@ -23,6 +23,7 @@ public class RecruitmentCandidateResponse {
     private String genderLabel;
     private String email;
     private String phone;
+    private String citizenId;
     private String address;
     private RecruitmentStatus status;
     private String statusLabel;

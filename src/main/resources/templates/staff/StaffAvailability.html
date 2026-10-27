@@ -31,16 +31,6 @@
         <p class="flash error" th:if="${registrationBlockMessage}" th:text="${registrationBlockMessage}">
             Bạn chưa có chứng chỉ nên không thể đăng ký ca làm việc.
         </p>
-        <p th:if="${registrationBlockMessage == null}">
-            Chọn các thứ và ca bạn có thể làm. Mỗi ô hiện sức chứa, số chỗ còn lại
-            và trạng thái của
-            <strong th:text="${availabilityGrid.formattedWeekRange}">Tuần kế tiếp</strong>.
-            Số người của tuần hiện tại không làm đầy tuần kế tiếp.
-            Chỗ đã đủ người trong tuần đó, hoặc chưa được cấu hình, không chọn được.
-            Lịch bắt đầu từ thứ Hai tuần kế tiếp theo giờ Việt Nam
-            và lặp lại đúng những thứ đã chọn cho đến hết thời hạn.
-            Thời hạn dài hơn một tuần được kiểm tra từng ngày; một tuần đã đủ người sẽ chặn đúng ngày đó.
-        </p>
         <p th:if="${registrationBlockMessage != null}">
             Bạn vẫn xem được các ca của cửa hàng, nhưng chưa thể gửi đăng ký.
         </p>
@@ -48,25 +38,23 @@
             Cửa hàng chưa có ca làm việc. Liên hệ Manager để tạo ca trước.
         </p>
 
+        <div class="quota-panel"
+             th:if="${availabilityGrid.contractWeeklyShifts != null}"
+             th:attr="data-required=${availabilityGrid.contractWeeklyShifts}">
+            <p>Số ca theo hợp đồng: <strong th:text="${availabilityGrid.contractWeeklyShifts + ' ca/tuần'}">7 ca/tuần</strong></p>
+            <p id="quota-selected">Số ca đang chọn: 0/7 ca.</p>
+            <p id="quota-missing">Số ca còn thiếu: 7 ca.</p>
+            <p id="quota-status" class="is-short">Hãy chọn đủ số ca theo hợp đồng.</p>
+            <p id="quota-day" class="muted">Mỗi ngày chỉ được chọn tối đa 2 ca.</p>
+        </div>
+
         <form class="availability-form" th:action="@{/availability}" th:object="${availabilityForm}" method="post"
               th:if="${!#lists.isEmpty(availabilityGrid.shiftRows)}">
             <p class="flash error"
                th:if="${availabilityError != null and availabilityError != registrationBlockMessage}"
                th:text="${availabilityError}">Error</p>
 
-            <label class="duration-field" th:if="${positionOptions != null and !#lists.isEmpty(positionOptions)}">
-                Vị trí làm việc
-                <select th:field="*{skillId}" th:disabled="${registrationBlockMessage != null}">
-                    <option value="">-- Chọn vị trí theo chứng chỉ --</option>
-                    <option th:each="opt : ${positionOptions}"
-                            th:value="${opt.id}"
-                            th:text="${opt.name}">Pha chế</option>
-                </select>
-            </label>
-            <p class="muted" th:if="${positionOptions != null and !#lists.isEmpty(positionOptions)}">
-                Chọn một vị trí. Bạn chỉ được tính vào đúng vị trí đã đăng ký, không được tính thành nhiều người khi có nhiều kỹ năng.
-                Ca chưa cấu hình vị trí vẫn đăng ký như trước.
-            </p>
+            <p class="muted">Cần có Chứng chỉ nhân viên để đăng ký ca.</p>
 
             <label class="duration-field">
                 Thời hạn áp dụng
@@ -106,7 +94,8 @@
                                 <input type="checkbox"
                                        th:field="*{selectedSlots}"
                                        th:value="${cell.slotKey}"
-                                       th:disabled="${registrationBlockMessage != null or cell.registrationClosed}">
+                                       th:disabled="${registrationBlockMessage != null or cell.registrationClosed}"
+                                       th:attr="data-closed=${cell.registrationClosed}">
                                 <span class="slot-box" aria-hidden="true"></span>
                                 <span class="sr-only"
                                       th:text="'Chọn ' + ${row.shiftName} + ' ' + ${cell.dayOfWeekName}">
@@ -122,7 +111,7 @@
             <div class="form-actions" th:if="${registrationBlockMessage == null}">
                 <div class="action-row">
                     <button class="secondary-btn" type="submit" th:formaction="@{/availability/preview}">Xem trước</button>
-                    <button class="primary-btn" type="submit">Gửi đăng ký</button>
+                    <button class="primary-btn" id="submitAvailability" type="submit" disabled>Gửi đăng ký</button>
                 </div>
                 <p class="muted">
                     Gửi đăng ký để Manager phê duyệt. Chỉ lịch đã duyệt mới được dùng khi phân ca.
@@ -195,5 +184,68 @@
         </table>
     </section>
 </main>
+<script>
+    (function () {
+        var panel = document.querySelector(".quota-panel");
+        var form = document.querySelector(".availability-form");
+        if (!panel || !form) return;
+        var required = Number(panel.getAttribute("data-required"));
+        var selectedText = document.getElementById("quota-selected");
+        var missingText = document.getElementById("quota-missing");
+        var status = document.getElementById("quota-status");
+        var submit = document.getElementById("submitAvailability");
+        function boxes() {
+            return Array.prototype.slice.call(form.querySelectorAll("input[type='checkbox'][name='selectedSlots']"));
+        }
+        function refresh() {
+            var inputs = boxes();
+            var dayNames = {"1": "Thứ 2", "2": "Thứ 3", "3": "Thứ 4", "4": "Thứ 5", "5": "Thứ 6", "6": "Thứ 7", "7": "Chủ nhật"};
+            var byDay = {};
+            var selected = 0;
+            inputs.forEach(function (box) {
+                if (!box.checked) return;
+                selected++;
+                var day = box.value.split(":")[1];
+                byDay[day] = (byDay[day] || 0) + 1;
+            });
+            var overDay = null;
+            Object.keys(byDay).forEach(function (day) {
+                if (byDay[day] > 2) overDay = day;
+            });
+            var missing = Math.max(required - selected, 0);
+            selectedText.textContent = "Số ca đang chọn: " + selected + "/" + required + " ca.";
+            missingText.textContent = "Số ca còn thiếu: " + missing + " ca.";
+            status.className = "";
+            if (overDay) {
+                status.className = "is-over";
+                status.textContent = (dayNames[overDay] || "Ngày đã chọn") + " chỉ được đăng ký tối đa 2 ca/ngày.";
+            } else if (selected < required) {
+                status.className = "is-short";
+                status.textContent = "Bạn cần đăng ký đủ " + required
+                    + " ca/tuần theo hợp đồng. Hiện tại bạn mới chọn " + selected
+                    + " ca, còn thiếu " + missing + " ca.";
+            } else if (selected > required) {
+                status.className = "is-over";
+                status.textContent = "Số ca đăng ký vượt quy định hợp đồng. Bạn chỉ được đăng ký tối đa "
+                    + required + " ca/tuần.";
+            } else {
+                status.className = "is-ready";
+                status.textContent = "Đã đăng ký đủ " + required + "/" + required + " ca.";
+            }
+            inputs.forEach(function (box) {
+                if (box.getAttribute("data-closed") === "true") {
+                    box.disabled = true;
+                    return;
+                }
+                var day = box.value.split(":")[1];
+                var dayFull = (byDay[day] || 0) >= 2;
+                box.disabled = !box.checked && (dayFull || selected >= required);
+            });
+            if (submit) submit.disabled = selected !== required || overDay !== null;
+        }
+        form.addEventListener("change", refresh);
+        refresh();
+    })();
+</script>
 </body>
 </html>

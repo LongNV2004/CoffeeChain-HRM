@@ -13,6 +13,7 @@ public class ResignationEmployeeOption {
 
     private Integer id;
     private String fullName;
+    private String citizenId;
     private String positionLabel;
     private String statusLabel;
     private String hireDate;

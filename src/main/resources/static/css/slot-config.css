@@ -82,6 +82,7 @@
 .sc-badge.is-warn { background: var(--sc-amber-bg); color: var(--sc-amber); }
 .sc-badge.is-short { background: var(--sc-red-bg); color: var(--sc-red); }
 .sc-badge.is-muted { background: #F3F1EE; color: var(--sc-muted); }
+.sc-total { display: block; margin-top: 10px; font-size: 13px; font-weight: 700; color: var(--sc-brown); }
 .sc-details { margin-top: 10px; }
 .sc-details summary { cursor: pointer; font-size: 13px; font-weight: 700; color: var(--sc-brown); }
 .sc-pos { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--sc-line); }

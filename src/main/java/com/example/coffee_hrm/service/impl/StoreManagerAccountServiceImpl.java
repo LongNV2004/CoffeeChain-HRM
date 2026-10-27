@@ -4,6 +4,7 @@ import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.enums.StoreStatus;
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.common.security.CitizenIds;
 import com.example.coffee_hrm.common.security.TemporaryPasswordGenerator;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.CreateStoreManagerRequest;
@@ -120,6 +121,7 @@ public class StoreManagerAccountServiceImpl implements StoreManagerAccountServic
         String fullName = requireName(request == null ? null : request.getFullName());
         String email = requireEmail(request == null ? null : request.getEmail());
         String phone = requirePhone(request == null ? null : request.getPhone());
+        String citizenId = CitizenIds.require(request == null ? null : request.getCitizenId());
         Store store = lockAssignableStore(storeId);
         if (store.getManager() != null) {
             throw new BusinessException(STORE_ALREADY_HAS_MANAGER);
@@ -127,13 +129,14 @@ public class StoreManagerAccountServiceImpl implements StoreManagerAccountServic
         if (userRepository.countOtherStoreMembersWithRole(store.getId(), -1, RoleName.MANAGER) > 0) {
             throw new BusinessException(STORE_ALREADY_HAS_MANAGER);
         }
-        assertIdentityAvailable(email, phone);
+        assertIdentityAvailable(email, phone, citizenId);
 
         String temporaryPassword = temporaryPasswordGenerator.generate();
         try {
             Employee employee = employeeRepository.saveAndFlush(Employee.builder()
                     .fullName(fullName)
                     .phone(phone)
+                    .citizenId(citizenId)
                     .email(email)
                     .store(store)
                     .status(EmployeeStatus.ACTIVE)
@@ -211,12 +214,18 @@ public class StoreManagerAccountServiceImpl implements StoreManagerAccountServic
         return store;
     }
 
-    private void assertIdentityAvailable(String email, String phone) {
+    private void assertIdentityAvailable(String email, String phone, String citizenId) {
         if (employeeRepository.existsByEmailIgnoreCase(email) || userRepository.existsByUsernameIgnoreCase(email)) {
             throw new BusinessException(EMAIL_EXISTS);
         }
         if (employeeRepository.countByNormalizedPhone(phone) > 0) {
             throw new BusinessException(PHONE_EXISTS);
+        }
+        Employee owner = employeeRepository.findByCitizenId(citizenId).orElse(null);
+        if (owner != null) {
+            throw new BusinessException(owner.getStatus() == EmployeeStatus.TERMINATED
+                    ? CitizenIds.BELONGS_TO_FORMER
+                    : CitizenIds.DUPLICATE_MESSAGE);
         }
     }
 
@@ -228,6 +237,9 @@ public class StoreManagerAccountServiceImpl implements StoreManagerAccountServic
         }
         if (normalized.contains("phone")) {
             return PHONE_EXISTS;
+        }
+        if (normalized.contains("citizenid")) {
+            return CitizenIds.DUPLICATE_MESSAGE;
         }
         return EMAIL_EXISTS;
     }

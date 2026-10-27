@@ -113,6 +113,7 @@
             if (field.name === 'fullName') return 'Vui lòng nhập họ và tên';
             if (field.name === 'email') return 'Vui lòng nhập email';
             if (field.name === 'phone') return 'Vui lòng nhập số điện thoại';
+            if (field.name === 'citizenId') return 'Vui lòng nhập số căn cước công dân';
             if (field.name === 'storeName') return 'Vui lòng nhập tên cửa hàng';
             if (field.name === 'address') return 'Vui lòng nhập địa chỉ';
             if (field.name === 'openingDate') return 'Vui lòng chọn ngày khai trương';
@@ -122,6 +123,7 @@
         }
         if (field.validity.typeMismatch && field.name === 'email') return 'Email không đúng định dạng';
         if (field.validity.patternMismatch && field.name === 'phone') return 'Số điện thoại gồm 9 đến 15 chữ số';
+        if (field.validity.patternMismatch && field.name === 'citizenId') return 'Số căn cước công dân phải gồm đúng 12 chữ số';
         if (field.validity.patternMismatch || field.validity.customError) {
             if (field.name === 'openingDate') return 'Ngày khai trương phải theo định dạng dd/MM/yyyy';
             if (field.name === 'storeName') return 'Tên cửa hàng không được để trống';
@@ -182,6 +184,7 @@
         setPreview(form, '[data-preview-manager]', fieldValue(form, 'fullName'), 'Chưa nhập họ tên');
         setPreview(form, '[data-preview-email]', fieldValue(form, 'email'), 'Chưa nhập email');
         setPreview(form, '[data-preview-phone]', fieldValue(form, 'phone'), 'Chưa nhập số điện thoại');
+        setPreview(form, '[data-preview-citizen]', fieldValue(form, 'citizenId'), 'Chưa nhập CCCD');
     }
 
     window.refreshStoreOpeningFields = refresh;

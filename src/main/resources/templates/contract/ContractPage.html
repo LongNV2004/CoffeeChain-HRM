@@ -91,10 +91,10 @@
                     <th>Mã nhân viên</th>
                     <th>Họ tên nhân viên</th>
                     <th>Cửa hàng</th>
-                    <th>Chức danh theo hợp đồng</th>
                     <th>Ngày hiệu lực</th>
                     <th>Ngày kết thúc</th>
-                    <th>Mức lương cơ bản</th>
+                    <th>Mức lương (đồng/giờ)</th>
+                    <th>Số ca/tuần</th>
                     <th>Trạng thái</th>
                     <th>Thao tác</th>
                 </tr>
@@ -112,10 +112,10 @@
                     <td th:text="${contract.employeeId}">1</td>
                     <td th:text="${contract.employeeName}">Nguyễn Văn A</td>
                     <td th:text="${contract.storeName}">Cửa hàng</td>
-                    <td th:text="${contract.jobTitle}">Pha chế</td>
                     <td th:text="${#temporals.format(contract.startDate, 'dd/MM/yyyy')}">01/10/2026</td>
                     <td th:text="${contract.endDate == null ? 'Không xác định thời hạn' : #temporals.format(contract.endDate, 'dd/MM/yyyy')}">Không xác định thời hạn</td>
-                    <td th:text="${#numbers.formatDecimal(contract.salary, 1, 'POINT', 2, 'COMMA') + ' đ'}">0 đ</td>
+                    <td th:text="${#numbers.formatDecimal(contract.salary, 1, 'POINT', 2, 'COMMA') + ' đồng/giờ'}">0 đồng/giờ</td>
+                    <td th:text="${contract.weeklyShiftCount != null ? contract.weeklyShiftCount + ' ca/tuần' : 'Chưa quy định'}">7 ca/tuần</td>
                     <td>
                         <span class="badge"
                               th:classappend="${contract.validityStatus.name() == 'DANG_HIEU_LUC'} ? ' badge-ok' : (${contract.validityStatus.name() == 'CHUA_HIEU_LUC' or contract.validityStatus.name() == 'SAP_HET_HAN'} ? ' badge-wait' : ' badge-off')"

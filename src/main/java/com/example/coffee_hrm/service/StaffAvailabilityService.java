@@ -82,9 +82,7 @@ public interface StaffAvailabilityService {
                                            AuthenticatedUser manager);
 
     /**
-     * Cập nhật tổng chỉ tiêu cùng nhu cầu từng vị trí.
-     * Tổng các vị trí phải bằng tổng chỉ tiêu. Vị trí là kỹ năng đào tạo đang hoạt động.
-     * Ca đã có từ trước vẫn sửa được bằng {@link #updateSlotLimit} khi chưa có nhu cầu vị trí.
+     * Cập nhật số nhân viên tối đa của một ca. Chỉ tiêu theo vị trí không còn được dùng.
      */
     SlotLimitUpdateResult updateSlotStaffing(Integer shiftId,
                                               Integer dayOfWeek,
@@ -95,10 +93,10 @@ public interface StaffAvailabilityService {
     /** Lưu nhiều ô ca trong một giao dịch. Một ô lỗi thì không lưu ô nào. */
     SlotLimitUpdateResult updateSlotStaffingBatch(List<UpdateSlotStaffingForm> slots, AuthenticatedUser manager);
 
-    /** Số Staff đã chứng nhận và đạt từng kỹ năng đang hoạt động. */
+    /** Mỗi vị trí đếm số Staff đang có Chứng chỉ nhân viên. */
     Map<Integer, Integer> countEligibleStaffBySkill(AuthenticatedUser manager);
 
-    /** Số Staff có ít nhất một chứng chỉ kỹ năng đang hoạt động. */
+    /** Số Staff đang có Chứng chỉ nhân viên. */
     int countEligibleStaff(AuthenticatedUser manager);
 
     /** Kỹ năng đang hoạt động, dùng làm vị trí trên ca. */

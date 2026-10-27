@@ -22,7 +22,7 @@
                 <span>Cấu hình ca</span>
             </nav>
             <h1>Cấu hình ca làm việc</h1>
-            <p>Phân bổ số lượng nhân viên theo từng vị trí cho mỗi ca và mỗi ngày trong tuần.</p>
+            <p>Đặt số nhân viên tối đa cho mỗi ca và mỗi ngày. Nhân viên có Chứng chỉ nhân viên thì đăng ký được ca.</p>
         </header>
 
         <p class="sc-flash success" th:if="${successMessage}" th:text="${successMessage}">Đã lưu</p>
@@ -84,14 +84,11 @@
                 </span>
                 <div>
                     <strong th:text="${configTotals.positionShortfall}">0</strong>
-                    <span th:text="${configTotals.shortfallText}">Không có vị trí thiếu</span>
+                    <span th:text="${configTotals.shortfallText}">Không có ca thiếu người</span>
                 </div>
             </article>
         </section>
 
-        <p class="sc-note" th:if="${availabilityGrid != null and activePositions != null and #lists.isEmpty(activePositions)}">
-            Chưa có kỹ năng đào tạo đang hoạt động để chọn vị trí.
-        </p>
         <p class="sc-note" th:if="${staffSlotCapacity == 0}">
             Cửa hàng chưa có nhân viên Staff đang làm việc nên chưa thể lưu chỉ tiêu lớn hơn 0.
         </p>
@@ -115,7 +112,7 @@
                     <div class="sc-day-grid">
                         <article class="sc-day" th:each="cell, cellStat : ${row.dayCells}"
                                  th:with="idx=${rowStat.index * 7 + cellStat.index},ratio=${cell.configured and cell.maxEmployees != null and cell.maxEmployees > 0 ? T(java.lang.Math).min(100, cell.registeredCount * 100 / cell.maxEmployees) : 0}"
-                                 th:attr="data-configured=${cell.positionsConfigured},data-registered=${cell.registeredCount}">
+                                 th:attr="data-configured=${cell.configured},data-registered=${cell.registeredCount}">
                             <div class="sc-day-top">
                                 <div>
                                     <strong th:text="${cell.dayOfWeekName}">Thứ 2</strong>
@@ -137,43 +134,15 @@
 
                             <input type="hidden" class="js-meta" th:value="${row.shiftId}" th:attr="data-name=|slots[${idx}].shiftId|">
                             <input type="hidden" class="js-meta" th:value="${cell.dayOfWeek}" th:attr="data-name=|slots[${idx}].dayOfWeek|">
-                            <input type="hidden" class="js-total" th:value="${cell.maxEmployees != null ? cell.maxEmployees : 0}"
-                                   th:attr="data-name=|slots[${idx}].maxEmployees|,data-initial=${cell.maxEmployees != null ? cell.maxEmployees : 0}">
-
-                            <details class="sc-details" th:open="${cell.positionsConfigured}">
-                                <summary>Nhu cầu theo vị trí</summary>
-                                <div class="sc-positions" th:if="${activePositions != null and !#lists.isEmpty(activePositions)}">
-                                    <div class="sc-pos" th:each="skill : ${activePositions}"
-                                         th:with="need=${cell.requiredCountOf(skill.id) ?: 0},activity=${cell.activityOf(skill.id)},eligible=${eligibleBySkill != null and eligibleBySkill.get(skill.id) != null ? eligibleBySkill.get(skill.id) : 0}"
-                                         th:classappend="${need == 0 ? ' is-hidden' : ''}"
-                                         th:attr="data-skill=${skill.id},data-skill-name=${skill.name},data-approved=${activity.approved},data-eligible=${eligible}">
-                                        <div class="sc-pos-head">
-                                            <strong th:text="${skill.name}">Pha chế</strong>
-                                            <button type="button" class="sc-remove" th:attr="aria-label=|Xóa ${skill.name}|">Xóa</button>
-                                        </div>
-                                        <div class="sc-stepper">
-                                            <button type="button" class="js-step" data-step="-1" aria-label="Giảm">−</button>
-                                            <input class="js-qty" type="text" inputmode="numeric" th:value="${need}"
-                                                   th:attr="data-initial=${need},data-name=|slots[${idx}].requiredCounts[${skill.id}]|,aria-label=|Số ${skill.name}|">
-                                            <button type="button" class="js-step" data-step="1" aria-label="Tăng">+</button>
-                                        </div>
-                                        <ul class="sc-pos-meta">
-                                            <li>Đủ điều kiện <b th:text="${eligible}">0</b></li>
-                                            <li>Đã đăng ký <b th:text="${activity.registered}">0</b></li>
-                                            <li>Chờ duyệt <b th:text="${activity.pending}">0</b></li>
-                                            <li>Đã duyệt <b th:text="${activity.approved}">0</b></li>
-                                            <li class="js-gap" th:classappend="${need > activity.approved ? ' is-short' : ''}">Còn thiếu <b th:text="${need > activity.approved ? need - activity.approved : 0}">0</b></li>
-                                        </ul>
-                                    </div>
-                                    <label class="sc-add">
-                                        Thêm vị trí
-                                        <select class="js-add">
-                                            <option value="">Chọn vị trí</option>
-                                            <option th:each="skill : ${activePositions}" th:value="${skill.id}" th:text="${skill.name}">Pha chế</option>
-                                        </select>
-                                    </label>
+                            <label class="sc-total">Số nhân viên tối đa
+                                <div class="sc-stepper">
+                                    <button type="button" class="js-step" data-step="-1" aria-label="Giảm">−</button>
+                                    <input class="js-total" type="text" inputmode="numeric"
+                                           th:value="${cell.maxEmployees != null ? cell.maxEmployees : 0}"
+                                           th:attr="data-name=|slots[${idx}].maxEmployees|,data-initial=${cell.maxEmployees != null ? cell.maxEmployees : 0},aria-label=|Số nhân viên ${cell.dayOfWeekName}|">
+                                    <button type="button" class="js-step" data-step="1" aria-label="Tăng">+</button>
                                 </div>
-                            </details>
+                            </label>
                         </article>
                     </div>
                 </div>
@@ -182,8 +151,7 @@
             <div class="sc-summary" th:if="${configTotals != null}">
                 <div class="sc-summary-stats">
                     <p>Tổng nhu cầu trong tuần <strong id="liveDemand" th:text="${configTotals.weeklyDemand}">0</strong></p>
-                    <p>Tổng chỉ tiêu theo vị trí <strong id="livePositions" th:text="${configTotals.positionTarget}">0</strong></p>
-                    <p>Vị trí đang thiếu <strong id="liveShort" th:text="${configTotals.shortfallText}">Không có vị trí thiếu</strong></p>
+                    <p>Ca còn thiếu người <strong id="liveShort" th:text="${configTotals.shortfallText}">Không có ca thiếu người</strong></p>
                 </div>
                 <div class="sc-summary-actions">
                     <a class="sc-text-btn" th:href="@{/availability/manager/limits(week=${weekStart})}">Hủy thay đổi</a>

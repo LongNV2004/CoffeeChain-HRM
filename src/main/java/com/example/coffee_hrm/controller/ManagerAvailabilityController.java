@@ -7,7 +7,6 @@ import com.example.coffee_hrm.dto.request.UpdateSlotStaffingForm;
 import com.example.coffee_hrm.dto.response.SlotConfigTotals;
 import com.example.coffee_hrm.dto.response.SlotLimitUpdateResult;
 import com.example.coffee_hrm.dto.response.WeeklyAvailabilityView;
-import com.example.coffee_hrm.dto.response.WorkPositionOption;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.StaffAvailabilityService;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +25,6 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAdjusters;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -50,7 +48,6 @@ public class ManagerAvailabilityController {
                     grid.getRegistrations() != null ? grid.getRegistrations() : List.of();
             model.addAttribute("availabilityGrid", grid);
             model.addAttribute("registrations", registrations);
-            model.addAttribute("activePositions", staffAvailabilityService.listActiveWorkPositions());
             model.addAttribute("reviewTotals", countRegistrations(registrations));
             addWeekNav(model, weekStart);
             model.addAttribute("pageError", null);
@@ -70,12 +67,9 @@ public class ManagerAvailabilityController {
         try {
             LocalDate weekStart = resolveConfigWeek(week);
             WeeklyAvailabilityView grid = staffAvailabilityService.getStoreWeekStaffingGrid(user, weekStart);
-            List<WorkPositionOption> positions = staffAvailabilityService.listActiveWorkPositions();
             model.addAttribute("availabilityGrid", grid);
             model.addAttribute("staffSlotCapacity", staffAvailabilityService.countStaffForSlotLimit(user));
-            model.addAttribute("activePositions", positions);
             model.addAttribute("eligibleStaff", staffAvailabilityService.countEligibleStaff(user));
-            model.addAttribute("eligibleBySkill", staffAvailabilityService.countEligibleStaffBySkill(user));
             model.addAttribute("configTotals", summarize(grid));
             model.addAttribute("weekStart", weekStart);
             model.addAttribute("previousWeek", weekStart.minusWeeks(1));
@@ -255,9 +249,7 @@ public class ManagerAvailabilityController {
     private SlotConfigTotals summarize(WeeklyAvailabilityView grid) {
         int demand = 0;
         int registrations = 0;
-        int positionTarget = 0;
-        int shortfall = 0;
-        Map<String, Integer> missing = new LinkedHashMap<>();
+        int shortSlots = 0;
         if (grid.getShiftRows() != null) {
             for (WeeklyAvailabilityView.ShiftRow row : grid.getShiftRows()) {
                 if (row.getDayCells() == null) {
@@ -268,25 +260,13 @@ public class ManagerAvailabilityController {
                         demand += cell.getMaxEmployees();
                     }
                     registrations += cell.getRegisteredCount();
-                    if (cell.getPositionLines() == null) {
-                        continue;
-                    }
-                    for (WeeklyAvailabilityView.PositionLine line : cell.getPositionLines()) {
-                        if (line.getRequired() > 0) {
-                            positionTarget += line.getRequired();
-                        }
-                        if (line.getRequired() > 0 && line.getShortfall() > 0) {
-                            shortfall += line.getShortfall();
-                            missing.merge(line.getSkillName(), line.getShortfall(), Integer::sum);
-                        }
+                    if (cell.isConfigured() && cell.getShortfall() > 0) {
+                        shortSlots++;
                     }
                 }
             }
         }
-        String text = missing.entrySet().stream()
-                .map(entry -> "Thiếu " + entry.getValue() + " " + entry.getKey())
-                .reduce((left, right) -> left + ", " + right)
-                .orElse(shortfall == 0 ? "Không có vị trí thiếu" : "");
-        return new SlotConfigTotals(demand, registrations, positionTarget, shortfall, text);
+        String text = shortSlots == 0 ? "Không có ca thiếu người" : shortSlots + " ca còn thiếu người";
+        return new SlotConfigTotals(demand, registrations, demand, shortSlots, text);
     }
 }

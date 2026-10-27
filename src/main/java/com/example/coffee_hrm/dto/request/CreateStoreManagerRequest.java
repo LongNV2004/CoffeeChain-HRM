@@ -1,5 +1,6 @@
 package com.example.coffee_hrm.dto.request;
 
+import com.example.coffee_hrm.common.security.CitizenIds;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -32,12 +33,20 @@ public class CreateStoreManagerRequest {
     @Pattern(regexp = "^[0-9]{9,15}$", message = "Số điện thoại gồm 9 đến 15 chữ số")
     private String phone;
 
+    @NotBlank(message = "Vui lòng nhập số căn cước công dân.")
+    @Pattern(regexp = "^[0-9]{12}$", message = "Số căn cước công dân phải gồm đúng 12 chữ số.")
+    private String citizenId;
+
     public void setFullName(String fullName) {
         this.fullName = fullName == null ? null : fullName.trim();
     }
 
     public void setEmail(String email) {
         this.email = email == null ? null : email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    public void setCitizenId(String citizenId) {
+        this.citizenId = CitizenIds.normalize(citizenId);
     }
 
     public void setPhone(String phone) {

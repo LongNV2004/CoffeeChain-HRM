@@ -103,7 +103,10 @@ class StoreManagerAccountServiceImplTest {
         ManagerProvisionResult result = service.createManager(admin, 5, request());
 
         ArgumentCaptor<User> account = ArgumentCaptor.forClass(User.class);
+        ArgumentCaptor<Employee> hired = ArgumentCaptor.forClass(Employee.class);
+        verify(employeeRepository).saveAndFlush(hired.capture());
         verify(userRepository).saveAndFlush(account.capture());
+        assertEquals("079203000123", hired.getValue().getCitizenId());
         assertEquals(RoleName.MANAGER, account.getValue().getRole().getRoleName());
         assertEquals("lan@coffee.vn", account.getValue().getUsername());
         assertEquals("$2a$hash", account.getValue().getPasswordHash());
@@ -220,6 +223,7 @@ class StoreManagerAccountServiceImplTest {
                 .fullName("  Lan Nguyen  ")
                 .email("Lan@Coffee.vn")
                 .phone("090-123-4567")
+                .citizenId("079203000123")
                 .build();
     }
 

@@ -30,6 +30,8 @@ public class StoreResponse {
     private String managerName;
     private String managerEmail;
     private String managerPhone;
+    /** Chỉ hiển thị ở màn hình xem Manager. Danh sách cửa hàng không render trường này. */
+    private String managerCitizenId;
     private String managerStatusLabel;
     private String managerAssignmentLabel;
     private boolean managerCredentialsPending;

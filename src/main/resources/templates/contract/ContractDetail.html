@@ -34,7 +34,8 @@
             <dt>Họ và tên</dt><dd th:text="${contract.employeeName}">Nguyễn Văn A</dd>
             <dt>Cửa hàng đang làm việc</dt><dd th:text="${contract.storeName}">Cửa hàng</dd>
             <dt>Chức vụ</dt><dd th:text="${contract.positionLabel}">Nhân viên</dd>
-            <dt>CCCD/CMND</dt><dd>Chưa có trong hồ sơ</dd>
+            <dt>Số căn cước công dân (CCCD)</dt>
+            <dd th:text="${contract.citizenId != null ? contract.citizenId : 'Chưa có trong hồ sơ'}">Chưa có trong hồ sơ</dd>
             <dt>Ngày vào làm</dt>
             <dd th:text="${contract.hireDate != null ? #temporals.format(contract.hireDate, 'dd/MM/yyyy') : '—'}">01/01/2026</dd>
         </dl>
@@ -48,26 +49,17 @@
             <dd th:text="${#temporals.format(contract.startDate, 'dd/MM/yyyy')}">01/10/2026</dd>
             <dt>Ngày kết thúc</dt>
             <dd th:text="${contract.endDate == null ? 'Không xác định thời hạn' : #temporals.format(contract.endDate, 'dd/MM/yyyy')}">Không xác định thời hạn</dd>
-            <dt>Chức danh theo hợp đồng</dt><dd th:text="${contract.jobTitle}">Pha chế</dd>
-            <dt>Số ca tiêu chuẩn mỗi tuần</dt>
-            <dd th:text="${contract.weeklyShiftCount != null ? contract.weeklyShiftCount : 'Theo thỏa thuận'}">6</dd>
+            <dt>Mức lương (đồng/giờ)</dt>
+            <dd th:text="${#numbers.formatDecimal(contract.salary, 1, 'POINT', 2, 'COMMA') + ' đồng/giờ'}">0 đồng/giờ</dd>
+            <dt>Số ca làm việc quy định</dt>
+            <dd th:text="${contract.weeklyShiftCount != null ? contract.weeklyShiftCount + ' ca/tuần' : 'Chưa quy định'}">7 ca/tuần</dd>
+            <dt>Ghi chú</dt>
+            <dd th:text="${contract.internalNote != null ? contract.internalNote : '—'}">—</dd>
             <dt>Trạng thái</dt>
             <dd><span class="badge" th:text="${contract.validityStatusLabel}">Đang hiệu lực</span></dd>
             <dt>Người tạo</dt><dd th:text="${contract.createdByName != null ? contract.createdByName : '—'}">Quản lý</dd>
             <dt>Thời điểm tạo</dt>
             <dd th:text="${contract.createdAt != null ? #temporals.format(contract.createdAt, 'dd/MM/yyyy HH:mm') : '—'}">01/10/2026</dd>
-        </dl>
-    </section>
-
-    <section class="panel">
-        <h2>Lương và chế độ</h2>
-        <p class="muted">Các mức này được lưu trong hợp đồng và không thay đổi công thức tính lương của hệ thống.</p>
-        <dl class="contract-facts">
-            <dt>Mức lương cơ bản</dt>
-            <dd th:text="${#numbers.formatDecimal(contract.salary, 1, 'POINT', 2, 'COMMA') + ' đ'}">0 đ</dd>
-            <dt>Phụ cấp</dt>
-            <dd th:text="${contract.allowance != null ? #numbers.formatDecimal(contract.allowance, 1, 'POINT', 2, 'COMMA') + ' đ' : 'Không có'}">Không có</dd>
-            <dt>Hình thức trả lương</dt><dd th:text="${contract.paymentMethodLabel}">Tiền mặt</dd>
         </dl>
     </section>
 

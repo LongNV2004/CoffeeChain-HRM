@@ -8,6 +8,7 @@ import com.example.coffee_hrm.common.enums.RecruitmentProposalStatus;
 import com.example.coffee_hrm.common.enums.RecruitmentStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.common.security.CitizenIds;
 import com.example.coffee_hrm.common.security.TemporaryPasswordGenerator;
 import com.example.coffee_hrm.dto.request.CreateRecruitmentRequest;
 import com.example.coffee_hrm.dto.request.RecruitmentCandidateRequest;
@@ -151,6 +152,8 @@ class RecruitmentRequestServiceImplTest {
         assertEquals(LocalDate.of(2000, 5, 12), first.getDateOfBirth());
         assertEquals(Gender.FEMALE, first.getGender());
         assertEquals("Quận 1", first.getAddress());
+        assertEquals("079901234567", first.getCitizenId());
+        assertEquals("079907654321", saved.getCandidates().get(1).getCitizenId());
         assertEquals(saved, first.getRequest());
         assertEquals(RecruitmentStatus.PENDING, saved.getCandidates().get(1).getStatus());
         assertEquals("binh@shop.vn", saved.getCandidates().get(1).getEmail());
@@ -390,6 +393,7 @@ class RecruitmentRequestServiceImplTest {
         });
         when(userRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
+        request.getCandidates().get(0).setCitizenId("079203000123");
         service.approveCandidate(admin, 7, 11);
 
         ArgumentCaptor<Employee> employeeCaptor = ArgumentCaptor.forClass(Employee.class);
@@ -407,6 +411,7 @@ class RecruitmentRequestServiceImplTest {
         assertEquals(CertificationStatus.NOTCERTIFIED, employee.getCertificationStatus());
         assertFalse(employee.getHasCertificate());
         assertEquals(EmployeeStatus.ACTIVE, employee.getStatus());
+        assertEquals("079203000123", employee.getCitizenId());
         assertEquals(store, employee.getStore());
         assertEquals(RoleName.STAFF, account.getRole().getRoleName());
         assertEquals("an@shop.vn", account.getUsername());
@@ -669,6 +674,7 @@ class RecruitmentRequestServiceImplTest {
         RecruitmentRequest request = pendingRequest();
         Employee former = terminatedStaff();
         LocalDate originalHireDate = former.getHireDate();
+        request.getCandidates().get(0).setCitizenId("079203000123");
         request.getCandidates().get(0).setRehireEmployee(former);
         lock(request);
         when(employeeRepository.lockByIdForLeaveRequest(30)).thenReturn(Optional.of(former));
@@ -686,6 +692,7 @@ class RecruitmentRequestServiceImplTest {
         assertEquals(EmployeeStatus.ACTIVE, former.getStatus());
         assertNull(former.getTerminationDate());
         assertEquals(originalHireDate, former.getHireDate());
+        assertEquals("079203000123", former.getCitizenId());
         assertEquals(CertificationStatus.CERTIFIED, former.getCertificationStatus());
         assertEquals(store, former.getStore());
         assertTrue(former.getUser().getIsActive());
@@ -704,6 +711,8 @@ class RecruitmentRequestServiceImplTest {
         RecruitmentRequest request = pendingRequest();
         Employee former = terminatedStaff();
         former.getUser().setUsername("an.nguyen");
+        former.setCitizenId("079203000123");
+        request.getCandidates().get(0).setCitizenId("079203000123");
         request.getCandidates().get(0).setRehireEmployee(former);
         lock(request);
         when(employeeRepository.lockByIdForLeaveRequest(30)).thenReturn(Optional.of(former));
@@ -731,6 +740,8 @@ class RecruitmentRequestServiceImplTest {
     void rejectRehireLeavesTheOldAccountDisabled() {
         RecruitmentRequest request = pendingRequest();
         Employee former = terminatedStaff();
+        former.setCitizenId("079203000123");
+        request.getCandidates().get(0).setCitizenId("079203000123");
         request.getCandidates().get(0).setRehireEmployee(former);
         lock(request);
         when(userRepository.findById(1)).thenReturn(Optional.of(adminUser));
@@ -740,11 +751,81 @@ class RecruitmentRequestServiceImplTest {
         service.rejectCandidate(admin, 7, 11, null);
 
         assertEquals(EmployeeStatus.TERMINATED, former.getStatus());
+        assertEquals("079203000123", former.getCitizenId());
         assertFalse(former.getUser().getIsActive());
         assertEquals(RecruitmentStatus.REJECTED, request.getCandidates().get(0).getStatus());
         verify(employeeRepository, never()).save(any());
         verify(userRepository, never()).save(any());
         verify(accountMailService, never()).sendTemporaryPassword(any(), any(), any(), any());
+    }
+
+    @Test
+    void createRejectsTwoCandidatesWithTheSameCitizenId() {
+        when(storeRepository.findByManager_Id(9)).thenReturn(Optional.of(store));
+        when(employeeRepository.findById(9)).thenReturn(Optional.of(managerEmployee));
+        RecruitmentCandidateRequest first = candidate();
+        RecruitmentCandidateRequest second = person("Bình Trần", "binh@shop.vn", "0907654321", Gender.MALE, null);
+        second.setCitizenId(first.getCitizenId());
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.create(manager, proposal(first, second)));
+
+        assertEquals("Số căn cước công dân bị trùng trong danh sách nhân viên.", ex.getMessage());
+        assertFalse(ex.getMessage().contains(first.getCitizenId()));
+        verify(recruitmentRequestRepository, never()).save(any());
+    }
+
+    @Test
+    void createRejectsACitizenIdThatAlreadyBelongsToAWorkingEmployee() {
+        when(storeRepository.findByManager_Id(9)).thenReturn(Optional.of(store));
+        when(employeeRepository.findById(9)).thenReturn(Optional.of(managerEmployee));
+        Employee working = Employee.builder().id(40).fullName("Đang làm").status(EmployeeStatus.ACTIVE).build();
+        when(employeeRepository.findByCitizenId(candidate().getCitizenId())).thenReturn(Optional.of(working));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.create(manager, proposal(candidate())));
+
+        assertEquals(CitizenIds.DUPLICATE_MESSAGE, ex.getMessage());
+        verify(recruitmentRequestRepository, never()).save(any());
+        verify(employeeRepository, never()).save(any());
+    }
+
+    @Test
+    void createRejectsACitizenIdAlreadyWaitingOnAnotherProposal() {
+        when(storeRepository.findByManager_Id(9)).thenReturn(Optional.of(store));
+        when(employeeRepository.findById(9)).thenReturn(Optional.of(managerEmployee));
+        when(employeeRepository.existsByEmailIgnoreCase("an@shop.vn")).thenReturn(false);
+        when(userRepository.existsByUsernameIgnoreCase("an@shop.vn")).thenReturn(false);
+        when(recruitmentCandidateRepository.existsByEmailIgnoreCaseAndStatus("an@shop.vn", RecruitmentStatus.PENDING))
+                .thenReturn(false);
+        when(recruitmentCandidateRepository.existsByCitizenIdAndStatus(
+                candidate().getCitizenId(), RecruitmentStatus.PENDING)).thenReturn(true);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.create(manager, proposal(candidate())));
+
+        assertEquals(RecruitmentRequestServiceImpl.CITIZEN_ID_PENDING, ex.getMessage());
+        verify(recruitmentRequestRepository, never()).save(any());
+    }
+
+    @Test
+    void createRehireByCitizenIdUsesTheExistingProfile() {
+        when(storeRepository.findByManager_Id(9)).thenReturn(Optional.of(store));
+        when(employeeRepository.findById(9)).thenReturn(Optional.of(managerEmployee));
+        Employee former = terminatedStaff();
+        former.setCitizenId("079911111111");
+        when(employeeRepository.countByNormalizedPhone("0911111111")).thenReturn(0);
+        when(recruitmentCandidateRepository.existsByPhoneAndStatus("0911111111", RecruitmentStatus.PENDING))
+                .thenReturn(false);
+        when(employeeRepository.findByCitizenId("079911111111")).thenReturn(Optional.of(former));
+        when(recruitmentRequestRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.create(manager, proposal(person("An Nguyễn", "moi@shop.vn", "0911111111", Gender.MALE, null)));
+
+        ArgumentCaptor<RecruitmentRequest> captor = ArgumentCaptor.forClass(RecruitmentRequest.class);
+        verify(recruitmentRequestRepository).save(captor.capture());
+        assertEquals(former, captor.getValue().getCandidates().get(0).getRehireEmployee());
+        verify(employeeRepository, never()).save(any());
     }
 
     private Employee terminatedStaff() {
@@ -799,6 +880,14 @@ class RecruitmentRequestServiceImplTest {
         return person("An Nguyễn", "an@shop.vn", "0901234567", Gender.MALE, null);
     }
 
+    private String citizenIdFrom(String phone) {
+        String digits = phone == null ? "" : phone.replaceAll("\\D", "");
+        if (digits.length() < 9) {
+            digits = ("000000000" + digits).substring(digits.length());
+        }
+        return "079" + digits.substring(digits.length() - 9);
+    }
+
     private RecruitmentCandidateRequest person(String fullName, String email, String phone, Gender gender, String address) {
         return RecruitmentCandidateRequest.builder()
                 .fullName(fullName)
@@ -806,6 +895,7 @@ class RecruitmentRequestServiceImplTest {
                 .gender(gender)
                 .email(email)
                 .phone(phone)
+                .citizenId(citizenIdFrom(phone))
                 .address(address)
                 .build();
     }

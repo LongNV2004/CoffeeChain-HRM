@@ -368,9 +368,8 @@ public class TrainingServiceImpl implements TrainingService {
     }
 
     /**
-     * Cờ trên nhân viên chỉ phục vụ đăng ký ca: CERTIFIED khi còn ít nhất một kỹ năng đã PASS.
-     * Không dùng cờ này để cấp hoặc thu hồi chứng chỉ của kỹ năng khác.
-     * NOT PASS chỉ bỏ cờ khi không còn kỹ năng nào đã PASS.
+     * Chỉ có Chứng chỉ nhân viên. Đạt thì cấp và giữ ngày cấp lần đầu.
+     * Không đạt thì chưa có chứng chỉ. Không suy ra từ chứng chỉ kỹ năng cũ.
      */
     private void syncEmployeeCertificationRollup(Employee employee, TrainingResult result) {
         if (employee == null) {
@@ -378,25 +377,15 @@ public class TrainingServiceImpl implements TrainingService {
         }
         if (result == TrainingResult.PASS) {
             employee.setCertificationStatus(CertificationStatus.CERTIFIED);
+            employee.setHasCertificate(true);
+            if (employee.getCertificateIssuedOn() == null) {
+                employee.setCertificateIssuedOn(VietnamTime.today());
+            }
             return;
         }
-        if (!hasAnyCertifiedSkill(employee.getId())) {
-            employee.setCertificationStatus(CertificationStatus.NOTCERTIFIED);
-        }
-    }
-
-    private boolean hasAnyCertifiedSkill(Integer employeeId) {
-        if (employeeId == null) {
-            return false;
-        }
-        List<EmployeePassedSkill> rows = trainingClassEnrollmentRepository.findPassedSkillsByEmployees(
-                List.of(employeeId), TrainingResult.PASS, TrainingClassStatus.APPROVED);
-        if (rows == null || rows.isEmpty()) {
-            return false;
-        }
-        return rows.stream().anyMatch(row -> row != null
-                && employeeId.equals(row.getEmployeeId())
-                && row.getSkillId() != null);
+        employee.setCertificationStatus(CertificationStatus.NOTCERTIFIED);
+        employee.setHasCertificate(false);
+        employee.setCertificateIssuedOn(null);
     }
 
     @Override
@@ -447,9 +436,19 @@ public class TrainingServiceImpl implements TrainingService {
         if (employeeId == null) {
             return List.of();
         }
-        Map<Integer, SkillSnapshot> snapshots = skillSnapshotsByEmployeeIds(List.of(employeeId))
-                .getOrDefault(employeeId, Map.of());
-        return historyLines(snapshots, Set.of());
+        Employee employee = employeeRepository.findById(employeeId).orElse(null);
+        if (employee == null) {
+            return List.of();
+        }
+        boolean certified = employee.getCertificationStatus() == CertificationStatus.CERTIFIED;
+        return List.of(EmployeeSkillStatusLine.builder()
+                .skillName("Chứng chỉ nhân viên")
+                .certificationStatus(certified ? CertificationStatus.CERTIFIED : CertificationStatus.NOTCERTIFIED)
+                .certificationLabel(certified ? "Đã có chứng chỉ" : "Chưa có chứng chỉ")
+                .certifiedDateLabel(employee.getCertificateIssuedOn() == null
+                        ? null
+                        : employee.getCertificateIssuedOn().format(DATE_FORMAT))
+                .build());
     }
 
     @Override
@@ -470,7 +469,7 @@ public class TrainingServiceImpl implements TrainingService {
         requireAdmin(admin, "Chỉ Admin mới được tạo lớp đào tạo.");
         validateSchedule(request.getStartDate(), request.getEndDate(), request.getStartTime(), request.getEndTime());
         String className = requireUniqueOpenClassName(request.getClassName());
-        List<TrainingSkill> skills = requireActiveSkills(request.getSkillIds());
+        List<TrainingSkill> skills = optionalActiveSkills(request.getSkillIds());
         List<Store> stores = requireStores(request.getStoreIds());
         boolean singleStore = stores.size() == 1;
         User trainer = requireManagerTrainer(request.getTrainerId());
@@ -659,6 +658,11 @@ public class TrainingServiceImpl implements TrainingService {
                 : "Bạn đã được đánh giá lớp \"" + className + "\". Kết quả: " + resultLabel + ".");
         if (note != null && !note.isBlank()) {
             message.append(" Ghi chú: ").append(note.trim()).append(".");
+        }
+        if (result == TrainingResult.PASS) {
+            message.append(" Đã cấp Chứng chỉ nhân viên.");
+        } else {
+            message.append(" Chưa cấp Chứng chỉ nhân viên.");
         }
         notificationService.notifyUsers(
                 List.of(account.get()),
@@ -1031,12 +1035,12 @@ public class TrainingServiceImpl implements TrainingService {
         return trainingClass.getStore() != null && storeId.equals(trainingClass.getStore().getId());
     }
 
-    private List<TrainingSkill> requireActiveSkills(List<Integer> skillIds) {
+    private List<TrainingSkill> optionalActiveSkills(List<Integer> skillIds) {
         List<Integer> ids = skillIds == null
                 ? List.of()
                 : skillIds.stream().filter(Objects::nonNull).distinct().toList();
         if (ids.isEmpty()) {
-            throw new BusinessException("Vui lòng chọn ít nhất một kỹ năng đào tạo.");
+            return List.of();
         }
         List<TrainingSkill> skills = new ArrayList<>();
         for (Integer skillId : ids) {
@@ -1247,7 +1251,7 @@ public class TrainingServiceImpl implements TrainingService {
                             .result(enrollment.getResult())
                             .resultLabel(enrollment.getResult() == null ? "Chưa đánh giá" : enrollment.getResult().getLabel())
                             .skillStatuses(lines)
-                            .certificationLabel(certificationSummary(lines))
+                            .certificationLabel(employeeCertificateLabel(employee))
                             .evaluationNote(enrollment.getEvaluationNote())
                             .build();
                 })
@@ -1285,8 +1289,7 @@ public class TrainingServiceImpl implements TrainingService {
         boolean skillsSelected = trainingClass != null && !classSkillIds.isEmpty();
         boolean studyingSameSkill = skillsSelected
                 && conflictingOpenSkill(employee.getId(), classSkillIds, openSkills) != null;
-        boolean certifiedForClass = skillsSelected
-                && alreadyCertifiedForClassSkills(employee.getId(), classSkillIds, passedSkills);
+        boolean employeeCertified = employee.getCertificationStatus() == CertificationStatus.CERTIFIED;
         List<EmployeeSkillStatusLine> lines = skillsSelected
                 ? skillLines(
                 employee.getId(),
@@ -1305,12 +1308,12 @@ public class TrainingServiceImpl implements TrainingService {
                 .phone(employee.getPhone())
                 .resultLabel("Chưa đánh giá")
                 .certifiedSkillIds(certifiedSkillIds)
-                .hasCertificate(skillsSelected ? certifiedForClass : null)
+                .hasCertificate(trainingClass == null ? null : employeeCertified)
                 .studyingSkillIds(studyingSkillIds)
                 .studyingSameSkill(skillsSelected ? studyingSameSkill : null)
                 .skillStatuses(lines)
-                .eligibilityLabel(skillsSelected ? eligibilityLabel(studyingSameSkill, certifiedForClass) : null)
-                .certificationLabel(skillsSelected ? certificationSummary(lines) : null)
+                .eligibilityLabel(trainingClass == null ? null : eligibilityLabel(studyingSameSkill, employeeCertified))
+                .certificationLabel(employeeCertificateLabel(employee))
                 .build();
     }
 
@@ -1376,13 +1379,14 @@ public class TrainingServiceImpl implements TrainingService {
                 .collect(Collectors.toSet());
     }
 
-    private boolean alreadyCertifiedForClassSkills(Integer employeeId,
-                                                   Set<Integer> classSkillIds,
-                                                   Map<Integer, Set<Integer>> passedSkills) {
-        if (classSkillIds == null || classSkillIds.isEmpty()) {
-            return false;
+    private String employeeCertificateLabel(Employee employee) {
+        if (employee != null && employee.getCertificationStatus() == CertificationStatus.CERTIFIED) {
+            if (employee.getCertificateIssuedOn() == null) {
+                return "Đã có Chứng chỉ nhân viên";
+            }
+            return "Đã có Chứng chỉ nhân viên · " + employee.getCertificateIssuedOn().format(DATE_FORMAT);
         }
-        return passedSkills.getOrDefault(employeeId, Set.of()).containsAll(classSkillIds);
+        return "Chưa có Chứng chỉ nhân viên";
     }
 
     private Map<Integer, List<EmployeeOpenSkill>> openSkillsByEmployee(List<Employee> employees,
@@ -1680,16 +1684,6 @@ public class TrainingServiceImpl implements TrainingService {
 
     private String formatDate(LocalDate date) {
         return date == null ? null : date.format(DATE_FORMAT);
-    }
-
-    private String certificationSummary(List<EmployeeSkillStatusLine> lines) {
-        if (lines == null || lines.isEmpty()) {
-            return null;
-        }
-        return lines.stream()
-                .map(EmployeeSkillStatusLine::getCertificationLabel)
-                .filter(label -> label != null && !label.isBlank())
-                .collect(Collectors.joining(", "));
     }
 
     private static final class SkillSnapshot {

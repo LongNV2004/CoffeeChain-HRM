@@ -33,7 +33,7 @@ public class WorkAvailability {
     @JoinColumn(name = "ShiftId", nullable = false)
     private Shift shift;
 
-    /** Vị trí đăng ký, ánh xạ từ kỹ năng đã có chứng chỉ. Bản ghi cũ để trống. */
+    /** Vị trí làm việc trên ca. Không phải chứng chỉ. Bản ghi cũ có thể để trống. */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "SkillId")
     private TrainingSkill skill;

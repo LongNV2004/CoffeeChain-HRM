@@ -164,6 +164,40 @@ class AdminEmployeeControllerTest {
                 .andExpect(redirectedUrl("/admin/stores/3/employees"));
     }
 
+    @Test
+    void staffAndManagerCannotUpdateCitizenIdThroughTheEndpoint() throws Exception {
+        mockMvc.perform(post("/admin/stores/1/employees/9/citizen-id")
+                        .with(user(actor(RoleName.STAFF)))
+                        .with(csrf())
+                        .param("citizenId", "079203000123"))
+                .andExpect(redirectedUrl("/dashboard/staff"));
+        mockMvc.perform(post("/admin/stores/1/employees/9/citizen-id")
+                        .with(user(actor(RoleName.MANAGER)))
+                        .with(csrf())
+                        .param("citizenId", "079203000123"))
+                .andExpect(redirectedUrl("/dashboard/manager"));
+        mockMvc.perform(post("/admin/stores/1/employees/9/edit")
+                        .with(user(actor(RoleName.STAFF)))
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content("{\"citizenId\":\"079203000123\",\"fullName\":\"An\",\"phone\":\"0900000000\",\"email\":\"a@x.vn\",\"storeId\":1,\"status\":\"ACTIVE\",\"hireDate\":\"2026-01-01\",\"role\":\"STAFF\"}"))
+                .andExpect(redirectedUrl("/dashboard/staff"));
+
+        verify(employeeService, never()).updateCitizenId(any(), any(), any(), any());
+        verify(employeeService, never()).updateEmployee(any(), any(), any(), any());
+    }
+
+    @Test
+    void adminUpdatesCitizenIdAndReturnsToTheEmployeePage() throws Exception {
+        mockMvc.perform(post("/admin/stores/1/employees/9/citizen-id")
+                        .with(user(actor(RoleName.ADMIN)))
+                        .with(csrf())
+                        .param("citizenId", "079203000123"))
+                .andExpect(redirectedUrl("/admin/stores/1/employees/9"));
+
+        verify(employeeService).updateCitizenId(any(), eq(1), eq(9), eq("079203000123"));
+    }
+
     private AuthenticatedUser actor(RoleName roleName) {
         Role role = Role.builder().id(1).roleName(roleName).build();
         return AuthenticatedUser.from(User.builder().id(1).username("user").passwordHash("x").role(role).isActive(true).build());

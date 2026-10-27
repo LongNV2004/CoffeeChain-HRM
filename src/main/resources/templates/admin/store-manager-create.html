@@ -52,6 +52,12 @@
                                placeholder="0901234567">
                         <span class="field-error" th:if="${#fields.hasErrors('phone')}" th:errors="*{phone}">Error</span>
                     </label>
+                    <label>Số căn cước công dân (CCCD) <span class="req" aria-hidden="true">*</span>
+                        <input type="text" th:field="*{citizenId}" maxlength="12" required inputmode="numeric"
+                               pattern="[0-9]{12}" title="Số căn cước công dân phải gồm đúng 12 chữ số" autocomplete="off"
+                               placeholder="079203000123">
+                        <span class="field-error" th:if="${#fields.hasErrors('citizenId')}" th:errors="*{citizenId}">Error</span>
+                    </label>
                 </div>
             </section>
         </div>
@@ -90,6 +96,10 @@
                     <div>
                         <dt>Số điện thoại</dt>
                         <dd data-preview-phone class="is-placeholder">Chưa nhập số điện thoại</dd>
+                    </div>
+                    <div>
+                        <dt>Số căn cước công dân (CCCD)</dt>
+                        <dd data-preview-citizen class="is-placeholder">Chưa nhập CCCD</dd>
                     </div>
                 </dl>
             </article>

@@ -54,6 +54,11 @@
                         th:classappend="${detail.employee.phone == null or #strings.isEmpty(detail.employee.phone)} ? ' is-placeholder'">SĐT</dd>
                 </div>
                 <div>
+                    <dt>Số căn cước công dân (CCCD)</dt>
+                    <dd th:text="${detail.employee.citizenId != null and !#strings.isEmpty(detail.employee.citizenId) ? detail.employee.citizenId : 'Chưa cập nhật'}"
+                        th:classappend="${detail.employee.citizenId == null or #strings.isEmpty(detail.employee.citizenId)} ? ' is-placeholder'">079203000123</dd>
+                </div>
+                <div>
                     <dt>Địa chỉ</dt>
                     <dd th:text="${detail.employee.address != null and !#strings.isEmpty(detail.employee.address) ? detail.employee.address : 'Chưa cập nhật'}"
                         th:classappend="${detail.employee.address == null or #strings.isEmpty(detail.employee.address)} ? ' is-placeholder'">Địa chỉ</dd>
@@ -190,7 +195,7 @@
     </section>
 
     <section class="store-create-card employee-related" aria-labelledby="employee-skill-title">
-        <h2 id="employee-skill-title">Kỹ năng và chứng chỉ</h2>
+        <h2 id="employee-skill-title">Chứng chỉ nhân viên</h2>
         <dl class="store-create-facts">
             <div>
                 <dt>Chứng chỉ</dt>
@@ -205,13 +210,7 @@
                     th:classappend="${detail.certificationLabel == null} ? ' is-placeholder'">Chưa chứng nhận</dd>
             </div>
         </dl>
-        <p th:if="${#lists.isEmpty(detail.skills)}">Chưa có kỹ năng được ghi nhận từ các lớp đào tạo.</p>
-        <ul class="employee-skill-list" th:if="${!#lists.isEmpty(detail.skills)}">
-            <li th:each="skill : ${detail.skills}">
-                <strong th:text="${skill.skillName != null ? skill.skillName : 'Chưa cập nhật'}">Pha chế</strong>
-                <span class="badge" th:text="${skill.statusLabel}">Đã đạt</span>
-            </li>
-        </ul>
+        <p>Chỉ hiển thị Chứng chỉ nhân viên. Chứng chỉ từng kỹ năng không còn được dùng để đăng ký ca.</p>
     </section>
 </main>
 </body>
