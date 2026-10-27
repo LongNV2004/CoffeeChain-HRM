@@ -28,6 +28,11 @@ public class WeeklyScheduleView {
     private List<ColleagueShiftOption> colleagueShifts;
     private List<ShiftChangeItem> pendingShiftChanges;
     private List<ShiftChangeItem> incomingRequests;
+    private List<ShiftChangeItem> openRescueRequests;
+
+    private Integer currentStaffReliabilityScore;
+    private String currentStaffTierLabel;
+    private boolean currentStaffPrioritySchedule;
 
     private long totalAssignments;
     private long publishedAssignments;
@@ -110,6 +115,10 @@ public class WeeklyScheduleView {
         private String email;
         /** Đã có Chứng chỉ nhân viên, đủ điều kiện xét lịch làm việc chung. */
         private boolean certified;
+        @Builder.Default
+        private int reliabilityScore = 100;
+        private String reliabilityTierLabel;
+        private boolean prioritySchedule;
     }
 
     @Getter
@@ -163,6 +172,9 @@ public class WeeklyScheduleView {
         private Boolean isTargetAgreed;
         private String targetAgreedAt;
         private String stageLabel;
+
+        private boolean urgentWithin24h;
+        private int rescueBonusPoints;
 
         public String getRequesterName() {
             return employeeName;

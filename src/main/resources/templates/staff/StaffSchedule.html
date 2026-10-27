@@ -37,12 +37,89 @@
 
         <!-- Week navigation -->
         <div class="nav-controls">
+            <a class="nav-btn" th:href="@{/schedule/staff/leaderboard}"
+               style="background:#FFF8E1;border-color:#F59E0B;color:#92400E;font-weight:600;display:inline-flex;align-items:center;gap:4px;">
+                <i data-lucide="award" style="width:15px;height:15px;color:#D97706;"></i> Điểm uy tín: <span th:text="${schedule.currentStaffReliabilityScore != null ? schedule.currentStaffReliabilityScore : 100}">100</span>đ
+                (<span th:text="${schedule.currentStaffTierLabel != null ? schedule.currentStaffTierLabel : 'Ổn định'}">Ổn định</span>)
+            </a>
             <a class="nav-btn" th:href="@{${schedulePath}(date=${schedule.prevWeekDate})}">← Tuần trước</a>
             <span class="week-label" th:text="${#temporals.format(schedule.weekStartDate, 'dd/MM') + ' – ' + #temporals.format(schedule.weekEndDate, 'dd/MM/yyyy')}">
                 21/09 – 27/09/2026
             </span>
             <a class="nav-btn" th:href="@{${schedulePath}(date=${schedule.nextWeekDate})}">Tuần sau →</a>
             <a class="nav-btn" th:href="@{${schedulePath}}">Tuần này</a>
+        </div>
+    </section>
+
+    <!-- Open Rescue Shifts ("Cứu bồ") Section -->
+    <section class="panel incoming-requests-panel"
+             style="border-left:4px solid #D97706;background:linear-gradient(180deg, #FFFBEB 0%, #FFFFFF 100%);"
+             th:if="${shiftChangePage and schedule.openRescueRequests != null and !#lists.isEmpty(schedule.openRescueRequests)}">
+        <div class="panel-header">
+            <div style="display:flex;align-items:center;gap:12px;">
+                <div style="width:38px;height:38px;border-radius:50%;background:#FEF3C7;display:flex;align-items:center;justify-content:center;color:#B45309;flex-shrink:0;">
+                    <i data-lucide="shield-check" style="width:20px;height:20px;"></i>
+                </div>
+                <div>
+                    <h2 style="margin:0;">Góc "Cứu bồ" — Ca đồng nghiệp đang cần hỗ trợ</h2>
+                    <p style="margin:2px 0 0 0;font-size:13px;color:var(--ink-soft);">
+                        Nhận ca cứu bồ trong vòng 24h trước giờ làm được cộng ngay <strong>+5 điểm uy tín</strong> khi Quản lý duyệt và thêm <strong>+2 điểm</strong> khi hoàn thành tốt ca!
+                    </p>
+                </div>
+            </div>
+            <a th:href="@{/schedule/staff/leaderboard}" class="badge-count" style="text-decoration:none;background:#FEF3C7;color:#92400E;display:inline-flex;align-items:center;gap:4px;">
+                <i data-lucide="trophy" style="width:14px;height:14px;"></i> Xem Bảng xếp hạng
+            </a>
+        </div>
+
+        <div class="incoming-list">
+            <div class="incoming-card" th:each="rescue : ${schedule.openRescueRequests}">
+                <div class="incoming-card-header">
+                    <div class="incoming-sender">
+                        <strong th:text="${rescue.employeeName}">Nguyễn Văn A</strong>
+                        <span class="badge-type"
+                              th:if="${rescue.urgentWithin24h}"
+                              style="background:#FEE2E2;color:#991B1B;font-weight:700;display:inline-flex;align-items:center;gap:4px;">
+                            <i data-lucide="flame" style="width:13px;height:13px;"></i> Khẩn cấp (&lt;24h) • Cứu bồ +5đ
+                        </span>
+                        <span class="badge-type"
+                              th:unless="${rescue.urgentWithin24h}"
+                              style="background:#E0F2FE;color:#075985;">
+                            Hỗ trợ đồng nghiệp • Hoàn thành +2đ
+                        </span>
+                    </div>
+                    <span class="incoming-date" th:text="${rescue.requestDate}">21/09/2026 09:30</span>
+                </div>
+
+                <div class="incoming-card-body">
+                    <div class="incoming-detail-row">
+                        <span class="detail-label">Ca cần người thay:</span>
+                        <span class="detail-value">
+                            <strong th:text="${rescue.shiftName}">Ca Sáng</strong>
+                            (<span th:text="${rescue.timeRange}">07:00 – 12:00</span>),
+                            ngày <strong th:text="${#temporals.format(rescue.workDate, 'dd/MM/yyyy')}">22/09/2026</strong>
+                        </span>
+                    </div>
+                    <div class="incoming-detail-row" th:if="${rescue.reason != null and !rescue.reason.isEmpty()}">
+                        <span class="detail-label">Lý do:</span>
+                        <span class="detail-value" th:text="${rescue.reason}">Bận việc đột xuất</span>
+                    </div>
+                </div>
+
+                <div class="incoming-card-actions">
+                    <form th:action="@{/schedule/staff/requests/{id}/rescue(id=${rescue.requestId})}" method="post" style="display:inline;">
+                        <input type="hidden" name="origin" value="shift-change">
+                        <input type="hidden" name="currentWeek" th:value="${schedule.weekStartDate}">
+                        <button type="submit" class="btn-agree"
+                                data-coffee-confirm="Bạn muốn xung phong nhận ca cứu bồ này giúp đồng nghiệp? Đơn sẽ được gửi lên Quản lý phê duyệt."
+                                data-coffee-title="Xung phong Cứu bồ"
+                                data-coffee-ok="Nhận ca cứu bồ">
+                            <i data-lucide="shield-check" style="width:14px;height:14px;vertical-align:middle;margin-right:2px;"></i> Xung phong Cứu bồ
+                            <span th:text="${rescue.urgentWithin24h} ? '(+5đ)' : '(+2đ)'">(+5đ)</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
         </div>
     </section>
 
@@ -149,6 +226,11 @@
                         <span class="badge-type"
                               th:classappend="${inReq.changeType == 'SWAP' ? 'badge-swap' : 'badge-transfer'}"
                               th:text="${inReq.changeTypeLabel}">Đổi chéo ca</span>
+                        <span class="badge-type"
+                              th:if="${inReq.urgentWithin24h}"
+                              style="background:#FEE2E2;color:#991B1B;font-weight:700;display:inline-flex;align-items:center;gap:4px;">
+                            <i data-lucide="flame" style="width:13px;height:13px;"></i> Ca khẩn cấp (&lt;24h) • Nhận ca +5đ uy tín
+                        </span>
                     </div>
                     <span class="incoming-date" th:text="${inReq.requestDate}">21/09/2026 09:30</span>
                 </div>
@@ -275,6 +357,10 @@
             <div class="form-group">
                 <label>Ca làm việc của bạn cần đổi:</label>
                 <div id="shiftInfoLabel" style="font-weight:700;color:var(--caramel);font-size:15px;padding:6px 0;">—</div>
+                <div style="background:#FFF8E1;border:1px solid #FDE68A;border-radius:6px;padding:8px 12px;font-size:12px;color:#92400E;margin-top:4px;display:flex;align-items:flex-start;gap:6px;">
+                    <i data-lucide="alert-triangle" style="width:15px;height:15px;flex-shrink:0;color:#D97706;margin-top:1px;"></i>
+                    <span><strong>Quy tắc Điểm uy tín:</strong> Xin hủy/đổi ca sát giờ (trong vòng 24h trước giờ làm) sẽ bị <strong>trừ 10 điểm uy tín</strong>. Hoàn thành tốt ca đổi được <strong>+2 điểm</strong>.</span>
+                </div>
             </div>
 
             <div class="form-group">
