@@ -6,11 +6,13 @@ BEGIN
         Description NVARCHAR(500) NULL,
         Requirements NVARCHAR(500) NULL,
         Status VARCHAR(20) NOT NULL CONSTRAINT DF_TrainingSkills_Status DEFAULT ('Active'),
+        CertificateKind VARCHAR(20) NOT NULL CONSTRAINT DF_TrainingSkills_CertificateKind DEFAULT ('STAFF'),
         CreatedBy INT NULL,
         CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_TrainingSkills_CreatedAt DEFAULT (SYSUTCDATETIME()),
         CONSTRAINT UQ_TrainingSkills_SkillName UNIQUE (SkillName),
         CONSTRAINT FK_TrainingSkills_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.Users (UserId),
-        CONSTRAINT CK_TrainingSkills_Status CHECK (Status IN ('Active', 'Inactive'))
+        CONSTRAINT CK_TrainingSkills_Status CHECK (Status IN ('Active', 'Inactive')),
+        CONSTRAINT CK_TrainingSkills_CertificateKind CHECK (CertificateKind IN ('STAFF', 'MANAGEMENT'))
     );
 END;
 GO
@@ -40,7 +42,7 @@ BEGIN
         CONSTRAINT FK_TrainingClasses_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.Users (UserId),
         CONSTRAINT FK_TrainingClasses_ApprovedBy FOREIGN KEY (ApprovedBy) REFERENCES dbo.Users (UserId),
         CONSTRAINT CK_TrainingClasses_Status CHECK (Status IN ('PENDING_APPROVAL', 'APPROVED', 'REJECTED')),
-        CONSTRAINT CK_TrainingClasses_TrainingType CHECK (TrainingType IN ('STORE_TRAINING', 'CENTRALIZED_TRAINING')),
+        CONSTRAINT CK_TrainingClasses_TrainingType CHECK (TrainingType IN ('STORE_TRAINING', 'CENTRALIZED_TRAINING', 'MANAGEMENT_TRAINING')),
         CONSTRAINT CK_TrainingClasses_Dates CHECK (EndDate >= StartDate)
     );
 END;
@@ -165,7 +167,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_TrainingCla
 BEGIN
     ALTER TABLE dbo.TrainingClasses
         ADD CONSTRAINT CK_TrainingClasses_TrainingType
-            CHECK (TrainingType IN ('STORE_TRAINING', 'CENTRALIZED_TRAINING'));
+            CHECK (TrainingType IN ('STORE_TRAINING', 'CENTRALIZED_TRAINING', 'MANAGEMENT_TRAINING'));
 END;
 GO
 

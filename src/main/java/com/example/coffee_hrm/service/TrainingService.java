@@ -2,11 +2,13 @@ package com.example.coffee_hrm.service;
 
 import com.example.coffee_hrm.dto.request.AddTrainingClassStudentsRequest;
 import com.example.coffee_hrm.dto.request.CreateCentralizedTrainingRequest;
+import com.example.coffee_hrm.dto.request.CreateManagementTrainingRequest;
 import com.example.coffee_hrm.dto.request.CreateTrainingClassRequest;
 import com.example.coffee_hrm.dto.request.CreateTrainingSkillRequest;
 import com.example.coffee_hrm.dto.request.EvaluateTrainingStudentRequest;
 import com.example.coffee_hrm.dto.request.UpdateTrainingSkillRequest;
 import com.example.coffee_hrm.dto.response.EmployeeSkillStatusLine;
+import com.example.coffee_hrm.dto.response.ManagementTrainingView;
 import com.example.coffee_hrm.dto.response.EmployeeTrainingClassResponse;
 import com.example.coffee_hrm.dto.response.TrainingClassResponse;
 import com.example.coffee_hrm.dto.response.TrainingClassStudentResponse;
@@ -23,6 +25,8 @@ import java.util.List;
 public interface TrainingService {
 
     List<TrainingSkillResponse> listSkills();
+
+    List<TrainingSkillResponse> listSkills(com.example.coffee_hrm.common.enums.CertificateKind certificateKind);
 
     List<TrainingSkillResponse> listActiveSkills();
 
@@ -43,6 +47,8 @@ public interface TrainingService {
     List<TrainingTrainerOption> listTrainerCandidates(AuthenticatedUser admin);
 
     List<TrainingEmployeeOption> listActiveEmployees(AuthenticatedUser admin);
+
+    List<TrainingEmployeeOption> listClassCandidates(AuthenticatedUser admin);
 
     Page<TrainingClassResponse> listClassesForManager(AuthenticatedUser manager,
                                                       Integer skillId,
@@ -70,6 +76,10 @@ public interface TrainingService {
 
     EmployeeTrainingClassResponse getClassForEmployee(Integer classId, AuthenticatedUser employee);
 
+    List<EmployeeTrainingClassResponse> listOwnClasses(AuthenticatedUser actor);
+
+    EmployeeTrainingClassResponse getOwnClass(Integer classId, AuthenticatedUser actor);
+
     long countOngoingClassesForEmployee(AuthenticatedUser employee);
 
     /**
@@ -81,6 +91,23 @@ public interface TrainingService {
 
     TrainingClassResponse createCentralizedClass(CreateCentralizedTrainingRequest request, AuthenticatedUser admin);
 
+    ManagementTrainingView createManagementClass(CreateManagementTrainingRequest request, AuthenticatedUser admin);
+
+    List<ManagementTrainingView> listManagementClasses(AuthenticatedUser admin);
+
+    List<ManagementTrainingView.Candidate> listManagementCandidates(AuthenticatedUser admin);
+
+    void enrollManagerInManagementClass(Integer classId, Integer employeeId, AuthenticatedUser admin);
+
+    void enrollSelfInManagementClass(Integer classId, AuthenticatedUser manager);
+
+    List<ManagementTrainingView> listManagementClassesForManager(AuthenticatedUser manager);
+
+    void evaluateManagementStudent(Integer classId,
+                                   Integer employeeId,
+                                   EvaluateTrainingStudentRequest request,
+                                   AuthenticatedUser admin);
+
     Page<TrainingClassResponse> listActiveClassesForAdmin(AuthenticatedUser admin,
                                                           Integer skillId,
                                                           LocalDate date,
@@ -91,4 +118,6 @@ public interface TrainingService {
     TrainingClassResponse getApprovedClassDetailForAdmin(Integer classId, AuthenticatedUser admin);
 
     List<TrainingClassResponse> listAllClassesForAdmin();
+
+    void notifyEndedClasses();
 }

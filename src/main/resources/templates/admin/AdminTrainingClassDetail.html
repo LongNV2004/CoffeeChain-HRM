@@ -18,12 +18,15 @@
         <h1 th:text="${classDetail.className}">Tên lớp</h1>
         <p>
             <span th:text="${displayName}">Admin</span>
-            · xem thông tin lớp và học viên. Admin không đánh giá nhân viên.
+            · xem thông tin lớp và học viên. Người đào tạo đánh giá sau khi lớp kết thúc.
         </p>
         <div style="margin-top:12px;" class="actions">
             <a class="back-link" th:href="@{/admin/training}">← Quay lại danh sách lớp</a>
         </div>
     </section>
+
+    <p class="flash success" th:if="${successMessage}" th:text="${successMessage}"></p>
+    <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}"></p>
 
     <section class="panel">
         <h2>Thông tin lớp</h2>
@@ -68,9 +71,9 @@
                 <dt>Người đào tạo</dt>
                 <dd th:text="${classDetail.trainer} ?: '—'">Trainer</dd>
             </div>
-            <div th:if="${classDetail.location != null}">
+            <div>
                 <dt>Địa điểm</dt>
-                <dd th:text="${classDetail.location}">Location</dd>
+                <dd th:text="${classDetail.location != null and !#strings.isEmpty(classDetail.location)} ? ${classDetail.location} : '—'">Cửa hàng</dd>
             </div>
             <div th:if="${classDetail.notes != null}">
                 <dt>Ghi chú</dt>
@@ -83,7 +86,9 @@
         <div class="panel-head">
             <div>
                 <h2>Danh sách học viên</h2>
-                <p>Admin xem danh sách học viên và kết quả đã có. Việc đánh giá do người đào tạo thực hiện.</p>
+                <p th:if="${classDetail.ended and classDetail.evaluable and classDetail.trainingType != null and classDetail.trainingType.name() == 'MANAGEMENT_TRAINING'}">Lớp đã kết thúc. Đạt thì cấp Chứng chỉ quản lý và Manager dùng được chức năng quản lý. Không đạt thì chưa có chứng chỉ và có thể tham gia đào tạo lại.</p>
+                <p th:if="${classDetail.ended and classDetail.evaluable and (classDetail.trainingType == null or classDetail.trainingType.name() != 'MANAGEMENT_TRAINING')}">Lớp đã kết thúc. Hãy đánh giá từng học viên.</p>
+                <p th:if="${!classDetail.ended}">Chỉ được đánh giá sau khi thời điểm kết thúc của lớp đã qua.</p>
             </div>
         </div>
         <p class="muted" th:if="${classDetail.maxParticipants != null}">
@@ -101,6 +106,7 @@
                 <th>Số điện thoại</th>
                 <th>Kết quả</th>
                 <th>Chứng chỉ</th>
+                <th></th>
             </tr>
             </thead>
             <tbody>
@@ -115,11 +121,102 @@
                     <div class="muted" th:if="${student.evaluationNote != null}" th:text="${student.evaluationNote}">Ghi chú</div>
                 </td>
                 <td th:text="${student.certificationLabel} ?: 'Chưa có Chứng chỉ nhân viên'">Chưa có Chứng chỉ nhân viên</td>
+                <td class="actions">
+                    <button type="button"
+                            class="link-btn evaluate-student"
+                            th:if="${classDetail.evaluable and classDetail.ended and student.result == null}"
+                            th:data-employee-id="${student.employeeId}"
+                            th:data-name="${student.fullName}"
+                            data-updating="false">Đánh giá</button>
+                    <button type="button"
+                            class="link-btn evaluate-student"
+                            th:if="${classDetail.evaluable and classDetail.ended and student.result != null}"
+                            th:data-employee-id="${student.employeeId}"
+                            th:data-name="${student.fullName}"
+                            th:data-result="${student.result.name()}"
+                            th:data-note="${student.evaluationNote}"
+                            data-updating="true">Cập nhật kết quả</button>
+                    <span class="muted" th:unless="${classDetail.evaluable and classDetail.ended}">Sau khi lớp kết thúc</span>
+                </td>
             </tr>
             </tbody>
         </table>
     </section>
 </main>
+
+<div class="modal" id="evaluateModal">
+    <div class="modal-dialog">
+        <div class="modal-header">
+            <h2 id="evaluateTitle">Đánh giá học viên</h2>
+            <button class="close-btn" type="button" id="close-evaluate" aria-label="Đóng">×</button>
+        </div>
+        <form id="evaluateForm" method="post"
+              th:action="@{/admin/training/classes/{id}/evaluate(id=${classDetail.id})}">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <input type="hidden" name="employeeId" id="evaluateEmployeeId">
+            <input type="hidden" name="updating" id="evaluateUpdating" value="false">
+            <p style="margin-top:0;">Học viên: <strong id="evaluateName">—</strong></p>
+            <p class="muted" style="margin-top:0;"
+               th:if="${classDetail.trainingType != null and classDetail.trainingType.name() == 'MANAGEMENT_TRAINING'}">Đạt thì cấp Chứng chỉ quản lý. Không đạt thì chưa cấp chứng chỉ, học viên có thể tham gia lớp khác.</p>
+            <div class="result-choices">
+                <label>
+                    <input type="radio" name="result" value="PASS" required>
+                    Đạt
+                </label>
+                <label>
+                    <input type="radio" name="result" value="NOT_PASS">
+                    Không đạt
+                </label>
+            </div>
+            <label class="note-field">Ghi chú
+                <textarea name="note" id="evaluateNote" maxlength="500" rows="3" placeholder="Không bắt buộc"></textarea>
+            </label>
+            <div class="modal-footer">
+                <button class="secondary-btn" type="button" id="cancel-evaluate">Hủy</button>
+                <button class="primary-btn" type="submit" id="evaluateSubmit">Lưu kết quả</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script th:src="@{/js/AdminDashboard.js}"></script>
+<script>
+    (function () {
+        var evaluateModal = document.getElementById('evaluateModal');
+        var evaluateForm = document.getElementById('evaluateForm');
+        if (!evaluateModal || !evaluateForm) {
+            return;
+        }
+        function openModal() {
+            evaluateModal.classList.add('open');
+        }
+        function closeModal() {
+            evaluateModal.classList.remove('open');
+        }
+        document.querySelectorAll('.evaluate-student').forEach(function (button) {
+            button.addEventListener('click', function () {
+                var updating = button.getAttribute('data-updating') === 'true';
+                var result = button.getAttribute('data-result') || '';
+                document.getElementById('evaluateEmployeeId').value = button.getAttribute('data-employee-id') || '';
+                document.getElementById('evaluateUpdating').value = updating ? 'true' : 'false';
+                document.getElementById('evaluateTitle').textContent = updating ? 'Cập nhật kết quả' : 'Đánh giá học viên';
+                document.getElementById('evaluateName').textContent = button.getAttribute('data-name') || '';
+                document.getElementById('evaluateSubmit').textContent = updating ? 'Cập nhật kết quả' : 'Lưu kết quả';
+                document.getElementById('evaluateNote').value = button.getAttribute('data-note') || '';
+                evaluateForm.querySelectorAll('input[name="result"]').forEach(function (input) {
+                    input.checked = input.value === result;
+                });
+                openModal();
+            });
+        });
+        document.getElementById('close-evaluate').addEventListener('click', closeModal);
+        document.getElementById('cancel-evaluate').addEventListener('click', closeModal);
+        evaluateModal.addEventListener('click', function (event) {
+            if (event.target === evaluateModal) {
+                closeModal();
+            }
+        });
+    })();
+</script>
 </body>
 </html>

@@ -19,7 +19,7 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-@ToString(exclude = {"citizenId", "store", "user", "shiftAssignments", "shiftChangeRequests",
+@ToString(exclude = {"citizenId", "store", "user", "managementCertifiedBy", "shiftAssignments", "shiftChangeRequests",
         "attendances", "leaveRequests", "leaveBalances", "trainingParticipants"})
 public class Employee {
 
@@ -73,6 +73,18 @@ public class Employee {
     @Column(name = "CertificateIssuedOn")
     private LocalDate certificateIssuedOn;
 
+    /** Chứng chỉ quản lý, độc lập với chứng chỉ nhân viên ba kỹ năng. */
+    @Column(name = "ManagementCertified", nullable = false)
+    @Builder.Default
+    private Boolean managementCertified = false;
+
+    @Column(name = "ManagementCertifiedAt")
+    private LocalDateTime managementCertifiedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "ManagementCertifiedBy")
+    private User managementCertifiedBy;
+
     @CreationTimestamp
     @Column(name = "CreatedAt", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -81,6 +93,9 @@ public class Employee {
     void defaultCertificationStatus() {
         if (certificationStatus == null) {
             certificationStatus = CertificationStatus.NOTCERTIFIED;
+        }
+        if (managementCertified == null) {
+            managementCertified = false;
         }
     }
 

@@ -1,5 +1,6 @@
 package com.example.coffee_hrm.dto.response;
 
+import com.example.coffee_hrm.common.enums.CertificateKind;
 import com.example.coffee_hrm.common.enums.TrainingSkillStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -19,6 +20,7 @@ public class TrainingSkillResponse {
     private String description;
     private String requirements;
     private TrainingSkillStatus status;
+    private CertificateKind certificateKind;
     private String createdByName;
     private LocalDateTime createdAt;
 }

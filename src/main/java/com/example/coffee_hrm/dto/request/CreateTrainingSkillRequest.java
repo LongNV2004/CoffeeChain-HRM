@@ -1,5 +1,6 @@
 package com.example.coffee_hrm.dto.request;
 
+import com.example.coffee_hrm.common.enums.CertificateKind;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -32,6 +33,9 @@ public class CreateTrainingSkillRequest implements Serializable {
 
     @Size(max = 500, message = "Yêu cầu tối đa 500 ký tự")
     private String requirements;
+
+    /** Null được hiểu là chứng chỉ nhân viên để giữ form cũ. */
+    private CertificateKind certificateKind;
 
     public void setSkillName(String skillName) {
         this.skillName = skillName == null ? null : skillName.trim();

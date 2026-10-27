@@ -71,13 +71,14 @@ class ProfileControllerTest {
     void managerCanViewProfileAndCertificates() throws Exception {
         AuthenticatedUser manager = actor(RoleName.MANAGER, 4);
         when(profileService.getProfile(manager)).thenReturn(profile(RoleName.MANAGER, List.of(
-                skill(0, "Chứng chỉ nhân viên", CertificationStatus.CERTIFIED, "01/10/2026"))));
+                skill(0, "Chứng chỉ quản lý", CertificationStatus.CERTIFIED, "01/10/2026"))));
 
         mockMvc.perform(get("/profile").param("userId", "99").with(user(manager)))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("An Nguyễn")))
                 .andExpect(content().string(containsString("Mã nhân viên")))
-                .andExpect(content().string(containsString("Chứng chỉ nhân viên")))
+                .andExpect(content().string(containsString("Chứng chỉ quản lý")))
+                .andExpect(content().string(not(containsString("Chứng chỉ nhân viên"))))
                 .andExpect(content().string(containsString("CERTIFIED · Đã chứng nhận")))
                 .andExpect(content().string(containsString("Ngày cấp 01/10/2026")))
                 .andExpect(content().string(not(containsString("Phục vụ"))))

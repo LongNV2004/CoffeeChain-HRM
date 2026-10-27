@@ -1,5 +1,6 @@
 package com.example.coffee_hrm.dto.request;
 
+import com.example.coffee_hrm.common.enums.CertificateKind;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -28,6 +29,9 @@ public class CreateCentralizedTrainingRequest implements Serializable {
 
     @Serial
     private static final long serialVersionUID = 1L;
+
+    @NotNull(message = "Vui lòng chọn chứng chỉ")
+    private CertificateKind certificateKind;
 
     private List<@NotNull(message = "Kỹ năng không hợp lệ") Integer> skillIds = new ArrayList<>();
 

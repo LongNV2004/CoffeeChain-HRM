@@ -28,33 +28,30 @@
     <section class="panel">
         <h2>Chứng chỉ nhân viên</h2>
         <p>Không tạo chứng chỉ theo Pha chế, Phục vụ hay Thu ngân. Danh mục này không dùng để đăng ký ca.</p>
-        <h2>Thêm vị trí làm việc</h2>
-        <p>Vị trí vừa tạo ở trạng thái đang dùng. Admin có thể sửa, ngừng hoặc kích hoạt lại.</p>
+        <h2>Thêm kỹ năng</h2>
+        <p>Kỹ năng vừa tạo ở trạng thái đang dùng. Admin có thể sửa, ngừng hoặc kích hoạt lại.</p>
 
         <form class="stack-form" th:action="@{/admin/training/skills}" th:object="${skillForm}" method="post">
             <p class="flash error" th:if="${skillError}" th:text="${skillError}">Error</p>
             <label>Tên kỹ năng
                 <input type="text" th:field="*{skillName}" maxlength="100" pattern="[^0-9]*" title="Tên kỹ năng không được chứa số" required>
             </label>
-            <label>Mô tả
-                <textarea th:field="*{description}" maxlength="500" rows="2"></textarea>
-            </label>
             <label>Yêu cầu
                 <textarea th:field="*{requirements}" maxlength="500" rows="2"></textarea>
             </label>
-            <button class="primary-btn" type="submit">Thêm vị trí làm việc</button>
+            <input type="hidden" name="certificateKind" value="STAFF">
+            <button class="primary-btn" type="submit">Thêm kỹ năng</button>
         </form>
     </section>
 
     <section class="panel">
         <h2>Kỹ năng hiện có</h2>
-        <p>Sửa tên, mô tả, yêu cầu hoặc ngừng kỹ năng đang dùng. Kỹ năng ngừng dùng không bị xóa và có thể kích hoạt lại.</p>
+        <p>Sửa tên, yêu cầu hoặc ngừng kỹ năng đang dùng. Kỹ năng ngừng dùng không bị xóa và có thể kích hoạt lại.</p>
         <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}">Error</p>
         <table>
             <thead>
             <tr>
                 <th>Kỹ năng</th>
-                <th>Mô tả</th>
                 <th>Yêu cầu</th>
                 <th>Trạng thái</th>
                 <th></th>
@@ -62,12 +59,11 @@
             </thead>
             <tbody>
             <tr th:if="${#lists.isEmpty(skills)}">
-                <td colspan="5" class="empty">Chưa có kỹ năng đào tạo.</td>
+                <td colspan="4" class="empty">Chưa có kỹ năng đào tạo.</td>
             </tr>
             <tr th:each="skill : ${skills}"
-                th:attr="data-id=${skill.id},data-name=${skill.skillName},data-description=${skill.description},data-requirements=${skill.requirements}">
+                th:attr="data-id=${skill.id},data-name=${skill.skillName},data-requirements=${skill.requirements}">
                 <td th:text="${skill.skillName}">Skill</td>
-                <td th:text="${skill.description} ?: '—'">Desc</td>
                 <td th:text="${skill.requirements} ?: '—'">Req</td>
                 <td>
                     <span class="badge" th:classappend="${skill.status.name() == 'ACTIVE'} ? ' badge-ok' : ' badge-off'"
@@ -108,12 +104,10 @@
             <label>Tên kỹ năng
                 <input type="text" th:field="*{skillName}" maxlength="100" pattern="[^0-9]*" title="Tên kỹ năng không được chứa số" required>
             </label>
-            <label>Mô tả
-                <textarea th:field="*{description}" maxlength="500" rows="2"></textarea>
-            </label>
             <label>Yêu cầu
                 <textarea th:field="*{requirements}" maxlength="500" rows="2"></textarea>
             </label>
+            <input type="hidden" name="certificateKind" value="STAFF">
             <div class="form-actions">
                 <button class="primary-btn" type="submit">Lưu thay đổi</button>
                 <button class="logout-btn" type="button" id="cancel-edit">Hủy</button>

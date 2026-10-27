@@ -1,5 +1,6 @@
 package com.example.coffee_hrm.service.impl;
 
+import com.example.coffee_hrm.common.enums.CertificateKind;
 import com.example.coffee_hrm.common.enums.CertificationStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.NotificationType;
@@ -12,11 +13,13 @@ import com.example.coffee_hrm.common.enums.TrainingType;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.dto.request.AddTrainingClassStudentsRequest;
 import com.example.coffee_hrm.dto.request.CreateCentralizedTrainingRequest;
+import com.example.coffee_hrm.dto.request.CreateManagementTrainingRequest;
 import com.example.coffee_hrm.dto.request.CreateTrainingClassRequest;
 import com.example.coffee_hrm.dto.request.CreateTrainingSkillRequest;
 import com.example.coffee_hrm.dto.request.EvaluateTrainingStudentRequest;
 import com.example.coffee_hrm.dto.request.UpdateTrainingSkillRequest;
 import com.example.coffee_hrm.dto.response.EmployeeSkillStatusLine;
+import com.example.coffee_hrm.dto.response.ManagementTrainingView;
 import com.example.coffee_hrm.dto.response.EmployeeTrainingClassResponse;
 import com.example.coffee_hrm.dto.response.TrainingClassResponse;
 import com.example.coffee_hrm.dto.response.TrainingClassStudentResponse;
@@ -33,6 +36,7 @@ import com.example.coffee_hrm.repository.EmployeeOpenSkill;
 import com.example.coffee_hrm.repository.EmployeePassedSkill;
 import com.example.coffee_hrm.repository.EmployeeSkillTrainingFact;
 import com.example.coffee_hrm.repository.EmployeeRepository;
+import com.example.coffee_hrm.repository.NotificationRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.repository.TrainingClassEnrollmentRepository;
 import com.example.coffee_hrm.repository.TrainingClassRepository;
@@ -40,6 +44,7 @@ import com.example.coffee_hrm.repository.TrainingSkillRepository;
 import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.NotificationService;
+import com.example.coffee_hrm.service.support.ManagementTrainingRules;
 import com.example.coffee_hrm.service.TrainingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -77,6 +82,7 @@ public class TrainingServiceImpl implements TrainingService {
     private final EmployeeRepository employeeRepository;
     private final StoreRepository storeRepository;
     private final UserRepository userRepository;
+    private final NotificationRepository notificationRepository;
     private final NotificationService notificationService;
 
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -85,7 +91,14 @@ public class TrainingServiceImpl implements TrainingService {
 
     @Override
     public List<TrainingSkillResponse> listSkills() {
+        return listSkills(CertificateKind.STAFF);
+    }
+
+    @Override
+    public List<TrainingSkillResponse> listSkills(CertificateKind certificateKind) {
+        CertificateKind kind = certificateKind == null ? CertificateKind.STAFF : certificateKind;
         return trainingSkillRepository.findAllWithCreator().stream()
+                .filter(skill -> kindOf(skill) == kind)
                 .map(this::toSkillResponse)
                 .toList();
     }
@@ -93,6 +106,7 @@ public class TrainingServiceImpl implements TrainingService {
     @Override
     public List<TrainingSkillResponse> listActiveSkills() {
         return trainingSkillRepository.findByStatusWithCreator(TrainingSkillStatus.ACTIVE).stream()
+                .filter(skill -> kindOf(skill) == CertificateKind.STAFF)
                 .map(this::toSkillResponse)
                 .toList();
     }
@@ -111,6 +125,9 @@ public class TrainingServiceImpl implements TrainingService {
                 .description(blankToNull(request.getDescription()))
                 .requirements(blankToNull(request.getRequirements()))
                 .status(TrainingSkillStatus.ACTIVE)
+                .certificateKind(request.getCertificateKind() == null
+                        ? CertificateKind.STAFF
+                        : request.getCertificateKind())
                 .createdBy(loadUser(actor.getUserId()))
                 .build();
         return toSkillResponse(trainingSkillRepository.save(skill));
@@ -132,7 +149,9 @@ public class TrainingServiceImpl implements TrainingService {
         }
 
         skill.setSkillName(skillName);
-        skill.setDescription(blankToNull(request.getDescription()));
+        if (request.getDescription() != null) {
+            skill.setDescription(blankToNull(request.getDescription()));
+        }
         skill.setRequirements(blankToNull(request.getRequirements()));
         return toSkillResponse(skill);
     }
@@ -196,11 +215,21 @@ public class TrainingServiceImpl implements TrainingService {
     @Override
     public List<TrainingTrainerOption> listTrainerCandidates(AuthenticatedUser admin) {
         requireAdmin(admin, "Chỉ Admin mới được tạo lớp đào tạo.");
-        return userRepository.findActiveByRoleName(RoleName.MANAGER).stream()
-                .map(this::toTrainerOption)
-                .flatMap(Optional::stream)
-                .sorted(Comparator.comparing(TrainingTrainerOption::getFullName, String.CASE_INSENSITIVE_ORDER))
-                .toList();
+        List<TrainingTrainerOption> trainers = new ArrayList<>();
+        List<User> admins = userRepository.findActiveByRoleName(RoleName.ADMIN);
+        if (admins != null) {
+            admins.stream().map(this::toTrainerOption).flatMap(Optional::stream).forEach(trainers::add);
+        }
+        List<User> managers = userRepository.findActiveByRoleName(RoleName.MANAGER);
+        if (managers != null) {
+            managers.stream()
+                    .filter(this::hasManagementCertificate)
+                    .map(this::toTrainerOption)
+                    .flatMap(Optional::stream)
+                    .forEach(trainers::add);
+        }
+        trainers.sort(Comparator.comparing(TrainingTrainerOption::getFullName, String.CASE_INSENSITIVE_ORDER));
+        return trainers;
     }
 
     @Override
@@ -214,7 +243,33 @@ public class TrainingServiceImpl implements TrainingService {
         Map<Integer, List<EmployeeOpenSkill>> openSkills = openSkillsByEmployee(employees, null);
         Map<Integer, Map<Integer, SkillSnapshot>> snapshots = skillSnapshotsByEmployee(employees);
         return employees.stream()
-                .map(employee -> toEmployeeOption(employee, passedSkills, openSkills, snapshots))
+                .map(employee -> toEmployeeOption(employee, passedSkills, openSkills, snapshots, RoleName.STAFF))
+                .toList();
+    }
+
+    @Override
+    public List<TrainingEmployeeOption> listClassCandidates(AuthenticatedUser admin) {
+        requireAdmin(admin, "Chỉ Admin mới được tạo lớp đào tạo.");
+        List<Employee> employees = employeeRepository.findByStatusWithStore(EmployeeStatus.ACTIVE);
+        Set<Integer> managers = managerEmployeeIds();
+        Set<Integer> admins = new HashSet<>(userRepository.findEmployeeIdsByRoleName(RoleName.ADMIN));
+        Set<Integer> staff = new HashSet<>(userRepository.findEmployeeIdsByRoleName(RoleName.STAFF));
+        List<Employee> candidates = employees.stream()
+                .filter(employee -> admins.contains(employee.getId())
+                        || (employee.getStore() != null
+                        && employee.getStore().getId() != null
+                        && (managers.contains(employee.getId()) || staff.contains(employee.getId()))))
+                .toList();
+        Map<Integer, Set<Integer>> passedSkills = passedSkillIdsByEmployee(candidates);
+        Map<Integer, List<EmployeeOpenSkill>> openSkills = openSkillsByEmployee(candidates, null);
+        Map<Integer, Map<Integer, SkillSnapshot>> snapshots = skillSnapshotsByEmployee(candidates);
+        return candidates.stream()
+                .map(employee -> toEmployeeOption(
+                        employee,
+                        passedSkills,
+                        openSkills,
+                        snapshots,
+                        roleOfCandidate(employee.getId(), admins, managers)))
                 .toList();
     }
 
@@ -234,9 +289,11 @@ public class TrainingServiceImpl implements TrainingService {
         Integer storeId = store == null ? -1 : store.getId();
 
         LocalTime currentTime = VietnamTime.currentTime();
+        Integer learnerEmployeeId = manager.getEmployeeId() == null ? -1 : manager.getEmployeeId();
         Page<TrainingClass> result = trainingClassRepository.searchApprovedActiveForManager(
                 storeId,
                 manager.getUserId(),
+                learnerEmployeeId,
                 TrainingType.STORE_TRAINING,
                 TrainingClassStatus.APPROVED,
                 VietnamTime.today(),
@@ -250,6 +307,7 @@ public class TrainingServiceImpl implements TrainingService {
             result = trainingClassRepository.searchApprovedActiveForManager(
                     storeId,
                     manager.getUserId(),
+                    learnerEmployeeId,
                     TrainingType.STORE_TRAINING,
                     TrainingClassStatus.APPROVED,
                     VietnamTime.today(),
@@ -267,7 +325,7 @@ public class TrainingServiceImpl implements TrainingService {
         requireManager(manager);
         Store store = resolveManagerStore(manager);
         Integer storeId = store == null ? -1 : store.getId();
-        return trainingClassRepository.findEndedApprovedForManager(
+        List<TrainingClassResponse> classes = trainingClassRepository.findEndedApprovedForManager(
                         storeId,
                         manager.getUserId(),
                         TrainingType.STORE_TRAINING,
@@ -276,6 +334,7 @@ public class TrainingServiceImpl implements TrainingService {
                         VietnamTime.currentTime()).stream()
                 .map(this::toClassResponse)
                 .toList();
+        return markEvaluated(classes);
     }
 
     @Override
@@ -321,7 +380,6 @@ public class TrainingServiceImpl implements TrainingService {
                                 Integer employeeId,
                                 EvaluateTrainingStudentRequest request,
                                 AuthenticatedUser manager) {
-        requireManager(manager);
         if (request == null || request.getResult() == null) {
             throw new BusinessException("Vui lòng chọn kết quả đánh giá.");
         }
@@ -333,7 +391,9 @@ public class TrainingServiceImpl implements TrainingService {
             throw new BusinessException("Ghi chú tối đa 500 ký tự.");
         }
 
-        TrainingClass trainingClass = requireManagedApprovedClass(classId, manager);
+        TrainingClass trainingClass = manager != null && manager.getRoleName() == RoleName.ADMIN
+                ? requireTrainableClass(classId, manager)
+                : requireManagedApprovedClass(classId, manager);
         if (!isTrainer(trainingClass, manager)) {
             throw new BusinessException("Chỉ người đào tạo của lớp mới được đánh giá học viên.");
         }
@@ -345,7 +405,8 @@ public class TrainingServiceImpl implements TrainingService {
                 .findByClassAndEmployee(classId, employeeId)
                 .orElseThrow(() -> new BusinessException("Nhân viên không thuộc lớp đào tạo này."));
         Employee employee = enrollment.getEmployee();
-        if (!employeeBelongsToClass(trainingClass, employee)) {
+        if (trainingClass.getTrainingType() != TrainingType.MANAGEMENT_TRAINING
+                && !employeeBelongsToClass(trainingClass, employee)) {
             throw new BusinessException(trainingClass.getTrainingType() == TrainingType.CENTRALIZED_TRAINING
                     ? "Nhân viên không thuộc các cửa hàng của lớp đào tạo."
                     : "Nhân viên không thuộc cửa hàng của bạn.");
@@ -362,8 +423,13 @@ public class TrainingServiceImpl implements TrainingService {
         enrollment.setResult(request.getResult());
         enrollment.setEvaluationNote(note);
         enrollment.setEvaluatedAt(VietnamTime.now());
-        enrollment.setEvaluatedBy(loadUser(manager.getUserId()));
-        syncEmployeeCertificationRollup(employee, request.getResult());
+        User recorder = loadUser(manager.getUserId());
+        enrollment.setEvaluatedBy(recorder);
+        if (trainingClass.getTrainingType() == TrainingType.MANAGEMENT_TRAINING) {
+            recordManagementResult(enrollment, employee, request.getResult(), recorder);
+        } else {
+            syncEmployeeCertificationRollup(employee, request.getResult());
+        }
         notifyEvaluatedEmployee(trainingClass, employee, request.getResult(), note, alreadyEvaluated);
     }
 
@@ -394,6 +460,8 @@ public class TrainingServiceImpl implements TrainingService {
         return trainingClassEnrollmentRepository
                 .findByEmployeeAndStatusWithClass(employee.getEmployeeId(), TrainingClassStatus.APPROVED)
                 .stream()
+                .filter(enrollment -> enrollment.getTrainingClass() == null
+                        || enrollment.getTrainingClass().getTrainingType() != TrainingType.MANAGEMENT_TRAINING)
                 .map(this::toEmployeeClass)
                 .sorted(Comparator
                         .comparing(EmployeeTrainingClassResponse::isEnded)
@@ -414,6 +482,38 @@ public class TrainingServiceImpl implements TrainingService {
         if (trainingClass == null || trainingClass.getStatus() != TrainingClassStatus.APPROVED) {
             throw new BusinessException("Không tìm thấy lớp đào tạo.");
         }
+        if (trainingClass.getTrainingType() == TrainingType.MANAGEMENT_TRAINING) {
+            throw new BusinessException(ManagementTrainingRules.MANAGER_ONLY);
+        }
+        return toEmployeeClass(enrollment);
+    }
+
+    @Override
+    public List<EmployeeTrainingClassResponse> listOwnClasses(AuthenticatedUser actor) {
+        requireLeadershipLearner(actor);
+        return trainingClassEnrollmentRepository
+                .findByEmployeeAndStatusWithClass(actor.getEmployeeId(), TrainingClassStatus.APPROVED)
+                .stream()
+                .map(this::toEmployeeClass)
+                .sorted(Comparator
+                        .comparing(EmployeeTrainingClassResponse::isEnded)
+                        .thenComparing(EmployeeTrainingClassResponse::getStartDate,
+                                Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(EmployeeTrainingClassResponse::getStartTime,
+                                Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
+    }
+
+    @Override
+    public EmployeeTrainingClassResponse getOwnClass(Integer classId, AuthenticatedUser actor) {
+        requireLeadershipLearner(actor);
+        TrainingClassEnrollment enrollment = trainingClassEnrollmentRepository
+                .findOwnedByClassAndEmployee(classId, actor.getEmployeeId())
+                .orElseThrow(() -> new BusinessException("Không tìm thấy lớp đào tạo."));
+        TrainingClass trainingClass = enrollment.getTrainingClass();
+        if (trainingClass == null || trainingClass.getStatus() != TrainingClassStatus.APPROVED) {
+            throw new BusinessException("Không tìm thấy lớp đào tạo.");
+        }
         return toEmployeeClass(enrollment);
     }
 
@@ -427,6 +527,7 @@ public class TrainingServiceImpl implements TrainingService {
                         TrainingClassStatus.APPROVED,
                         VietnamTime.today())
                 .stream()
+                .filter(trainingClass -> trainingClass.getTrainingType() != TrainingType.MANAGEMENT_TRAINING)
                 .filter(trainingClass -> !hasEnded(trainingClass))
                 .count();
     }
@@ -469,20 +570,20 @@ public class TrainingServiceImpl implements TrainingService {
         requireAdmin(admin, "Chỉ Admin mới được tạo lớp đào tạo.");
         validateSchedule(request.getStartDate(), request.getEndDate(), request.getStartTime(), request.getEndTime());
         String className = requireUniqueOpenClassName(request.getClassName());
-        List<TrainingSkill> skills = optionalActiveSkills(request.getSkillIds());
+        boolean management = request.getCertificateKind() == CertificateKind.MANAGEMENT;
+        List<TrainingSkill> skills = management ? List.of() : optionalActiveSkills(request.getSkillIds());
         List<Store> stores = requireStores(request.getStoreIds());
         boolean singleStore = stores.size() == 1;
-        User trainer = requireManagerTrainer(request.getTrainerId());
-        requireTrainerAssignedToStores(trainer, stores);
-        if (trainer.getId().equals(admin.getUserId())) {
-            throw new BusinessException("Người tạo lớp và người đào tạo là hai vai trò khác nhau.");
-        }
+        User trainer = requireEligibleTrainer(request.getTrainerId(), request.getCertificateKind(), stores);
+        rejectTrainerWhoIsAlsoStudent(trainer, request.getEmployeeIds());
         ensureNoScheduleOverlap(stores.stream().map(Store::getId).toList(),
                 request.getStartDate(), request.getEndDate(), request.getStartTime(), request.getEndTime(), null);
 
         User creator = loadUser(admin.getUserId());
         TrainingClass trainingClass = TrainingClass.builder()
-                .trainingType(singleStore ? TrainingType.STORE_TRAINING : TrainingType.CENTRALIZED_TRAINING)
+                .trainingType(management
+                        ? TrainingType.MANAGEMENT_TRAINING
+                        : (singleStore ? TrainingType.STORE_TRAINING : TrainingType.CENTRALIZED_TRAINING))
                 .skills(new LinkedHashSet<>(skills))
                 .store(singleStore ? stores.get(0) : null)
                 .participatingStores(new LinkedHashSet<>(stores))
@@ -499,13 +600,132 @@ public class TrainingServiceImpl implements TrainingService {
                 .build();
 
         TrainingClass saved = trainingClassRepository.save(trainingClass);
-        int enrolled = enrollEmployees(saved, request.getEmployeeIds(), true);
+        int enrolled = management
+                ? enrollManagersForCertificate(saved, request.getEmployeeIds(), stores)
+                : enrollEmployees(saved, request.getEmployeeIds(), true);
         if (enrolled < 1) {
             throw new BusinessException("Vui lòng chọn ít nhất một nhân viên.");
         }
         TrainingClass detailed = trainingClassRepository.findByIdWithDetails(saved.getId()).orElse(saved);
         notifyAssignedTrainer(detailed, trainer);
         return toClassResponse(detailed);
+    }
+
+    @Override
+    @Transactional
+    public ManagementTrainingView createManagementClass(CreateManagementTrainingRequest request,
+                                                        AuthenticatedUser admin) {
+        requireAdmin(admin, "Chỉ Admin mới được tạo lớp chứng chỉ quản lý.");
+        validateSchedule(request.getStartDate(), request.getEndDate(), request.getStartTime(), request.getEndTime());
+        String className = requireUniqueOpenClassName(request.getClassName());
+        User creator = loadUser(admin.getUserId());
+        TrainingClass trainingClass = TrainingClass.builder()
+                .trainingType(TrainingType.MANAGEMENT_TRAINING)
+                .skills(new LinkedHashSet<>())
+                .participatingStores(new LinkedHashSet<>())
+                .className(className)
+                .trainer(creator)
+                .startDate(request.getStartDate())
+                .endDate(request.getEndDate())
+                .startTime(request.getStartTime())
+                .endTime(request.getEndTime())
+                .maxParticipants(request.getMaxParticipants())
+                .notes(blankToNull(request.getNotes()))
+                .status(TrainingClassStatus.APPROVED)
+                .createdBy(creator)
+                .build();
+        TrainingClass saved = trainingClassRepository.save(trainingClass);
+        List<Integer> ids = request.getEmployeeIds() == null ? List.of() : request.getEmployeeIds();
+        for (Integer employeeId : ids.stream().filter(Objects::nonNull).distinct().toList()) {
+            enrollManager(saved, employeeId);
+        }
+        return toManagementView(saved, null);
+    }
+
+    @Override
+    public List<ManagementTrainingView> listManagementClasses(AuthenticatedUser admin) {
+        requireAdmin(admin, "Chỉ Admin mới được xem lớp chứng chỉ quản lý.");
+        return trainingClassRepository
+                .findByTrainingTypeAndStatusOrderByStartDateDescIdDesc(
+                        TrainingType.MANAGEMENT_TRAINING, TrainingClassStatus.APPROVED)
+                .stream()
+                .map(trainingClass -> toManagementView(trainingClass, null))
+                .toList();
+    }
+
+    @Override
+    public List<ManagementTrainingView.Candidate> listManagementCandidates(AuthenticatedUser admin) {
+        requireAdmin(admin, "Chỉ Admin mới được xem danh sách Manager.");
+        return userRepository.findActiveByRoleName(RoleName.MANAGER).stream()
+                .filter(user -> user.getEmployee() != null)
+                .map(user -> {
+                    Employee employee = user.getEmployee();
+                    Store store = employee.getStore();
+                    return ManagementTrainingView.Candidate.builder()
+                            .employeeId(employee.getId())
+                            .fullName(employee.getFullName())
+                            .storeName(store == null ? null : store.getStoreName())
+                            .managementCertified(Boolean.TRUE.equals(employee.getManagementCertified()))
+                            .build();
+                })
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public void enrollManagerInManagementClass(Integer classId, Integer employeeId, AuthenticatedUser admin) {
+        requireAdmin(admin, "Chỉ Admin mới được ghi danh Manager vào lớp chứng chỉ quản lý.");
+        TrainingClass trainingClass = requireManagementClass(classId);
+        if (hasEnded(trainingClass)) {
+            throw new BusinessException("Lớp đã kết thúc nên không thể ghi danh thêm.");
+        }
+        enrollManager(trainingClass, employeeId);
+    }
+
+    @Override
+    @Transactional
+    public void enrollSelfInManagementClass(Integer classId, AuthenticatedUser manager) {
+        if (manager == null || manager.getRoleName() != RoleName.MANAGER || manager.getEmployeeId() == null) {
+            throw new BusinessException(ManagementTrainingRules.MANAGER_ONLY);
+        }
+        TrainingClass trainingClass = requireManagementClass(classId);
+        if (hasEnded(trainingClass)) {
+            throw new BusinessException("Lớp đã kết thúc nên không thể đăng ký.");
+        }
+        enrollManager(trainingClass, manager.getEmployeeId());
+    }
+
+    @Override
+    public List<ManagementTrainingView> listManagementClassesForManager(AuthenticatedUser manager) {
+        if (manager == null || manager.getRoleName() != RoleName.MANAGER || manager.getEmployeeId() == null) {
+            throw new BusinessException(ManagementTrainingRules.MANAGER_ONLY);
+        }
+        return trainingClassRepository
+                .findByTrainingTypeAndStatusOrderByStartDateDescIdDesc(
+                        TrainingType.MANAGEMENT_TRAINING, TrainingClassStatus.APPROVED)
+                .stream()
+                .map(trainingClass -> toManagementView(trainingClass, manager.getEmployeeId()))
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public void evaluateManagementStudent(Integer classId,
+                                          Integer employeeId,
+                                          EvaluateTrainingStudentRequest request,
+                                          AuthenticatedUser admin) {
+        requireAdmin(admin, "Chỉ Admin được ghi nhận kết quả chứng chỉ quản lý.");
+        if (request == null || request.getResult() == null) {
+            throw new BusinessException("Vui lòng chọn kết quả đánh giá.");
+        }
+        if (request.getResult() != TrainingResult.PASS && request.getResult() != TrainingResult.NOT_PASS) {
+            throw new BusinessException("Kết quả đánh giá chỉ được là Đạt hoặc Không đạt.");
+        }
+        String note = blankToNull(request.getNote());
+        if (note != null && note.length() > 500) {
+            throw new BusinessException("Ghi chú tối đa 500 ký tự.");
+        }
+        evaluateStudent(classId, employeeId, request, admin);
     }
 
     @Override
@@ -553,15 +773,64 @@ public class TrainingServiceImpl implements TrainingService {
         }
         List<TrainingClassEnrollment> enrollments = trainingClassEnrollmentRepository.findByClassIdWithEmployee(classId);
         return toClassResponse(trainingClass, enrollments).toBuilder()
-                .evaluable(false)
+                .evaluable(isTrainer(trainingClass, admin))
                 .build();
     }
 
     @Override
     public List<TrainingClassResponse> listAllClassesForAdmin() {
-        return trainingClassRepository.findAllWithDetails().stream()
+        List<TrainingClassResponse> classes = trainingClassRepository.findAllWithDetails().stream()
                 .map(this::toClassResponse)
                 .toList();
+        return markEvaluated(classes);
+    }
+
+    @Override
+    @Transactional
+    public void notifyEndedClasses() {
+        List<TrainingClass> classes = trainingClassRepository.findApprovedEndedSince(
+                TrainingClassStatus.APPROVED,
+                VietnamTime.today().minusDays(1),
+                VietnamTime.today(),
+                VietnamTime.currentTime());
+        if (classes == null || classes.isEmpty()) {
+            return;
+        }
+        for (TrainingClass trainingClass : classes) {
+            if (trainingClass.getId() == null
+                    || notificationRepository.existsByTypeAndReferenceTypeAndReferenceId(
+                    NotificationType.TRAINING_CLASS_ENDED, TRAINING_CLASS_REF, trainingClass.getId())) {
+                continue;
+            }
+            notifyClassEnded(trainingClass);
+        }
+    }
+
+    private void notifyClassEnded(TrainingClass trainingClass) {
+        List<Integer> employeeIds = trainingClassEnrollmentRepository.findEmployeeIdsByClassId(trainingClass.getId());
+        List<User> recipients = new ArrayList<>();
+        if (employeeIds != null && !employeeIds.isEmpty()) {
+            List<User> learners = userRepository.findByEmployeeIds(employeeIds);
+            if (learners != null) {
+                recipients.addAll(learners);
+            }
+        }
+        User trainer = trainingClass.getTrainer();
+        if (trainer != null && trainer.getId() != null
+                && recipients.stream().noneMatch(user -> trainer.getId().equals(user.getId()))) {
+            recipients.add(trainer);
+        }
+        if (recipients.isEmpty()) {
+            return;
+        }
+        String className = trainingClass.getClassName() == null ? "" : trainingClass.getClassName().trim();
+        notificationService.notifyUsers(
+                recipients,
+                "Lớp đào tạo đã kết thúc",
+                "Lớp đào tạo \"" + className + "\" đã kết thúc.",
+                NotificationType.TRAINING_CLASS_ENDED,
+                TRAINING_CLASS_REF,
+                trainingClass.getId());
     }
 
     private void validateSchedule(LocalDate startDate, LocalDate endDate, LocalTime startTime, LocalTime endTime) {
@@ -659,10 +928,13 @@ public class TrainingServiceImpl implements TrainingService {
         if (note != null && !note.isBlank()) {
             message.append(" Ghi chú: ").append(note.trim()).append(".");
         }
+        String certificateName = trainingClass.getTrainingType() == TrainingType.MANAGEMENT_TRAINING
+                ? "Chứng chỉ quản lý"
+                : "Chứng chỉ nhân viên";
         if (result == TrainingResult.PASS) {
-            message.append(" Đã cấp Chứng chỉ nhân viên.");
+            message.append(" Đã cấp ").append(certificateName).append(".");
         } else {
-            message.append(" Chưa cấp Chứng chỉ nhân viên.");
+            message.append(" Chưa cấp ").append(certificateName).append(".");
         }
         notificationService.notifyUsers(
                 List.of(account.get()),
@@ -702,7 +974,7 @@ public class TrainingServiceImpl implements TrainingService {
     }
 
     private boolean canViewClass(TrainingClass trainingClass, AuthenticatedUser manager) {
-        if (isTrainer(trainingClass, manager)) {
+        if (isTrainer(trainingClass, manager) || isEnrolledLearner(trainingClass, manager)) {
             return true;
         }
         Store store = resolveManagerStore(manager);
@@ -710,6 +982,14 @@ public class TrainingServiceImpl implements TrainingService {
                 && trainingClass.getStore() != null
                 && store != null
                 && store.getId().equals(trainingClass.getStore().getId());
+    }
+
+    private boolean isEnrolledLearner(TrainingClass trainingClass, AuthenticatedUser actor) {
+        return actor != null
+                && actor.getEmployeeId() != null
+                && trainingClass.getId() != null
+                && trainingClassEnrollmentRepository.existsByTrainingClass_IdAndEmployee_Id(
+                        trainingClass.getId(), actor.getEmployeeId());
     }
 
     private boolean isTrainer(TrainingClass trainingClass, AuthenticatedUser manager) {
@@ -724,7 +1004,7 @@ public class TrainingServiceImpl implements TrainingService {
     }
 
     private boolean isStoreTraining(TrainingClass trainingClass) {
-        return trainingClass.getTrainingType() != TrainingType.CENTRALIZED_TRAINING;
+        return trainingClass.getTrainingType() == TrainingType.STORE_TRAINING;
     }
 
     private String scheduleLabel(TrainingClass trainingClass) {
@@ -796,6 +1076,55 @@ public class TrainingServiceImpl implements TrainingService {
         return trimmed;
     }
 
+    private RoleName roleOfCandidate(Integer employeeId, Set<Integer> admins, Set<Integer> managers) {
+        if (admins.contains(employeeId)) {
+            return RoleName.ADMIN;
+        }
+        if (managers.contains(employeeId)) {
+            return RoleName.MANAGER;
+        }
+        return RoleName.STAFF;
+    }
+
+    private TrainingClass requireTrainableClass(Integer classId, AuthenticatedUser trainer) {
+        TrainingClass trainingClass = trainingClassRepository.findByIdWithDetails(classId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy lớp đào tạo."));
+        if (trainingClass.getStatus() != TrainingClassStatus.APPROVED) {
+            throw new BusinessException("Không tìm thấy lớp đào tạo.");
+        }
+        if (!isTrainer(trainingClass, trainer)) {
+            throw new BusinessException("Chỉ người đào tạo của lớp mới được đánh giá học viên.");
+        }
+        return trainingClass;
+    }
+
+    private void recordManagementResult(TrainingClassEnrollment enrollment,
+                                        Employee employee,
+                                        TrainingResult result,
+                                        User recorder) {
+        User account = employee == null ? null : userRepository.findByEmployee_Id(employee.getId()).orElse(null);
+        RoleName currentRole = account == null || account.getRole() == null
+                ? null
+                : account.getRole().getRoleName();
+        if (currentRole != RoleName.MANAGER && currentRole != RoleName.ADMIN) {
+            throw new BusinessException(ManagementTrainingRules.MANAGER_ONLY);
+        }
+        boolean anotherPass = trainingClassEnrollmentRepository.countOtherResults(
+                employee.getId(),
+                TrainingType.MANAGEMENT_TRAINING,
+                TrainingResult.PASS,
+                enrollment.getId()) > 0;
+        ManagementTrainingRules.applyEvaluation(employee, currentRole, result, recorder, anotherPass);
+    }
+
+    private void requireLeadershipLearner(AuthenticatedUser actor) {
+        if (actor == null
+                || actor.getEmployeeId() == null
+                || (actor.getRoleName() != RoleName.ADMIN && actor.getRoleName() != RoleName.MANAGER)) {
+            throw new BusinessException("Chỉ Admin hoặc Manager mới được xem lớp đào tạo của mình.");
+        }
+    }
+
     private void requireEmployee(AuthenticatedUser actor) {
         if (actor == null || actor.getRoleName() != RoleName.STAFF || actor.getEmployeeId() == null) {
             throw new BusinessException("Chỉ nhân viên mới được xem lớp đào tạo của mình.");
@@ -839,7 +1168,7 @@ public class TrainingServiceImpl implements TrainingService {
         return EmployeeTrainingClassResponse.builder()
                 .id(trainingClass.getId())
                 .className(trainingClass.getClassName())
-                .skillName(skillLabel(trainingClass))
+                .skillName(certificateSkillLabel(trainingClass))
                 .storeName(storeLabel(trainingClass))
                 .startDate(trainingClass.getStartDate())
                 .endDate(trainingClass.getEndDate())
@@ -847,7 +1176,7 @@ public class TrainingServiceImpl implements TrainingService {
                 .endTime(trainingClass.getEndTime())
                 .trainer(userDisplayName(trainingClass.getTrainer()))
                 .supervisorName(userDisplayName(trainingClass.getCreatedBy()))
-                .location(trainingClass.getLocation())
+                .location(trainerPlace(trainingClass))
                 .notes(trainingClass.getNotes())
                 .dateLabel(trainingDateLabel(trainingClass))
                 .placeLabel(placeLabel(trainingClass))
@@ -896,6 +1225,119 @@ public class TrainingServiceImpl implements TrainingService {
         return location + " · " + store;
     }
 
+    private CertificateKind kindOf(TrainingSkill skill) {
+        return skill == null || skill.getCertificateKind() == null
+                ? CertificateKind.STAFF
+                : skill.getCertificateKind();
+    }
+
+    private int enrollManagersForCertificate(TrainingClass trainingClass,
+                                             List<Integer> employeeIds,
+                                             List<Store> stores) {
+        List<Integer> ids = employeeIds == null
+                ? List.of()
+                : employeeIds.stream().filter(Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) {
+            throw new BusinessException("Vui lòng chọn ít nhất một Admin hoặc Manager.");
+        }
+        Set<Integer> storeIds = stores.stream().map(Store::getId).collect(Collectors.toSet());
+        Set<Integer> admins = new HashSet<>(userRepository.findEmployeeIdsByRoleName(RoleName.ADMIN));
+        for (Integer employeeId : ids) {
+            Employee employee = employeeRepository.findByIdWithStore(employeeId)
+                    .orElseThrow(() -> new BusinessException("Không tìm thấy nhân viên."));
+            boolean adminAccount = admins.contains(employeeId);
+            if (!adminAccount && (employee.getStore() == null || !storeIds.contains(employee.getStore().getId()))) {
+                throw new BusinessException("Chỉ được chọn Manager thuộc các cửa hàng đã chọn.");
+            }
+            enrollManager(trainingClass, employeeId);
+        }
+        return ids.size();
+    }
+
+    private TrainingClass requireManagementClass(Integer classId) {
+        TrainingClass trainingClass = trainingClassRepository.findById(classId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy lớp đào tạo."));
+        if (trainingClass.getTrainingType() != TrainingType.MANAGEMENT_TRAINING
+                || trainingClass.getStatus() != TrainingClassStatus.APPROVED) {
+            throw new BusinessException("Không tìm thấy lớp chứng chỉ quản lý.");
+        }
+        return trainingClass;
+    }
+
+    private void enrollManager(TrainingClass trainingClass, Integer employeeId) {
+        if (employeeId == null) {
+            throw new BusinessException("Không tìm thấy nhân viên.");
+        }
+        Employee employee = employeeRepository.findByIdWithStore(employeeId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy nhân viên."));
+        User account = userRepository.findByEmployee_Id(employeeId).orElse(null);
+        ManagementTrainingRules.requireManagerAccount(account);
+        if (employee.getStatus() != EmployeeStatus.ACTIVE) {
+            throw new BusinessException("Chỉ được ghi danh Admin hoặc Manager đang làm việc.");
+        }
+        Integer maxParticipants = trainingClass.getMaxParticipants();
+        if (maxParticipants != null && trainingClass.getId() != null) {
+            long currentCount = trainingClassEnrollmentRepository.countByTrainingClass_Id(trainingClass.getId());
+            if (currentCount + 1 > maxParticipants) {
+                throw new BusinessException("Số học viên vượt quá sĩ số tối đa của lớp.");
+            }
+        }
+        if (trainingClass.getId() != null
+                && trainingClassEnrollmentRepository.existsByTrainingClass_IdAndEmployee_Id(
+                trainingClass.getId(), employeeId)) {
+            throw new BusinessException("Nhân viên " + employee.getFullName() + " đã được ghi danh vào lớp này.");
+        }
+        trainingClassEnrollmentRepository.save(TrainingClassEnrollment.builder()
+                .trainingClass(trainingClass)
+                .employee(employee)
+                .build());
+        if (account != null && account.getId() != null) {
+            notifyEnrolledEmployees(trainingClass, List.of(account));
+        }
+    }
+
+    private ManagementTrainingView toManagementView(TrainingClass trainingClass, Integer viewerEmployeeId) {
+        List<TrainingClassEnrollment> enrollments = trainingClass.getId() == null
+                ? List.of()
+                : trainingClassEnrollmentRepository.findByClassIdWithEmployee(trainingClass.getId());
+        TrainingClassEnrollment own = viewerEmployeeId == null
+                ? null
+                : enrollments.stream()
+                .filter(enrollment -> enrollment.getEmployee() != null
+                        && viewerEmployeeId.equals(enrollment.getEmployee().getId()))
+                .findFirst()
+                .orElse(null);
+        List<ManagementTrainingView.EnrollmentLine> lines = enrollments.stream()
+                .map(enrollment -> {
+                    Employee employee = enrollment.getEmployee();
+                    Store store = employee == null ? null : employee.getStore();
+                    return ManagementTrainingView.EnrollmentLine.builder()
+                            .employeeId(employee == null ? null : employee.getId())
+                            .fullName(employee == null ? null : employee.getFullName())
+                            .storeName(store == null ? null : store.getStoreName())
+                            .resultLabel(enrollment.getResult() == null ? "Chưa đánh giá" : enrollment.getResult().getLabel())
+                            .evaluatedAt(enrollment.getEvaluatedAt())
+                            .evaluatedBy(userDisplayName(enrollment.getEvaluatedBy()))
+                            .build();
+                })
+                .toList();
+        return ManagementTrainingView.builder()
+                .id(trainingClass.getId())
+                .className(trainingClass.getClassName())
+                .startDate(trainingClass.getStartDate())
+                .endDate(trainingClass.getEndDate())
+                .startTime(trainingClass.getStartTime())
+                .endTime(trainingClass.getEndTime())
+                .notes(trainingClass.getNotes())
+                .ended(hasEnded(trainingClass))
+                .enrolled(own != null)
+                .resultLabel(own == null || own.getResult() == null
+                        ? null
+                        : own.getResult().getLabel())
+                .enrollments(lines)
+                .build();
+    }
+
     private void requireManager(AuthenticatedUser actor) {
         if (actor == null || actor.getRoleName() != RoleName.MANAGER) {
             throw new BusinessException("Chỉ Manager mới được thực hiện thao tác này.");
@@ -920,6 +1362,9 @@ public class TrainingServiceImpl implements TrainingService {
     }
 
     private int enrollEmployees(TrainingClass trainingClass, List<Integer> employeeIds, boolean requireAtLeastOne) {
+        if (trainingClass.getTrainingType() == TrainingType.MANAGEMENT_TRAINING) {
+            throw new BusinessException("Lớp chứng chỉ quản lý không nhận nhân viên thường.");
+        }
         List<Integer> ids = employeeIds == null
                 ? List.of()
                 : employeeIds.stream().filter(Objects::nonNull).distinct().toList();
@@ -1069,30 +1514,135 @@ public class TrainingServiceImpl implements TrainingService {
         return stores;
     }
 
-    private User requireManagerTrainer(Integer trainerId) {
+    private static final String MANAGEMENT_TRAINER =
+            "Người đào tạo phải là Admin hoặc Manager đã có chứng chỉ quản lý.";
+    private static final String STORE_TRAINER_MISSING =
+            "Cơ sở được chọn chưa có Manager sở hữu chứng chỉ quản lý hợp lệ để phụ trách lớp đào tạo.";
+    private static final String STORE_TRAINER_MISMATCH =
+            "Người đào tạo phải là Manager đang phụ trách cửa hàng được chọn và đã có chứng chỉ quản lý.";
+    private static final String MULTI_STORE_TRAINER =
+            "Người đào tạo phải là Manager có chứng chỉ quản lý hợp lệ thuộc các cửa hàng đã chọn.";
+    private static final String TRAINER_ALSO_STUDENT =
+            "Một nhân viên không được đồng thời là học viên và người đào tạo trong cùng một lớp.";
+
+    private User requireEligibleTrainer(Integer trainerId, CertificateKind certificateKind, List<Store> stores) {
         if (trainerId == null) {
             throw new BusinessException("Vui lòng chọn người đào tạo.");
         }
         User trainer = userRepository.findByIdWithRole(trainerId)
                 .orElseThrow(() -> new BusinessException("Không tìm thấy người đào tạo."));
-        if (!Boolean.TRUE.equals(trainer.getIsActive())
-                || trainer.getRole() == null
-                || trainer.getRole().getRoleName() != RoleName.MANAGER) {
-            throw new BusinessException("Người đào tạo phải là Manager đang hoạt động.");
+        if (certificateKind == CertificateKind.MANAGEMENT) {
+            return requireManagementTrainer(trainer);
+        }
+        if (stores == null || stores.size() <= 1) {
+            Store store = stores == null || stores.isEmpty() ? null : stores.get(0);
+            return requireSingleStoreStaffTrainer(store, trainer);
+        }
+        return requireMultiStoreStaffTrainer(stores, trainer);
+    }
+
+    private void rejectTrainerWhoIsAlsoStudent(User trainer, List<Integer> employeeIds) {
+        if (trainer == null || trainer.getEmployee() == null || trainer.getEmployee().getId() == null
+                || employeeIds == null) {
+            return;
+        }
+        Integer trainerEmployeeId = trainer.getEmployee().getId();
+        boolean alsoStudent = employeeIds.stream()
+                .filter(Objects::nonNull)
+                .anyMatch(trainerEmployeeId::equals);
+        if (alsoStudent) {
+            throw new BusinessException(TRAINER_ALSO_STUDENT);
+        }
+    }
+
+    private User requireManagementTrainer(User trainer) {
+        if (!Boolean.TRUE.equals(trainer.getIsActive()) || trainer.getRole() == null) {
+            throw new BusinessException(MANAGEMENT_TRAINER);
+        }
+        RoleName role = trainer.getRole().getRoleName();
+        boolean allowed = role == RoleName.ADMIN
+                || (role == RoleName.MANAGER && hasManagementCertificate(trainer));
+        if (!allowed) {
+            throw new BusinessException(MANAGEMENT_TRAINER);
         }
         return trainer;
     }
 
+    private User requireSingleStoreStaffTrainer(Store store, User trainer) {
+        Employee assigned = store == null ? null : store.getManager();
+        boolean chosenIsAssigned = assigned != null
+                && assigned.getId() != null
+                && trainer.getEmployee() != null
+                && assigned.getId().equals(trainer.getEmployee().getId());
+        if (chosenIsAssigned && isActiveCertifiedManager(trainer)) {
+            return trainer;
+        }
+        if (!storeHasCertifiedManager(store, chosenIsAssigned ? trainer : null)) {
+            throw new BusinessException(STORE_TRAINER_MISSING);
+        }
+        throw new BusinessException(STORE_TRAINER_MISMATCH);
+    }
+
+    private boolean storeHasCertifiedManager(Store store, User alreadyLoaded) {
+        Employee assigned = store == null ? null : store.getManager();
+        if (assigned == null || assigned.getId() == null) {
+            return false;
+        }
+        if (alreadyLoaded != null
+                && alreadyLoaded.getEmployee() != null
+                && assigned.getId().equals(alreadyLoaded.getEmployee().getId())) {
+            return isActiveCertifiedManager(alreadyLoaded);
+        }
+        return isActiveCertifiedManager(userRepository.findByEmployee_Id(assigned.getId()).orElse(null));
+    }
+
+    private User requireMultiStoreStaffTrainer(List<Store> stores, User trainer) {
+        if (!isActiveCertifiedManager(trainer)) {
+            throw new BusinessException(MULTI_STORE_TRAINER);
+        }
+        Store managed = currentManagedStore(trainer);
+        boolean inScope = managed != null
+                && managed.getId() != null
+                && stores.stream().anyMatch(store -> managed.getId().equals(store.getId()));
+        if (!inScope) {
+            throw new BusinessException(MULTI_STORE_TRAINER);
+        }
+        return trainer;
+    }
+
+    private boolean isActiveCertifiedManager(User user) {
+        return user != null
+                && Boolean.TRUE.equals(user.getIsActive())
+                && user.getRole() != null
+                && user.getRole().getRoleName() == RoleName.MANAGER
+                && hasManagementCertificate(user);
+    }
+
+    private boolean hasManagementCertificate(User user) {
+        return user != null
+                && user.getEmployee() != null
+                && Boolean.TRUE.equals(user.getEmployee().getManagementCertified());
+    }
+
     private Optional<TrainingTrainerOption> toTrainerOption(User user) {
-        Store managedStore = currentManagedStore(user);
-        if (managedStore == null) {
+        if (user == null || user.getRole() == null) {
             return Optional.empty();
         }
+        Store managedStore = currentManagedStore(user);
+        Store store = managedStore != null
+                ? managedStore
+                : (user.getEmployee() == null ? null : user.getEmployee().getStore());
+        String roleLabel = user.getRole().getRoleName() == RoleName.ADMIN ? "Admin" : "Manager";
+        String fullName = userDisplayName(user);
         return Optional.of(TrainingTrainerOption.builder()
                 .userId(user.getId())
-                .fullName(userDisplayName(user))
-                .storeId(managedStore.getId())
-                .storeName(managedStore.getStoreName())
+                .employeeId(user.getEmployee() == null ? null : user.getEmployee().getId())
+                .roleName(user.getRole().getRoleName())
+                .fullName(store != null && store.getStoreName() != null
+                        ? fullName + " · " + roleLabel + " · " + store.getStoreName()
+                        : fullName + " · " + roleLabel)
+                .storeId(store == null ? null : store.getId())
+                .storeName(store == null ? null : store.getStoreName())
                 .build());
     }
 
@@ -1105,17 +1655,6 @@ public class TrainingServiceImpl implements TrainingService {
             return null;
         }
         return storeRepository.findByManager_Id(user.getEmployee().getId()).orElse(null);
-    }
-
-    private void requireTrainerAssignedToStores(User trainer, List<Store> stores) {
-        Store managedStore = currentManagedStore(trainer);
-        boolean assigned = managedStore != null
-                && stores.stream().anyMatch(store -> managedStore.getId().equals(store.getId()));
-        if (!assigned) {
-            throw new BusinessException(stores.size() <= 1
-                    ? "Người đào tạo phải là Manager đang được phân công quản lý cơ sở đã chọn."
-                    : "Người đào tạo phải là Manager của một trong các cơ sở đã chọn.");
-        }
     }
 
     private String requireUniqueOpenClassName(String className) {
@@ -1141,9 +1680,70 @@ public class TrainingServiceImpl implements TrainingService {
                 .toList();
     }
 
-    private String skillLabel(TrainingClass trainingClass) {
-        List<String> names = skillNames(trainingClass);
-        return names.isEmpty() ? null : String.join(", ", names);
+    private String certificateSkillLabel(TrainingClass trainingClass) {
+        CertificateKind kind = trainingClass.getTrainingType() == TrainingType.MANAGEMENT_TRAINING
+                ? CertificateKind.MANAGEMENT
+                : CertificateKind.STAFF;
+        List<TrainingSkill> skills = trainingSkillRepository.findByStatusWithCreator(TrainingSkillStatus.ACTIVE);
+        if (skills == null) {
+            skills = List.of();
+        }
+        String names = skills.stream()
+                .filter(skill -> kindOf(skill) == kind)
+                .map(TrainingSkill::getSkillName)
+                .filter(name -> name != null && !name.isBlank())
+                .distinct()
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .collect(Collectors.joining(", "));
+        return names.isBlank() ? kind.getLabel() : names;
+    }
+
+    private String trainerPlace(TrainingClass trainingClass) {
+        User trainer = trainingClass.getTrainer();
+        if (trainer != null && trainer.getEmployee() != null && trainer.getEmployee().getId() != null) {
+            Optional<Store> managed = storeRepository.findByManager_Id(trainer.getEmployee().getId());
+            if (managed != null && managed.isPresent()
+                    && managed.get().getStoreName() != null
+                    && !managed.get().getStoreName().isBlank()) {
+                return managed.get().getStoreName();
+            }
+            if (trainer.getEmployee().getStore() != null
+                    && trainer.getEmployee().getStore().getStoreName() != null
+                    && !trainer.getEmployee().getStore().getStoreName().isBlank()) {
+                return trainer.getEmployee().getStore().getStoreName();
+            }
+        }
+        return blankToNull(trainingClass.getLocation());
+    }
+
+    private List<TrainingClassResponse> markEvaluated(List<TrainingClassResponse> classes) {
+        if (classes == null || classes.isEmpty()) {
+            return classes == null ? List.of() : classes;
+        }
+        List<Integer> ids = classes.stream().map(TrainingClassResponse::getId).filter(Objects::nonNull).toList();
+        if (ids.isEmpty()) {
+            return classes;
+        }
+        List<Object[]> rows = trainingClassEnrollmentRepository.findResultsByClassIds(ids);
+        Map<Integer, List<TrainingResult>> byClass = new HashMap<>();
+        if (rows != null) {
+            for (Object[] row : rows) {
+                if (row == null || row.length < 2 || !(row[0] instanceof Integer classId)) {
+                    continue;
+                }
+                TrainingResult result = row[1] instanceof TrainingResult value ? value : null;
+                byClass.computeIfAbsent(classId, key -> new ArrayList<>()).add(result);
+            }
+        }
+        return classes.stream()
+                .map(item -> item.toBuilder()
+                        .evaluated(fullyEvaluated(byClass.get(item.getId())))
+                        .build())
+                .toList();
+    }
+
+    private boolean fullyEvaluated(List<TrainingResult> results) {
+        return results != null && !results.isEmpty() && results.stream().allMatch(Objects::nonNull);
     }
 
     private String storeLabel(TrainingClass trainingClass) {
@@ -1179,6 +1779,7 @@ public class TrainingServiceImpl implements TrainingService {
                 .description(skill.getDescription())
                 .requirements(skill.getRequirements())
                 .status(skill.getStatus())
+                .certificateKind(kindOf(skill))
                 .createdByName(createdByName)
                 .createdAt(skill.getCreatedAt())
                 .build();
@@ -1192,6 +1793,7 @@ public class TrainingServiceImpl implements TrainingService {
         TrainingSkill firstSkill = trainingClass.getSkills() == null || trainingClass.getSkills().isEmpty()
                 ? null
                 : trainingClass.getSkills().iterator().next();
+        String skills = certificateSkillLabel(trainingClass);
         return TrainingClassResponse.builder()
                 .id(trainingClass.getId())
                 .trainingType(trainingClass.getTrainingType())
@@ -1199,7 +1801,7 @@ public class TrainingServiceImpl implements TrainingService {
                         ? null
                         : trainingClass.getTrainingType().getLabel())
                 .skillId(firstSkill != null ? firstSkill.getId() : null)
-                .skillName(skillLabel(trainingClass))
+                .skillName(skills)
                 .storeId(trainingClass.getStore() != null ? trainingClass.getStore().getId() : null)
                 .storeName(storeLabel(trainingClass))
                 .className(trainingClass.getClassName())
@@ -1209,7 +1811,7 @@ public class TrainingServiceImpl implements TrainingService {
                 .endDate(trainingClass.getEndDate())
                 .startTime(trainingClass.getStartTime())
                 .endTime(trainingClass.getEndTime())
-                .location(trainingClass.getLocation())
+                .location(trainerPlace(trainingClass))
                 .maxParticipants(trainingClass.getMaxParticipants())
                 .notes(trainingClass.getNotes())
                 .status(trainingClass.getStatus())
@@ -1251,7 +1853,9 @@ public class TrainingServiceImpl implements TrainingService {
                             .result(enrollment.getResult())
                             .resultLabel(enrollment.getResult() == null ? "Chưa đánh giá" : enrollment.getResult().getLabel())
                             .skillStatuses(lines)
-                            .certificationLabel(employeeCertificateLabel(employee))
+                            .certificationLabel(trainingClass.getTrainingType() == TrainingType.MANAGEMENT_TRAINING
+                                    ? managementCertificateLabel(employee)
+                                    : employeeCertificateLabel(employee))
                             .evaluationNote(enrollment.getEvaluationNote())
                             .build();
                 })
@@ -1261,15 +1865,19 @@ public class TrainingServiceImpl implements TrainingService {
     private TrainingEmployeeOption toEmployeeOption(Employee employee,
                                                     Map<Integer, Set<Integer>> passedSkills,
                                                     Map<Integer, List<EmployeeOpenSkill>> openSkills,
-                                                    Map<Integer, Map<Integer, SkillSnapshot>> snapshots) {
+                                                    Map<Integer, Map<Integer, SkillSnapshot>> snapshots,
+                                                    RoleName roleName) {
         List<Integer> certifiedSkillIds = certifiedSkillIdsFor(employee.getId(), passedSkills);
         List<Integer> studyingSkillIds = studyingSkillIdsFor(employee.getId(), openSkills);
         return TrainingEmployeeOption.builder()
                 .employeeId(employee.getId())
                 .fullName(employee.getFullName())
                 .email(employee.getEmail())
-                .storeId(employee.getStore().getId())
-                .storeName(employee.getStore().getStoreName())
+                .storeId(employee.getStore() == null ? null : employee.getStore().getId())
+                .storeName(employee.getStore() == null ? null : employee.getStore().getStoreName())
+                .roleName(roleName)
+                .hasCertificate(Boolean.TRUE.equals(employee.getHasCertificate()))
+                .managementCertified(Boolean.TRUE.equals(employee.getManagementCertified()))
                 .certifiedSkillIds(certifiedSkillIds)
                 .studyingSkillIds(studyingSkillIds)
                 .skillStatuses(historyLines(
@@ -1377,6 +1985,16 @@ public class TrainingServiceImpl implements TrainingService {
                 .map(TrainingSkill::getId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
+    }
+
+    private String managementCertificateLabel(Employee employee) {
+        if (employee != null && Boolean.TRUE.equals(employee.getManagementCertified())) {
+            if (employee.getManagementCertifiedAt() == null) {
+                return "Đã có Chứng chỉ quản lý";
+            }
+            return "Đã có Chứng chỉ quản lý · " + employee.getManagementCertifiedAt().format(DATE_FORMAT);
+        }
+        return "Chưa có Chứng chỉ quản lý";
     }
 
     private String employeeCertificateLabel(Employee employee) {

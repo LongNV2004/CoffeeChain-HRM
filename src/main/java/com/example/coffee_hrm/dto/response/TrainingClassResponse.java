@@ -29,6 +29,7 @@ public class TrainingClassResponse {
     private Integer trainerUserId;
     private String trainer;
     private boolean evaluable;
+    private boolean evaluated;
     private LocalDate startDate;
     private LocalDate endDate;
     private LocalTime startTime;

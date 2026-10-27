@@ -40,6 +40,11 @@ public class SecurityConfig {
     }
 
     @Bean
+    public ManagerCertificateFilter managerCertificateFilter(ObjectProvider<UserRepository> userRepositories) {
+        return new ManagerCertificateFilter(userRepositories);
+    }
+
+    @Bean
     public EmploymentAccessFilter employmentAccessFilter(ObjectProvider<UserRepository> userRepositories) {
         return new EmploymentAccessFilter(userRepositories);
     }
@@ -75,7 +80,8 @@ public class SecurityConfig {
             CoffeeRememberMeServices rememberMeServices,
             SecurityContextRepository securityContextRepository,
             AccessDeniedHandler accessDeniedHandler,
-            EmploymentAccessFilter employmentAccessFilter)
+            EmploymentAccessFilter employmentAccessFilter,
+            ManagerCertificateFilter managerCertificateFilter)
             throws Exception {
 
         http.securityContext(context -> context.securityContextRepository(securityContextRepository))
@@ -145,6 +151,7 @@ public class SecurityConfig {
                                         .accessDeniedHandler(accessDeniedHandler));
 
         http.addFilterAfter(employmentAccessFilter, RememberMeAuthenticationFilter.class);
+        http.addFilterAfter(managerCertificateFilter, EmploymentAccessFilter.class);
 
         return http.build();
     }

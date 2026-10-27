@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chứng chỉ quản lý — CoffeeHRM</title>
+    <link rel="stylesheet" th:href="@{/css/ManagerDashboard.css}">
+    <link rel="stylesheet" th:href="@{/css/Training.css}">
+</head>
+<body>
+<header th:replace="~{fragments/navbar :: manager('management-training')}"></header>
+<main class="wrap dash-main">
+    <section class="welcome">
+        <h1>Chứng chỉ quản lý</h1>
+        <p th:text="${requiredMessage}">Bạn cần hoàn thành đào tạo và đạt Chứng chỉ quản lý để sử dụng chức năng này.</p>
+    </section>
+    <p class="flash success" th:if="${successMessage}" th:text="${successMessage}"></p>
+    <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}"></p>
+    <section class="panel" th:if="${#lists.isEmpty(classes)}">
+        <p>Chưa có lớp chứng chỉ quản lý. Admin sẽ tạo lớp và có thể ghi danh giúp bạn.</p>
+    </section>
+    <section class="panel" th:each="item : ${classes}">
+        <h2 th:text="${item.className}">Lớp</h2>
+        <p>
+            <span th:text="${#temporals.format(item.startDate, 'dd/MM/yyyy')}">01/01/2026</span>
+            –
+            <span th:text="${#temporals.format(item.endDate, 'dd/MM/yyyy')}">02/01/2026</span>
+            ·
+            <span th:text="${item.ended ? 'Đã kết thúc' : 'Đang mở'}">Đang mở</span>
+        </p>
+        <p th:if="${item.enrolled}">Trạng thái: <span th:text="${item.resultLabel != null ? item.resultLabel : 'Đã ghi danh, chưa có kết quả'}">Đã ghi danh</span></p>
+        <form th:if="${!item.enrolled and !item.ended}" method="post" th:action="@{/training/management/{id}/enroll(id=${item.id})}">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <button class="primary-btn" type="submit">Đăng ký học</button>
+        </form>
+        <p th:if="${item.ended and item.resultLabel == 'Không đạt'}">Bạn chưa đạt. Có thể đăng ký lớp khác khi Admin mở lớp mới.</p>
+    </section>
+</main>
+</body>
+</html>

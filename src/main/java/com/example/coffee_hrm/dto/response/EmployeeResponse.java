@@ -38,6 +38,8 @@ public class EmployeeResponse {
     /** Null khi chưa có tài khoản. Không bao gồm mật khẩu hay dữ liệu xác thực. */
     private Boolean accountActive;
     private boolean hasCertificate;
+    /** Chứng chỉ quản lý hợp lệ. Không thay thế chứng chỉ nhân viên. */
+    private boolean managementCertified;
     /** Nhân viên đang được gắn làm Manager của chính cửa hàng mình (Stores.ManagerId). */
     private boolean storeManager;
 }

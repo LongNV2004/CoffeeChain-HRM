@@ -13,6 +13,9 @@
 <header th:replace="~{fragments/navbar :: manager('dashboard')}"></header>
 
 <main class="wrap dash-main manager-home">
+    <p class="flash error" th:if="${managerOperationsAllowed == false}"
+       style="margin: 0 0 16px;">Bạn cần hoàn thành đào tạo và đạt Chứng chỉ quản lý để sử dụng chức năng này.
+        Hiện bạn chỉ xem được <a th:href="@{/training}">lớp đang hoạt động</a>.</p>
     <header class="mgr-page-head">
         <div>
             <h1>Tổng quan cửa hàng</h1>

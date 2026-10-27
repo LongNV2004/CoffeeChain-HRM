@@ -48,6 +48,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -120,6 +121,7 @@ class EmployeeServiceImplTest {
         verify(userRepository, never()).save(any());
         verify(employeeRepository, never()).save(any());
         verify(storeRepository, never()).save(any());
+        assertNotEquals(Boolean.TRUE, staffEmployee.getManagementCertified());
     }
 
     @Test
@@ -141,6 +143,41 @@ class EmployeeServiceImplTest {
         assertNull(storeA.getManager());
         assertEquals(RoleName.STAFF, result.getRoleName());
         assertFalse(result.isStoreManager());
+    }
+
+    @Test
+    void demotionKeepsManagementCertificateAndDoesNotDeleteTheEmployee() {
+        staffUser.setRole(managerRole);
+        storeA.setManager(staffEmployee);
+        staffEmployee.setManagementCertified(true);
+        staffEmployee.setHasCertificate(true);
+        when(storeRepository.findAllByManager_Id(10)).thenReturn(List.of(storeA));
+
+        employeeService.changeEmployeeRole(admin, 1, 10, "STAFF");
+
+        assertSame(staffRole, staffUser.getRole());
+        assertEquals(Boolean.TRUE, staffEmployee.getManagementCertified());
+        assertEquals(Boolean.TRUE, staffEmployee.getHasCertificate());
+        assertEquals(10, staffEmployee.getId());
+        verify(employeeRepository, never()).delete(any());
+    }
+
+    @Test
+    void secondAppointmentAfterTheFirstCannotCreateAnotherManagerForTheSameStore() {
+        Employee other = employee(12, storeA, EmployeeStatus.ACTIVE);
+        User otherUser = User.builder().id(120).username("other").passwordHash("x").role(staffRole)
+                .employee(other).isActive(true).build();
+        when(employeeRepository.findById(12)).thenReturn(Optional.of(other));
+        when(userRepository.findByEmployee_Id(12)).thenReturn(Optional.of(otherUser));
+        when(storeRepository.findAllByManager_Id(12)).thenReturn(List.of());
+
+        employeeService.changeEmployeeRole(admin, 1, 10, "MANAGER");
+
+        assertMessage(EmployeeServiceImpl.STORE_ALREADY_HAS_MANAGER,
+                () -> employeeService.changeEmployeeRole(admin, 1, 12, "MANAGER"));
+        assertSame(staffEmployee, storeA.getManager());
+        assertSame(staffRole, otherUser.getRole());
+        verify(storeRepository, org.mockito.Mockito.times(2)).findByIdForUpdate(1);
     }
 
     @Test

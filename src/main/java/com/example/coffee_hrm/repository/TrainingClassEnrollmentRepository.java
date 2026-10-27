@@ -2,6 +2,7 @@ package com.example.coffee_hrm.repository;
 
 import com.example.coffee_hrm.common.enums.TrainingClassStatus;
 import com.example.coffee_hrm.common.enums.TrainingResult;
+import com.example.coffee_hrm.common.enums.TrainingType;
 import com.example.coffee_hrm.entity.TrainingClass;
 import com.example.coffee_hrm.entity.TrainingClassEnrollment;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -36,6 +37,13 @@ public interface TrainingClassEnrollmentRepository extends JpaRepository<Trainin
 
     @Query("SELECT e.employee.id FROM TrainingClassEnrollment e WHERE e.trainingClass.id = :classId")
     List<Integer> findEmployeeIdsByClassId(@Param("classId") Integer classId);
+
+    @Query("""
+            SELECT e.trainingClass.id, e.result
+            FROM TrainingClassEnrollment e
+            WHERE e.trainingClass.id IN :classIds
+            """)
+    List<Object[]> findResultsByClassIds(@Param("classIds") Collection<Integer> classIds);
 
     boolean existsByTrainingClass_IdAndEmployee_Id(Integer classId, Integer employeeId);
 
@@ -147,4 +155,16 @@ public interface TrainingClassEnrollmentRepository extends JpaRepository<Trainin
             """)
     List<EmployeeSkillTrainingFact> findSkillTrainingFacts(@Param("employeeIds") Collection<Integer> employeeIds,
                                                            @Param("rejectedStatus") TrainingClassStatus rejectedStatus);
+
+    @Query("""
+            SELECT COUNT(e) FROM TrainingClassEnrollment e
+            WHERE e.employee.id = :employeeId
+              AND e.trainingClass.trainingType = :trainingType
+              AND e.result = :result
+              AND e.id <> :excludedEnrollmentId
+            """)
+    long countOtherResults(@Param("employeeId") Integer employeeId,
+                           @Param("trainingType") TrainingType trainingType,
+                           @Param("result") TrainingResult result,
+                           @Param("excludedEnrollmentId") Integer excludedEnrollmentId);
 }

@@ -18,7 +18,10 @@ document.addEventListener('DOMContentLoaded', function () {
     var id = row.getAttribute('data-id');
     form.action = context + '/admin/training/skills/' + id;
     form.querySelector('[name="skillName"]').value = row.getAttribute('data-name') || '';
-    form.querySelector('[name="description"]').value = row.getAttribute('data-description') || '';
+    var description = form.querySelector('[name="description"]');
+    if (description) {
+      description.value = row.getAttribute('data-description') || '';
+    }
     form.querySelector('[name="requirements"]').value = row.getAttribute('data-requirements') || '';
     form.classList.remove('hidden');
     form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -98,7 +101,13 @@ document.addEventListener('DOMContentLoaded', function () {
         showClassError('Giờ bắt đầu phải nhỏ hơn giờ kết thúc.');
         return;
       }
-      if (!classForm.querySelector('input[name="skillIds"]:checked')) {
+      var certificate = classForm.querySelector('[name="certificateKind"]');
+      if (certificate && !certificate.value) {
+        event.preventDefault();
+        showClassError('Vui lòng chọn chứng chỉ.');
+        return;
+      }
+      if (!certificate && !classForm.querySelector('input[name="skillIds"]:checked')) {
         event.preventDefault();
         showClassError('Vui lòng chọn ít nhất một kỹ năng đào tạo.');
         return;
@@ -233,13 +242,26 @@ function initMultiSelects() {
         }
         if (input.classList.contains('store-choice') || input.name === 'skillIds') {
           syncEmployeeEligibility();
+          syncTrainerOptions();
         }
       });
     });
     refreshBox(box);
   });
 
+  var certificate = document.querySelector('[name="certificateKind"]');
+  if (certificate) {
+    certificate.addEventListener('change', function () {
+      syncEmployeeEligibility();
+      syncTrainerOptions();
+    });
+  }
+
   syncEmployeeEligibility(refreshBox);
+  syncTrainerOptions();
+  document.querySelectorAll('input[name="employeeIds"]').forEach(function (input) {
+    input.addEventListener('change', syncTrainerOptions);
+  });
 
   document.addEventListener('click', closeAll);
   document.addEventListener('keydown', function (event) {
@@ -256,6 +278,81 @@ function skillIdList(item, attribute) {
     .filter(Boolean);
 }
 
+function syncTrainerOptions() {
+  var select = document.getElementById('trainer-id');
+  if (!select) {
+    return;
+  }
+  var certificate = document.querySelector('[name="certificateKind"]');
+  var kind = certificate ? certificate.value : '';
+  var stores = Array.prototype.map.call(
+    document.querySelectorAll('input[name="storeIds"]:checked'),
+    function (input) { return input.value; }
+  );
+  var students = Array.prototype.map.call(
+    document.querySelectorAll('input[name="employeeIds"]:checked'),
+    function (input) { return input.value; }
+  );
+  var visible = 0;
+  var excludedAsStudent = 0;
+  Array.prototype.forEach.call(select.options, function (option) {
+    if (!option.value) {
+      option.removeAttribute('data-student-blocked');
+      return;
+    }
+    var role = option.getAttribute('data-role') || '';
+    var storeId = option.getAttribute('data-store-id') || '';
+    var employeeId = option.getAttribute('data-employee-id') || '';
+    var eligible = false;
+    if (kind === 'MANAGEMENT') {
+      eligible = role === 'ADMIN' || role === 'MANAGER';
+    } else if (kind === 'STAFF' && stores.length === 1) {
+      eligible = role === 'MANAGER' && storeId === stores[0];
+    } else if (kind === 'STAFF' && stores.length >= 2) {
+      eligible = role === 'MANAGER' && stores.indexOf(storeId) >= 0;
+    }
+    var blockedAsStudent = eligible && employeeId !== '' && students.indexOf(employeeId) >= 0;
+    var show = eligible && !blockedAsStudent;
+    option.hidden = !show;
+    option.disabled = !show;
+    if (blockedAsStudent) {
+      option.setAttribute('data-student-blocked', 'true');
+      excludedAsStudent += 1;
+    } else {
+      option.removeAttribute('data-student-blocked');
+    }
+    if (show) {
+      visible += 1;
+    }
+  });
+  var selected = select.selectedOptions.length ? select.selectedOptions[0] : null;
+  if (selected && selected.disabled) {
+    select.value = '';
+  }
+  var hint = document.getElementById('trainer-hint');
+  if (!hint) {
+    return;
+  }
+  hint.hidden = false;
+  if (!kind) {
+    hint.textContent = 'Chọn chứng chỉ và cửa hàng để xem người đào tạo hợp lệ.';
+  } else if (excludedAsStudent > 0 && visible === 0) {
+    hint.textContent = 'Học viên đã chọn không thể đồng thời là người đào tạo. Bỏ chọn học viên đó để chọn lại.';
+  } else if (kind === 'MANAGEMENT') {
+    hint.textContent = 'Người đào tạo là Admin hoặc Manager đã có chứng chỉ quản lý. Manager có thể thuộc bất kỳ cơ sở nào.';
+  } else if (!stores.length) {
+    hint.textContent = 'Chọn cửa hàng trước.';
+  } else if (stores.length === 1 && visible === 0) {
+    hint.textContent = 'Cơ sở được chọn chưa có Manager sở hữu chứng chỉ quản lý hợp lệ để phụ trách lớp đào tạo.';
+  } else if (stores.length === 1) {
+    hint.textContent = 'Người đào tạo là Manager đang phụ trách cửa hàng này và đã có chứng chỉ quản lý.';
+  } else if (visible === 0) {
+    hint.textContent = 'Các cơ sở được chọn chưa có Manager sở hữu chứng chỉ quản lý hợp lệ để phụ trách lớp đào tạo.';
+  } else {
+    hint.textContent = 'Người đào tạo là Manager có chứng chỉ quản lý thuộc một trong các cửa hàng đã chọn.';
+  }
+}
+
 function syncEmployeeEligibility() {
   var rows = document.querySelectorAll('.enroll-row');
   if (!rows.length) {
@@ -265,23 +362,22 @@ function syncEmployeeEligibility() {
     document.querySelectorAll('input[name="storeIds"]:checked'),
     function (input) { return input.value; }
   );
-  var selectedSkills = Array.prototype.map.call(
-    document.querySelectorAll('input[name="skillIds"]:checked'),
-    function (input) { return String(input.value); }
-  );
-  var skillNames = {};
-  document.querySelectorAll('input[name="skillIds"]').forEach(function (input) {
-    var text = input.closest('.ms-item');
-    var label = text ? text.querySelector('.ms-text') : null;
-    skillNames[String(input.value)] = label ? label.textContent.trim() : '';
-  });
-
+  var certificate = document.querySelector('[name="certificateKind"]');
+  var kind = certificate ? certificate.value : '';
+  var requiredRole = kind === 'MANAGEMENT' ? 'MANAGER' : (kind === 'STAFF' ? 'STAFF' : '');
   var visible = 0;
   rows.forEach(function (row) {
-    var inStore = selectedStores.indexOf(row.getAttribute('data-store-id')) >= 0;
-    row.hidden = !inStore;
+    var role = row.getAttribute('data-role');
+    var inStore = kind === 'MANAGEMENT' && role === 'ADMIN'
+      ? true
+      : selectedStores.indexOf(row.getAttribute('data-store-id')) >= 0;
+    var inRole = !certificate || (kind === 'MANAGEMENT'
+      ? (role === 'ADMIN' || role === 'MANAGER')
+      : (requiredRole && role === requiredRole));
+    var show = inStore && inRole;
+    row.hidden = !show;
     var input = row.querySelector('input[name="employeeIds"]');
-    if (!inStore) {
+    if (!show) {
       if (input) {
         input.checked = false;
         input.disabled = true;
@@ -289,7 +385,21 @@ function syncEmployeeEligibility() {
       return;
     }
     visible += 1;
-    renderEnrollmentRow(row, selectedSkills, skillNames);
+    if (certificate) {
+      renderCertificateRow(row, kind);
+    } else {
+      var selectedSkills = Array.prototype.map.call(
+        document.querySelectorAll('input[name="skillIds"]:checked'),
+        function (skillInput) { return String(skillInput.value); }
+      );
+      var skillNames = {};
+      document.querySelectorAll('input[name="skillIds"]').forEach(function (skillInput) {
+        var text = skillInput.closest('.ms-item');
+        var label = text ? text.querySelector('.ms-text') : null;
+        skillNames[String(skillInput.value)] = label ? label.textContent.trim() : '';
+      });
+      renderEnrollmentRow(row, selectedSkills, skillNames);
+    }
   });
 
   var empty = document.getElementById('enroll-empty');
@@ -298,15 +408,39 @@ function syncEmployeeEligibility() {
     if (!selectedStores.length) {
       empty.hidden = false;
       empty.textContent = 'Chọn cửa hàng trước.';
+    } else if (certificate && !kind) {
+      empty.hidden = false;
+      empty.textContent = 'Chọn chứng chỉ trước.';
     } else if (!visible) {
       empty.hidden = false;
-      empty.textContent = 'Không có nhân viên thuộc các cửa hàng đã chọn.';
+      empty.textContent = kind === 'MANAGEMENT'
+        ? 'Không có Admin hoặc Manager phù hợp.'
+        : 'Không có Staff thuộc các cửa hàng đã chọn.';
     } else {
       empty.hidden = true;
     }
   }
   if (list) {
-    list.hidden = !selectedStores.length || !visible;
+    list.hidden = !selectedStores.length || !visible || (certificate && !kind);
+  }
+}
+
+function renderCertificateRow(row, kind) {
+  var input = row.querySelector('input[name="employeeIds"]');
+  var cert = row.querySelector('.enroll-cert');
+  var badge = row.querySelector('.cert-badge');
+  var certified = kind === 'MANAGEMENT'
+    ? row.getAttribute('data-management-certified') === 'true'
+    : row.getAttribute('data-staff-certified') === 'true';
+  var label = kind === 'MANAGEMENT' ? 'Chứng chỉ quản lý' : 'Chứng chỉ nhân viên';
+  if (cert) {
+    cert.textContent = certified ? 'Đã có ' + label : 'Chưa có ' + label;
+  }
+  setEligibilityBadge(badge, certified ? 'Có thể học lại' : 'Có thể đăng ký', certified ? 'badge-cert' : 'badge-ok');
+  row.classList.remove('is-blocked');
+  row.classList.toggle('is-retake', certified);
+  if (input) {
+    input.disabled = false;
   }
 }
 

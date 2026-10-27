@@ -24,7 +24,9 @@
         <tr th:each="item : ${rows}"
             th:data-end="${!item.ended and item.endDate != null and item.endTime != null ? #temporals.format(item.endDate, 'yyyy-MM-dd') + 'T' + #temporals.format(item.endTime, 'HH:mm:ss') : ''}">
             <td>
-                <a class="row-link" th:href="@{/training/staff/classes/{id}(id=${item.id})}" th:text="${item.className}">Pha Chế 2</a>
+                <a class="row-link"
+                   th:href="${(trainingDetailBase != null ? trainingDetailBase : '/training/staff/classes/') + item.id}"
+                   th:text="${item.className}">Pha Chế 2</a>
             </td>
             <td th:text="${item.skillName} ?: '—'">Pha chế</td>
             <td th:text="${item.dateLabel} ?: '—'">01/09/2026</td>
@@ -45,7 +47,8 @@
                       th:text="${item.resultCode}">PASS</span>
             </td>
             <td>
-                <a class="link-btn" th:href="@{/training/staff/classes/{id}(id=${item.id})}">Xem chi tiết</a>
+                <a class="link-btn"
+                   th:href="${(trainingDetailBase != null ? trainingDetailBase : '/training/staff/classes/') + item.id}">Xem chi tiết</a>
             </td>
         </tr>
         </tbody>

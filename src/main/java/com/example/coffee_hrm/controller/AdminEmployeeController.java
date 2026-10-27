@@ -1,5 +1,6 @@
 package com.example.coffee_hrm.controller;
 
+import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.dto.response.EmployeeResponse;
 import com.example.coffee_hrm.security.AuthenticatedUser;
@@ -106,11 +107,12 @@ public class AdminEmployeeController {
         try {
             EmployeeResponse updated = employeeService.changeEmployeeRole(user, storeId, employeeId, role);
             redirectAttributes.addFlashAttribute("successMessage",
-                    "Đã cập nhật role của " + updated.getFullName() + " thành " + updated.getRoleName().name() + ".");
+                    "Đã thay đổi chức vụ của " + updated.getFullName() + " thành "
+                            + (updated.getRoleName() == RoleName.MANAGER ? "Manager" : "Staff") + ".");
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
         }
-        return STORE_EMPLOYEES_REDIRECT;
+        return "redirect:/admin/stores/" + storeId + "/employees/" + employeeId;
     }
     @PostMapping("/stores/{storeId}/employees/create")
     @ResponseBody

@@ -1,5 +1,6 @@
 package com.example.coffee_hrm.entity;
 
+import com.example.coffee_hrm.common.enums.CertificateKind;
 import com.example.coffee_hrm.common.enums.TrainingSkillStatus;
 import jakarta.persistence.*;
 import lombok.*;
@@ -36,6 +37,11 @@ public class TrainingSkill {
     @Column(name = "Status", nullable = false, length = 20)
     @Builder.Default
     private TrainingSkillStatus status = TrainingSkillStatus.ACTIVE;
+
+    /** Kỹ năng thuộc chứng chỉ nhân viên hoặc chứng chỉ quản lý. */
+    @Column(name = "CertificateKind", nullable = false, length = 20)
+    @Builder.Default
+    private CertificateKind certificateKind = CertificateKind.STAFF;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "CreatedBy")

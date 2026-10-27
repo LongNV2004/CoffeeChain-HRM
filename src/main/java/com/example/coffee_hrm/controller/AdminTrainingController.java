@@ -1,5 +1,6 @@
 package com.example.coffee_hrm.controller;
 
+import com.example.coffee_hrm.common.enums.CertificateKind;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.dto.request.CreateCentralizedTrainingRequest;
 import com.example.coffee_hrm.dto.request.CreateTrainingSkillRequest;
@@ -43,6 +44,7 @@ public class AdminTrainingController {
         var classPage = trainingService.listActiveClassesForAdmin(user, skillId, date, keyword, sortDir, page);
         String normalizedSortDir = "desc".equalsIgnoreCase(sortDir) ? "desc" : "asc";
         model.addAttribute("displayName", user.getDisplayName());
+        model.addAttribute("currentUserId", user.getUserId());
         model.addAttribute("allClasses", trainingService.listAllClassesForAdmin());
         model.addAttribute("classes", classPage.getContent());
         model.addAttribute("classPage", classPage);
@@ -74,7 +76,7 @@ public class AdminTrainingController {
     @GetMapping("/skills")
     public String skillPage(@AuthenticationPrincipal AuthenticatedUser user, Model model) {
         model.addAttribute("displayName", user.getDisplayName());
-        model.addAttribute("skills", trainingService.listSkills());
+        model.addAttribute("skills", trainingService.listSkills(CertificateKind.STAFF));
         if (!model.containsAttribute("skillForm")) {
             model.addAttribute("skillForm", new CreateTrainingSkillRequest());
         }
@@ -92,16 +94,16 @@ public class AdminTrainingController {
         if (bindingResult.hasErrors()) {
             redirectAttributes.addFlashAttribute("skillForm", skillForm);
             redirectAttributes.addFlashAttribute("skillError", firstError(bindingResult, "Không thể tạo kỹ năng."));
-            return "redirect:/admin/training/skills";
+            return skillRedirect(skillForm.getCertificateKind());
         }
         try {
             trainingService.createSkill(skillForm, user);
             redirectAttributes.addFlashAttribute("successMessage", "Đã thêm kỹ năng đào tạo.");
-            return "redirect:/admin/training/skills";
+            return skillRedirect(skillForm.getCertificateKind());
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("skillForm", skillForm);
             redirectAttributes.addFlashAttribute("skillError", ex.getMessage());
-            return "redirect:/admin/training/skills";
+            return skillRedirect(skillForm.getCertificateKind());
         }
     }
 
@@ -109,23 +111,24 @@ public class AdminTrainingController {
     public String updateSkill(@PathVariable Integer id,
                               @Valid @ModelAttribute("updateSkillForm") UpdateTrainingSkillRequest updateSkillForm,
                               BindingResult bindingResult,
+                              @RequestParam(required = false) CertificateKind certificateKind,
                               @AuthenticationPrincipal AuthenticatedUser user,
                               RedirectAttributes redirectAttributes) {
         if (bindingResult.hasErrors()) {
             redirectAttributes.addFlashAttribute("updateSkillForm", updateSkillForm);
             redirectAttributes.addFlashAttribute("skillUpdateError", firstError(bindingResult, "Không thể cập nhật kỹ năng."));
             redirectAttributes.addFlashAttribute("editingSkillId", id);
-            return "redirect:/admin/training/skills";
+            return skillRedirect(certificateKind);
         }
         try {
-            trainingService.updateSkill(id, updateSkillForm, user);
+            var updated = trainingService.updateSkill(id, updateSkillForm, user);
             redirectAttributes.addFlashAttribute("successMessage", "Đã cập nhật kỹ năng đào tạo.");
-            return "redirect:/admin/training/skills";
+            return skillRedirect(updated.getCertificateKind());
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("updateSkillForm", updateSkillForm);
             redirectAttributes.addFlashAttribute("skillUpdateError", ex.getMessage());
             redirectAttributes.addFlashAttribute("editingSkillId", id);
-            return "redirect:/admin/training/skills";
+            return skillRedirect(certificateKind);
         }
     }
 
@@ -134,12 +137,13 @@ public class AdminTrainingController {
                                   @AuthenticationPrincipal AuthenticatedUser user,
                                   RedirectAttributes redirectAttributes) {
         try {
-            trainingService.deactivateSkill(id, user);
+            var updated = trainingService.deactivateSkill(id, user);
             redirectAttributes.addFlashAttribute("successMessage", "Đã ngừng sử dụng kỹ năng đào tạo.");
+            return skillRedirect(updated.getCertificateKind());
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
+            return "redirect:/admin/training/skills";
         }
-        return "redirect:/admin/training/skills";
     }
 
     @PostMapping("/skills/{id}/activate")
@@ -147,12 +151,23 @@ public class AdminTrainingController {
                                 @AuthenticationPrincipal AuthenticatedUser user,
                                 RedirectAttributes redirectAttributes) {
         try {
-            trainingService.activateSkill(id, user);
+            var updated = trainingService.activateSkill(id, user);
             redirectAttributes.addFlashAttribute("successMessage", "Đã kích hoạt lại kỹ năng đào tạo.");
+            return skillRedirect(updated.getCertificateKind());
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
+            return "redirect:/admin/training/skills";
         }
-        return "redirect:/admin/training/skills";
+    }
+
+    @GetMapping("/my")
+    public String ownClasses() {
+        return "redirect:/admin/training";
+    }
+
+    @GetMapping("/my/classes/{id}")
+    public String ownClassDetail(@PathVariable Integer id) {
+        return "redirect:/admin/training/classes/" + id;
     }
 
     @GetMapping("/create")
@@ -186,12 +201,38 @@ public class AdminTrainingController {
         }
     }
 
+    @PostMapping("/classes/{id}/evaluate")
+    public String evaluateManagementClass(@PathVariable Integer id,
+                                          @RequestParam Integer employeeId,
+                                          @Valid @ModelAttribute("evaluationForm") com.example.coffee_hrm.dto.request.EvaluateTrainingStudentRequest evaluationForm,
+                                          BindingResult bindingResult,
+                                          @AuthenticationPrincipal AuthenticatedUser user,
+                                          RedirectAttributes redirectAttributes) {
+        if (bindingResult.hasErrors()) {
+            redirectAttributes.addFlashAttribute("errorMessage", "Vui lòng chọn kết quả đánh giá.");
+            return "redirect:/admin/training/classes/" + id;
+        }
+        try {
+            trainingService.evaluateManagementStudent(id, employeeId, evaluationForm, user);
+            redirectAttributes.addFlashAttribute("successMessage",
+                    evaluationForm.isUpdating() ? "Đã cập nhật kết quả đánh giá." : "Đã lưu kết quả đánh giá.");
+        } catch (BusinessException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
+        }
+        return "redirect:/admin/training/classes/" + id;
+    }
+
+    private String skillRedirect(CertificateKind certificateKind) {
+        return certificateKind == CertificateKind.MANAGEMENT
+                ? "redirect:/admin/training/management"
+                : "redirect:/admin/training/skills";
+    }
+
     private void populateCreatePage(AuthenticatedUser user, Model model) {
         model.addAttribute("displayName", user.getDisplayName());
         model.addAttribute("stores", trainingService.listActiveStores(user));
         model.addAttribute("trainers", trainingService.listTrainerCandidates(user));
-        model.addAttribute("employees", trainingService.listActiveEmployees(user));
-        model.addAttribute("activeSkills", trainingService.listActiveSkills());
+        model.addAttribute("employees", trainingService.listClassCandidates(user));
     }
 
     private String firstError(BindingResult bindingResult) {

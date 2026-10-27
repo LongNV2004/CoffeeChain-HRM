@@ -1,5 +1,6 @@
 package com.example.coffee_hrm.service.impl;
 
+import com.example.coffee_hrm.common.enums.CertificationStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RecruitmentStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
@@ -36,6 +37,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
@@ -68,6 +70,7 @@ public class ProfileServiceImpl implements ProfileService {
     private static final int MIN_PASSWORD_LENGTH = 6;
     private static final int MAX_PASSWORD_LENGTH = 100;
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
+    private static final DateTimeFormatter CERTIFICATE_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final Pattern PERSON_NAME_PATTERN = Pattern.compile("^[\\p{L}]+(?:\\s+[\\p{L}]+)*$");
 
     private final UserRepository userRepository;
@@ -88,8 +91,8 @@ public class ProfileServiceImpl implements ProfileService {
         }
         Store store = employee.getStore();
         PersonalRecord personal = personalRecord(employee.getId());
-        List<EmployeeSkillStatusLine> skills = trainingService.listCurrentSkillStatuses(employee.getId());
         RoleName roleName = user.getRole().getRoleName();
+        List<EmployeeSkillStatusLine> skills = certificatesFor(roleName, employee);
         boolean accountActive = Boolean.TRUE.equals(user.getIsActive());
         return MyProfileView.builder()
                 .employeeId(employee.getId())
@@ -377,6 +380,25 @@ public class ProfileServiceImpl implements ProfileService {
             return parts[0].substring(0, 1).toUpperCase(Locale.ROOT);
         }
         return (parts[0].substring(0, 1) + parts[parts.length - 1].substring(0, 1)).toUpperCase(Locale.ROOT);
+    }
+
+    private List<EmployeeSkillStatusLine> certificatesFor(RoleName roleName, Employee employee) {
+        if (roleName == RoleName.MANAGER) {
+            boolean certified = Boolean.TRUE.equals(employee.getManagementCertified());
+            String issuedOn = employee.getManagementCertifiedAt() == null
+                    ? null
+                    : employee.getManagementCertifiedAt().format(CERTIFICATE_DATE);
+            return List.of(EmployeeSkillStatusLine.builder()
+                    .skillName("Chứng chỉ quản lý")
+                    .certificationStatus(certified
+                            ? CertificationStatus.CERTIFIED
+                            : CertificationStatus.NOTCERTIFIED)
+                    .certificationLabel(certified ? "Đã có chứng chỉ" : "Chưa có chứng chỉ")
+                    .certifiedDateLabel(issuedOn)
+                    .build());
+        }
+        List<EmployeeSkillStatusLine> skills = trainingService.listCurrentSkillStatuses(employee.getId());
+        return skills == null ? List.of() : List.copyOf(skills);
     }
 
     private String roleLabel(RoleName roleName) {

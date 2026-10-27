@@ -23,6 +23,7 @@
         <p class="actions" style="margin-top:12px;">
             <a class="primary-btn" th:href="@{/admin/training/create}">Tạo lớp đào tạo</a>
             <a class="primary-btn" th:href="@{/admin/training/skills}">Chứng chỉ nhân viên</a>
+            <a class="primary-btn" th:href="@{/admin/training/management}">Chứng chỉ quản lý</a>
         </p>
     </section>
 
@@ -33,7 +34,7 @@
         <div class="panel-head">
             <div>
                 <h2>Lớp đang hoạt động</h2>
-                <p>Lớp chưa đến giờ kết thúc. Đến giờ kết thúc, lớp tự rời khỏi danh sách này. Admin chỉ xem, không đánh giá nhân viên.</p>
+                <p>Lớp chưa đến giờ kết thúc, gồm lớp đang diễn ra và lớp sắp diễn ra. Sau khi lớp kết thúc, nếu bạn là người đào tạo thì mở lớp để đánh giá Pass hoặc Not Pass.</p>
             </div>
         </div>
 
@@ -132,14 +133,15 @@
                 <th>Cửa hàng</th>
                 <th>Người đào tạo</th>
                 <th>Trạng thái</th>
+                <th></th>
             </tr>
             </thead>
             <tbody>
             <tr th:if="${#lists.isEmpty(allClasses)}">
-                <td colspan="5" class="empty">Chưa có lớp đào tạo.</td>
+                <td colspan="6" class="empty">Chưa có lớp đào tạo.</td>
             </tr>
             <tr th:each="item : ${allClasses}">
-                <td th:text="${item.className}">Class</td>
+                <td><a class="row-link" th:href="@{/admin/training/classes/{id}(id=${item.id})}" th:text="${item.className}">Class</a></td>
                 <td th:text="${item.trainingTypeLabel} ?: '—'">Loại</td>
                 <td th:text="${item.storeName} ?: '—'">Store</td>
                 <td th:text="${item.trainer} ?: '—'">Trainer</td>
@@ -147,6 +149,12 @@
                     <span class="badge"
                           th:classappend="${item.scheduleTone}"
                           th:text="${item.scheduleLabel}">Sắp tới</span>
+                </td>
+                <td>
+                    <a class="link-btn"
+                       th:if="${item.scheduleLabel == 'Đã kết thúc' and item.trainerUserId == currentUserId}"
+                       th:href="@{/admin/training/classes/{id}(id=${item.id})}"
+                       th:text="${item.evaluated} ? 'Đã đánh giá' : 'Đánh giá'">Đánh giá</a>
                 </td>
             </tr>
             </tbody>

@@ -29,6 +29,10 @@ public interface TrainingClassRepository extends JpaRepository<TrainingClass, In
               AND (
                     (c.trainingType = :storeType AND store.id = :storeId)
                     OR trainerUser.id = :trainerUserId
+                    OR EXISTS (
+                        SELECT enrollment FROM TrainingClassEnrollment enrollment
+                        WHERE enrollment.trainingClass = c
+                          AND enrollment.employee.id = :learnerEmployeeId)
                   )
               AND (:skillId IS NULL OR EXISTS (
                     SELECT skill FROM TrainingSkill skill
@@ -59,6 +63,10 @@ public interface TrainingClassRepository extends JpaRepository<TrainingClass, In
               AND (
                     (c.trainingType = :storeType AND store.id = :storeId)
                     OR trainerUser.id = :trainerUserId
+                    OR EXISTS (
+                        SELECT enrollment FROM TrainingClassEnrollment enrollment
+                        WHERE enrollment.trainingClass = c
+                          AND enrollment.employee.id = :learnerEmployeeId)
                   )
               AND (:skillId IS NULL OR EXISTS (
                     SELECT skill FROM TrainingSkill skill
@@ -78,6 +86,7 @@ public interface TrainingClassRepository extends JpaRepository<TrainingClass, In
             """)
     Page<TrainingClass> searchApprovedActiveForManager(@Param("storeId") Integer storeId,
                                                        @Param("trainerUserId") Integer trainerUserId,
+                                                       @Param("learnerEmployeeId") Integer learnerEmployeeId,
                                                        @Param("storeType") TrainingType storeType,
                                                        @Param("status") TrainingClassStatus status,
                                                        @Param("today") LocalDate today,
@@ -119,6 +128,24 @@ public interface TrainingClassRepository extends JpaRepository<TrainingClass, In
             WHERE c.id = :id
             """)
     Optional<TrainingClass> findByIdWithDetails(@Param("id") Integer id);
+
+    @Query("""
+            SELECT c FROM TrainingClass c
+            LEFT JOIN FETCH c.trainer trainerUser
+            LEFT JOIN FETCH trainerUser.employee
+            WHERE c.status = :status
+              AND c.endDate IS NOT NULL
+              AND c.endDate >= :fromDate
+              AND (
+                    c.endDate < :today
+                    OR (c.endDate = :today AND c.endTime IS NOT NULL
+                        AND cast(c.endTime as LocalTime) <= cast(:currentTime as LocalTime))
+                  )
+            """)
+    List<TrainingClass> findApprovedEndedSince(@Param("status") TrainingClassStatus status,
+                                               @Param("fromDate") LocalDate fromDate,
+                                               @Param("today") LocalDate today,
+                                               @Param("currentTime") LocalTime currentTime);
 
     @Query("""
             SELECT c FROM TrainingClass c
@@ -203,6 +230,10 @@ public interface TrainingClassRepository extends JpaRepository<TrainingClass, In
                                                      @Param("date") LocalDate date,
                                                      @Param("keyword") String keyword,
                                                      Pageable pageable);
+
+    java.util.List<TrainingClass> findByTrainingTypeAndStatusOrderByStartDateDescIdDesc(
+            TrainingType trainingType,
+            TrainingClassStatus status);
 
     boolean existsByClassNameIgnoreCaseAndStatusNotAndEndDateGreaterThanEqual(
             String className,

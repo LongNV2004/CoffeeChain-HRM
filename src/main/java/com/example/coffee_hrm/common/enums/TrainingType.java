@@ -8,7 +8,8 @@ import lombok.RequiredArgsConstructor;
 public enum TrainingType {
 
     STORE_TRAINING("STORE_TRAINING", "Đào tạo tại cửa hàng"),
-    CENTRALIZED_TRAINING("CENTRALIZED_TRAINING", "Đào tạo tập trung");
+    CENTRALIZED_TRAINING("CENTRALIZED_TRAINING", "Đào tạo tập trung"),
+    MANAGEMENT_TRAINING("MANAGEMENT_TRAINING", "Chứng chỉ quản lý");
 
     private final String dbValue;
     private final String label;

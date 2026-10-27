@@ -1,5 +1,6 @@
 package com.example.coffee_hrm.repository;
 
+import com.example.coffee_hrm.common.enums.NotificationType;
 import com.example.coffee_hrm.entity.Notification;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -16,6 +17,10 @@ public interface NotificationRepository extends JpaRepository<Notification, Inte
     long countByRecipient_IdAndIsReadFalse(Integer userId);
 
     Optional<Notification> findByIdAndRecipient_Id(Integer id, Integer userId);
+
+    boolean existsByTypeAndReferenceTypeAndReferenceId(NotificationType type,
+                                                       String referenceType,
+                                                       Integer referenceId);
 
     @Modifying
     @Query("UPDATE Notification n SET n.isRead = true WHERE n.recipient.id = :userId AND n.isRead = false")

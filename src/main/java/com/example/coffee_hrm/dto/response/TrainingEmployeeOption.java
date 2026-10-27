@@ -1,6 +1,7 @@
 package com.example.coffee_hrm.dto.response;
 
 import com.example.coffee_hrm.common.enums.CertificationStatus;
+import com.example.coffee_hrm.common.enums.RoleName;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -21,6 +22,9 @@ public class TrainingEmployeeOption {
     private String email;
     private Integer storeId;
     private String storeName;
+    /** STAFF học chứng chỉ nhân viên. MANAGER học chứng chỉ quản lý. */
+    private RoleName roleName;
+    private boolean managementCertified;
 
     @Builder.Default
     private List<Integer> certifiedSkillIds = List.of();

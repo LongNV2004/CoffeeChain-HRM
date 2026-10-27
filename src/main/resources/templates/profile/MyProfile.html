@@ -154,9 +154,12 @@
         </section>
 
         <section class="panel" aria-labelledby="skill-title">
-            <h2 id="skill-title">Chứng chỉ nhân viên</h2>
-            <p class="profile-note">Chỉ có một chứng chỉ. Chứng chỉ được cấp khi kết quả đào tạo đạt và bị gỡ khi kết quả không đạt.</p>
-            <p class="profile-empty" th:if="${#lists.isEmpty(profile.skillCertificates)}">Chưa có Chứng chỉ nhân viên.</p>
+            <h2 id="skill-title"
+                th:text="${profile.roleName != null and profile.roleName.name() == 'MANAGER' ? 'Chứng chỉ quản lý' : 'Chứng chỉ nhân viên'}">Chứng chỉ nhân viên</h2>
+            <p class="profile-note"
+               th:text="${profile.roleName != null and profile.roleName.name() == 'MANAGER' ? 'Chứng chỉ quản lý được cấp khi kết quả đào tạo đạt. Không đạt thì chưa có chứng chỉ.' : 'Chứng chỉ nhân viên được cấp khi kết quả đào tạo đạt và bị gỡ khi kết quả không đạt.'}">Chứng chỉ được cấp khi kết quả đào tạo đạt.</p>
+            <p class="profile-empty" th:if="${#lists.isEmpty(profile.skillCertificates)}"
+               th:text="${profile.roleName != null and profile.roleName.name() == 'MANAGER' ? 'Chưa có Chứng chỉ quản lý.' : 'Chưa có Chứng chỉ nhân viên.'}">Chưa có Chứng chỉ nhân viên.</p>
             <ul class="skill-list" th:if="${!#lists.isEmpty(profile.skillCertificates)}">
                 <li th:each="line : ${profile.skillCertificates}">
                     <div>

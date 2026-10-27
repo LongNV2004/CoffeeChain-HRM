@@ -92,18 +92,13 @@ class ProfileServiceImplTest {
     void managerSeesOnlyTheirOwnProfileAndCurrentCertificates() {
         User manager = account(RoleName.MANAGER, 4, 40);
         when(userRepository.findByIdWithRole(4)).thenReturn(Optional.of(manager));
+        manager.getEmployee().setManagementCertified(true);
+        manager.getEmployee().setManagementCertifiedAt(LocalDateTime.of(2026, 10, 1, 9, 0));
         when(recruitmentCandidateRepository.findByLinkedEmployeeId(40)).thenReturn(List.of(
                 RecruitmentCandidate.builder()
                         .id(8)
                         .dateOfBirth(LocalDate.of(1994, 3, 12))
                         .gender(Gender.MALE)
-                        .build()));
-        when(trainingService.listCurrentSkillStatuses(40)).thenReturn(List.of(
-                EmployeeSkillStatusLine.builder()
-                        .skillName("Chứng chỉ nhân viên")
-                        .certificationStatus(CertificationStatus.CERTIFIED)
-                        .certificationLabel("Đã có chứng chỉ")
-                        .certifiedDateLabel("01/10/2026")
                         .build()));
 
         MyProfileView profile = service.getProfile(AuthenticatedUser.from(manager));
@@ -117,10 +112,10 @@ class ProfileServiceImplTest {
         assertEquals(LocalDate.of(1994, 3, 12), profile.getDateOfBirth());
         assertEquals("Nam", profile.getGenderLabel());
         assertEquals(1, profile.getSkillCertificates().size());
-        assertEquals("Chứng chỉ nhân viên", profile.getSkillCertificates().get(0).getSkillName());
+        assertEquals("Chứng chỉ quản lý", profile.getSkillCertificates().get(0).getSkillName());
         assertEquals(CertificationStatus.CERTIFIED, profile.getSkillCertificates().get(0).getCertificationStatus());
-        verify(trainingService).listCurrentSkillStatuses(40);
-        verify(trainingService, never()).listCurrentSkillStatuses(99);
+        assertEquals("01/10/2026", profile.getSkillCertificates().get(0).getCertifiedDateLabel());
+        verify(trainingService, never()).listCurrentSkillStatuses(any());
         verify(userRepository, never()).findById(any());
     }
 

@@ -29,7 +29,7 @@
         <div class="panel-head">
             <div>
                 <h2>Lớp đang hoạt động</h2>
-                <p>Lớp tại cửa hàng của bạn và lớp bạn được phân công đào tạo. Đến giờ kết thúc, lớp tự chuyển xuống mục đã kết thúc.</p>
+                <p>Lớp tại cửa hàng của bạn, lớp bạn đang tham gia và lớp bạn được phân công đào tạo. Đến giờ kết thúc, lớp tự chuyển xuống mục đã kết thúc.</p>
             </div>
             <a class="primary-btn" th:href="@{/training/skills}">Vị trí làm việc</a>
         </div>
@@ -151,7 +151,8 @@
                 <td th:text="${item.endDate != null} ? ${#temporals.format(item.endDate, 'dd/MM/yyyy')} : '—'">01/01/2026</td>
                 <td th:text="${item.endTime != null} ? ${#temporals.format(item.endTime, 'HH:mm')} : '—'">11:54</td>
                 <td class="actions">
-                    <a class="link-btn" th:href="@{/training/classes/{id}(id=${item.id})}">Đánh giá</a>
+                    <a class="link-btn" th:href="@{/training/classes/{id}(id=${item.id})}"
+                       th:text="${item.evaluated} ? 'Đã đánh giá' : 'Đánh giá'">Đánh giá</a>
                 </td>
             </tr>
             </tbody>

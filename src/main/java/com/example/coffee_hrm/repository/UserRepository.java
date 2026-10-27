@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -32,6 +33,14 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     boolean existsByUsernameIgnoreCase(String username);
 
     Optional<User> findByEmployee_Id(Integer employeeId);
+
+    @Query("""
+            SELECT u FROM User u
+            JOIN FETCH u.role
+            JOIN FETCH u.employee
+            WHERE u.employee.id IN :employeeIds
+            """)
+    List<User> findByEmployeeIds(@Param("employeeIds") Collection<Integer> employeeIds);
 
     @Query("""
             SELECT COUNT(u) FROM User u
