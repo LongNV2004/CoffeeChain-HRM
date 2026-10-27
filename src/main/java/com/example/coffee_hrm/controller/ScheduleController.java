@@ -3,8 +3,10 @@ package com.example.coffee_hrm.controller;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.dto.request.AssignShiftRequest;
 import com.example.coffee_hrm.dto.request.CreateShiftChangeRequestDto;
+import com.example.coffee_hrm.dto.response.ReliabilityLeaderboardView;
 import com.example.coffee_hrm.dto.response.WeeklyScheduleView;
 import com.example.coffee_hrm.security.AuthenticatedUser;
+import com.example.coffee_hrm.service.ReliabilityService;
 import com.example.coffee_hrm.service.ScheduleService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +20,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.format.DateTimeParseException;
 
 @Controller
 @RequiredArgsConstructor
@@ -25,6 +29,7 @@ import java.time.LocalDate;
 public class ScheduleController {
 
     private final ScheduleService scheduleService;
+    private final ReliabilityService reliabilityService;
 
     // ==========================================
     // MANAGER ENDPOINTS
@@ -133,6 +138,57 @@ public class ScheduleController {
         return "redirect:/schedule/manager" + returnDateParam;
     }
 
+    @GetMapping("/manager/leaderboard")
+    @PreAuthorize("hasRole('MANAGER')")
+    public String managerLeaderboardPage(
+            @RequestParam(value = "month", required = false) String monthParam,
+            @AuthenticationPrincipal AuthenticatedUser user,
+            Model model) {
+
+        YearMonth month = parseYearMonth(monthParam);
+        ReliabilityLeaderboardView leaderboard = reliabilityService.getLeaderboardForManager(user, month);
+        model.addAttribute("leaderboard", leaderboard);
+        return "manager/ManagerLeaderboard";
+    }
+
+    @PostMapping("/manager/reliability/confirm-completed/{requestId}")
+    @PreAuthorize("hasRole('MANAGER')")
+    public String confirmCompletedSwappedShift(
+            @PathVariable("requestId") Integer requestId,
+            @RequestParam(value = "month", required = false) String monthParam,
+            @AuthenticationPrincipal AuthenticatedUser user,
+            RedirectAttributes redirectAttributes) {
+
+        try {
+            reliabilityService.confirmSwappedShiftCompletion(requestId, user);
+            redirectAttributes.addFlashAttribute("successMessage",
+                    "Đã xác nhận nhân viên hoàn thành tốt ca đổi (+2 điểm uy tín).");
+        } catch (BusinessException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
+        }
+        return "redirect:/schedule/manager/leaderboard" + buildMonthQuery(monthParam);
+    }
+
+    @PostMapping("/manager/reliability/adjust")
+    @PreAuthorize("hasRole('MANAGER')")
+    public String adjustReliabilityScore(
+            @RequestParam(value = "employeeId", required = false) Integer employeeId,
+            @RequestParam(value = "pointsDelta", defaultValue = "0") int pointsDelta,
+            @RequestParam(value = "reason", required = false) String reason,
+            @RequestParam(value = "month", required = false) String monthParam,
+            @AuthenticationPrincipal AuthenticatedUser user,
+            RedirectAttributes redirectAttributes) {
+
+        try {
+            reliabilityService.adjustScoreByManager(employeeId, pointsDelta, reason, user);
+            redirectAttributes.addFlashAttribute("successMessage",
+                    "Đã cập nhật điểm uy tín cho nhân viên thành công.");
+        } catch (BusinessException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
+        }
+        return "redirect:/schedule/manager/leaderboard" + buildMonthQuery(monthParam);
+    }
+
     // ==========================================
     // STAFF ENDPOINTS
     // ==========================================
@@ -227,5 +283,57 @@ public class ScheduleController {
         }
 
         return staffScheduleRedirect(origin, currentWeek);
+    }
+
+    @GetMapping("/staff/leaderboard")
+    @PreAuthorize("hasRole('STAFF')")
+    public String staffLeaderboardPage(
+            @RequestParam(value = "month", required = false) String monthParam,
+            @AuthenticationPrincipal AuthenticatedUser user,
+            Model model) {
+
+        YearMonth month = parseYearMonth(monthParam);
+        ReliabilityLeaderboardView leaderboard = reliabilityService.getLeaderboardForStaff(user, month);
+        model.addAttribute("leaderboard", leaderboard);
+        return "staff/StaffLeaderboard";
+    }
+
+    @PostMapping("/staff/requests/{id}/rescue")
+    @PreAuthorize("hasRole('STAFF')")
+    public String volunteerRescueShift(
+            @PathVariable("id") Integer id,
+            @RequestParam(value = "currentWeek", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate currentWeek,
+            @RequestParam(value = "origin", required = false) String origin,
+            @AuthenticationPrincipal AuthenticatedUser user,
+            RedirectAttributes redirectAttributes) {
+
+        try {
+            scheduleService.volunteerRescueShift(id, user);
+            redirectAttributes.addFlashAttribute("successMessage",
+                    "Bạn đã xung phong nhận ca \"Cứu bồ\"! Đơn đã chuyển lên Quản lý duyệt (+5 điểm uy tín nếu ca trong vòng 24h).");
+        } catch (BusinessException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
+        }
+
+        if ("leaderboard".equalsIgnoreCase(origin)) {
+            return "redirect:/schedule/staff/leaderboard";
+        }
+        return staffScheduleRedirect(origin, currentWeek);
+    }
+
+    private YearMonth parseYearMonth(String monthParam) {
+        if (monthParam == null || monthParam.isBlank()) {
+            return null;
+        }
+        try {
+            return YearMonth.parse(monthParam.trim());
+        } catch (DateTimeParseException ignored) {
+            return null;
+        }
+    }
+
+    private String buildMonthQuery(String monthParam) {
+        YearMonth parsed = parseYearMonth(monthParam);
+        return parsed != null ? "?month=" + parsed : "";
     }
 }

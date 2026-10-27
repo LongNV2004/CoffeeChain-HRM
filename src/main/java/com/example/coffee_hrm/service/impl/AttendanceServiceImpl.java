@@ -71,6 +71,9 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final AttendancePhotoStore photoStore;
     private final AttendancePolicyProperties policy;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.example.coffee_hrm.service.ReliabilityService reliabilityService;
+
     @Override
     @Transactional(readOnly = true)
     public AttendanceClockView getClock(AuthenticatedUser user) {
@@ -498,6 +501,9 @@ public class AttendanceServiceImpl implements AttendanceService {
             attendance.setCheckOutPhotoName(photoStore.save(attendance.getId(), "out", photo));
         }
         attendanceRepository.save(attendance);
+        if (reliabilityService != null) {
+            reliabilityService.recordCompletedSwappedShiftOnCheckout(attendance);
+        }
     }
 
     private void assertCheckoutReady(Attendance attendance, LocalDateTime now, AttendanceLocation location) {

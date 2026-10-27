@@ -687,6 +687,45 @@ class ScheduleServiceImplTest {
         assertEquals("Phạm Minh Đức", saturdayAssignments.getFirst().getEmployeeName());
     }
 
+    @Test
+    void volunteerRescueShiftSetsTargetEmployeeAndAgreed() {
+        AuthenticatedUser thuUser = AuthenticatedUser.from(buildUser(4, "staff2", RoleName.STAFF, empThu));
+        when(employeeRepository.findByIdWithStore(30)).thenReturn(Optional.of(empThu));
+        when(employeeRepository.lockByIdForLeaveRequest(30)).thenReturn(Optional.of(empThu));
+
+        LocalDate tomorrow = VietnamTime.today().plusDays(1);
+        ShiftAssignment assignment = ShiftAssignment.builder()
+                .id(700)
+                .employee(empTuan)
+                .shift(shiftMorning)
+                .workDate(tomorrow)
+                .status(AssignmentStatus.ASSIGNED)
+                .build();
+        ShiftChangeRequest openRescueReq = ShiftChangeRequest.builder()
+                .id(77)
+                .assignment(assignment)
+                .employee(empTuan)
+                .targetEmployee(null)
+                .targetAssignment(null)
+                .status(ApprovalStatus.PENDING)
+                .reason("[Nhờ Quản lý sắp xếp người thay thế] Bận việc gấp")
+                .build();
+
+        when(shiftChangeRequestRepository.findByIdWithDetails(77)).thenReturn(Optional.of(openRescueReq));
+        when(shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus(30, 1, tomorrow, AssignmentStatus.ASSIGNED))
+                .thenReturn(false);
+        when(shiftAssignmentRepository.findByEmployee_IdAndWorkDateAndStatus(30, tomorrow, AssignmentStatus.ASSIGNED))
+                .thenReturn(List.of());
+
+        scheduleService.volunteerRescueShift(77, thuUser);
+
+        assertEquals(empThu, openRescueReq.getTargetEmployee());
+        assertTrue(openRescueReq.getIsTargetAgreed());
+        assertNotNull(openRescueReq.getTargetAgreedAt());
+        assertTrue(openRescueReq.getReason().contains("Cứu bồ"));
+        verify(shiftChangeRequestRepository).save(openRescueReq);
+    }
+
     private User buildUser(Integer id, String username, RoleName roleName, Employee employee) {
         Role role = Role.builder().id(roleName == RoleName.ADMIN ? 1 : (roleName == RoleName.MANAGER ? 2 : 3)).roleName(roleName).build();
         return User.builder()
