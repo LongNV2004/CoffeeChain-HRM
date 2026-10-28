@@ -18,7 +18,6 @@
         <h1>Đào tạo</h1>
         <p>
             <span th:text="${displayName}">Admin</span>
-            · xem danh sách lớp, tạo lớp đào tạo và tạo kỹ năng đào tạo
         </p>
         <p class="actions" style="margin-top:12px;">
             <a class="primary-btn" th:href="@{/admin/training/create}">Tạo lớp đào tạo</a>
@@ -34,7 +33,6 @@
         <div class="panel-head">
             <div>
                 <h2>Lớp đang hoạt động</h2>
-                <p>Lớp chưa đến giờ kết thúc, gồm lớp đang diễn ra và lớp sắp diễn ra. Sau khi lớp kết thúc, nếu bạn là người đào tạo thì mở lớp để đánh giá Pass hoặc Not Pass.</p>
             </div>
         </div>
 
@@ -67,44 +65,7 @@
             </div>
         </form>
 
-        <table>
-            <thead>
-            <tr>
-                <th>Tên lớp</th>
-                <th>Kỹ năng</th>
-                <th>Cửa hàng</th>
-                <th>Ngày</th>
-                <th>Giờ bắt đầu</th>
-                <th>Giờ kết thúc</th>
-                <th>Sĩ số</th>
-                <th></th>
-            </tr>
-            </thead>
-            <tbody>
-            <tr th:if="${#lists.isEmpty(classes)}">
-                <td colspan="8" class="empty">Không có lớp đào tạo phù hợp.</td>
-            </tr>
-            <tr th:each="item : ${classes}"
-                th:data-end="${item.endDate != null and item.endTime != null ? #temporals.format(item.endDate, 'yyyy-MM-dd') + 'T' + #temporals.format(item.endTime, 'HH:mm:ss') : ''}">
-                <td>
-                    <a class="row-link" th:href="@{/admin/training/classes/{id}(id=${item.id})}" th:text="${item.className}">Class</a>
-                </td>
-                <td th:text="${item.skillName}">Skill</td>
-                <td th:text="${item.storeName} ?: '—'">Store</td>
-                <td>
-                    <span th:text="${item.startDate}">2026-01-01</span>
-                    <span> → </span>
-                    <span th:text="${item.endDate}">2026-01-02</span>
-                </td>
-                <td th:text="${item.startTime != null} ? ${#temporals.format(item.startTime, 'HH:mm')} : '—'">08:00</td>
-                <td th:text="${item.endTime != null} ? ${#temporals.format(item.endTime, 'HH:mm')} : '—'">10:00</td>
-                <td th:text="${item.maxParticipants != null} ? ${item.maxParticipants} : '—'">—</td>
-                <td class="actions">
-                    <a class="link-btn" th:href="@{/admin/training/classes/{id}(id=${item.id})}">Xem chi tiết</a>
-                </td>
-            </tr>
-            </tbody>
-        </table>
+        <table th:replace="~{fragments/trainingClassView :: activeTable(${classes}, '/admin/training/classes/{id}', 'Không có lớp đào tạo phù hợp.')}"></table>
 
         <nav class="pagination" th:if="${totalPages > 0}" aria-label="Phân trang danh sách lớp đang hoạt động">
             <a class="page-btn"
@@ -124,41 +85,12 @@
     </section>
 
     <section class="panel" style="margin-top:16px;">
-        <h2>Tất cả lớp</h2>
-        <table>
-            <thead>
-            <tr>
-                <th>Lớp</th>
-                <th>Loại</th>
-                <th>Cửa hàng</th>
-                <th>Người đào tạo</th>
-                <th>Trạng thái</th>
-                <th></th>
-            </tr>
-            </thead>
-            <tbody>
-            <tr th:if="${#lists.isEmpty(allClasses)}">
-                <td colspan="6" class="empty">Chưa có lớp đào tạo.</td>
-            </tr>
-            <tr th:each="item : ${allClasses}">
-                <td><a class="row-link" th:href="@{/admin/training/classes/{id}(id=${item.id})}" th:text="${item.className}">Class</a></td>
-                <td th:text="${item.trainingTypeLabel} ?: '—'">Loại</td>
-                <td th:text="${item.storeName} ?: '—'">Store</td>
-                <td th:text="${item.trainer} ?: '—'">Trainer</td>
-                <td>
-                    <span class="badge"
-                          th:classappend="${item.scheduleTone}"
-                          th:text="${item.scheduleLabel}">Sắp tới</span>
-                </td>
-                <td>
-                    <a class="link-btn"
-                       th:if="${item.scheduleLabel == 'Đã kết thúc' and item.trainerUserId == currentUserId}"
-                       th:href="@{/admin/training/classes/{id}(id=${item.id})}"
-                       th:text="${item.evaluated} ? 'Đã đánh giá' : 'Đánh giá'">Đánh giá</a>
-                </td>
-            </tr>
-            </tbody>
-        </table>
+        <div class="panel-head">
+            <div>
+                <h2>Lớp đã kết thúc</h2>
+            </div>
+        </div>
+        <table th:replace="~{fragments/trainingClassView :: endedTable(${endedClasses}, '/admin/training/classes/{id}', 'Xem chi tiết')}"></table>
     </section>
 </main>
 <script th:src="@{/js/AdminDashboard.js}"></script>

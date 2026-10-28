@@ -7,6 +7,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -28,6 +29,7 @@ public class TrainingClassStudentResponse {
     private CertificationStatus certificationStatus;
     private String certificationLabel;
     private String evaluationNote;
+    private LocalDateTime evaluatedAt;
 
     /** Chứng chỉ và lần đào tạo gần nhất của từng kỹ năng đang xét. */
     @Builder.Default

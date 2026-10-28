@@ -29,9 +29,8 @@
         <div class="panel-head">
             <div>
                 <h2>Lớp đang hoạt động</h2>
-                <p>Lớp tại cửa hàng của bạn, lớp bạn đang tham gia và lớp bạn được phân công đào tạo. Đến giờ kết thúc, lớp tự chuyển xuống mục đã kết thúc.</p>
             </div>
-            <a class="primary-btn" th:href="@{/training/skills}">Vị trí làm việc</a>
+            <a class="primary-btn" th:href="@{/training/skills}">Danh mục kỹ năng</a>
         </div>
 
         <div class="store-banner warning" th:unless="${hasStore}">
@@ -68,42 +67,7 @@
             </div>
         </form>
 
-        <table>
-            <thead>
-            <tr>
-                <th>Tên lớp</th>
-                <th>Kỹ năng</th>
-                <th>Ngày</th>
-                <th>Giờ bắt đầu</th>
-                <th>Giờ kết thúc</th>
-                <th>Sĩ số</th>
-                <th></th>
-            </tr>
-            </thead>
-            <tbody>
-            <tr th:if="${#lists.isEmpty(classes)}">
-                <td colspan="7" class="empty">Không có lớp đào tạo phù hợp.</td>
-            </tr>
-            <tr th:each="item : ${classes}"
-                th:data-end="${item.endDate != null and item.endTime != null ? #temporals.format(item.endDate, 'yyyy-MM-dd') + 'T' + #temporals.format(item.endTime, 'HH:mm:ss') : ''}">
-                <td>
-                    <a class="row-link" th:href="@{/training/classes/{id}(id=${item.id})}" th:text="${item.className}">Class</a>
-                </td>
-                <td th:text="${item.skillName}">Skill</td>
-                <td>
-                    <span th:text="${item.startDate}">2026-01-01</span>
-                    <span> → </span>
-                    <span th:text="${item.endDate}">2026-01-02</span>
-                </td>
-                <td th:text="${item.startTime != null} ? ${#temporals.format(item.startTime, 'HH:mm')} : '—'">08:00</td>
-                <td th:text="${item.endTime != null} ? ${#temporals.format(item.endTime, 'HH:mm')} : '—'">10:00</td>
-                <td th:text="${item.maxParticipants != null} ? ${item.maxParticipants} : '—'">—</td>
-                <td class="actions">
-                    <a class="link-btn" th:href="@{/training/classes/{id}(id=${item.id})}">Xem chi tiết</a>
-                </td>
-            </tr>
-            </tbody>
-        </table>
+        <table th:replace="~{fragments/trainingClassView :: activeTable(${classes}, '/training/classes/{id}', 'Không có lớp đào tạo phù hợp.')}"></table>
 
         <nav class="pagination" th:if="${totalPages > 0}" aria-label="Phân trang danh sách lớp">
             <a class="page-btn"
@@ -126,37 +90,9 @@
         <div class="panel-head">
             <div>
                 <h2>Lớp đã kết thúc</h2>
-                <p>Gồm lớp đã qua ngày kết thúc và lớp đã đến giờ kết thúc trong hôm nay. Mở lớp để đánh giá học viên.</p>
             </div>
         </div>
-        <table>
-            <thead>
-            <tr>
-                <th>Tên lớp</th>
-                <th>Kỹ năng</th>
-                <th>Ngày kết thúc</th>
-                <th>Giờ kết thúc</th>
-                <th></th>
-            </tr>
-            </thead>
-            <tbody>
-            <tr th:if="${#lists.isEmpty(endedClasses)}">
-                <td colspan="5" class="empty">Chưa có lớp đã kết thúc.</td>
-            </tr>
-            <tr th:each="item : ${endedClasses}">
-                <td>
-                    <a class="row-link" th:href="@{/training/classes/{id}(id=${item.id})}" th:text="${item.className}">Class</a>
-                </td>
-                <td th:text="${item.skillName}">Skill</td>
-                <td th:text="${item.endDate != null} ? ${#temporals.format(item.endDate, 'dd/MM/yyyy')} : '—'">01/01/2026</td>
-                <td th:text="${item.endTime != null} ? ${#temporals.format(item.endTime, 'HH:mm')} : '—'">11:54</td>
-                <td class="actions">
-                    <a class="link-btn" th:href="@{/training/classes/{id}(id=${item.id})}"
-                       th:text="${item.evaluated} ? 'Đã đánh giá' : 'Đánh giá'">Đánh giá</a>
-                </td>
-            </tr>
-            </tbody>
-        </table>
+        <table th:replace="~{fragments/trainingClassView :: endedTable(${endedClasses}, '/training/classes/{id}', 'Xem kết quả')}"></table>
     </section>
 
 </main>

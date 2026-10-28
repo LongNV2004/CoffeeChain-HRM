@@ -18,19 +18,14 @@
         <h1>Chứng chỉ nhân viên</h1>
         <p>
             <span th:text="${displayName}">Admin</span>
-            · hệ thống chỉ có một chứng chỉ, được cấp khi nhân viên đạt chương trình đào tạo
         </p>
-        <p class="muted"><a class="back-link" th:href="@{/admin/training}">← Danh sách lớp</a></p>
     </section>
 
     <p class="flash success" th:if="${successMessage}" th:text="${successMessage}">OK</p>
 
     <section class="panel">
         <h2>Chứng chỉ nhân viên</h2>
-        <p>Không tạo chứng chỉ theo Pha chế, Phục vụ hay Thu ngân. Danh mục này không dùng để đăng ký ca.</p>
         <h2>Thêm kỹ năng</h2>
-        <p>Kỹ năng vừa tạo ở trạng thái đang dùng. Admin có thể sửa, ngừng hoặc kích hoạt lại.</p>
-
         <form class="stack-form" th:action="@{/admin/training/skills}" th:object="${skillForm}" method="post">
             <p class="flash error" th:if="${skillError}" th:text="${skillError}">Error</p>
             <label>Tên kỹ năng
@@ -46,7 +41,6 @@
 
     <section class="panel">
         <h2>Kỹ năng hiện có</h2>
-        <p>Sửa tên, yêu cầu hoặc ngừng kỹ năng đang dùng. Kỹ năng ngừng dùng không bị xóa và có thể kích hoạt lại.</p>
         <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}">Error</p>
         <table>
             <thead>

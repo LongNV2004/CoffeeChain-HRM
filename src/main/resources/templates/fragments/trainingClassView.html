@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<dl th:fragment="classInfo(detail)" class="detail-list">
+    <div>
+        <dt>Tên lớp</dt>
+        <dd th:text="${detail.className}">Tên lớp</dd>
+    </div>
+    <div>
+        <dt>Loại lớp</dt>
+        <dd th:text="${detail.trainingTypeLabel} ?: '—'">Đào tạo tại cửa hàng</dd>
+    </div>
+    <div>
+        <dt>Kỹ năng</dt>
+        <dd th:text="${detail.skillName} ?: '—'">Kỹ năng</dd>
+    </div>
+    <div>
+        <dt>Cửa hàng</dt>
+        <dd th:text="${detail.storeName} ?: '—'">Cửa hàng</dd>
+    </div>
+    <div>
+        <dt>Ngày bắt đầu</dt>
+        <dd th:text="${detail.startDate != null} ? ${#temporals.format(detail.startDate, 'dd/MM/yyyy')} : '—'">01/01/2026</dd>
+    </div>
+    <div>
+        <dt>Ngày kết thúc</dt>
+        <dd th:text="${detail.endDate != null} ? ${#temporals.format(detail.endDate, 'dd/MM/yyyy')} : '—'">02/01/2026</dd>
+    </div>
+    <div>
+        <dt>Giờ bắt đầu</dt>
+        <dd th:text="${detail.startTime != null} ? ${#temporals.format(detail.startTime, 'HH:mm')} : '—'">08:00</dd>
+    </div>
+    <div>
+        <dt>Giờ kết thúc</dt>
+        <dd th:text="${detail.endTime != null} ? ${#temporals.format(detail.endTime, 'HH:mm')} : '—'">10:00</dd>
+    </div>
+    <div>
+        <dt>Người tạo</dt>
+        <dd th:text="${detail.createdByName} ?: '—'">Admin</dd>
+    </div>
+    <div>
+        <dt>Người đào tạo</dt>
+        <dd th:text="${detail.trainer} ?: '—'">Người đào tạo</dd>
+    </div>
+    <div>
+        <dt>Địa điểm</dt>
+        <dd th:text="${detail.location != null and !#strings.isEmpty(detail.location)} ? ${detail.location} : '—'">Trụ Sở</dd>
+    </div>
+    <div th:if="${detail.notes != null}">
+        <dt>Ghi chú</dt>
+        <dd th:text="${detail.notes}">Ghi chú</dd>
+    </div>
+</dl>
+
+<section th:fragment="ownResult(resultLabel, trainingTypeLabel, evaluatedAt, note)" class="panel" style="margin-top:16px;">
+    <h2>Kết quả của bạn</h2>
+    <p th:if="${resultLabel == null or resultLabel == 'Chưa đánh giá'}">Chưa có kết quả đánh giá</p>
+    <dl class="detail-list" th:if="${resultLabel != null and resultLabel != 'Chưa đánh giá'}">
+        <div>
+            <dt>Kết quả</dt>
+            <dd>
+                <span class="badge"
+                      th:classappend="${resultLabel == 'Đạt'} ? ' badge-ok' : ' badge-off'"
+                      th:text="${resultLabel}">Đạt</span>
+            </dd>
+        </div>
+        <div>
+            <dt>Chứng chỉ</dt>
+            <dd th:text="${resultLabel == 'Đạt'}
+                    ? (${trainingTypeLabel == 'Chứng chỉ quản lý'} ? 'Đã cấp Chứng chỉ quản lý' : 'Đã cấp Chứng chỉ nhân viên')
+                    : (${trainingTypeLabel == 'Chứng chỉ quản lý'} ? 'Chưa cấp Chứng chỉ quản lý' : 'Chưa cấp Chứng chỉ nhân viên')">Chưa cấp Chứng chỉ nhân viên</dd>
+        </div>
+        <div>
+            <dt>Ngày đánh giá</dt>
+            <dd th:text="${evaluatedAt != null} ? ${#temporals.format(evaluatedAt, 'dd/MM/yyyy HH:mm')} : '—'">01/09/2026</dd>
+        </div>
+        <div th:if="${note != null and !#strings.isEmpty(note)}">
+            <dt>Ghi chú đánh giá</dt>
+            <dd th:text="${note}">Ghi chú</dd>
+        </div>
+    </dl>
+</section>
+
+<table th:fragment="activeTable(rows, link, emptyText)">
+    <thead>
+    <tr>
+        <th>Tên lớp</th>
+        <th>Kỹ năng</th>
+        <th>Ngày</th>
+        <th>Giờ bắt đầu</th>
+        <th>Giờ kết thúc</th>
+        <th></th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:if="${#lists.isEmpty(rows)}">
+        <td colspan="6" class="empty" th:text="${emptyText}">Không có lớp đào tạo phù hợp.</td>
+    </tr>
+    <tr th:each="item : ${rows}"
+        th:data-end="${item.endDate != null and item.endTime != null ? #temporals.format(item.endDate, 'yyyy-MM-dd') + 'T' + #temporals.format(item.endTime, 'HH:mm:ss') : ''}">
+        <td>
+            <a class="row-link" th:href="@{${link}(id=${item.id})}" th:text="${item.className}">Tên lớp</a>
+        </td>
+        <td th:text="${item.skillName} ?: '—'">Kỹ năng</td>
+        <td>
+            <span th:text="${item.startDate != null} ? ${#temporals.format(item.startDate, 'dd/MM/yyyy')} : '—'">01/01/2026</span>
+            <span> → </span>
+            <span th:text="${item.endDate != null} ? ${#temporals.format(item.endDate, 'dd/MM/yyyy')} : '—'">02/01/2026</span>
+        </td>
+        <td th:text="${item.startTime != null} ? ${#temporals.format(item.startTime, 'HH:mm')} : '—'">08:00</td>
+        <td th:text="${item.endTime != null} ? ${#temporals.format(item.endTime, 'HH:mm')} : '—'">10:00</td>
+        <td class="actions">
+            <a class="link-btn" th:href="@{${link}(id=${item.id})}">Xem chi tiết</a>
+        </td>
+    </tr>
+    </tbody>
+</table>
+
+<table th:fragment="endedTable(rows, link, closedLabel)">
+    <thead>
+    <tr>
+        <th>Tên lớp</th>
+        <th>Kỹ năng</th>
+        <th>Ngày kết thúc</th>
+        <th>Giờ kết thúc</th>
+        <th></th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:if="${#lists.isEmpty(rows)}">
+        <td colspan="5" class="empty">Chưa có lớp đã kết thúc.</td>
+    </tr>
+    <tr th:each="item : ${rows}">
+        <td>
+            <a class="row-link" th:href="@{${link}(id=${item.id})}" th:text="${item.className}">Tên lớp</a>
+        </td>
+        <td th:text="${item.skillName} ?: '—'">Kỹ năng</td>
+        <td th:text="${item.endDate != null} ? ${#temporals.format(item.endDate, 'dd/MM/yyyy')} : '—'">01/01/2026</td>
+        <td th:text="${item.endTime != null} ? ${#temporals.format(item.endTime, 'HH:mm')} : '—'">10:00</td>
+        <td class="actions">
+            <a class="link-btn" th:href="@{${link}(id=${item.id})}"
+               th:text="${item.evaluable} ? (${item.evaluated} ? 'Đã đánh giá' : 'Đánh giá') : ${closedLabel}">Xem kết quả</a>
+        </td>
+    </tr>
+    </tbody>
+</table>
+
+</body>
+</html>

@@ -45,7 +45,7 @@ public class AdminTrainingController {
         String normalizedSortDir = "desc".equalsIgnoreCase(sortDir) ? "desc" : "asc";
         model.addAttribute("displayName", user.getDisplayName());
         model.addAttribute("currentUserId", user.getUserId());
-        model.addAttribute("allClasses", trainingService.listAllClassesForAdmin());
+        model.addAttribute("endedClasses", trainingService.listEndedClassesForAdmin(user));
         model.addAttribute("classes", classPage.getContent());
         model.addAttribute("classPage", classPage);
         model.addAttribute("filterSkills", trainingService.listActiveSkills());
@@ -65,6 +65,7 @@ public class AdminTrainingController {
                                   RedirectAttributes redirectAttributes) {
         try {
             model.addAttribute("displayName", user.getDisplayName());
+            model.addAttribute("viewerEmployeeId", user.getEmployeeId());
             model.addAttribute("classDetail", trainingService.getApprovedClassDetailForAdmin(id, user));
             return "admin/AdminTrainingClassDetail";
         } catch (BusinessException ex) {

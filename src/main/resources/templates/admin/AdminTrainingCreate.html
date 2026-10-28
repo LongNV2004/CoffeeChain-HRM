@@ -20,7 +20,6 @@
             <span th:text="${displayName}">Admin</span>
             · chọn cửa hàng, chọn chứng chỉ, rồi thêm tài khoản đúng vai trò của chứng chỉ đó.
         </p>
-        <p class="muted"><a class="back-link" th:href="@{/admin/training}">← Danh sách lớp</a></p>
     </section>
 
     <section class="panel">
@@ -201,7 +200,7 @@
                 } else if (certificate.value === 'STAFF' && selectedStores.length > 1 && enabledTrainers.length === 0) {
                     fail('Các cơ sở được chọn chưa có Manager sở hữu chứng chỉ quản lý hợp lệ để phụ trách lớp đào tạo.');
                 } else if (certificate.value === 'MANAGEMENT') {
-                    fail('Vui lòng chọn người đào tạo. Người đào tạo phải là Admin hoặc Manager đã có chứng chỉ quản lý.');
+                    fail('Vui lòng chọn người đào tạo. Người đào tạo là Admin, hoặc Manager có chứng chỉ quản lý đang công tác tại cơ sở đã chọn.');
                 } else if (certificate.value === 'STAFF' && selectedStores.length > 1) {
                     fail('Người đào tạo phải là Manager có chứng chỉ quản lý hợp lệ thuộc các cửa hàng đã chọn.');
                 } else {

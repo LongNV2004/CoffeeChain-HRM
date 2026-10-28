@@ -30,6 +30,8 @@ public class TrainingClassResponse {
     private String trainer;
     private boolean evaluable;
     private boolean evaluated;
+    /** Người đào tạo hoặc Admin tạo lớp được xem danh sách học viên và kết quả. */
+    private boolean rosterVisible;
     private LocalDate startDate;
     private LocalDate endDate;
     private LocalTime startTime;

@@ -20,7 +20,6 @@
             <span th:text="${displayName}">Manager</span>
             <span th:if="${storeName}"> · <span th:text="${storeName}">Store</span></span>
         </p>
-        <p class="muted"><a class="back-link" th:href="@{/training}">← Danh sách lớp đào tạo</a></p>
     </section>
 
     <p class="flash success" th:if="${successMessage}" th:text="${successMessage}">OK</p>
@@ -29,8 +28,6 @@
     <section>
         <article class="panel">
             <h2>Danh mục kỹ năng</h2>
-            <p>Xem danh mục kỹ năng đào tạo. Việc sửa và ngừng kỹ năng do Admin thực hiện.</p>
-
             <table>
                 <thead>
                 <tr>

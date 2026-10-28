@@ -119,5 +119,7 @@ public interface TrainingService {
 
     List<TrainingClassResponse> listAllClassesForAdmin();
 
+    List<TrainingClassResponse> listEndedClassesForAdmin(AuthenticatedUser admin);
+
     void notifyEndedClasses();
 }
