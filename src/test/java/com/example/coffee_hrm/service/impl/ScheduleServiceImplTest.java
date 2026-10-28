@@ -722,7 +722,7 @@ class ScheduleServiceImplTest {
         assertEquals(empThu, openRescueReq.getTargetEmployee());
         assertTrue(openRescueReq.getIsTargetAgreed());
         assertNotNull(openRescueReq.getTargetAgreedAt());
-        assertTrue(openRescueReq.getReason().contains("Cứu bồ"));
+        assertTrue(openRescueReq.getReason().contains("Hỗ trợ ca gấp"));
         verify(shiftChangeRequestRepository).save(openRescueReq);
     }
 

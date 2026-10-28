@@ -47,6 +47,7 @@ public class ReliabilityServiceImpl implements ReliabilityService {
     private static final String REF_SHIFT_CHANGE = "SHIFT_CHANGE";
     private static final String REF_SHIFT_ASSIGNMENT = "SHIFT_ASSIGNMENT";
     private static final String REF_MANAGER_ADJUST = "MANAGER_ADJUST";
+    private static final String REF_ATTENDANCE = "ATTENDANCE";
 
     private final EmployeeRepository employeeRepository;
     private final StoreRepository storeRepository;
@@ -170,7 +171,7 @@ public class ReliabilityServiceImpl implements ReliabilityService {
                         REF_SHIFT_CHANGE, approvedRequest.getId())) {
             return;
         }
-        String reason = "Nhận ca \"Cứu bồ\" (<24h) hỗ trợ " + approvedRequest.getEmployee().getFullName()
+        String reason = "Hỗ trợ ca gấp (<24h) hỗ trợ " + approvedRequest.getEmployee().getFullName()
                 + " — " + assignment.getShift().getShiftName()
                 + " ngày " + workDate.format(DATE_FORMATTER);
         applyScoreDelta(
@@ -242,6 +243,52 @@ public class ReliabilityServiceImpl implements ReliabilityService {
 
     @Override
     @Transactional
+    public void recordPunctualityPenaltyOnCheckout(Attendance attendance) {
+        if (attendance == null || attendance.getId() == null || attendance.getEmployee() == null
+                || attendance.getShift() == null || attendance.getWorkDate() == null) {
+            return;
+        }
+        int lateMinutes = attendance.getLateMinutes() == null ? 0 : attendance.getLateMinutes();
+        int earlyMinutes = attendance.getEarlyLeaveMinutes() == null ? 0 : attendance.getEarlyLeaveMinutes();
+        String shiftLabel = attendance.getShift().getShiftName() + " ngày " + attendance.getWorkDate().format(DATE_FORMATTER);
+        Employee employee = attendance.getEmployee();
+
+        if (lateMinutes > 0) {
+            applyPunctualityPenalty(employee, ReliabilityActionType.LATE_ARRIVAL, lateMinutes,
+                    "Đi muộn " + lateMinutes + " phút: " + shiftLabel, attendance.getId());
+        }
+        if (earlyMinutes >= EARLY_LEAVE_GRACE_MINUTES) {
+            applyPunctualityPenalty(employee, ReliabilityActionType.EARLY_LEAVE, earlyMinutes,
+                    "Về sớm " + earlyMinutes + " phút: " + shiftLabel, attendance.getId());
+        }
+    }
+
+    private void applyPunctualityPenalty(Employee employee, ReliabilityActionType type, int minutes,
+                                         String reason, Integer attendanceId) {
+        if (reliabilityScoreLogRepository.existsByEmployee_IdAndActionTypeAndReferenceTypeAndReferenceId(
+                employee.getId(), type.getDbValue(), REF_ATTENDANCE, attendanceId)) {
+            return;
+        }
+        applyScoreDelta(employee, type, punctualityPenalty(minutes), reason, REF_ATTENDANCE, attendanceId,
+                VietnamTime.now());
+    }
+
+    /** ≤30 phút: -2đ, 31–60 phút: -4đ, trên 60 phút: -6đ. */
+    static int punctualityPenalty(int minutes) {
+        if (minutes <= 0) {
+            return 0;
+        }
+        if (minutes <= 30) {
+            return PUNCTUALITY_MINOR_PENALTY;
+        }
+        if (minutes <= 60) {
+            return PUNCTUALITY_MODERATE_PENALTY;
+        }
+        return PUNCTUALITY_SEVERE_PENALTY;
+    }
+
+    @Override
+    @Transactional
     public void confirmSwappedShiftCompletion(Integer requestId, AuthenticatedUser manager) {
         Store store = resolveManagerStore(manager);
         ShiftChangeRequest request = shiftChangeRequestRepository.findByIdWithDetails(requestId)
@@ -282,14 +329,14 @@ public class ReliabilityServiceImpl implements ReliabilityService {
     public void adjustScoreByManager(Integer employeeId, int pointsDelta, String reason, AuthenticatedUser manager) {
         Store store = resolveManagerStore(manager);
         if (employeeId == null) {
-            throw new BusinessException("Vui lòng chọn nhân viên cần điều chỉnh điểm uy tín.");
+            throw new BusinessException("Vui lòng chọn nhân viên cần điều chỉnh điểm chuyên cần.");
         }
         if (pointsDelta == 0 || pointsDelta < -50 || pointsDelta > 50) {
             throw new BusinessException("Số điểm điều chỉnh phải khác 0 và nằm trong khoảng -50 đến +50 điểm.");
         }
         String trimmedReason = reason == null ? "" : reason.trim();
         if (trimmedReason.isEmpty()) {
-            throw new BusinessException("Vui lòng nhập lý do thưởng hoặc trừ điểm uy tín.");
+            throw new BusinessException("Vui lòng nhập lý do thưởng hoặc trừ điểm chuyên cần.");
         }
         if (trimmedReason.length() > 250) {
             trimmedReason = trimmedReason.substring(0, 250);
@@ -373,6 +420,7 @@ public class ReliabilityServiceImpl implements ReliabilityService {
             int completedSwapCount = 0;
             int lateCancelCount = 0;
             int emergencyDeclineCount = 0;
+            int punctualityCount = 0;
 
             for (ReliabilityScoreLog l : empLogs) {
                 int delta = l.getPointsDelta() != null ? l.getPointsDelta() : 0;
@@ -395,6 +443,9 @@ public class ReliabilityServiceImpl implements ReliabilityService {
                 } else if (ReliabilityActionType.EMERGENCY_DECLINE_PENALTY.getDbValue().equalsIgnoreCase(action)
                         || ReliabilityActionType.EMERGENCY_DECLINE_WARNING.getDbValue().equalsIgnoreCase(action)) {
                     emergencyDeclineCount++;
+                } else if (ReliabilityActionType.LATE_ARRIVAL.getDbValue().equalsIgnoreCase(action)
+                        || ReliabilityActionType.EARLY_LEAVE.getDbValue().equalsIgnoreCase(action)) {
+                    punctualityCount++;
                 }
             }
 
@@ -416,6 +467,7 @@ public class ReliabilityServiceImpl implements ReliabilityService {
                     .completedSwapsCount(completedSwapCount)
                     .lateCancelsCount(lateCancelCount)
                     .emergencyDeclinesCount(emergencyDeclineCount)
+                    .punctualityViolationsCount(punctualityCount)
                     .tierCode(tier.code())
                     .tierLabel(tier.label())
                     .tierBadgeClass(tier.badgeClass())
@@ -438,7 +490,7 @@ public class ReliabilityServiceImpl implements ReliabilityService {
             entry.setKpiRewardEligible(top3Qualifies);
             entry.setPriorityScheduleEligible(prioritySchedule);
             if (top3Qualifies && rank == 1) {
-                entry.setRewardBadgeLabel("Quán quân KPI Tháng + Ưu tiên lịch tuần sau");
+                entry.setRewardBadgeLabel("Nhân viên xuất sắc tháng + Ưu tiên lịch tuần sau");
             } else if (top3Qualifies) {
                 entry.setRewardBadgeLabel("Thưởng KPI Tháng + Ưu tiên lịch tuần sau");
             } else if (prioritySchedule) {
@@ -446,7 +498,7 @@ public class ReliabilityServiceImpl implements ReliabilityService {
             } else if (entry.getReliabilityScore() < 90) {
                 entry.setRewardBadgeLabel("Cần cải thiện kỷ luật nhận/đổi ca");
             } else {
-                entry.setRewardBadgeLabel("Duy trì điểm uy tín tốt");
+                entry.setRewardBadgeLabel("Duy trì điểm chuyên cần tốt");
             }
         }
 
@@ -470,7 +522,7 @@ public class ReliabilityServiceImpl implements ReliabilityService {
                 .toList();
 
         ReliabilityLeaderboardView.RankEntry mySummary = null;
-        String nextTierLabel = "Chiến thần cứu ca (115+ đ)";
+        String nextTierLabel = "Xuất sắc (115+ đ)";
         int pointsToNextTier = 0;
         int progressPercent = 100;
         List<ReliabilityLeaderboardView.ScoreLogItem> myRecentLogs = List.of();
@@ -490,11 +542,11 @@ public class ReliabilityServiceImpl implements ReliabilityService {
                 pointsToNextTier = 105 - myScore;
                 progressPercent = Math.min(95, Math.max(15, ((myScore - 90) * 100) / 15));
             } else if (myScore < 115) {
-                nextTierLabel = "Chiến thần cứu ca (115 đ)";
+                nextTierLabel = "Xuất sắc (115 đ)";
                 pointsToNextTier = 115 - myScore;
                 progressPercent = Math.min(95, Math.max(25, ((myScore - 105) * 100) / 10));
             } else {
-                nextTierLabel = "Đã đạt cấp cao nhất: Chiến thần cứu ca";
+                nextTierLabel = "Đã đạt cấp cao nhất: Xuất sắc";
                 pointsToNextTier = 0;
                 progressPercent = 100;
             }
@@ -594,7 +646,7 @@ public class ReliabilityServiceImpl implements ReliabilityService {
 
             ShiftAssignment sa = req.getAssignment();
             Shift s = sa.getShift();
-            String typeLabel = req.getTargetAssignment() != null ? "Đổi chéo ca" : "Nhận ca thay / Cứu bồ";
+            String typeLabel = req.getTargetAssignment() != null ? "Đổi chéo ca" : "Nhận ca thay / Hỗ trợ ca gấp";
 
             list.add(ReliabilityLeaderboardView.CompletedSwapCandidate.builder()
                     .requestId(req.getId())
@@ -671,7 +723,7 @@ public class ReliabilityServiceImpl implements ReliabilityService {
 
     public static TierMeta resolveTier(int score) {
         if (score >= 115) {
-            return new TierMeta("HERO", "Chiến thần cứu ca", "tier-hero");
+            return new TierMeta("HERO", "Xuất sắc", "tier-hero");
         }
         if (score >= 105) {
             return new TierMeta("TRUSTED", "Đáng tin cậy", "tier-trusted");

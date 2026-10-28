@@ -162,7 +162,7 @@ public class ScheduleController {
         try {
             reliabilityService.confirmSwappedShiftCompletion(requestId, user);
             redirectAttributes.addFlashAttribute("successMessage",
-                    "Đã xác nhận nhân viên hoàn thành tốt ca đổi (+2 điểm uy tín).");
+                    "Đã xác nhận nhân viên hoàn thành tốt ca đổi (+2 điểm chuyên cần).");
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
         }
@@ -182,7 +182,7 @@ public class ScheduleController {
         try {
             reliabilityService.adjustScoreByManager(employeeId, pointsDelta, reason, user);
             redirectAttributes.addFlashAttribute("successMessage",
-                    "Đã cập nhật điểm uy tín cho nhân viên thành công.");
+                    "Đã cập nhật điểm chuyên cần cho nhân viên thành công.");
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
         }
@@ -310,7 +310,7 @@ public class ScheduleController {
         try {
             scheduleService.volunteerRescueShift(id, user);
             redirectAttributes.addFlashAttribute("successMessage",
-                    "Bạn đã xung phong nhận ca \"Cứu bồ\"! Đơn đã chuyển lên Quản lý duyệt (+5 điểm uy tín nếu ca trong vòng 24h).");
+                    "Bạn đã xung phong nhận ca \"Hỗ trợ ca gấp\"! Đơn đã chuyển lên Quản lý duyệt (+5 điểm chuyên cần nếu ca trong vòng 24h).");
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
         }

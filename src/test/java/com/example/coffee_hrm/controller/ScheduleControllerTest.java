@@ -64,10 +64,10 @@ class ScheduleControllerTest {
 
         mockMvc.perform(get("/schedule/manager/leaderboard").with(user(manager())))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Bảng xếp hạng Chiến thần cứu ca")))
+                .andExpect(content().string(containsString("Bảng xếp hạng Nhân viên xuất sắc")))
                 .andExpect(content().string(containsString("Trần Văn Tuấn")))
                 .andExpect(content().string(containsString("115 đ")))
-                .andExpect(content().string(containsString("Quán quân KPI Tháng + Ưu tiên lịch tuần sau")));
+                .andExpect(content().string(containsString("Nhân viên xuất sắc tháng + Ưu tiên lịch tuần sau")));
     }
 
     @Test
@@ -76,9 +76,9 @@ class ScheduleControllerTest {
 
         mockMvc.perform(get("/schedule/staff/leaderboard").with(user(staff())))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Chiến thần cứu ca")))
+                .andExpect(content().string(containsString("Nhân viên xuất sắc")))
                 .andExpect(content().string(containsString("Trần Văn Tuấn")))
-                .andExpect(content().string(containsString("Nhận ca cứu bồ (+")));
+                .andExpect(content().string(containsString("Nhận hỗ trợ ca (+")));
     }
 
     @Test
@@ -108,11 +108,11 @@ class ScheduleControllerTest {
                 .lateCancelsCount(0)
                 .emergencyDeclinesCount(0)
                 .tierCode("HERO")
-                .tierLabel("Chiến thần cứu ca")
+                .tierLabel("Xuất sắc")
                 .tierBadgeClass("tier-hero")
                 .kpiRewardEligible(true)
                 .priorityScheduleEligible(true)
-                .rewardBadgeLabel("Quán quân KPI Tháng + Ưu tiên lịch tuần sau")
+                .rewardBadgeLabel("Nhân viên xuất sắc tháng + Ưu tiên lịch tuần sau")
                 .build();
 
         ReliabilityLeaderboardView.RescueShiftItem rescueItem = ReliabilityLeaderboardView.RescueShiftItem.builder()
@@ -148,7 +148,7 @@ class ScheduleControllerTest {
                 .podiumEntries(List.of(top1))
                 .leaderboardEntries(List.of(top1))
                 .mySummary(top1)
-                .nextTierLabel("Đã đạt cấp cao nhất: Chiến thần cứu ca")
+                .nextTierLabel("Đã đạt cấp cao nhất: Xuất sắc")
                 .pointsToNextTier(0)
                 .progressPercent(100)
                 .myRecentLogs(List.of())
