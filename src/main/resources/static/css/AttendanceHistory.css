@@ -679,3 +679,63 @@ body:has(.coffee-sidebar) main.track-board .train-card .class-detail:hover{
   .attn-screen .day-stats:not(:has(> article:nth-child(4))),
   body:has(.coffee-sidebar) main.track-board .summary{grid-template-columns:minmax(0,1fr);}
 }
+
+.track-desk .day-head{align-items:flex-end;gap:16px;}
+.track-desk .track-filters,
+.track-desk .track-period{
+  display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-top:18px;
+}
+.track-desk .track-filters label,
+.track-desk .track-period label{
+  display:flex;flex-direction:column;gap:6px;min-width:180px;font-size:13px;font-weight:600;color:#5C3C2E;
+}
+.track-desk .track-filters select,
+.track-desk .track-period input,
+.track-desk .track-pager select{
+  min-height:42px;padding:0 12px;border:1px solid rgba(92,60,46,.16);border-radius:12px;
+  background:#fff;color:#080606;font:inherit;font-weight:500;
+}
+.track-desk .track-stats{
+  display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-top:18px;
+}
+.track-desk .track-stats article{
+  padding:16px;border:1px solid rgba(92,60,46,.1);border-radius:16px;background:#FFFCFA;
+}
+.track-desk .track-stats span{display:block;color:#6B5A52;font-size:13px;line-height:1.4;}
+.track-desk .track-stats strong{
+  display:block;margin-top:8px;font-family:"Fraunces",serif;font-size:28px;font-weight:560;color:#080606;
+}
+.track-desk .track-table{min-width:1180px;}
+.track-desk .track-table th,
+.track-desk .track-table td{white-space:nowrap;}
+.track-desk .track-name,
+.track-desk .track-note{white-space:normal;min-width:140px;}
+.track-desk button.ops-link{cursor:pointer;font:inherit;}
+.track-desk .track-row[hidden]{display:none;}
+.track-desk .day-badge.on-time{background:#E5F3EA;color:#24683E;}
+.track-desk .day-badge.late{background:#FFF1E4;color:#C2410C;}
+.track-desk .day-badge.early{background:#E7F0FA;color:#1D4E89;}
+.track-desk .day-badge.late-early{background:#F3E8F8;color:#6A1B9A;}
+.track-desk .day-badge.missing-in,
+.track-desk .day-badge.missing-out{background:#F8E4E1;color:#9F3B32;}
+.track-desk .day-badge.upcoming{background:#E7E2DE;color:#5C3C2E;}
+.track-desk .track-pager{
+  display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-top:14px;
+}
+.track-desk .track-pager p{margin:0;color:#6B5A52;}
+.track-desk .track-pager label{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#5C3C2E;}
+.track-desk .track-pages{display:flex;flex-wrap:wrap;gap:6px;}
+.track-desk .track-pages button{
+  min-width:36px;min-height:36px;padding:0 10px;border:1px solid rgba(92,60,46,.16);border-radius:10px;
+  background:#fff;color:#5C3C2E;font:inherit;font-weight:600;cursor:pointer;
+}
+.track-desk .track-pages button.is-on{background:#5C3C2E;border-color:#5C3C2E;color:#FBF8F5;}
+.track-desk .track-pages button:disabled{opacity:.45;cursor:default;}
+@media (max-width:1100px){
+  .track-desk .track-stats{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media (max-width:640px){
+  .track-desk .track-stats{grid-template-columns:minmax(0,1fr);}
+  .track-desk .track-filters label,
+  .track-desk .track-period label{min-width:0;width:100%;}
+}

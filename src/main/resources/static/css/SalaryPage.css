@@ -1,0 +1,36 @@
+.salary-page .welcome p{margin:8px 0 0;color:var(--ink-soft);}
+.salary-filters{
+  display:flex;flex-wrap:wrap;gap:12px 16px;align-items:flex-end;
+  margin-top:22px;padding:16px;background:#fff;border:1px solid var(--line);border-radius:12px;
+}
+.salary-filters label{display:grid;gap:6px;font-size:13px;font-weight:600;color:#5C3C2E;}
+.salary-filters input,.salary-filters select{
+  font:inherit;color:var(--espresso);background:#fff;border:1px solid var(--line);
+  border-radius:8px;padding:8px 10px;min-width:160px;
+}
+.salary-filter-actions,.salary-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+.salary-actions{margin-top:16px;}
+.salary-actions form{margin:0;}
+.salary-stats{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:16px;
+}
+.salary-page .salary-stats article{
+  background:#FFFCFA;border:1px solid var(--line);border-radius:12px;padding:14px 16px;
+}
+.salary-stats span{display:block;color:#6B5A52;font-size:13px;}
+.salary-stats strong{display:block;margin-top:6px;font-family:'Fraunces',serif;font-size:28px;font-weight:560;}
+.salary-note{
+  margin:14px 0 0;padding:10px 12px;border-radius:8px;background:#F4E8D4;color:#8A5A20;font-size:14px;
+}
+.salary-table-wrap{overflow:auto;}
+.salary-page table{min-width:980px;}
+.salary-badge{
+  display:inline-block;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:600;background:#E7E2DE;color:#5C3C2E;
+}
+.salary-badge.DA_TINH{background:#FFF1E4;color:#C2410C;}
+.salary-badge.DA_CHOT{background:#E5F3EA;color:#24683E;}
+.salary-page tr.is-unpaid td{background:#FDF6F4;}
+.salary-page tr.is-paid td:last-child{color:#6B5A52;}
+@media (max-width:900px){
+  .salary-stats{grid-template-columns:1fr;}
+}

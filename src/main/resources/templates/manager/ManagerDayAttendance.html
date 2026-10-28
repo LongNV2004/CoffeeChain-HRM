@@ -11,115 +11,149 @@
 <body>
 <header th:replace="~{fragments/navbar :: manager('attendance-day')}"></header>
 
-<main class="wrap dash-main attn-screen track-board">
+<main class="wrap dash-main attn-screen track-board track-desk">
     <section class="day-board">
         <div class="day-head">
             <div>
                 <h1>Theo dõi chấm công</h1>
                 <p class="day-date" th:text="${board.dateLabel}">Thứ Tư, 21/10/2026</p>
             </div>
-            <form method="get" th:action="@{/attendance/manager/day}">
-                <label class="day-pick">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>
-                    <span>Chọn ngày</span>
-                    <input type="date" name="date" th:max="${vietnamToday}"
-                           th:value="${#temporals.format(board.workDate, 'yyyy-MM-dd')}"
-                           onchange="this.form.submit()" aria-label="Chọn ngày">
-                </label>
-            </form>
         </div>
 
         <nav class="track-tabs" aria-label="Theo dõi chấm công">
-            <a class="is-on" th:href="@{/attendance/manager/day}">Theo ngày</a>
-            <a th:href="@{/attendance/manager/month}">Theo tháng</a>
-            <a th:href="@{/attendance/manager/history(kind='training')}">Đào tạo</a>
+            <a class="is-on" th:href="@{/attendance/manager/day(date=${#temporals.format(board.workDate, 'yyyy-MM-dd')})}">Theo dõi theo ngày</a>
+            <a th:href="@{/attendance/manager/month}">Theo dõi theo tháng</a>
         </nav>
 
         <p class="flash" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
 
-        <div class="day-stats">
-            <article th:each="shift : ${board.shifts}">
-                <div class="day-stat-name" th:text="${shift.shiftName}">Ca sáng</div>
-                <div class="day-stat-value"><span th:text="${shift.slots}">0</span> ca</div>
-            </article>
-            <article>
-                <div class="day-stat-name">Tổng vi phạm</div>
-                <div class="day-stat-value"><span th:text="${board.violationSlots}">0</span> ca</div>
-            </article>
-        </div>
-
-        <h2>Danh sách ca chấm công</h2>
-        <div class="day-tools">
-            <label class="day-search">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg>
-                <input id="slotSearch" type="search" placeholder="Tìm mã hoặc tên nhân viên..." autocomplete="off">
-            </label>
-            <label>Lọc ca
-                <select id="slotShift">
-                    <option value="">Tất cả ca</option>
-                    <option th:each="shift : ${board.shifts}" th:value="${shift.shiftId}" th:text="${shift.shiftName}">Ca sáng</option>
+        <form class="track-filters" id="dayFilters">
+            <label>Cửa hàng
+                <select aria-label="Cửa hàng">
+                    <option th:text="${board.storeName != null ? board.storeName : 'Cửa hàng đang quản lý'}">Cửa hàng</option>
                 </select>
             </label>
-            <label>Trạng thái
-                <select id="slotStatus">
+            <label>Nhân viên
+                <select id="dayEmployee" aria-label="Nhân viên">
                     <option value="">Tất cả</option>
+                </select>
+            </label>
+            <label>Trạng thái chấm công
+                <select id="dayStatus" aria-label="Trạng thái chấm công">
+                    <option value="">Tất cả</option>
+                    <option value="on-time">Đúng giờ</option>
                     <option value="late">Đi muộn</option>
                     <option value="early">Về sớm</option>
-                    <option value="on-time">Đúng giờ</option>
-                    <option value="missing">Chưa check-in</option>
-                    <option value="absent">Vắng</option>
+                    <option value="late-early">Đi muộn &amp; về sớm</option>
+                    <option value="missing-in">Thiếu check-in</option>
+                    <option value="missing-out">Thiếu check-out</option>
+                    <option value="upcoming">Chưa đến ca</option>
                 </select>
             </label>
-        </div>
+            <button class="secondary-btn" id="dayReset" type="button">Làm mới bộ lọc</button>
+        </form>
 
-        <p class="day-empty" id="slotEmpty" th:if="${#lists.isEmpty(board.slots)}">Không có ca chấm công trong ngày này.</p>
-        <p class="day-empty" id="slotFilteredEmpty" hidden>Không có nhân viên khớp bộ lọc.</p>
+        <form class="track-period" method="get" th:action="@{/attendance/manager/day}">
+            <label>Ngày
+                <input type="date" name="date" th:max="${vietnamToday}"
+                       th:value="${#temporals.format(board.workDate, 'yyyy-MM-dd')}"
+                       onchange="this.form.submit()" aria-label="Chọn ngày">
+            </label>
+            <a class="secondary-btn" th:href="@{/attendance/manager/day(date=${vietnamToday})}">Hôm nay</a>
+        </form>
 
-        <div class="slot-list" th:if="${!#lists.isEmpty(board.slots)}">
-            <article class="slot-card" th:each="slot : ${board.slots}"
-                     th:attr="data-search=${slot.searchText},data-shift=${slot.shiftId},data-status=${slot.statusKey},data-late=${slot.late},data-early=${slot.early}">
-                <div class="slot-top">
-                    <h3 th:text="${slot.employeeName}">Nguyễn Minh Anh</h3>
-                    <span class="day-badge" th:classappend="${slot.statusKey}" th:text="${slot.statusLabel}">Đi muộn</span>
-                </div>
-                <p class="slot-meta" th:text="${slot.employeeCode + ' · ' + slot.shiftName}">NV001 · Ca sáng</p>
-                <p class="slot-schedule">Giờ theo lịch: <span th:text="${slot.scheduleLabel}">07:00–11:00</span></p>
-                <div class="slot-times">
-                    <div>
-                        <span>Check-in</span>
-                        <strong th:text="${slot.checkInLabel}">07:10:00</strong>
-                    </div>
-                    <div>
-                        <span>Check-out</span>
-                        <strong th:text="${slot.checkOutLabel}">11:00:00</strong>
-                    </div>
-                </div>
-                <div class="slot-times slot-minutes">
-                    <div>
-                        <span>Đi muộn</span>
-                        <strong th:classappend="${slot.late} ? 'is-alert' : ''" th:text="${slot.lateLabel}">10 phút</strong>
-                    </div>
-                    <div>
-                        <span>Về sớm</span>
-                        <strong th:classappend="${slot.early} ? 'is-alert' : ''" th:text="${slot.earlyLabel}">0 phút</strong>
-                    </div>
-                </div>
-                <button type="button" class="row-detail day-detail"
-                        th:data-name="${slot.employeeName}"
-                        th:data-code="${slot.employeeCode}"
-                        th:data-shift="${slot.shiftName}"
-                        th:data-schedule="${slot.scheduleLabel}"
-                        th:data-in="${slot.checkInLabel}"
-                        th:data-out="${slot.checkOutLabel}"
-                        th:data-late="${slot.lateLabel}"
-                        th:data-early="${slot.earlyLabel}"
-                        th:data-worked="${slot.workedLabel}"
-                        th:data-status="${slot.statusLabel}"
-                        th:data-in-photo="${slot.hasCheckInPhoto} ? @{|${slot.photoBase}/${slot.attendanceId}/in|} : ''"
-                        th:data-out-photo="${slot.hasCheckOutPhoto} ? @{|${slot.photoBase}/${slot.attendanceId}/out|} : ''">
-                    Xem chi tiết
-                </button>
+        <section class="track-stats" aria-label="Thống kê trong ngày">
+            <article>
+                <span>Tổng số nhân viên được phân ca</span>
+                <strong th:text="${board.assignedEmployees}">0</strong>
             </article>
+            <article>
+                <span>Đã check-in</span>
+                <strong th:text="${board.checkedInCount}">0</strong>
+            </article>
+            <article>
+                <span>Đã check-out</span>
+                <strong th:text="${board.checkedOutCount}">0</strong>
+            </article>
+            <article>
+                <span>Đi muộn</span>
+                <strong th:text="${board.lateCount}">0</strong>
+            </article>
+            <article>
+                <span>Thiếu chấm công</span>
+                <strong th:text="${board.missingCount}">0</strong>
+            </article>
+        </section>
+
+        <h2>Danh sách chấm công trong ngày</h2>
+        <p class="day-empty" th:if="${#lists.isEmpty(board.slots)}">Không có ca được phân trong ngày này.</p>
+        <p class="day-empty" id="dayFilteredEmpty" hidden>Không có bản ghi khớp bộ lọc.</p>
+
+        <div class="table-wrap" th:if="${!#lists.isEmpty(board.slots)}">
+            <table class="track-table">
+                <thead>
+                <tr>
+                    <th>STT</th>
+                    <th>Mã nhân viên</th>
+                    <th>Họ và tên</th>
+                    <th>Ca làm</th>
+                    <th>Giờ bắt đầu ca</th>
+                    <th>Giờ kết thúc ca</th>
+                    <th>Giờ check-in</th>
+                    <th>Giờ check-out</th>
+                    <th>Trạng thái</th>
+                    <th>Thời gian có mặt</th>
+                    <th>Ghi chú</th>
+                    <th>Thao tác</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr class="track-row" th:each="slot, slotStat : ${board.slots}"
+                    th:attr="data-employee=${slot.employeeId},data-status=${slot.statusKey},data-label=${slot.employeeCode + ' — ' + slot.employeeName}">
+                    <td class="track-stt" th:text="${slotStat.count}">1</td>
+                    <td th:text="${slot.employeeCode}">NV001</td>
+                    <td class="track-name" th:text="${slot.employeeName}">Lê Thị Thu</td>
+                    <td th:text="${slot.shiftName}">Ca sáng</td>
+                    <td th:text="${slot.startLabel}">07:00</td>
+                    <td th:text="${slot.endLabel}">12:00</td>
+                    <td th:text="${slot.checkInLabel}">07:10</td>
+                    <td th:text="${slot.checkOutLabel}">12:00</td>
+                    <td><span class="day-badge" th:classappend="${slot.statusKey}" th:text="${slot.statusLabel}">Đi muộn</span></td>
+                    <td th:text="${slot.paidHoursLabel}">5 giờ</td>
+                    <td class="track-note" th:text="${slot.note}">Đi muộn 10 phút</td>
+                    <td>
+                        <button type="button" class="ops-link day-detail"
+                                th:data-name="${slot.employeeName}"
+                                th:data-code="${slot.employeeCode}"
+                                th:data-shift="${slot.shiftName}"
+                                th:data-schedule="${slot.startLabel + ' – ' + slot.endLabel}"
+                                th:data-in="${slot.checkInLabel}"
+                                th:data-out="${slot.checkOutLabel}"
+                                th:data-late="${slot.lateLabel}"
+                                th:data-early="${slot.earlyLabel}"
+                                th:data-worked="${slot.paidHoursLabel}"
+                                th:data-status="${slot.statusLabel}"
+                                th:data-status-key="${slot.statusKey}"
+                                th:data-note="${slot.note}"
+                                th:data-in-photo="${slot.hasCheckInPhoto} ? @{|${slot.photoBase}/${slot.attendanceId}/in|} : ''"
+                                th:data-out-photo="${slot.hasCheckOutPhoto} ? @{|${slot.photoBase}/${slot.attendanceId}/out|} : ''">
+                            Chi tiết
+                        </button>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="track-pager" th:if="${!#lists.isEmpty(board.slots)}">
+            <p id="dayCount">0 bản ghi</p>
+            <label>Số dòng mỗi trang
+                <select id="dayPageSize" aria-label="Số dòng mỗi trang">
+                    <option value="10">10</option>
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                </select>
+            </label>
+            <div class="track-pages" id="dayPages"></div>
         </div>
     </section>
 </main>
@@ -132,16 +166,17 @@
             </div>
             <span class="day-badge" id="dayStatus">Đi muộn</span>
         </div>
-        <p class="slot-schedule">Giờ theo lịch: <span id="daySchedule">07:00 – 11:00</span></p>
+        <p class="slot-schedule">Giờ theo lịch: <span id="daySchedule">07:00 – 12:00</span></p>
         <div class="slot-times">
             <div><span>Check-in</span><strong id="dayIn">07:10</strong></div>
-            <div><span>Check-out</span><strong id="dayOut">11:00</strong></div>
+            <div><span>Check-out</span><strong id="dayOut">12:00</strong></div>
         </div>
         <div class="slot-times slot-minutes">
             <div><span>Đi muộn</span><strong id="dayLate">10 phút</strong></div>
             <div><span>Về sớm</span><strong id="dayEarly">0 phút</strong></div>
         </div>
-        <div class="mine-hours"><span>Giờ công</span><strong id="dayWorked">3 giờ 50 phút</strong></div>
+        <div class="mine-hours"><span>Thời gian có mặt</span><strong id="dayWorked">4 giờ 50 phút</strong></div>
+        <p class="slot-schedule" id="dayNote">Đi muộn 10 phút</p>
         <div class="detail-photos">
             <figure>
                 <figcaption>Ảnh check-in</figcaption>
@@ -159,39 +194,97 @@
 </dialog>
 <script>
 (function () {
-    var search = document.getElementById("slotSearch");
-    var shift = document.getElementById("slotShift");
-    var status = document.getElementById("slotStatus");
-    var cards = Array.prototype.slice.call(document.querySelectorAll(".slot-card"));
-    var filteredEmpty = document.getElementById("slotFilteredEmpty");
-    if (!search || cards.length === 0) {
+    var employee = document.getElementById("dayEmployee");
+    var status = document.getElementById("dayStatus");
+    var reset = document.getElementById("dayReset");
+    var pageSize = document.getElementById("dayPageSize");
+    var pages = document.getElementById("dayPages");
+    var count = document.getElementById("dayCount");
+    var empty = document.getElementById("dayFilteredEmpty");
+    var rows = Array.prototype.slice.call(document.querySelectorAll(".track-row"));
+    var page = 1;
+    if (!employee || rows.length === 0) {
         return;
     }
-    function apply() {
-        var text = search.value.trim().toLowerCase();
-        var shiftId = shift.value;
-        var statusKey = status.value;
-        var shown = 0;
-        cards.forEach(function (card) {
-            var matchesText = !text || (card.getAttribute("data-search") || "").indexOf(text) >= 0;
-            var matchesShift = !shiftId || card.getAttribute("data-shift") === shiftId;
-            var matchesStatus = !statusKey
-                || card.getAttribute("data-status") === statusKey
-                || (statusKey === "late" && card.getAttribute("data-late") === "true")
-                || (statusKey === "early" && card.getAttribute("data-early") === "true");
-            var visible = matchesText && matchesShift && matchesStatus;
-            card.hidden = !visible;
-            if (visible) {
-                shown += 1;
-            }
-        });
-        if (filteredEmpty) {
-            filteredEmpty.hidden = shown !== 0;
+    var seen = {};
+    rows.forEach(function (row) {
+        var id = row.getAttribute("data-employee");
+        if (!seen[id]) {
+            seen[id] = true;
+            var option = document.createElement("option");
+            option.value = id;
+            option.textContent = row.getAttribute("data-label") || id;
+            employee.appendChild(option);
         }
+    });
+    function matched() {
+        var person = employee.value;
+        var state = status.value;
+        return rows.filter(function (row) {
+            var personOk = !person || row.getAttribute("data-employee") === person;
+            var statusOk = !state || row.getAttribute("data-status") === state;
+            return personOk && statusOk;
+        });
     }
-    search.addEventListener("input", apply);
-    shift.addEventListener("change", apply);
-    status.addEventListener("change", apply);
+    function render() {
+        var list = matched();
+        var size = Number(pageSize.value) || 10;
+        var totalPages = Math.max(1, Math.ceil(list.length / size));
+        if (page > totalPages) {
+            page = totalPages;
+        }
+        rows.forEach(function (row) { row.hidden = true; });
+        list.forEach(function (row, index) {
+            row.querySelector(".track-stt").textContent = String(index + 1);
+            var onPage = index >= (page - 1) * size && index < page * size;
+            row.hidden = !onPage;
+        });
+        if (empty) {
+            empty.hidden = list.length !== 0;
+        }
+        var from = list.length === 0 ? 0 : (page - 1) * size + 1;
+        var to = Math.min(page * size, list.length);
+        count.textContent = list.length === 0
+            ? "0 bản ghi"
+            : from + "–" + to + " / " + list.length + " bản ghi";
+        pages.innerHTML = "";
+        var prev = document.createElement("button");
+        prev.type = "button";
+        prev.textContent = "Trước";
+        prev.disabled = page <= 1;
+        prev.addEventListener("click", function () { page -= 1; render(); });
+        pages.appendChild(prev);
+        for (var number = 1; number <= totalPages; number += 1) {
+            var button = document.createElement("button");
+            button.type = "button";
+            button.textContent = String(number);
+            if (number === page) {
+                button.className = "is-on";
+            }
+            button.addEventListener("click", function (event) {
+                page = Number(event.currentTarget.textContent);
+                render();
+            });
+            pages.appendChild(button);
+        }
+        var next = document.createElement("button");
+        next.type = "button";
+        next.textContent = "Sau";
+        next.disabled = page >= totalPages;
+        next.addEventListener("click", function () { page += 1; render(); });
+        pages.appendChild(next);
+    }
+    employee.addEventListener("change", function () { page = 1; render(); });
+    status.addEventListener("change", function () { page = 1; render(); });
+    pageSize.addEventListener("change", function () { page = 1; render(); });
+    reset.addEventListener("click", function () {
+        employee.value = "";
+        status.value = "";
+        pageSize.value = "10";
+        page = 1;
+        render();
+    });
+    render();
 })();
 (function () {
     var dialog = document.getElementById("dayDetail");
@@ -219,7 +312,10 @@
             document.getElementById("dayLate").textContent = button.getAttribute("data-late") || "—";
             document.getElementById("dayEarly").textContent = button.getAttribute("data-early") || "—";
             document.getElementById("dayWorked").textContent = button.getAttribute("data-worked") || "—";
-            document.getElementById("dayStatus").textContent = button.getAttribute("data-status") || "";
+            document.getElementById("dayNote").textContent = button.getAttribute("data-note") || "—";
+            var badge = document.getElementById("dayStatus");
+            badge.textContent = button.getAttribute("data-status") || "";
+            badge.className = "day-badge " + (button.getAttribute("data-status-key") || "");
             showPhoto(document.getElementById("dayInPhoto"), document.getElementById("dayInEmpty"), button.getAttribute("data-in-photo"));
             showPhoto(document.getElementById("dayOutPhoto"), document.getElementById("dayOutEmpty"), button.getAttribute("data-out-photo"));
             dialog.showModal();

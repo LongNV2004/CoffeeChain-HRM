@@ -29,19 +29,22 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Comparator;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -73,7 +76,12 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
                 attendanceRepository.findHistoryByStore(store.getId(), day, day));
         List<ManagerDayAttendanceView.Slot> slots = new ArrayList<>();
         Map<Integer, ManagerDayAttendanceView.ShiftCount> shifts = new LinkedHashMap<>();
+        Set<Integer> assignedEmployees = new HashSet<>();
         int violations = 0;
+        int checkedIn = 0;
+        int checkedOut = 0;
+        int lateCount = 0;
+        int missingCount = 0;
         for (ShiftAssignment assignment : assignments) {
             if (assignment.getShift() == null || assignment.getEmployee() == null) {
                 continue;
@@ -82,6 +90,21 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
                     assignment.getEmployee().getId(), assignment.getShift().getId()));
             ManagerDayAttendanceView.Slot slot = toSlot(assignment, attendance);
             slots.add(slot);
+            if (assignment.getEmployee().getId() != null) {
+                assignedEmployees.add(assignment.getEmployee().getId());
+            }
+            if (attendance != null && attendance.getCheckInTime() != null) {
+                checkedIn++;
+            }
+            if (attendance != null && attendance.getCheckOutTime() != null) {
+                checkedOut++;
+            }
+            if (slot.isLate()) {
+                lateCount++;
+            }
+            if ("missing-in".equals(slot.getStatusKey()) || "missing-out".equals(slot.getStatusKey())) {
+                missingCount++;
+            }
             if (slot.isLate() || slot.isEarly()) {
                 violations++;
             }
@@ -101,6 +124,11 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
                 .workDate(day)
                 .dateLabel(dateLabel(day))
                 .storeName(store.getStoreName())
+                .assignedEmployees(assignedEmployees.size())
+                .checkedInCount(checkedIn)
+                .checkedOutCount(checkedOut)
+                .lateCount(lateCount)
+                .missingCount(missingCount)
                 .violationSlots(violations)
                 .shifts(List.copyOf(shifts.values()))
                 .slots(slots)
@@ -173,8 +201,9 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
                 })
                 .toList();
         Map<Integer, Integer> scheduled = new LinkedHashMap<>();
-        for (ShiftAssignment assignment : shiftAssignmentRepository.findPublishedAssignedForStoreBetween(
-                store.getId(), start, end, AssignmentStatus.ASSIGNED)) {
+        List<ShiftAssignment> assignments = shiftAssignmentRepository.findPublishedAssignedForStoreBetween(
+                store.getId(), start, end, AssignmentStatus.ASSIGNED);
+        for (ShiftAssignment assignment : assignments) {
             if (assignment.getEmployee() == null || assignment.getEmployee().getId() == null) {
                 continue;
             }
@@ -182,6 +211,7 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
         }
         Map<Integer, MonthStats> stats = new LinkedHashMap<>();
         Map<Integer, List<MonthLine>> lines = new LinkedHashMap<>();
+        Set<String> recordedSlots = new HashSet<>();
         List<Attendance> records = attendanceRepository.findForMonthlyReport(store.getId(), start, end);
         if (records != null) {
             for (Attendance attendance : records) {
@@ -191,11 +221,32 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
                 MonthStats row = stats.computeIfAbsent(attendance.getEmployee().getId(), ignored -> new MonthStats());
                 lines.computeIfAbsent(attendance.getEmployee().getId(), ignored -> new ArrayList<>())
                         .add(toMonthLine(attendance));
+                if (attendance.getShift() != null && attendance.getShift().getId() != null && attendance.getWorkDate() != null) {
+                    recordedSlots.add(slotDayKey(attendance.getEmployee().getId(), attendance.getShift().getId(), attendance.getWorkDate()));
+                }
+                boolean checkedIn = attendance.getCheckInTime() != null;
+                boolean checkedOut = attendance.getCheckOutTime() != null;
+                LocalTime shiftStart = attendance.getScheduledStartTime() != null
+                        ? attendance.getScheduledStartTime()
+                        : (attendance.getShift() == null ? null : attendance.getShift().getStartTime());
+                LocalTime shiftEnd = attendance.getScheduledEndTime() != null
+                        ? attendance.getScheduledEndTime()
+                        : (attendance.getShift() == null ? null : attendance.getShift().getEndTime());
                 if (attendance.getStatus() == AttendanceStatus.ABSENT) {
                     row.absentSlots++;
+                    row.missingSlots++;
                     continue;
                 }
-                if (attendance.getCheckInTime() != null) {
+                if (checkedIn && checkedOut) {
+                    row.completedSlots++;
+                    row.paidMinutes += (int) Math.max(0, ChronoUnit.MINUTES.between(
+                            attendance.getCheckInTime(), attendance.getCheckOutTime()));
+                } else if (!checkedIn && slotDue(attendance.getWorkDate(), shiftStart)) {
+                    row.missingSlots++;
+                } else if (checkedIn && !checkedOut && slotEnded(attendance.getWorkDate(), shiftEnd)) {
+                    row.missingSlots++;
+                }
+                if (checkedIn) {
                     row.workedSlots++;
                 }
                 int late = attendance.getLateMinutes() == null ? 0 : attendance.getLateMinutes();
@@ -210,12 +261,32 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
                 }
             }
         }
+        for (ShiftAssignment assignment : assignments) {
+            if (assignment.getEmployee() == null || assignment.getEmployee().getId() == null
+                    || assignment.getShift() == null || assignment.getShift().getId() == null
+                    || assignment.getWorkDate() == null) {
+                continue;
+            }
+            String key = slotDayKey(assignment.getEmployee().getId(), assignment.getShift().getId(), assignment.getWorkDate());
+            if (recordedSlots.contains(key) || !slotDue(assignment.getWorkDate(), assignment.getShift().getStartTime())) {
+                continue;
+            }
+            stats.computeIfAbsent(assignment.getEmployee().getId(), ignored -> new MonthStats()).missingSlots++;
+        }
         List<ManagerMonthAttendanceView.EmployeeMonth> employees = new ArrayList<>();
         int scheduledTotal = 0;
+        int completedTotal = 0;
+        int lateTotal = 0;
+        int earlyTotal = 0;
+        int missingTotal = 0;
         for (Employee employee : roster) {
             int scheduledSlots = scheduled.getOrDefault(employee.getId(), 0);
             scheduledTotal += scheduledSlots;
             MonthStats row = stats.getOrDefault(employee.getId(), new MonthStats());
+            completedTotal += row.completedSlots;
+            lateTotal += row.lateSlots;
+            earlyTotal += row.earlySlots;
+            missingTotal += row.missingSlots;
             List<ManagerMonthAttendanceView.DayLine> days = lines.getOrDefault(employee.getId(), List.of()).stream()
                     .sorted(Comparator.comparing(MonthLine::date).thenComparing(MonthLine::start, Comparator.nullsLast(Comparator.naturalOrder())))
                     .map(MonthLine::line)
@@ -231,9 +302,12 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
                     .searchText((code + " " + employee.getId() + " " + name).toLowerCase(Locale.ROOT))
                     .scheduledSlots(scheduledSlots)
                     .workedSlots(row.workedSlots)
+                    .completedSlots(row.completedSlots)
                     .lateSlots(row.lateSlots)
                     .earlySlots(row.earlySlots)
                     .absentSlots(row.absentSlots)
+                    .missingSlots(row.missingSlots)
+                    .paidHoursLabel(minuteText(row.paidMinutes))
                     .lateDurationLabel(durationLabel(row.lateMinutes))
                     .earlyDurationLabel(durationLabel(row.earlyMinutes))
                     .late(row.lateSlots > 0)
@@ -251,6 +325,10 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
                 .storeName(store.getStoreName())
                 .employeeCount(employees.size())
                 .scheduledSlots(scheduledTotal)
+                .completedSlots(completedTotal)
+                .lateSlots(lateTotal)
+                .earlySlots(earlyTotal)
+                .missingSlots(missingTotal)
                 .detailFrom(start.toString())
                 .detailTo(detailTo.toString())
                 .detailReady(!start.isAfter(detailTo))
@@ -314,22 +392,29 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
         boolean checkedOut = attendance != null && attendance.getCheckOutTime() != null;
         AttendanceStatus status = attendance == null ? null : attendance.getStatus();
         boolean absent = status == AttendanceStatus.ABSENT;
-        String statusKey = statusKey(checkedIn, absent, late, early);
-        String code = employeeCode(assignment.getEmployee().getId());
-        String name = assignment.getEmployee().getFullName() == null ? "—" : assignment.getEmployee().getFullName();
         LocalTime start = attendance != null && attendance.getScheduledStartTime() != null
                 ? attendance.getScheduledStartTime() : shift.getStartTime();
         LocalTime end = attendance != null && attendance.getScheduledEndTime() != null
                 ? attendance.getScheduledEndTime() : shift.getEndTime();
+        String statusKey = statusKey(checkedIn, checkedOut, absent, late, early, assignment.getWorkDate(), start, end);
+        String code = employeeCode(assignment.getEmployee().getId());
+        String name = assignment.getEmployee().getFullName() == null ? "—" : assignment.getEmployee().getFullName();
         String shiftName = attendance != null && attendance.getScheduledShiftName() != null
                 && !attendance.getScheduledShiftName().isBlank()
                 ? attendance.getScheduledShiftName() : shift.getShiftName();
+        String paidHours = checkedIn && checkedOut
+                ? minuteText((int) Math.max(0, ChronoUnit.MINUTES.between(
+                attendance.getCheckInTime(), attendance.getCheckOutTime())))
+                : "—";
         return ManagerDayAttendanceView.Slot.builder()
+                .employeeId(assignment.getEmployee().getId())
                 .employeeName(name)
                 .employeeCode(code)
                 .searchText((code + " " + assignment.getEmployee().getId() + " " + name).toLowerCase(Locale.ROOT))
                 .shiftId(shift.getId())
                 .shiftName(shiftName)
+                .startLabel(clock(start))
+                .endLabel(clock(end))
                 .scheduleLabel(scheduleLabel(start, end))
                 .checkInLabel(checkedIn ? attendance.getCheckInTime().format(CLOCK_FORMATTER) : "—")
                 .checkOutLabel(attendance != null && attendance.getCheckOutTime() != null
@@ -340,10 +425,9 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
                 .early(early > 0)
                 .statusKey(statusKey)
                 .statusLabel(statusLabel(statusKey))
-                .workedLabel(checkedIn && checkedOut
-                        ? minuteText((int) Math.max(0, ChronoUnit.MINUTES.between(
-                        attendance.getCheckInTime(), attendance.getCheckOutTime())))
-                        : "—")
+                .paidHoursLabel(paidHours)
+                .note(note(statusKey, late, early))
+                .workedLabel(paidHours)
                 .attendanceId(attendance == null ? null : attendance.getId())
                 .photoBase(attendance == null ? null : "/attendance/photos")
                 .hasCheckInPhoto(hasPhoto(attendance == null ? null : attendance.getCheckInPhotoName()))
@@ -351,12 +435,19 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
                 .build();
     }
 
-    private String statusKey(boolean checkedIn, boolean absent, int late, int early) {
-        if (!checkedIn && absent) {
-            return "absent";
-        }
+    private String statusKey(boolean checkedIn, boolean checkedOut, boolean absent, int late, int early,
+                             LocalDate workDate, LocalTime start, LocalTime end) {
         if (!checkedIn) {
-            return "missing";
+            if (!absent && !slotDue(workDate, start)) {
+                return "upcoming";
+            }
+            return "missing-in";
+        }
+        if (!checkedOut) {
+            if (slotEnded(workDate, end)) {
+                return "missing-out";
+            }
+            return late > 0 ? "late" : "on-time";
         }
         if (late > 0 && early > 0) {
             return "late-early";
@@ -372,13 +463,62 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
 
     private String statusLabel(String statusKey) {
         return switch (statusKey) {
-            case "absent" -> "Vắng";
-            case "missing" -> "Chưa check-in";
-            case "late-early" -> "Đi muộn và về sớm";
+            case "upcoming" -> "Chưa đến ca";
+            case "missing-in" -> "Thiếu check-in";
+            case "missing-out" -> "Thiếu check-out";
+            case "late-early" -> "Đi muộn & về sớm";
             case "late" -> "Đi muộn";
             case "early" -> "Về sớm";
             default -> "Đúng giờ";
         };
+    }
+
+    private String note(String statusKey, int late, int early) {
+        return switch (statusKey) {
+            case "upcoming" -> "Ca chưa bắt đầu";
+            case "missing-in" -> "Chưa có check-in";
+            case "missing-out" -> "Chưa có check-out";
+            case "late-early" -> "Đi muộn " + late + " phút, về sớm " + early + " phút";
+            case "late" -> "Đi muộn " + late + " phút";
+            case "early" -> "Về sớm " + early + " phút";
+            default -> "—";
+        };
+    }
+
+    private boolean slotDue(LocalDate workDate, LocalTime start) {
+        if (workDate == null) {
+            return false;
+        }
+        LocalDateTime now = VietnamTime.now();
+        if (workDate.isBefore(now.toLocalDate())) {
+            return true;
+        }
+        if (workDate.isAfter(now.toLocalDate()) || start == null) {
+            return false;
+        }
+        return !now.toLocalTime().isBefore(start);
+    }
+
+    private boolean slotEnded(LocalDate workDate, LocalTime end) {
+        if (workDate == null) {
+            return true;
+        }
+        LocalDateTime now = VietnamTime.now();
+        if (workDate.isBefore(now.toLocalDate())) {
+            return true;
+        }
+        if (workDate.isAfter(now.toLocalDate()) || end == null) {
+            return false;
+        }
+        return !now.toLocalTime().isBefore(end);
+    }
+
+    private String slotDayKey(Integer employeeId, Integer shiftId, LocalDate workDate) {
+        return employeeId + ":" + shiftId + ":" + workDate;
+    }
+
+    private String clock(LocalTime time) {
+        return time == null ? "—" : time.format(SCHEDULE_FORMATTER);
     }
 
     private String scheduleLabel(LocalTime start, LocalTime end) {
@@ -542,7 +682,7 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
             worked = minuteText((int) Math.max(0, ChronoUnit.MINUTES.between(
                     attendance.getCheckInTime(), attendance.getCheckOutTime())));
         }
-        String key = statusKey(checkedIn, absent, late, early);
+        String key = statusKey(checkedIn, checkedOut, absent, late, early, attendance.getWorkDate(), start, end);
         ManagerMonthAttendanceView.DayLine line = ManagerMonthAttendanceView.DayLine.builder()
                 .dateLabel(attendance.getWorkDate() == null ? "—" : attendance.getWorkDate().format(DAY_FORMATTER))
                 .shiftName(shiftName)
@@ -552,6 +692,7 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
                 .lateLabel(late + " phút")
                 .earlyLabel(checkedOut || absent ? early + " phút" : "—")
                 .workedLabel(worked)
+                .statusKey(key)
                 .statusLabel(statusLabel(key))
                 .attendanceId(attendance.getId())
                 .hasCheckInPhoto(hasPhoto(attendance.getCheckInPhotoName()))
@@ -656,10 +797,13 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
 
     private static final class MonthStats {
         private int workedSlots;
+        private int completedSlots;
         private int lateSlots;
         private int earlySlots;
         private int absentSlots;
+        private int missingSlots;
         private int lateMinutes;
         private int earlyMinutes;
+        private int paidMinutes;
     }
 }

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chi tiết lương — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
+    <link rel="stylesheet" th:href="@{/css/SalaryPage.css}">
+</head>
+<body>
+<th:block th:if="${navRole == 'admin'}">
+    <header th:replace="~{fragments/navbar :: admin('salary')}"></header>
+</th:block>
+<th:block th:if="${navRole == 'manager'}">
+    <header th:replace="~{fragments/navbar :: manager('salary')}"></header>
+</th:block>
+<th:block th:if="${navRole == 'staff'}">
+    <header th:replace="~{fragments/navbar :: staff('salary')}"></header>
+</th:block>
+
+<main class="wrap dash-main salary-page">
+    <section class="welcome">
+        <div class="eyebrow" th:text="${eyebrow}">CoffeeHRM</div>
+        <h1 th:text="${detail.employeeName}">Lê Thị Thu</h1>
+        <p th:text="${detail.employeeCode + ' · ' + detail.storeName + ' · ' + detail.periodLabel}">NV001 · Tháng 10/2026</p>
+    </section>
+
+    <p class="salary-note" th:if="${detail.locked}">Bảng lương đã chốt. Số giờ và mức lương/giờ của kỳ này không đổi khi hợp đồng thay đổi sau đó.</p>
+    <p class="salary-note" th:unless="${detail.locked}">Ca chưa đủ check-in và check-out, hoặc chưa xác định được ca và mức lương, có lương 0.</p>
+
+    <section class="salary-stats">
+        <article>
+            <span>Tổng số ca</span>
+            <strong th:text="${detail.assignedShifts}">0</strong>
+        </article>
+        <article>
+            <span>Ca đã tính lương</span>
+            <strong th:text="${detail.validShifts}">0</strong>
+        </article>
+        <article>
+            <span>Ca chưa đủ điều kiện</span>
+            <strong th:text="${detail.reviewShifts}">0</strong>
+        </article>
+        <article>
+            <span>Giờ được tính lương</span>
+            <strong th:text="${detail.payableHours + ' giờ'}">0 giờ</strong>
+        </article>
+        <article>
+            <span>Mức lương/giờ</span>
+            <strong th:text="${detail.hourlyRateLabel}">—</strong>
+        </article>
+        <article>
+            <span>Tổng lương dự kiến</span>
+            <strong th:text="${detail.expectedSalaryLabel}">0 đ</strong>
+        </article>
+    </section>
+
+    <div class="salary-actions">
+        <span class="salary-badge" th:classappend="${detail.statusKey}" th:text="${detail.statusLabel}">Chưa tính</span>
+        <a class="ghost-btn" th:href="|${detail.homePath}?year=${detail.year}&month=${detail.month}|">Quay lại</a>
+    </div>
+
+    <section class="panel">
+        <h2>Các ca trong kỳ</h2>
+        <p class="empty" th:if="${#lists.isEmpty(detail.shifts)}">Không có ca được phân công trong kỳ này.</p>
+        <div class="salary-table-wrap" th:if="${!#lists.isEmpty(detail.shifts)}">
+            <table>
+                <thead>
+                <tr>
+                    <th>Ngày</th>
+                    <th>Ca</th>
+                    <th>Giờ theo lịch</th>
+                    <th>Check-in</th>
+                    <th>Check-out</th>
+                    <th>Trạng thái chấm công</th>
+                    <th>Giờ được tính lương</th>
+                    <th>Mức lương/giờ</th>
+                    <th>Lương ca</th>
+                    <th>Lý do</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="shift : ${detail.shifts}" th:classappend="${shift.payable} ? 'is-paid' : 'is-unpaid'">
+                    <td th:text="${shift.dateLabel}">01/10/2026</td>
+                    <td th:text="${shift.shiftName}">Ca sáng</td>
+                    <td th:text="${shift.scheduleLabel}">08:00 – 16:00</td>
+                    <td th:text="${shift.checkInLabel}">08:00</td>
+                    <td th:text="${shift.checkOutLabel}">16:00</td>
+                    <td th:text="${shift.attendanceStatus}">Đúng giờ</td>
+                    <td th:text="${shift.payableHours}">8</td>
+                    <td th:text="${shift.hourlyRateLabel}">30.000 đ/giờ</td>
+                    <td th:text="${shift.shiftSalaryLabel}">240.000 đ</td>
+                    <td th:text="${shift.unpaidReason}">—</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+</body>
+</html>

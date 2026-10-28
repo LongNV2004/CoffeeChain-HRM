@@ -127,7 +127,7 @@ class ManagerDayAttendanceServiceImplTest {
         assertEquals("10 phút", late.getLateLabel());
         assertTrue(late.isLate());
         ManagerDayAttendanceView.Slot missing = view.getSlots().get(1);
-        assertEquals("Chưa check-in", missing.getStatusLabel());
+        assertEquals("Thiếu check-in", missing.getStatusLabel());
         assertEquals("—", missing.getCheckInLabel());
         assertEquals("0 phút", missing.getLateLabel());
     }
@@ -208,7 +208,7 @@ class ManagerDayAttendanceServiceImplTest {
         assertTrue(first.getDays().get(0).isEarlyLeave());
         assertEquals("07:10", first.getDays().get(0).getCheckInLabel());
         assertEquals("3 giờ 39 phút", first.getDays().get(0).getWorkedLabel());
-        assertEquals("Vắng", first.getDays().get(1).getStatusLabel());
+        assertEquals("Thiếu check-in", first.getDays().get(1).getStatusLabel());
         ManagerMonthAttendanceView.EmployeeMonth second = view.getEmployees().get(1);
         assertEquals(1, second.getScheduledSlots());
         assertEquals(0, second.getWorkedSlots());

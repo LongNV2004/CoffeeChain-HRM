@@ -13,6 +13,11 @@ public class ManagerDayAttendanceView {
     private final LocalDate workDate;
     private final String dateLabel;
     private final String storeName;
+    private final int assignedEmployees;
+    private final int checkedInCount;
+    private final int checkedOutCount;
+    private final int lateCount;
+    private final int missingCount;
     private final int violationSlots;
     @Builder.Default
     private final List<ShiftCount> shifts = List.of();
@@ -30,12 +35,17 @@ public class ManagerDayAttendanceView {
     @Getter
     @Builder
     public static class Slot {
+        private final Integer employeeId;
         private final String employeeName;
         private final String employeeCode;
         private final String searchText;
         private final Integer shiftId;
         private final String shiftName;
+        private final String startLabel;
+        private final String endLabel;
         private final String scheduleLabel;
+        private final String paidHoursLabel;
+        private final String note;
         private final String checkInLabel;
         private final String checkOutLabel;
         private final String lateLabel;

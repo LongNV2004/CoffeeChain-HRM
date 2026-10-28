@@ -16,6 +16,10 @@ public class ManagerMonthAttendanceView {
     private final String storeName;
     private final int employeeCount;
     private final int scheduledSlots;
+    private final int completedSlots;
+    private final int lateSlots;
+    private final int earlySlots;
+    private final int missingSlots;
     private final String detailFrom;
     private final String detailTo;
     private final boolean detailReady;
@@ -33,9 +37,12 @@ public class ManagerMonthAttendanceView {
         private final String searchText;
         private final int scheduledSlots;
         private final int workedSlots;
+        private final int completedSlots;
         private final int lateSlots;
         private final int earlySlots;
         private final int absentSlots;
+        private final int missingSlots;
+        private final String paidHoursLabel;
         private final String lateDurationLabel;
         private final String earlyDurationLabel;
         private final boolean late;
@@ -55,6 +62,7 @@ public class ManagerMonthAttendanceView {
         private final String lateLabel;
         private final String earlyLabel;
         private final String workedLabel;
+        private final String statusKey;
         private final String statusLabel;
         private final Integer attendanceId;
         private final boolean hasCheckInPhoto;

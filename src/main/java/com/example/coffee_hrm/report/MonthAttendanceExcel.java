@@ -13,23 +13,21 @@ public final class MonthAttendanceExcel {
     public static byte[] write(ManagerMonthAttendanceView board) {
         List<List<String>> summary = new ArrayList<>();
         summary.add(List.of(
-                "Cửa hàng", "Tháng", "Mã nhân viên", "Tên nhân viên", "Vai trò",
-                "Ca theo lịch", "Ca đã làm", "Ca đi muộn", "Tổng thời gian đi muộn",
-                "Ca về sớm", "Tổng thời gian về sớm", "Ca vắng"));
+                "Cửa hàng", "Tháng", "Mã nhân viên", "Tên nhân viên",
+                "Ca được phân công", "Ca hoàn thành", "Ca đi muộn", "Ca về sớm",
+                "Ca thiếu chấm công", "Thời gian có mặt"));
         for (ManagerMonthAttendanceView.EmployeeMonth card : board.getEmployees()) {
             summary.add(List.of(
                     text(board.getStoreName()),
                     text(board.getMonthLabel()),
                     text(card.getEmployeeCode()),
                     text(card.getEmployeeName()),
-                    text(card.getRoleLabel()),
                     String.valueOf(card.getScheduledSlots()),
-                    String.valueOf(card.getWorkedSlots()),
+                    String.valueOf(card.getCompletedSlots()),
                     String.valueOf(card.getLateSlots()),
-                    text(card.getLateDurationLabel()),
                     String.valueOf(card.getEarlySlots()),
-                    text(card.getEarlyDurationLabel()),
-                    String.valueOf(card.getAbsentSlots())));
+                    String.valueOf(card.getMissingSlots()),
+                    text(card.getPaidHoursLabel())));
         }
 
         List<List<String>> details = new ArrayList<>();
