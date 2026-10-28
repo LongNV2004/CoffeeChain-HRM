@@ -159,11 +159,16 @@ public interface TrainingClassRepository extends JpaRepository<TrainingClass, In
               AND (
                     (c.trainingType = :storeType AND store.id = :storeId)
                     OR trainerUser.id = :trainerUserId
+                    OR EXISTS (
+                        SELECT enrollment FROM TrainingClassEnrollment enrollment
+                        WHERE enrollment.trainingClass = c
+                          AND enrollment.employee.id = :learnerEmployeeId)
                   )
             ORDER BY c.endDate DESC, c.endTime DESC, c.className ASC
             """)
     List<TrainingClass> findEndedApprovedForManager(@Param("storeId") Integer storeId,
                                                     @Param("trainerUserId") Integer trainerUserId,
+                                                    @Param("learnerEmployeeId") Integer learnerEmployeeId,
                                                     @Param("storeType") TrainingType storeType,
                                                     @Param("status") TrainingClassStatus status,
                                                     @Param("today") LocalDate today,

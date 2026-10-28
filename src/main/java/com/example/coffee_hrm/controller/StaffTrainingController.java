@@ -42,15 +42,10 @@ public class StaffTrainingController {
         model.addAttribute("historyClasses", classes.stream()
                 .filter(EmployeeTrainingClassResponse::isEnded)
                 .sorted(Comparator
-                        .comparing(EmployeeTrainingClassResponse::getStartDate,
+                        .comparing(EmployeeTrainingClassResponse::getEndDate,
                                 Comparator.nullsLast(Comparator.reverseOrder()))
-                        .thenComparing(EmployeeTrainingClassResponse::getStartTime,
+                        .thenComparing(EmployeeTrainingClassResponse::getEndTime,
                                 Comparator.nullsLast(Comparator.reverseOrder())))
-                .toList());
-        model.addAttribute("resultClasses", classes.stream()
-                .filter(EmployeeTrainingClassResponse::isEnded)
-                .sorted(Comparator.comparing(EmployeeTrainingClassResponse::getEvaluatedAt,
-                        Comparator.nullsLast(Comparator.reverseOrder())))
                 .toList());
         return "staff/StaffTraining";
     }

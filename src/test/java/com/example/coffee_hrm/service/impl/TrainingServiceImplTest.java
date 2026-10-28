@@ -676,6 +676,105 @@ class TrainingServiceImplTest {
     }
 
     @Test
+    void addStudentsRejectsAnEndedClass() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        TrainingClass trainingClass = approvedClass(store, VietnamTime.today().minusDays(1));
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
+        when(trainingClassRepository.findByIdWithDetails(10)).thenReturn(Optional.of(trainingClass));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> trainingService.addStudentsToClass(
+                10, AddTrainingClassStudentsRequest.builder().employeeIds(List.of(30)).build(), manager));
+
+        assertEquals("Không thể thêm học viên vào lớp đã kết thúc.", ex.getMessage());
+        verify(trainingClassEnrollmentRepository, never()).save(any());
+    }
+
+    @Test
+    void endedClassesIncludeClassesTheManagerTrainsAndClassesTheyAttend() {
+        when(storeRepository.findByManager_Id(any())).thenReturn(Optional.empty());
+        TrainingClass taught = TrainingClass.builder()
+                .id(10)
+                .className("Lớp mình dạy")
+                .status(TrainingClassStatus.APPROVED)
+                .trainingType(TrainingType.MANAGEMENT_TRAINING)
+                .trainer(user(2, RoleName.MANAGER, 20))
+                .endDate(VietnamTime.today().minusDays(1))
+                .endTime(LocalTime.of(10, 0))
+                .build();
+        TrainingClass attended = TrainingClass.builder()
+                .id(11)
+                .className("Lớp mình học")
+                .status(TrainingClassStatus.APPROVED)
+                .trainingType(TrainingType.MANAGEMENT_TRAINING)
+                .trainer(user(9, RoleName.MANAGER, 90))
+                .endDate(VietnamTime.today().minusDays(1))
+                .endTime(LocalTime.of(11, 0))
+                .build();
+        when(trainingClassRepository.findEndedApprovedForManager(
+                eq(-1), eq(2), eq(20), eq(TrainingType.STORE_TRAINING),
+                eq(TrainingClassStatus.APPROVED), any(), any()))
+                .thenReturn(List.of(taught, attended));
+        List<Object[]> results = new java.util.ArrayList<>();
+        results.add(new Object[]{11, TrainingResult.PASS});
+        when(trainingClassEnrollmentRepository.findResultsByClassIds(any())).thenReturn(results);
+
+        var classes = trainingService.listEndedClassesForManager(manager);
+
+        assertEquals(List.of("Lớp mình dạy", "Lớp mình học"),
+                classes.stream().map(item -> item.getClassName()).toList());
+        assertTrue(classes.get(0).isEvaluable());
+        assertFalse(classes.get(0).isEvaluated());
+        assertFalse(classes.get(1).isEvaluable());
+        assertTrue(classes.get(1).isEvaluated());
+    }
+
+    @Test
+    void adminTrainerLocationIsHeadquartersAndRosterStaysVisible() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        TrainingClass trainingClass = approvedClass(store, VietnamTime.today().minusDays(1));
+        trainingClass.setTrainer(user(1, RoleName.ADMIN, null));
+        trainingClass.setCreatedBy(user(1, RoleName.ADMIN, null));
+        when(trainingClassRepository.findByIdWithDetails(10)).thenReturn(Optional.of(trainingClass));
+
+        var detail = trainingService.getApprovedClassDetailForAdmin(10, admin);
+
+        assertEquals("Trụ Sở", detail.getLocation());
+        assertTrue(detail.isEvaluable());
+        assertTrue(detail.isRosterVisible());
+    }
+
+    @Test
+    void adminCreatorCanSeeRosterWithoutBeingTheTrainer() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        TrainingClass trainingClass = approvedClass(store, VietnamTime.today().minusDays(1));
+        trainingClass.setTrainer(user(9, RoleName.MANAGER, 90));
+        trainingClass.setCreatedBy(user(1, RoleName.ADMIN, null));
+        when(storeRepository.findByManager_Id(90)).thenReturn(Optional.empty());
+        when(trainingClassRepository.findByIdWithDetails(10)).thenReturn(Optional.of(trainingClass));
+
+        var detail = trainingService.getApprovedClassDetailForAdmin(10, admin);
+
+        assertFalse(detail.isEvaluable());
+        assertTrue(detail.isRosterVisible());
+        assertEquals("Store A", detail.getLocation());
+    }
+
+    @Test
+    void adminWhoDidNotCreateOrTrainTheClassCannotSeeTheRoster() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        TrainingClass trainingClass = approvedClass(store, VietnamTime.today().minusDays(1));
+        trainingClass.setTrainer(user(9, RoleName.MANAGER, 90));
+        trainingClass.setCreatedBy(user(4, RoleName.ADMIN, null));
+        when(storeRepository.findByManager_Id(90)).thenReturn(Optional.empty());
+        when(trainingClassRepository.findByIdWithDetails(10)).thenReturn(Optional.of(trainingClass));
+
+        var detail = trainingService.getApprovedClassDetailForAdmin(10, admin);
+
+        assertFalse(detail.isEvaluable());
+        assertFalse(detail.isRosterVisible());
+    }
+
+    @Test
     void addStudentsRejectsDuplicateEnrollment() {
         Store store = Store.builder().id(5).storeName("Store A").build();
         Employee employee = employee(30, "Trần Văn Tuấn", store, EmployeeStatus.ACTIVE);
@@ -1693,11 +1792,39 @@ class TrainingServiceImplTest {
     }
 
     @Test
-    void managementClassAcceptsCertifiedManagerFromAnotherStore() {
+    void managementClassRejectsCertifiedManagerOutsideSelectedStores() {
         Store classStore = Store.builder().id(5).storeName("Store A").build();
+        Store otherStore = Store.builder().id(7).storeName("Store C").build();
         User trainer = user(3, RoleName.MANAGER, 21);
         when(storeRepository.findById(5)).thenReturn(Optional.of(classStore));
         when(userRepository.findByIdWithRole(3)).thenReturn(Optional.of(trainer));
+        when(storeRepository.findByManager_Id(21)).thenReturn(Optional.of(otherStore));
+        CreateCentralizedTrainingRequest request = adminClassRequest(
+                VietnamTime.today().plusDays(1),
+                VietnamTime.today().plusDays(1),
+                LocalTime.of(8, 0),
+                LocalTime.of(10, 0));
+        request.setTrainerId(3);
+        request.setCertificateKind(CertificateKind.MANAGEMENT);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> trainingService.createCentralizedClass(request, admin));
+
+        assertEquals(
+                "Người đào tạo là Manager phải đang công tác tại một trong các cơ sở được chọn cho lớp đào tạo.",
+                ex.getMessage());
+        verify(trainingClassRepository, never()).save(any());
+    }
+
+    @Test
+    void managementClassAcceptsCertifiedManagerOfASelectedStore() {
+        Store classStore = Store.builder().id(5).storeName("Store A").build();
+        Store secondStore = Store.builder().id(6).storeName("Store B").build();
+        User trainer = user(3, RoleName.MANAGER, 21);
+        when(storeRepository.findById(5)).thenReturn(Optional.of(classStore));
+        when(storeRepository.findById(6)).thenReturn(Optional.of(secondStore));
+        when(userRepository.findByIdWithRole(3)).thenReturn(Optional.of(trainer));
+        when(storeRepository.findByManager_Id(21)).thenReturn(Optional.of(secondStore));
         LocalDate overlapStart = VietnamTime.today().plusDays(10);
         LocalDate overlapEnd = overlapStart.plusDays(1);
         when(trainingClassRepository.findActiveByStoreId(5, TrainingClassStatus.REJECTED))
@@ -1711,6 +1838,7 @@ class TrainingServiceImplTest {
                 overlapEnd,
                 LocalTime.of(11, 0),
                 LocalTime.of(12, 0));
+        request.setStoreIds(List.of(5, 6));
         request.setTrainerId(3);
         request.setCertificateKind(CertificateKind.MANAGEMENT);
 
@@ -1718,7 +1846,6 @@ class TrainingServiceImplTest {
                 () -> trainingService.createCentralizedClass(request, admin));
 
         assertEquals("Lịch lớp bị trùng với lớp đào tạo khác của cửa hàng.", ex.getMessage());
-        verify(storeRepository, never()).findByManager_Id(any());
         verify(trainingClassRepository, never()).save(any());
     }
 
@@ -1750,6 +1877,7 @@ class TrainingServiceImplTest {
         User trainer = user(3, RoleName.MANAGER, 21);
         when(storeRepository.findById(5)).thenReturn(Optional.of(store));
         when(userRepository.findByIdWithRole(3)).thenReturn(Optional.of(trainer));
+        when(storeRepository.findByManager_Id(21)).thenReturn(Optional.of(store));
         CreateCentralizedTrainingRequest request = adminClassRequest(
                 VietnamTime.today().plusDays(1),
                 VietnamTime.today().plusDays(1),
@@ -1764,7 +1892,6 @@ class TrainingServiceImplTest {
 
         assertEquals("Một nhân viên không được đồng thời là học viên và người đào tạo trong cùng một lớp.",
                 ex.getMessage());
-        verify(storeRepository, never()).findByManager_Id(any());
         verify(trainingClassRepository, never()).save(any());
     }
 

@@ -28,79 +28,19 @@
     <section class="panel" id="upcoming">
         <div class="panel-head">
             <div>
-                <h2>Lớp đào tạo</h2>
-                <p>Các lớp bạn đã được ghi danh và chưa kết thúc, gồm lớp sắp diễn ra và lớp đang diễn ra.</p>
+                <h2>Lớp đang hoạt động</h2>
             </div>
         </div>
-        <div th:replace="~{fragments/staffTrainingTable :: classTable(rows=${upcomingClasses}, emptyText='Bạn chưa có lớp đào tạo sắp tới.')}"></div>
+        <table th:replace="~{fragments/trainingClassView :: activeTable(${upcomingClasses}, '/training/staff/classes/{id}', 'Không có lớp đào tạo phù hợp.')}"></table>
     </section>
 
     <section class="panel" id="history">
         <div class="panel-head">
             <div>
-                <h2>Lịch sử đào tạo</h2>
-                <p>Các lớp đã kết thúc mà bạn đã tham gia.</p>
+                <h2>Lớp đã kết thúc</h2>
             </div>
         </div>
-        <div th:replace="~{fragments/staffTrainingTable :: classTable(rows=${historyClasses}, emptyText='Bạn chưa có lịch sử đào tạo.')}"></div>
-    </section>
-
-    <section class="panel" id="results">
-        <div class="panel-head">
-            <div>
-                <h2>Kết quả đào tạo</h2>
-                <p>Kết quả do người đào tạo đánh giá sau khi lớp kết thúc. Bạn chỉ được xem.</p>
-            </div>
-        </div>
-        <div class="table-scroll">
-            <table>
-                <thead>
-                <tr>
-                    <th>Tên lớp</th>
-                    <th>Kỹ năng</th>
-                    <th>Kết quả</th>
-                    <th>Kỹ năng PASS</th>
-                    <th>Kỹ năng NOT PASS</th>
-                    <th>Ngày đánh giá</th>
-                    <th></th>
-                </tr>
-                </thead>
-                <tbody>
-                <tr th:if="${#lists.isEmpty(resultClasses)}">
-                    <td colspan="7" class="empty">Chưa có kết quả đánh giá.</td>
-                </tr>
-                <tr th:each="item : ${resultClasses}">
-                    <td>
-                        <a class="row-link" th:href="@{/training/staff/classes/{id}(id=${item.id})}" th:text="${item.className}">Pha Chế 2</a>
-                    </td>
-                    <td th:text="${item.skillName} ?: '—'">Pha chế</td>
-                    <td>
-                        <span th:if="${item.resultCode == null}">Chưa có kết quả đánh giá</span>
-                        <span th:if="${item.resultCode != null}"
-                              class="badge"
-                              th:classappend="${item.resultCode == 'PASS'} ? ' badge-ok' : ' badge-off'"
-                              th:text="${item.resultCode}">PASS</span>
-                    </td>
-                    <td>
-                        <span th:if="${#lists.isEmpty(item.passedSkillNames)}">—</span>
-                        <span th:each="skill, stat : ${item.passedSkillNames}">
-                            <span th:text="${skill}">Pha chế</span><span th:if="${!stat.last}">, </span>
-                        </span>
-                    </td>
-                    <td>
-                        <span th:if="${#lists.isEmpty(item.notPassedSkillNames)}">—</span>
-                        <span th:each="skill, stat : ${item.notPassedSkillNames}">
-                            <span th:text="${skill}">Pha chế</span><span th:if="${!stat.last}">, </span>
-                        </span>
-                    </td>
-                    <td th:text="${item.evaluatedAt != null} ? ${#temporals.format(item.evaluatedAt, 'dd/MM/yyyy HH:mm')} : '—'">01/09/2026</td>
-                    <td>
-                        <a class="link-btn" th:href="@{/training/staff/classes/{id}(id=${item.id})}">Xem chi tiết</a>
-                    </td>
-                </tr>
-                </tbody>
-            </table>
-        </div>
+        <table th:replace="~{fragments/trainingClassView :: endedTable(${historyClasses}, '/training/staff/classes/{id}', 'Xem kết quả')}"></table>
     </section>
 </main>
 <script th:src="@{/js/training-end-refresh.js}"></script>

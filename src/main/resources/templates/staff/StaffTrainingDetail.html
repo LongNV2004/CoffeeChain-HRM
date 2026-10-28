@@ -21,110 +21,16 @@
             <span th:if="${storeName}"> · <span th:text="${storeName}">Store</span></span>
         </p>
         <div style="margin-top:12px;">
-            <a class="back-link" th:href="@{/training/staff}">← Quay lại lịch đào tạo</a>
+            <a class="back-link" th:href="@{/training/staff}">← Quay lại danh sách lớp</a>
         </div>
     </section>
 
     <section class="panel">
         <h2>Thông tin lớp</h2>
-        <dl class="detail-list">
-            <div>
-                <dt>Tên lớp</dt>
-                <dd th:text="${classDetail.className}">Pha Chế 2</dd>
-            </div>
-            <div>
-                <dt>Kỹ năng</dt>
-                <dd th:text="${classDetail.skillName} ?: '—'">Pha chế</dd>
-            </div>
-            <div>
-                <dt>Ngày</dt>
-                <dd th:text="${classDetail.dateLabel} ?: '—'">01/09/2026</dd>
-            </div>
-            <div>
-                <dt>Thời gian</dt>
-                <dd>
-                    <span th:text="${classDetail.startTime != null} ? ${#temporals.format(classDetail.startTime, 'HH:mm')} : '—'">08:00</span>
-                    <span> – </span>
-                    <span th:text="${classDetail.endTime != null} ? ${#temporals.format(classDetail.endTime, 'HH:mm')} : '—'">10:00</span>
-                </dd>
-            </div>
-            <div>
-                <dt>Địa điểm</dt>
-                <dd th:text="${classDetail.location != null and !classDetail.location.isBlank()} ? ${classDetail.location} : '—'">Quầy bar</dd>
-            </div>
-            <div>
-                <dt>Cơ sở</dt>
-                <dd th:text="${classDetail.storeName} ?: '—'">Store A</dd>
-            </div>
-            <div>
-                <dt>Trainer</dt>
-                <dd th:text="${classDetail.trainer != null} ? ${classDetail.trainer} : '—'">Nguyễn Văn A</dd>
-            </div>
-            <div>
-                <dt>Mô tả</dt>
-                <dd th:text="${classDetail.notes != null and !classDetail.notes.isBlank()} ? ${classDetail.notes} : '—'">Nội dung lớp</dd>
-            </div>
-            <div>
-                <dt>Trạng thái lớp</dt>
-                <dd>
-                    <span class="badge"
-                          th:classappend="${classDetail.participationStatus == 'Đang diễn ra'} ? ' badge-ok' : (${classDetail.participationStatus == 'Đã kết thúc'} ? ' badge-off' : ' badge-wait')"
-                          th:text="${classDetail.participationStatus}">Sắp diễn ra</span>
-                </dd>
-            </div>
-        </dl>
+        <dl th:replace="~{fragments/trainingClassView :: classInfo(${classDetail})}"></dl>
     </section>
 
-    <section class="panel">
-        <h2>Thông tin tham gia</h2>
-        <dl class="detail-list">
-            <div>
-                <dt>Nhân viên</dt>
-                <dd th:text="${classDetail.employeeName != null} ? ${classDetail.employeeName} : ${displayName}">Nhân viên</dd>
-            </div>
-            <div>
-                <dt>Trạng thái enrollment</dt>
-                <dd>
-                    <span class="badge badge-ok" th:text="${classDetail.enrollmentStatus}">Đã ghi danh</span>
-                </dd>
-            </div>
-            <div>
-                <dt>Trạng thái hoàn thành</dt>
-                <dd>
-                    <span class="badge"
-                          th:classappend="${classDetail.completionStatus == 'Đã hoàn thành'} ? ' badge-ok' : ' badge-wait'"
-                          th:text="${classDetail.completionStatus}">Chưa hoàn thành</span>
-                </dd>
-            </div>
-        </dl>
-    </section>
-
-    <section class="panel">
-        <h2>Kết quả</h2>
-        <p th:if="${classDetail.result == null}">Chưa có kết quả đánh giá</p>
-        <dl class="detail-list" th:if="${classDetail.result != null}">
-            <div>
-                <dt>Kết quả</dt>
-                <dd>
-                    <span class="badge"
-                          th:classappend="${classDetail.resultCode == 'PASS'} ? ' badge-ok' : ' badge-off'"
-                          th:text="${classDetail.resultCode}">PASS</span>
-                </dd>
-            </div>
-            <div>
-                <dt>Chứng chỉ nhân viên</dt>
-                <dd th:text="${classDetail.resultCode == 'PASS'} ? 'Đã cấp Chứng chỉ nhân viên' : 'Chưa cấp Chứng chỉ nhân viên'">Chưa cấp Chứng chỉ nhân viên</dd>
-            </div>
-            <div>
-                <dt>Ngày đánh giá</dt>
-                <dd th:text="${classDetail.evaluatedAt != null} ? ${#temporals.format(classDetail.evaluatedAt, 'dd/MM/yyyy HH:mm')} : '—'">01/09/2026 18:00</dd>
-            </div>
-            <div th:if="${classDetail.evaluationNote != null and !classDetail.evaluationNote.isBlank()}">
-                <dt>Ghi chú đánh giá</dt>
-                <dd th:text="${classDetail.evaluationNote}">Làm tốt</dd>
-            </div>
-        </dl>
-    </section>
+    <section th:replace="~{fragments/trainingClassView :: ownResult(${classDetail.resultLabel}, ${classDetail.trainingTypeLabel}, ${classDetail.evaluatedAt}, ${classDetail.evaluationNote})}"></section>
 </main>
 <script th:src="@{/js/training-end-refresh.js}"></script>
 </body>

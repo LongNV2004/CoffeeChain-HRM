@@ -305,7 +305,7 @@ function syncTrainerOptions() {
     var employeeId = option.getAttribute('data-employee-id') || '';
     var eligible = false;
     if (kind === 'MANAGEMENT') {
-      eligible = role === 'ADMIN' || role === 'MANAGER';
+      eligible = role === 'ADMIN' || (role === 'MANAGER' && storeId !== '' && stores.indexOf(storeId) >= 0);
     } else if (kind === 'STAFF' && stores.length === 1) {
       eligible = role === 'MANAGER' && storeId === stores[0];
     } else if (kind === 'STAFF' && stores.length >= 2) {
@@ -338,8 +338,12 @@ function syncTrainerOptions() {
     hint.textContent = 'Chọn chứng chỉ và cửa hàng để xem người đào tạo hợp lệ.';
   } else if (excludedAsStudent > 0 && visible === 0) {
     hint.textContent = 'Học viên đã chọn không thể đồng thời là người đào tạo. Bỏ chọn học viên đó để chọn lại.';
+  } else if (kind === 'MANAGEMENT' && !stores.length) {
+    hint.textContent = 'Chọn cửa hàng trước. Manager chỉ được đào tạo khi đang công tác tại cơ sở được chọn.';
+  } else if (kind === 'MANAGEMENT' && visible === 0) {
+    hint.textContent = 'Chưa có người đào tạo hợp lệ. Chọn Admin, hoặc Manager có chứng chỉ quản lý đang công tác tại cơ sở đã chọn.';
   } else if (kind === 'MANAGEMENT') {
-    hint.textContent = 'Người đào tạo là Admin hoặc Manager đã có chứng chỉ quản lý. Manager có thể thuộc bất kỳ cơ sở nào.';
+    hint.textContent = 'Người đào tạo là Admin, hoặc Manager đã có chứng chỉ quản lý và đang công tác tại một trong các cơ sở đã chọn.';
   } else if (!stores.length) {
     hint.textContent = 'Chọn cửa hàng trước.';
   } else if (stores.length === 1 && visible === 0) {

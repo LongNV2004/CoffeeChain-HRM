@@ -19,6 +19,7 @@ public class EmployeeTrainingClassResponse {
 
     private Integer id;
     private String className;
+    private String trainingTypeLabel;
     private String skillName;
     private String storeName;
     private LocalDate startDate;
@@ -27,6 +28,9 @@ public class EmployeeTrainingClassResponse {
     private LocalTime endTime;
     private String trainer;
     private String supervisorName;
+    private String createdByName;
+    private boolean evaluable;
+    private boolean evaluated;
     private String location;
     private String notes;
     /** Ngày đào tạo, một ngày hoặc khoảng ngày. */

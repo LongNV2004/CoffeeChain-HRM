@@ -30,59 +30,15 @@
 
     <section class="panel">
         <h2>Thông tin lớp</h2>
-        <dl class="detail-list">
-            <div>
-                <dt>Tên lớp</dt>
-                <dd th:text="${classDetail.className}">Class</dd>
-            </div>
-            <div>
-                <dt>Loại lớp</dt>
-                <dd th:text="${classDetail.trainingTypeLabel} ?: '—'">Đào tạo tại cửa hàng</dd>
-            </div>
-            <div>
-                <dt>Kỹ năng</dt>
-                <dd th:text="${classDetail.skillName} ?: '—'">Skill</dd>
-            </div>
-            <div>
-                <dt>Cửa hàng</dt>
-                <dd th:text="${classDetail.storeName} ?: '—'">Store</dd>
-            </div>
-            <div>
-                <dt>Ngày bắt đầu</dt>
-                <dd th:text="${classDetail.startDate != null} ? ${#temporals.format(classDetail.startDate, 'dd/MM/yyyy')} : '—'">01/01/2026</dd>
-            </div>
-            <div>
-                <dt>Ngày kết thúc</dt>
-                <dd th:text="${classDetail.endDate != null} ? ${#temporals.format(classDetail.endDate, 'dd/MM/yyyy')} : '—'">02/01/2026</dd>
-            </div>
-            <div>
-                <dt>Giờ bắt đầu</dt>
-                <dd th:text="${classDetail.startTime != null} ? ${#temporals.format(classDetail.startTime, 'HH:mm')} : '—'">08:00</dd>
-            </div>
-            <div>
-                <dt>Giờ kết thúc</dt>
-                <dd th:text="${classDetail.endTime != null} ? ${#temporals.format(classDetail.endTime, 'HH:mm')} : '—'">10:00</dd>
-            </div>
-            <div>
-                <dt>Người tạo</dt>
-                <dd th:text="${classDetail.createdByName} ?: '—'">Admin</dd>
-            </div>
-            <div>
-                <dt>Người đào tạo</dt>
-                <dd th:text="${classDetail.trainer} ?: '—'">Trainer</dd>
-            </div>
-            <div>
-                <dt>Địa điểm</dt>
-                <dd th:text="${classDetail.location != null and !#strings.isEmpty(classDetail.location)} ? ${classDetail.location} : '—'">Cửa hàng</dd>
-            </div>
-            <div th:if="${classDetail.notes != null}">
-                <dt>Ghi chú</dt>
-                <dd th:text="${classDetail.notes}">Notes</dd>
-            </div>
-        </dl>
+        <dl th:replace="~{fragments/trainingClassView :: classInfo(${classDetail})}"></dl>
     </section>
 
-    <section class="panel" style="margin-top:16px;">
+    <th:block th:each="student : ${classDetail.students}"
+              th:if="${!classDetail.rosterVisible and student.employeeId == viewerEmployeeId}">
+        <section th:replace="~{fragments/trainingClassView :: ownResult(${student.resultLabel}, ${classDetail.trainingTypeLabel}, ${student.evaluatedAt}, ${student.evaluationNote})}"></section>
+    </th:block>
+
+    <section class="panel" style="margin-top:16px;" th:if="${classDetail.rosterVisible}">
         <div class="panel-head">
             <div>
                 <h2>Danh sách học viên</h2>

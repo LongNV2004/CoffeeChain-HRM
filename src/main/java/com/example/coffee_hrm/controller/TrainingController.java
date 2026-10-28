@@ -56,6 +56,7 @@ public class TrainingController {
         try {
             model.addAttribute("displayName", user.getDisplayName());
             model.addAttribute("storeName", user.getStoreName());
+            model.addAttribute("viewerEmployeeId", user.getEmployeeId());
             model.addAttribute("classDetail", trainingService.getApprovedClassDetailForManager(id, user));
             model.addAttribute("availableEmployees", trainingService.listAvailableEmployeesForClass(id, user));
             return "manager/TrainingClassDetail";
