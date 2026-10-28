@@ -18,10 +18,8 @@
         <h1 th:text="${classDetail.className}">Tên lớp</h1>
         <p>
             <span th:text="${displayName}">Admin</span>
-            · xem thông tin lớp và học viên. Người đào tạo đánh giá sau khi lớp kết thúc.
         </p>
         <div style="margin-top:12px;" class="actions">
-            <a class="back-link" th:href="@{/admin/training}">← Quay lại danh sách lớp</a>
         </div>
     </section>
 
@@ -42,7 +40,7 @@
         <div class="panel-head">
             <div>
                 <h2>Danh sách học viên</h2>
-                <p th:if="${classDetail.ended and classDetail.evaluable and classDetail.trainingType != null and classDetail.trainingType.name() == 'MANAGEMENT_TRAINING'}">Lớp đã kết thúc. Đạt thì cấp Chứng chỉ quản lý và Manager dùng được chức năng quản lý. Không đạt thì chưa có chứng chỉ và có thể tham gia đào tạo lại.</p>
+                <p th:if="${classDetail.ended and classDetail.evaluable and classDetail.trainingType != null and classDetail.trainingType.name() == 'MANAGEMENT_TRAINING'}">Lớp đã kết thúc</p>
                 <p th:if="${classDetail.ended and classDetail.evaluable and (classDetail.trainingType == null or classDetail.trainingType.name() != 'MANAGEMENT_TRAINING')}">Lớp đã kết thúc. Hãy đánh giá từng học viên.</p>
                 <p th:if="${!classDetail.ended}">Chỉ được đánh giá sau khi thời điểm kết thúc của lớp đã qua.</p>
             </div>
