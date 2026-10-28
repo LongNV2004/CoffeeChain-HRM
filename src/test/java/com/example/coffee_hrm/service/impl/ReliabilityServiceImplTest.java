@@ -23,6 +23,7 @@ import com.example.coffee_hrm.repository.ShiftAssignmentRepository;
 import com.example.coffee_hrm.repository.ShiftChangeRequestRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
+import com.example.coffee_hrm.service.ReliabilityService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -298,6 +299,76 @@ class ReliabilityServiceImplTest {
     }
 
     @Test
+    void punctualityPenaltyTiersByMinutes() {
+        assertEquals(0, ReliabilityServiceImpl.punctualityPenalty(0));
+        assertEquals(-2, ReliabilityServiceImpl.punctualityPenalty(20));
+        assertEquals(-2, ReliabilityServiceImpl.punctualityPenalty(30));
+        assertEquals(-4, ReliabilityServiceImpl.punctualityPenalty(31));
+        assertEquals(-4, ReliabilityServiceImpl.punctualityPenalty(60));
+        assertEquals(-6, ReliabilityServiceImpl.punctualityPenalty(61));
+    }
+
+    @Test
+    void lateArrivalAndEarlyLeaveDeductOnCheckout() {
+        Attendance attendance = punctualityAttendance(901, 45, 15);
+
+        reliabilityService.recordPunctualityPenaltyOnCheckout(attendance);
+
+        // Đi muộn 45p (-4) + về sớm 15p (-2)
+        assertEquals(94, empRescuer.getReliabilityScore());
+        ArgumentCaptor<ReliabilityScoreLog> logCaptor = ArgumentCaptor.forClass(ReliabilityScoreLog.class);
+        verify(reliabilityScoreLogRepository, times(2)).save(logCaptor.capture());
+        assertEquals(ReliabilityActionType.LATE_ARRIVAL.getDbValue(), logCaptor.getAllValues().get(0).getActionType());
+        assertEquals(-4, logCaptor.getAllValues().get(0).getPointsDelta());
+        assertEquals(ReliabilityActionType.EARLY_LEAVE.getDbValue(), logCaptor.getAllValues().get(1).getActionType());
+        assertEquals(-2, logCaptor.getAllValues().get(1).getPointsDelta());
+        assertEquals("ATTENDANCE", logCaptor.getAllValues().get(1).getReferenceType());
+    }
+
+    @Test
+    void earlyLeaveWithinGraceIsNotPenalized() {
+        Attendance attendance = punctualityAttendance(902, 0, ReliabilityService.EARLY_LEAVE_GRACE_MINUTES - 1);
+
+        reliabilityService.recordPunctualityPenaltyOnCheckout(attendance);
+
+        assertEquals(100, empRescuer.getReliabilityScore());
+        verify(reliabilityScoreLogRepository, never()).save(any());
+    }
+
+    @Test
+    void punctualityPenaltyIsNotAppliedTwiceForSameAttendance() {
+        Attendance attendance = punctualityAttendance(903, 90, 0);
+        when(reliabilityScoreLogRepository.existsByEmployee_IdAndActionTypeAndReferenceTypeAndReferenceId(
+                30, ReliabilityActionType.LATE_ARRIVAL.getDbValue(), "ATTENDANCE", 903))
+                .thenReturn(true);
+
+        reliabilityService.recordPunctualityPenaltyOnCheckout(attendance);
+
+        assertEquals(100, empRescuer.getReliabilityScore());
+        verify(reliabilityScoreLogRepository, never()).save(any());
+    }
+
+    private Attendance punctualityAttendance(int id, int lateMinutes, int earlyMinutes) {
+        LocalDateTime shiftTime = VietnamTime.now().minusHours(5);
+        Shift shift = Shift.builder()
+                .id(6)
+                .shiftName("Ca Chiều")
+                .store(store)
+                .startTime(shiftTime.toLocalTime())
+                .endTime(shiftTime.toLocalTime().plusHours(4))
+                .build();
+        return Attendance.builder()
+                .id(id)
+                .employee(empRescuer)
+                .store(store)
+                .shift(shift)
+                .workDate(shiftTime.toLocalDate())
+                .lateMinutes(lateMinutes)
+                .earlyLeaveMinutes(earlyMinutes)
+                .build();
+    }
+
+    @Test
     void leaderboardRanksTopPerformersAndGrantsKpiAndPrioritySchedule() {
         empRescuer.setReliabilityScore(115);
         empRequester.setReliabilityScore(90);
@@ -313,7 +384,7 @@ class ReliabilityServiceImplTest {
                 .actionType(ReliabilityActionType.RESCUE_SHIFT_24H.getDbValue())
                 .pointsDelta(5)
                 .scoreAfter(115)
-                .reason("Cứu bồ ca tối")
+                .reason("Hỗ trợ ca gấp ca tối")
                 .createdAt(VietnamTime.now())
                 .build();
         when(reliabilityScoreLogRepository.findForStoreInRange(eq(10), any(), any()))

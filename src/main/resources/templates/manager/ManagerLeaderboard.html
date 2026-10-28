@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chiến thần cứu ca &amp; Điểm uy tín — CoffeeHRM</title>
+    <title>Nhân viên xuất sắc — CoffeeHRM</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&amp;family=Be+Vietnam+Pro:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/Leaderboard.css}">
@@ -29,9 +29,9 @@
         <div>
             <div class="lb-eyebrow">
                 <i data-lucide="award" style="width:14px;height:14px;"></i>
-                <span>Điểm tín nhiệm &amp; "Cứu bồ"</span>
+                <span>Điểm chuyên cần &amp; Hỗ trợ ca gấp</span>
             </div>
-            <h1 th:text="'Bảng xếp hạng Chiến thần cứu ca — ' + ${leaderboard.storeName}">Bảng xếp hạng Chiến thần cứu ca</h1>
+            <h1 th:text="'Bảng xếp hạng Nhân viên xuất sắc — ' + ${leaderboard.storeName}">Bảng xếp hạng Nhân viên xuất sắc</h1>
             <p th:text="${leaderboard.storeAddress + ' • Khởi đầu 100 điểm • Vinh danh nhân viên hỗ trợ ca khẩn cấp &amp; hoàn thành tốt ca đổi'}">
                 Địa chỉ cửa hàng
             </p>
@@ -54,7 +54,7 @@
         <div class="lb-rule-card">
             <div class="lb-rule-icon plus-five">+5đ</div>
             <div class="lb-rule-text">
-                <strong>Cứu bồ ca khẩn cấp (&lt;24h)</strong>
+                <strong>Hỗ trợ ca gấp (&lt;24h)</strong>
                 <span>Nhận ca hỗ trợ đồng nghiệp trong vòng 24 giờ trước giờ vào ca.</span>
             </div>
         </div>
@@ -73,12 +73,19 @@
             </div>
         </div>
         <div class="lb-rule-card">
+            <div class="lb-rule-icon minus-ten">-2đ</div>
+            <div class="lb-rule-text">
+                <strong>Đi muộn / Về sớm</strong>
+                <span>Tự động trừ khi check-out: ≤30p -2đ, 31–60p -4đ, trên 60p -6đ. Đi muộn tính từ phút 20, về sớm từ phút 5.</span>
+            </div>
+        </div>
+        <div class="lb-rule-card">
             <div class="lb-rule-icon reward">
                 <i data-lucide="crown" style="width:18px;height:18px;"></i>
             </div>
             <div class="lb-rule-text">
-                <strong>Đặc quyền "Chiến thần cứu ca"</strong>
-                <span>Top 3 điểm uy tín cao nhất tháng được thưởng KPI &amp; ưu tiên chọn lịch tuần sau.</span>
+                <strong>Đặc quyền "Nhân viên xuất sắc"</strong>
+                <span>Top 3 điểm chuyên cần cao nhất tháng được thưởng KPI &amp; ưu tiên chọn lịch tuần sau.</span>
             </div>
         </div>
     </section>
@@ -86,14 +93,14 @@
     <!-- KPI Summary -->
     <section class="lb-kpi-grid">
         <div class="lb-kpi-card">
-            <div class="lb-kpi-label">Điểm uy tín TB cửa hàng</div>
+            <div class="lb-kpi-label">Điểm chuyên cần TB cửa hàng</div>
             <div class="lb-kpi-value" th:text="${leaderboard.averageReliabilityScore} + ' đ'">100.0 đ</div>
             <div class="lb-kpi-sub" th:text="'Trên tổng số ' + ${leaderboard.totalStaffCount} + ' nhân viên Active'">10 nhân viên</div>
         </div>
         <div class="lb-kpi-card">
-            <div class="lb-kpi-label">Ca "Cứu bồ" (&lt;24h) trong tháng</div>
+            <div class="lb-kpi-label">Ca "Hỗ trợ ca gấp" (&lt;24h) trong tháng</div>
             <div class="lb-kpi-value" style="color:#B45309;" th:text="${leaderboard.totalRescueShiftsMonth}">0</div>
-            <div class="lb-kpi-sub">Mỗi ca cứu bồ cộng +5 điểm uy tín</div>
+            <div class="lb-kpi-sub">Mỗi ca hỗ trợ ca gấp cộng +5 điểm chuyên cần</div>
         </div>
         <div class="lb-kpi-card">
             <div class="lb-kpi-label">Ca đổi hoàn thành tốt</div>
@@ -103,7 +110,7 @@
         <div class="lb-kpi-card">
             <div class="lb-kpi-label">Xin hủy/đổi sát giờ (&lt;24h)</div>
             <div class="lb-kpi-value" style="color:#B91C1C;" th:text="${leaderboard.totalLateCancelsMonth}">0</div>
-            <div class="lb-kpi-sub">Mỗi lần sát giờ trừ -10 điểm uy tín</div>
+            <div class="lb-kpi-sub">Mỗi lần sát giờ trừ -10 điểm chuyên cần</div>
         </div>
     </section>
 
@@ -111,7 +118,7 @@
     <section class="lb-podium-section" th:if="${!#lists.isEmpty(leaderboard.podiumEntries)}">
         <h2 class="lb-section-title" style="display:flex;align-items:center;gap:8px;">
             <i data-lucide="trophy" style="width:22px;height:22px;color:#F59E0B;"></i>
-            <span>Bảng vàng "Chiến thần cứu ca" — Top 3 Nhân viên dẫn đầu</span>
+            <span>Bảng vinh danh "Nhân viên xuất sắc" — Top 3 Nhân viên dẫn đầu</span>
         </h2>
         <div class="lb-podium-grid">
             <div class="lb-podium-card"
@@ -120,7 +127,7 @@
                 <div class="lb-podium-top">
                     <span class="lb-medal">
                         <span th:if="${p.rank == 1}" style="display:inline-flex;align-items:center;gap:4px;">
-                            <i data-lucide="medal" style="width:16px;height:16px;color:#F59E0B;"></i> Hạng 1 • Quán quân
+                            <i data-lucide="medal" style="width:16px;height:16px;color:#F59E0B;"></i> Hạng 1 • Xuất sắc nhất
                         </span>
                         <span th:if="${p.rank == 2}" style="display:inline-flex;align-items:center;gap:4px;">
                             <i data-lucide="medal" style="width:16px;height:16px;color:#94A3B8;"></i> Hạng 2 • Á quân
@@ -136,12 +143,12 @@
                 </div>
                 <h3 class="lb-podium-name" th:text="${p.fullName}">Trần Văn Tuấn</h3>
                 <div style="margin-bottom:8px;">
-                    <span class="lb-tier-pill" th:classappend="${p.tierBadgeClass}" th:text="${p.tierLabel}">Chiến thần cứu ca</span>
+                    <span class="lb-tier-pill" th:classappend="${p.tierBadgeClass}" th:text="${p.tierLabel}">Xuất sắc</span>
                 </div>
                 <div class="lb-podium-stats">
                     <div style="display:inline-flex;align-items:center;gap:4px;">
                         <i data-lucide="shield-check" style="width:14px;height:14px;color:#D97706;"></i>
-                        <span>Cứu bồ: <strong th:text="${p.rescueShiftsCount}">2</strong> ca</span>
+                        <span>Hỗ trợ ca gấp: <strong th:text="${p.rescueShiftsCount}">2</strong> ca</span>
                     </div>
                     <div style="display:inline-flex;align-items:center;gap:4px;">
                         <i data-lucide="check" style="width:14px;height:14px;color:#16A34A;"></i>
@@ -154,7 +161,7 @@
                 </div>
                 <div class="lb-podium-reward" style="display:inline-flex;align-items:center;gap:5px;">
                     <i data-lucide="award" style="width:14px;height:14px;"></i>
-                    <span th:text="${p.rewardBadgeLabel}">Quán quân KPI Tháng + Ưu tiên lịch tuần sau</span>
+                    <span th:text="${p.rewardBadgeLabel}">Nhân viên xuất sắc tháng + Ưu tiên lịch tuần sau</span>
                 </div>
             </div>
         </div>
@@ -165,7 +172,7 @@
         <div class="lb-panel-head">
             <div>
                 <h2>Bảng xếp hạng toàn cửa hàng (<span th:text="${leaderboard.periodLabel}">Tháng 10/2026</span>)</h2>
-                <small style="color:var(--ink-soft);">Nhân viên có điểm uy tín cao được tự động xếp đầu danh sách ưu tiên khi Quản lý phân ca tuần mới.</small>
+                <small style="color:var(--ink-soft);">Nhân viên có điểm chuyên cần cao được tự động xếp đầu danh sách ưu tiên khi Quản lý phân ca tuần mới.</small>
             </div>
         </div>
         <div class="lb-table-wrap">
@@ -174,12 +181,13 @@
                 <tr>
                     <th style="width:60px;">Hạng</th>
                     <th>Nhân viên</th>
-                    <th>Điểm uy tín</th>
+                    <th>Điểm chuyên cần</th>
                     <th>Danh hiệu</th>
                     <th>Biến động tháng</th>
-                    <th>Cứu bồ (+5đ)</th>
+                    <th>Hỗ trợ ca gấp (+5đ)</th>
                     <th>Hoàn thành đổi (+2đ)</th>
                     <th>Hủy sát giờ / Từ chối khẩn</th>
+                    <th>Đi muộn / Về sớm</th>
                     <th>Đề xuất Thưởng KPI &amp; Lịch</th>
                     <th>Thao tác</th>
                 </tr>
@@ -215,6 +223,9 @@
                         <span th:text="${row.lateCancelsCount} + ' lần sát giờ / ' + ${row.emergencyDeclinesCount} + ' từ chối'">0</span>
                     </td>
                     <td>
+                        <strong th:text="${row.punctualityViolationsCount}">0</strong> lần
+                    </td>
+                    <td>
                         <span style="font-size:12.5px;font-weight:600;"
                               th:styleappend="${row.kpiRewardEligible ? 'color:#B45309;' : (row.priorityScheduleEligible ? 'color:#15803D;' : 'color:var(--ink-soft);')}"
                               th:text="${row.rewardBadgeLabel}">—</span>
@@ -228,7 +239,7 @@
                     </td>
                 </tr>
                 <tr th:if="${#lists.isEmpty(leaderboard.leaderboardEntries)}">
-                    <td colspan="10" style="text-align:center;color:var(--ink-soft);padding:24px;">
+                    <td colspan="11" style="text-align:center;color:var(--ink-soft);padding:24px;">
                         Chưa có nhân viên đang hoạt động tại cửa hàng.
                     </td>
                 </tr>
@@ -286,14 +297,14 @@
                 <div style="display:flex;align-items:center;gap:8px;">
                     <i data-lucide="history" style="width:20px;height:20px;color:var(--espresso);"></i>
                     <div>
-                        <h2 style="margin:0;">Nhật ký biến động điểm uy tín gần đây</h2>
+                        <h2 style="margin:0;">Nhật ký biến động điểm chuyên cần gần đây</h2>
                         <small style="color:var(--ink-soft);">Mọi lượt cộng/trừ điểm đều được ghi vết minh bạch theo thời gian thực.</small>
                     </div>
                 </div>
             </div>
 
             <p th:if="${#lists.isEmpty(leaderboard.recentLogs)}" style="color:var(--ink-soft);font-size:13.5px;margin:0;">
-                Chưa có biến động điểm uy tín nào được ghi nhận.
+                Chưa có biến động điểm chuyên cần nào được ghi nhận.
             </p>
 
             <div class="lb-log-list" th:if="${!#lists.isEmpty(leaderboard.recentLogs)}">
@@ -301,7 +312,7 @@
                     <div>
                         <div style="font-weight:700;color:var(--espresso);">
                             <span th:text="${log.employeeName}">Trần Văn Tuấn</span>
-                            <span style="font-size:12px;font-weight:600;color:var(--caramel-dark);" th:text="'• ' + ${log.actionLabel}">• Cứu bồ ca khẩn cấp</span>
+                            <span style="font-size:12px;font-weight:600;color:var(--caramel-dark);" th:text="'• ' + ${log.actionLabel}">• Hỗ trợ ca gấp</span>
                         </div>
                         <div style="font-size:12.5px;color:var(--ink-soft);margin-top:3px;" th:text="${log.reason}">Lý do</div>
                         <div style="font-size:11px;color:var(--ink-soft);margin-top:3px;" th:text="${log.createdAtFormatted}">26/10/2026 14:30</div>
@@ -318,11 +329,11 @@
 
 </main>
 
-<!-- Modal Thưởng / Trừ điểm uy tín thủ công -->
+<!-- Modal Thưởng / Trừ điểm chuyên cần thủ công -->
 <div class="lb-modal" id="adjustModal">
     <div class="lb-modal-dialog">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-            <h3 style="margin:0;font-family:'Fraunces',serif;font-size:20px;">Điều chỉnh Điểm uy tín nhân viên</h3>
+            <h3 style="margin:0;font-family:'Fraunces',serif;font-size:20px;">Điều chỉnh Điểm chuyên cần nhân viên</h3>
             <button type="button" onclick="closeAdjustModal()" style="border:none;background:none;font-size:22px;cursor:pointer;">×</button>
         </div>
         <form th:action="@{/schedule/manager/reliability/adjust}" method="post">
@@ -343,9 +354,9 @@
             <div class="lb-form-group">
                 <label for="adjPointsDelta">Mức cộng / trừ điểm *</label>
                 <select id="adjPointsDelta" name="pointsDelta" class="lb-form-control" required>
-                    <option value="5">+5 điểm — Nhận ca "Cứu bồ" đột xuất (&lt;24h)</option>
+                    <option value="5">+5 điểm — Hỗ trợ ca gấp đột xuất (&lt;24h)</option>
                     <option value="2">+2 điểm — Hoàn thành tốt ca đổi / hỗ trợ cửa hàng</option>
-                    <option value="10">+10 điểm — Thưởng xuất sắc "Chiến thần cứu ca"</option>
+                    <option value="10">+10 điểm — Thưởng "Nhân viên xuất sắc"</option>
                     <option value="-5">-5 điểm — Từ chối quá nhiều ca khẩn cấp</option>
                     <option value="-10">-10 điểm — Xin hủy/bỏ ca sát giờ (&lt;24h)</option>
                 </select>
@@ -359,7 +370,7 @@
 
             <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
                 <button type="button" class="lb-btn lb-btn-outline" onclick="closeAdjustModal()">Hủy</button>
-                <button type="submit" class="lb-btn lb-btn-gold">Lưu điểm uy tín</button>
+                <button type="submit" class="lb-btn lb-btn-gold">Lưu điểm chuyên cần</button>
             </div>
         </form>
     </div>

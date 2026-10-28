@@ -503,6 +503,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         attendanceRepository.save(attendance);
         if (reliabilityService != null) {
             reliabilityService.recordCompletedSwappedShiftOnCheckout(attendance);
+            reliabilityService.recordPunctualityPenaltyOnCheckout(attendance);
         }
     }
 
