@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Khởi tạo cột ReliabilityScore (mặc định 100) trên bảng Employees
- * và bảng ReliabilityScoreLogs phục vụ Gamification Điểm tín nhiệm & "Cứu bồ".
+ * và bảng ReliabilityScoreLogs phục vụ Gamification Điểm chuyên cần & Hỗ trợ ca gấp.
  */
 @Slf4j
 @Component
@@ -56,6 +56,6 @@ public class ReliabilitySchemaInitializer implements ApplicationRunner {
                         ON dbo.ReliabilityScoreLogs (EmployeeId, CreatedAt DESC);
                 END
                 """);
-        log.info("Đã kiểm tra cấu trúc dữ liệu Điểm tín nhiệm & Cứu bồ (ReliabilityScore & ReliabilityScoreLogs).");
+        log.info("Đã kiểm tra cấu trúc dữ liệu Điểm chuyên cần & Hỗ trợ ca gấp (ReliabilityScore & ReliabilityScoreLogs).");
     }
 }

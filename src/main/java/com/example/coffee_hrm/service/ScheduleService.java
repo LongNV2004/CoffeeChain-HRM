@@ -30,7 +30,7 @@ public interface ScheduleService {
     void respondToIncomingShiftChange(Integer requestId, boolean agreed, AuthenticatedUser user);
 
     /**
-     * Đồng nghiệp chủ động xung phong nhận ca "cứu bồ" cho đơn xin đổi ca đang chờ Quản lý tìm người.
+     * Đồng nghiệp chủ động xung phong nhận ca "hỗ trợ ca gấp" cho đơn xin đổi ca đang chờ Quản lý tìm người.
      */
     void volunteerRescueShift(Integer requestId, AuthenticatedUser user);
 }

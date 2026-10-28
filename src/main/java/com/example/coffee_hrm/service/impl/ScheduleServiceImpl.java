@@ -251,14 +251,14 @@ public class ScheduleServiceImpl implements ScheduleService {
         Employee currentEmployee = resolveStaffEmployee(user);
         requireCertifiedForSharedSchedule(currentEmployee);
         ShiftChangeRequest changeRequest = shiftChangeRequestRepository.findByIdWithDetails(requestId)
-                .orElseThrow(() -> new BusinessException("Không tìm thấy yêu cầu đổi ca cần cứu bồ."));
+                .orElseThrow(() -> new BusinessException("Không tìm thấy yêu cầu đổi ca cần hỗ trợ gấp."));
         if (changeRequest.getEmployee() == null || changeRequest.getEmployee().getStore() == null
                 || currentEmployee.getStore() == null
                 || !Objects.equals(changeRequest.getEmployee().getStore().getId(), currentEmployee.getStore().getId())) {
             throw new BusinessException("Ca làm việc này không thuộc cửa hàng của bạn.");
         }
         if (Objects.equals(changeRequest.getEmployee().getId(), currentEmployee.getId())) {
-            throw new BusinessException("Bạn không thể tự nhận cứu bồ cho ca của chính mình.");
+            throw new BusinessException("Bạn không thể tự nhận hỗ trợ cho ca của chính mình.");
         }
         if (changeRequest.getStatus() != ApprovalStatus.PENDING) {
             throw new BusinessException("Yêu cầu đổi ca này đã được xử lý trước đó.");
@@ -269,7 +269,7 @@ public class ScheduleServiceImpl implements ScheduleService {
         ShiftAssignment assignment = changeRequest.getAssignment();
         if (assignment == null || assignment.getShift() == null
                 || !isShiftStillUpcoming(assignment.getWorkDate(), assignment.getShift().getStartTime())) {
-            throw new BusinessException("Ca làm việc đã qua hoặc đã bắt đầu, không thể nhận cứu bồ.");
+            throw new BusinessException("Ca làm việc đã qua hoặc đã bắt đầu, không thể nhận hỗ trợ ca.");
         }
         ensureNoApprovedLeave(currentEmployee.getId(), assignment.getShift().getId(), assignment.getWorkDate());
         if (shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus(
@@ -292,7 +292,7 @@ public class ScheduleServiceImpl implements ScheduleService {
         changeRequest.setIsTargetAgreed(true);
         changeRequest.setTargetAgreedAt(VietnamTime.now());
         String baseReason = changeRequest.getReason() != null ? changeRequest.getReason() : "";
-        String updatedReason = baseReason + " [Cứu bồ: " + currentEmployee.getFullName() + " xung phong nhận thay]";
+        String updatedReason = baseReason + " [Hỗ trợ ca gấp: " + currentEmployee.getFullName() + " xung phong nhận thay]";
         if (updatedReason.length() > 255) {
             updatedReason = updatedReason.substring(0, 255);
         }

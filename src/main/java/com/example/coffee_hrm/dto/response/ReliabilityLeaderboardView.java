@@ -38,13 +38,13 @@ public class ReliabilityLeaderboardView {
     private int progressPercent;
     private List<ScoreLogItem> myRecentLogs;
 
-    // Danh sách ca đang cần "Cứu bồ" tại cửa hàng
+    // Danh sách ca đang cần "Hỗ trợ ca gấp" tại cửa hàng
     private List<RescueShiftItem> openRescueShifts;
 
     // Danh sách ca đổi đã duyệt chờ Quản lý xác nhận hoàn thành tốt (+2đ)
     private List<CompletedSwapCandidate> completedSwapCandidates;
 
-    // Nhật ký biến động điểm uy tín gần đây tại cửa hàng
+    // Nhật ký biến động điểm chuyên cần gần đây tại cửa hàng
     private List<ScoreLogItem> recentLogs;
 
     @Getter
@@ -70,6 +70,7 @@ public class ReliabilityLeaderboardView {
         private int completedSwapsCount;
         private int lateCancelsCount;
         private int emergencyDeclinesCount;
+        private int punctualityViolationsCount;
 
         private String tierCode;
         private String tierLabel;
