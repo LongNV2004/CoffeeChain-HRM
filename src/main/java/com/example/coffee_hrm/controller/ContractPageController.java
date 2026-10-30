@@ -4,7 +4,6 @@ import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.dto.request.ContractFilePayload;
 import com.example.coffee_hrm.dto.request.CreateEmploymentContractRequest;
 import com.example.coffee_hrm.dto.response.ContractDownload;
-import com.example.coffee_hrm.dto.response.EmploymentContractListView;
 import com.example.coffee_hrm.dto.response.EmploymentContractResponse;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.EmploymentContractService;
@@ -33,7 +32,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDate;
 import java.util.List;
 
 @Controller
@@ -44,86 +42,76 @@ public class ContractPageController {
 
     @GetMapping("/admin/contract")
     @PreAuthorize("hasRole('ADMIN')")
-    public String adminContract(@AuthenticationPrincipal AuthenticatedUser actor,
-                                @RequestParam(required = false) String keyword,
-                                @RequestParam(required = false) Integer storeId,
-                                @RequestParam(required = false) String validity,
-                                @RequestParam(required = false) LocalDate fromDate,
-                                @RequestParam(required = false) LocalDate toDate,
-                                @RequestParam(defaultValue = "1") int page,
-                                Model model) {
-        return renderList(actor, "admin", "Trụ sở — Admin", keyword, storeId, validity, fromDate, toDate, page, model);
+    public String adminContract() {
+        return "redirect:/admin/employees";
     }
 
     @GetMapping("/manager/contract")
     @PreAuthorize("hasRole('MANAGER')")
-    public String managerContract(@AuthenticationPrincipal AuthenticatedUser actor,
-                                  @RequestParam(required = false) String keyword,
-                                  @RequestParam(required = false) Integer storeId,
-                                  @RequestParam(required = false) String validity,
-                                  @RequestParam(required = false) LocalDate fromDate,
-                                  @RequestParam(required = false) LocalDate toDate,
-                                  @RequestParam(defaultValue = "1") int page,
-                                  Model model) {
-        return renderList(actor, "manager", "Cửa hàng — Quản lý", keyword, storeId, validity, fromDate, toDate, page, model);
+    public String managerContract() {
+        return "redirect:/manager/employees";
     }
 
     @GetMapping("/staff/contract")
     @PreAuthorize("hasRole('STAFF')")
-    public String staffContract(@AuthenticationPrincipal AuthenticatedUser actor,
-                                @RequestParam(required = false) String keyword,
-                                @RequestParam(required = false) String validity,
-                                @RequestParam(required = false) LocalDate fromDate,
-                                @RequestParam(required = false) LocalDate toDate,
-                                @RequestParam(defaultValue = "1") int page,
-                                Model model) {
-        return renderList(actor, "staff", "Cá nhân — Nhân viên", keyword, null, validity, fromDate, toDate, page, model);
+    public String staffContract() {
+        return "redirect:/profile";
     }
 
     @GetMapping("/admin/contract/{id:\\d+}")
     @PreAuthorize("hasRole('ADMIN')")
     public String adminDetail(@AuthenticationPrincipal AuthenticatedUser actor, @PathVariable Integer id,
-                              Model model, RedirectAttributes redirectAttributes) {
-        return renderDetail(actor, "admin", "Trụ sở — Admin", id, model, redirectAttributes);
+                              RedirectAttributes redirectAttributes) {
+        return redirectToEmployee(actor, "admin", id, redirectAttributes);
     }
 
     @GetMapping("/manager/contract/{id:\\d+}")
     @PreAuthorize("hasRole('MANAGER')")
     public String managerDetail(@AuthenticationPrincipal AuthenticatedUser actor, @PathVariable Integer id,
-                                Model model, RedirectAttributes redirectAttributes) {
-        return renderDetail(actor, "manager", "Cửa hàng — Quản lý", id, model, redirectAttributes);
+                                RedirectAttributes redirectAttributes) {
+        return redirectToEmployee(actor, "manager", id, redirectAttributes);
     }
 
     @GetMapping("/staff/contract/{id:\\d+}")
     @PreAuthorize("hasRole('STAFF')")
     public String staffDetail(@AuthenticationPrincipal AuthenticatedUser actor, @PathVariable Integer id,
-                              Model model, RedirectAttributes redirectAttributes) {
-        return renderDetail(actor, "staff", "Cá nhân — Nhân viên", id, model, redirectAttributes);
+                              RedirectAttributes redirectAttributes) {
+        return redirectToEmployee(actor, "staff", id, redirectAttributes);
     }
 
     @GetMapping("/admin/contract/{id:\\d+}/file")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<byte[]> adminFile(@AuthenticationPrincipal AuthenticatedUser actor, @PathVariable Integer id) {
-        return file(actor, id);
+    public ResponseEntity<byte[]> adminFile(@AuthenticationPrincipal AuthenticatedUser actor,
+                                            @PathVariable Integer id,
+                                            @RequestParam(defaultValue = "false") boolean inline) {
+        return file(actor, id, inline);
     }
 
     @GetMapping("/manager/contract/{id:\\d+}/file")
     @PreAuthorize("hasRole('MANAGER')")
-    public ResponseEntity<byte[]> managerFile(@AuthenticationPrincipal AuthenticatedUser actor, @PathVariable Integer id) {
-        return file(actor, id);
+    public ResponseEntity<byte[]> managerFile(@AuthenticationPrincipal AuthenticatedUser actor,
+                                              @PathVariable Integer id,
+                                              @RequestParam(defaultValue = "false") boolean inline) {
+        return file(actor, id, inline);
     }
 
     @GetMapping("/staff/contract/{id:\\d+}/file")
     @PreAuthorize("hasRole('STAFF')")
-    public ResponseEntity<byte[]> staffFile(@AuthenticationPrincipal AuthenticatedUser actor, @PathVariable Integer id) {
-        return file(actor, id);
+    public ResponseEntity<byte[]> staffFile(@AuthenticationPrincipal AuthenticatedUser actor,
+                                            @PathVariable Integer id,
+                                            @RequestParam(defaultValue = "false") boolean inline) {
+        return file(actor, id, inline);
     }
 
     @GetMapping("/manager/contract/create")
     @PreAuthorize("hasRole('MANAGER')")
-    public String createForm(@AuthenticationPrincipal AuthenticatedUser actor, Model model) {
+    public String createForm(@AuthenticationPrincipal AuthenticatedUser actor,
+                             @RequestParam(required = false) Integer employeeId,
+                             Model model) {
         if (!model.containsAttribute("form")) {
-            model.addAttribute("form", new CreateEmploymentContractRequest());
+            CreateEmploymentContractRequest form = new CreateEmploymentContractRequest();
+            form.setEmployeeId(employeeId);
+            model.addAttribute("form", form);
         }
         return renderCreate(actor, model);
     }
@@ -148,7 +136,11 @@ public class ContractPageController {
             EmploymentContractResponse created = contractService.create(
                     actor, form, new ContractFilePayload(contractFile.getOriginalFilename(), contractFile.getBytes()));
             redirectAttributes.addFlashAttribute("successMessage", "Đã tạo hợp đồng " + created.getContractCode() + ".");
-            return "redirect:/manager/contract";
+            Integer target = created.getEmployeeId();
+            if (target == null) {
+                return "redirect:/manager/employees";
+            }
+            return "redirect:/manager/employees/" + target + "?tab=contract";
         } catch (BusinessException ex) {
             attachFieldError(ex, binding, model);
             return renderCreate(actor, model);
@@ -158,40 +150,25 @@ public class ContractPageController {
         }
     }
 
-    private String renderList(AuthenticatedUser actor, String role, String eyebrow, String keyword, Integer storeId,
-                              String validity, LocalDate fromDate, LocalDate toDate, int page, Model model) {
-        model.addAttribute("navRole", role);
-        model.addAttribute("eyebrow", eyebrow);
-        model.addAttribute("listPath", "/" + role + "/contract");
-        if (fromDate != null && toDate != null && toDate.isBefore(fromDate)) {
-            model.addAttribute("errorMessage", "Khoảng ngày không hợp lệ.");
-            fromDate = null;
-            toDate = null;
-        }
+    private String redirectToEmployee(AuthenticatedUser actor, String role, Integer id,
+                                      RedirectAttributes redirectAttributes) {
         try {
-            model.addAttribute("view", contractService.search(actor, keyword, storeId, validity, fromDate, toDate, page));
-        } catch (BusinessException ex) {
-            model.addAttribute("errorMessage", ex.getMessage());
-            model.addAttribute("view", EmploymentContractListView.empty("admin".equals(role), "manager".equals(role)));
-        }
-        return "contract/ContractPage";
-    }
-
-    private String renderDetail(AuthenticatedUser actor, String role, String eyebrow, Integer id,
-                                Model model, RedirectAttributes redirectAttributes) {
-        try {
-            model.addAttribute("navRole", role);
-            model.addAttribute("eyebrow", eyebrow);
-            model.addAttribute("listPath", "/" + role + "/contract");
-            model.addAttribute("contract", contractService.detail(actor, id));
-            return "contract/ContractDetail";
+            EmploymentContractResponse contract = contractService.detail(actor, id);
+            String path = contractListPath(role, contract);
+            if ("admin".equals(role) && path.contains("/employees/") && !path.contains("tab=")) {
+                path = path + "?tab=contract";
+            }
+            if ("staff".equals(role)) {
+                path = "/profile#contracts";
+            }
+            return "redirect:" + path;
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
-            return "redirect:/" + role + "/contract";
+            return contractHome(role);
         }
     }
 
-    private ResponseEntity<byte[]> file(AuthenticatedUser actor, Integer id) {
+    private ResponseEntity<byte[]> file(AuthenticatedUser actor, Integer id, boolean inline) {
         ContractDownload download = contractService.download(actor, id);
         MediaType mediaType = MediaType.APPLICATION_OCTET_STREAM;
         try {
@@ -199,7 +176,9 @@ public class ContractPageController {
         } catch (Exception ignored) {
             mediaType = MediaType.APPLICATION_OCTET_STREAM;
         }
-        ContentDisposition disposition = ContentDisposition.attachment()
+        String fileName = download.fileName() == null ? "" : download.fileName().toLowerCase();
+        boolean viewInline = inline && (mediaType.includes(MediaType.APPLICATION_PDF) || fileName.endsWith(".pdf"));
+        ContentDisposition disposition = (viewInline ? ContentDisposition.inline() : ContentDisposition.attachment())
                 .filename(download.fileName(), StandardCharsets.UTF_8)
                 .build();
         return ResponseEntity.ok()
@@ -211,7 +190,7 @@ public class ContractPageController {
     private String renderCreate(AuthenticatedUser actor, Model model) {
         model.addAttribute("navRole", "manager");
         model.addAttribute("eyebrow", "Cửa hàng — Quản lý");
-        model.addAttribute("listPath", "/manager/contract");
+        model.addAttribute("listPath", createCancelPath(model));
         try {
             model.addAttribute("employees", contractService.listEmployees(actor));
             model.addAttribute("formReady", true);
@@ -240,12 +219,43 @@ public class ContractPageController {
                 ex.getMessage() == null ? "Không thể thực hiện thao tác với hợp đồng." : ex.getMessage());
         String uri = request.getRequestURI() == null ? "" : request.getRequestURI();
         if (uri.contains("/admin/contract")) {
-            return "redirect:/admin/contract";
+            return "redirect:/admin/employees";
         }
         if (uri.contains("/staff/contract")) {
-            return "redirect:/staff/contract";
+            return "redirect:/profile";
         }
-        return "redirect:/manager/contract";
+        return "redirect:/manager/employees";
+    }
+
+    private static String contractHome(String role) {
+        if ("admin".equals(role)) {
+            return "redirect:/admin/employees";
+        }
+        if ("staff".equals(role)) {
+            return "redirect:/profile";
+        }
+        return "redirect:/manager/employees";
+    }
+
+    private static String contractListPath(String role, EmploymentContractResponse contract) {
+        if ("staff".equals(role)) {
+            return "/profile";
+        }
+        if ("manager".equals(role) && contract.getEmployeeId() != null) {
+            return "/manager/employees/" + contract.getEmployeeId() + "?tab=contract";
+        }
+        if ("admin".equals(role) && contract.getStoreId() != null && contract.getEmployeeId() != null) {
+            return "/admin/stores/" + contract.getStoreId() + "/employees/" + contract.getEmployeeId();
+        }
+        return "/admin/employees";
+    }
+
+    private static String createCancelPath(Model model) {
+        Object form = model.getAttribute("form");
+        if (form instanceof CreateEmploymentContractRequest request && request.getEmployeeId() != null) {
+            return "/manager/employees/" + request.getEmployeeId() + "?tab=contract";
+        }
+        return "/manager/employees";
     }
 
     private static void attachFieldError(BusinessException ex, BindingResult binding, Model model) {

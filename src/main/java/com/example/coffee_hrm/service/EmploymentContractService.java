@@ -15,6 +15,8 @@ public interface EmploymentContractService {
 
     List<EmploymentContractResponse> list(AuthenticatedUser actor);
 
+    List<EmploymentContractResponse> listForEmployee(AuthenticatedUser actor, Integer employeeId);
+
     EmploymentContractListView search(AuthenticatedUser actor, String keyword, Integer storeId, String validity,
                                        LocalDate fromDate, LocalDate toDate, int page);
 

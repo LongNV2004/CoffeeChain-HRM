@@ -13,6 +13,7 @@ import com.example.coffee_hrm.security.DatabaseUserDetailsService;
 import com.example.coffee_hrm.security.RoleBasedRedirector;
 import com.example.coffee_hrm.security.SecurityConfig;
 import com.example.coffee_hrm.service.EmployeeService;
+import com.example.coffee_hrm.service.EmploymentContractService;
 import com.example.coffee_hrm.service.NotificationService;
 import com.example.coffee_hrm.service.RecruitmentRequestService;
 import com.example.coffee_hrm.service.ResignationProposalService;
@@ -49,6 +50,8 @@ class ManagerEmployeeControllerTest {
     @MockitoBean
     private EmployeeService employeeService;
     @MockitoBean
+    private EmploymentContractService contractService;
+    @MockitoBean
     private DatabaseUserDetailsService userDetailsService;
     @MockitoBean
     private NotificationService notificationService;
@@ -84,7 +87,9 @@ class ManagerEmployeeControllerTest {
 
         mockMvc.perform(get("/manager/employees").param("storeId", "99").with(user(actor(RoleName.MANAGER))))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Danh sách nhân sự")))
+                .andExpect(content().string(containsString("Quản lý hồ sơ nhân sự")))
+                .andExpect(content().string(containsString("Chưa có hợp đồng")))
+                .andExpect(content().string(containsString("Hợp đồng còn hiệu lực")))
                 .andExpect(content().string(containsString("Cửa hàng A")))
                 .andExpect(content().string(containsString("Nguyễn An")))
                 .andExpect(content().string(containsString("/manager/employees/5")));
@@ -125,6 +130,24 @@ class ManagerEmployeeControllerTest {
                 .andExpect(content().string(containsString("Nguyễn An")))
                 .andExpect(content().string(containsString("Chưa có lịch làm việc sắp tới.")))
                 .andExpect(content().string(containsString("Chưa có lịch sử chấm công.")));
+    }
+
+    @Test
+    void managerOpensContractTabForTheEmployee() throws Exception {
+        EmployeeResponse employee = EmployeeResponse.builder()
+                .id(5)
+                .fullName("Nguyễn An")
+                .status(EmployeeStatus.ACTIVE)
+                .roleName(RoleName.STAFF)
+                .build();
+        when(employeeService.getManagedEmployee(any(), eq(5))).thenReturn(
+                new ManagedEmployeeDetail(employee, "Chưa chứng nhận", List.of(), List.of(), List.of(), List.of()));
+        when(contractService.listForEmployee(any(), eq(5))).thenReturn(List.of());
+
+        mockMvc.perform(get("/manager/employees/5").param("tab", "contract").with(user(actor(RoleName.MANAGER))))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Chưa có hợp đồng.")))
+                .andExpect(content().string(containsString("/manager/contract/create?employeeId=5")));
     }
 
     private ManagedEmployeeDirectory directory() {

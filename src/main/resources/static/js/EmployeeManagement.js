@@ -8,6 +8,8 @@
     const search = document.getElementById('employeeNameSearch');
     const roleFilter = document.getElementById('employeeRoleFilter');
     const statusFilter = document.getElementById('employeeStatusFilter');
+    const contractFilter = document.getElementById('employeeContractFilter');
+    const sort = document.getElementById('employeeSort');
     const noMatch = document.getElementById('employeeNoMatch');
     const pageInfo = document.getElementById('employeePageInfo');
     const prev = document.getElementById('employeePreviousPage');
@@ -23,13 +25,37 @@
 
     function filteredRows() {
         const query = normal(search.value.trim());
-        return rows.filter(row => {
-            const matchesQuery = !query || [row.dataset.employeeName, row.dataset.employeeEmail, row.dataset.employeeCode]
-                .some(value => normal(value).includes(query));
+        const matched = rows.filter(row => {
+            const matchesQuery = !query || [
+                row.dataset.employeeName,
+                row.dataset.employeeEmail,
+                row.dataset.employeeCode,
+                row.dataset.employeeCitizen
+            ].some(value => normal(value).includes(query));
             const matchesRole = !roleFilter || roleFilter.value === 'ALL' || row.dataset.employeeRole === roleFilter.value;
             const matchesStatus = !statusFilter || statusFilter.value === 'ALL' || row.dataset.employeeStatus === statusFilter.value;
-            return matchesQuery && matchesRole && matchesStatus;
+            const matchesContract = !contractFilter || contractFilter.value === 'ALL'
+                || row.dataset.contractStatus === contractFilter.value;
+            return matchesQuery && matchesRole && matchesStatus && matchesContract;
         });
+        const mode = sort ? sort.value : 'default';
+        if (mode === 'default') return matched;
+        return matched.slice().sort((left, right) => compareRows(left, right, mode));
+    }
+
+    function compareRows(left, right, mode) {
+        if (mode === 'name') {
+            return normal(left.dataset.employeeName).localeCompare(normal(right.dataset.employeeName), 'vi');
+        }
+        if (mode === 'hire') {
+            const leftDate = left.dataset.hire || '9999-99-99';
+            const rightDate = right.dataset.hire || '9999-99-99';
+            return leftDate.localeCompare(rightDate) || normal(left.dataset.employeeName).localeCompare(normal(right.dataset.employeeName), 'vi');
+        }
+        if (mode === 'contract') {
+            return normal(left.dataset.contractLabel).localeCompare(normal(right.dataset.contractLabel), 'vi');
+        }
+        return 0;
     }
 
     function renderTable() {
@@ -61,6 +87,8 @@
     search.addEventListener('input', resetFilter);
     if (roleFilter) roleFilter.addEventListener('change', resetFilter);
     if (statusFilter) statusFilter.addEventListener('change', resetFilter);
+    if (contractFilter) contractFilter.addEventListener('change', resetFilter);
+    if (sort) sort.addEventListener('change', resetFilter);
 
     prev.addEventListener('click', () => {
         if (currentPage > 1) {

@@ -84,6 +84,31 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
     }
 
     @Override
+    public List<EmploymentContractResponse> listForEmployee(AuthenticatedUser actor, Integer employeeId) {
+        RoleName role = requireReader(actor);
+        if (employeeId == null) {
+            throw new BusinessException("Không tìm thấy nhân viên.");
+        }
+        if (role == RoleName.STAFF) {
+            if (actor.getEmployeeId() == null || !actor.getEmployeeId().equals(employeeId)) {
+                throw new BusinessException("Bạn không có quyền xem hợp đồng này.");
+            }
+        } else if (role == RoleName.MANAGER) {
+            Store managed = requireManagedStore(actor);
+            Employee employee = employeeRepository.findByIdWithStore(employeeId)
+                    .orElseThrow(() -> new BusinessException("Không tìm thấy nhân viên."));
+            if (employee.getStore() == null || !managed.getId().equals(employee.getStore().getId())) {
+                throw new BusinessException("Nhân viên không thuộc cửa hàng bạn quản lý.");
+            }
+        } else if (employeeRepository.findByIdWithStore(employeeId).isEmpty()) {
+            throw new BusinessException("Không tìm thấy nhân viên.");
+        }
+        return contractRepository.findByEmployeeId(employeeId).stream()
+                .map(contract -> toResponse(contract, false))
+                .toList();
+    }
+
+    @Override
     public EmploymentContractListView search(AuthenticatedUser actor, String keyword, Integer storeId,
                                               String validity, LocalDate fromDate, LocalDate toDate, int page) {
         RoleName role = requireReader(actor);

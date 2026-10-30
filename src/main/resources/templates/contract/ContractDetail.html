@@ -16,9 +16,9 @@
     </style>
 </head>
 <body>
-<th:block th:if="${navRole == 'admin'}"><header th:replace="~{fragments/navbar :: admin('contract')}"></header></th:block>
-<th:block th:if="${navRole == 'manager'}"><header th:replace="~{fragments/navbar :: manager('contract')}"></header></th:block>
-<th:block th:if="${navRole == 'staff'}"><header th:replace="~{fragments/navbar :: staff('contract')}"></header></th:block>
+<th:block th:if="${navRole == 'admin'}"><header th:replace="~{fragments/navbar :: admin('employees')}"></header></th:block>
+<th:block th:if="${navRole == 'manager'}"><header th:replace="~{fragments/navbar :: manager('employees')}"></header></th:block>
+<th:block th:if="${navRole == 'staff'}"><header th:replace="~{fragments/navbar :: staff('profile')}"></header></th:block>
 
 <main class="wrap dash-main">
     <section class="welcome">

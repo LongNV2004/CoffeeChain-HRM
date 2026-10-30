@@ -208,11 +208,6 @@
                 <svg class="coffee-icon"><use href="#coffee-i-salary"/></svg>
                 <span class="coffee-side-label">Quản lý lương</span>
             </a>
-            <a class="coffee-menu-item" th:href="@{/admin/contract}"
-               th:classappend="${active == 'contract'} ? ' is-active'" title="Hợp đồng">
-                <svg class="coffee-icon"><use href="#coffee-i-contract"/></svg>
-                <span class="coffee-side-label">Hợp đồng</span>
-            </a>
             <a class="coffee-menu-item" th:href="@{/attendance/admin/reports}"
                th:classappend="${active == 'reports'} ? ' is-active'" title="Báo cáo toàn chuỗi">
                 <svg class="coffee-icon"><use href="#coffee-i-chart"/></svg>
@@ -278,7 +273,7 @@
                     <svg class="coffee-icon coffee-chevron coffee-side-label"><use href="#coffee-i-chevron"/></svg>
                 </button>
                 <div class="coffee-group-children">
-                    <a th:href="@{/manager/employees}" th:classappend="${active == 'employees'} ? ' is-active'">Danh sách nhân sự</a>
+                    <a th:href="@{/manager/employees}" th:classappend="${active == 'employees'} ? ' is-active'">Quản lý hồ sơ nhân sự</a>
                     <a th:href="@{/manager/recruitment}" th:classappend="${active == 'recruitment'} ? ' is-active'">Đề xuất tuyển nhân sự</a>
                     <a th:href="@{/manager/resignation}" th:classappend="${active == 'resignation'} ? ' is-active'">Đề xuất nghỉ việc nhân sự</a>
                     <a th:href="@{/training}" th:classappend="${active == 'training'} ? ' is-active'">Đào tạo</a>
@@ -298,11 +293,6 @@
                th:classappend="${active == 'salary'} ? ' is-active'" title="Quản lý lương">
                 <svg class="coffee-icon"><use href="#coffee-i-salary"/></svg>
                 <span class="coffee-side-label">Quản lý lương</span>
-            </a>
-            <a class="coffee-menu-item" th:href="@{/manager/contract}"
-               th:classappend="${active == 'contract'} ? ' is-active'" title="Hợp đồng">
-                <svg class="coffee-icon"><use href="#coffee-i-contract"/></svg>
-                <span class="coffee-side-label">Hợp đồng</span>
             </a>
             <a class="coffee-menu-item" th:href="@{/attendance/manager/reports}"
                th:classappend="${active == 'reports' or active == 'attendance-report'} ? ' is-active'" title="Báo cáo cửa hàng">
@@ -381,11 +371,6 @@
                th:classappend="${active == 'salary'} ? ' is-active'" title="Quản lý lương">
                 <svg class="coffee-icon"><use href="#coffee-i-salary"/></svg>
                 <span class="coffee-side-label">Quản lý lương</span>
-            </a>
-            <a class="coffee-menu-item" th:href="@{/staff/contract}"
-               th:classappend="${active == 'contract'} ? ' is-active'" title="Hợp đồng">
-                <svg class="coffee-icon"><use href="#coffee-i-contract"/></svg>
-                <span class="coffee-side-label">Hợp đồng</span>
             </a>
         </div>
     </nav>

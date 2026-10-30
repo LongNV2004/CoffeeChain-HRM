@@ -15,6 +15,7 @@ import com.example.coffee_hrm.security.DatabaseUserDetailsService;
 import com.example.coffee_hrm.security.RoleBasedRedirector;
 import com.example.coffee_hrm.security.SecurityConfig;
 import com.example.coffee_hrm.service.NotificationService;
+import com.example.coffee_hrm.service.EmploymentContractService;
 import com.example.coffee_hrm.service.ProfileService;
 import com.example.coffee_hrm.service.RecruitmentRequestService;
 import com.example.coffee_hrm.service.ResignationProposalService;
@@ -56,6 +57,8 @@ class ProfileControllerTest {
 
     @MockitoBean
     private ProfileService profileService;
+    @MockitoBean
+    private EmploymentContractService contractService;
     @MockitoBean
     private DatabaseUserDetailsService userDetailsService;
     @MockitoBean
