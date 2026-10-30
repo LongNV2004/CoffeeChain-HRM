@@ -15,14 +15,28 @@
 <main class="wrap dash-main store-page store-form-page employee-detail-page">
     <header class="store-create-head">
         <nav class="store-create-crumb" aria-label="Đường dẫn">
-            <a class="back-link" th:href="@{/manager/employees}">Danh sách nhân sự</a>
+            <a class="back-link" th:href="@{/manager/employees}">Quản lý hồ sơ nhân sự</a>
             <span aria-hidden="true">/</span>
             <span aria-current="page">Chi tiết nhân viên</span>
         </nav>
         <h1 th:text="${detail.employee.fullName != null and !#strings.isEmpty(detail.employee.fullName) ? detail.employee.fullName : 'Nhân viên'}">Họ và tên</h1>
-        <p>Thông tin chỉ để xem, trong phạm vi cửa hàng bạn đang quản lý.</p>
+        <p>Hồ sơ, hợp đồng và lịch sử của nhân viên trong cửa hàng bạn đang quản lý.</p>
     </header>
 
+    <p class="flash success" th:if="${successMessage}" th:text="${successMessage}"></p>
+    <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}"></p>
+    <p class="flash error" th:if="${contractError}" th:text="${contractError}"></p>
+
+    <nav class="employee-tabs" aria-label="Nội dung hồ sơ">
+        <a th:href="@{/manager/employees/{id}(id=${detail.employee.id})}"
+           th:classappend="${tab == 'profile'} ? ' is-active'">Hồ sơ nhân viên</a>
+        <a th:href="@{/manager/employees/{id}(id=${detail.employee.id},tab='contract')}"
+           th:classappend="${tab == 'contract'} ? ' is-active'">Hợp đồng</a>
+        <a th:href="@{/manager/employees/{id}(id=${detail.employee.id},tab='history')}"
+           th:classappend="${tab == 'history'} ? ' is-active'">Lịch sử</a>
+    </nav>
+
+    <div th:if="${tab == null or tab == 'profile'}">
     <div class="employee-detail-grid">
         <section class="store-create-card" aria-labelledby="employee-personal-title">
             <h2 id="employee-personal-title">Thông tin cá nhân</h2>
@@ -211,6 +225,33 @@
             </div>
         </dl>
         <p>Chỉ hiển thị Chứng chỉ nhân viên. Chứng chỉ từng kỹ năng không còn được dùng để đăng ký ca.</p>
+    </section>
+    </div>
+
+    <section class="store-create-card employee-related" th:if="${tab == 'contract'}" aria-labelledby="employee-contract-title">
+        <div class="store-panel-top">
+            <div>
+                <h2 id="employee-contract-title">Hợp đồng</h2>
+                <p>Hợp đồng đã lưu không bị sửa hoặc xóa. Tạo hợp đồng mới giữ nguyên hợp đồng cũ và file đã ký.</p>
+            </div>
+            <a class="store-btn store-btn--primary" th:if="${canCreateContract}"
+               th:href="@{/manager/contract/create(employeeId=${detail.employee.id})}">Tạo hợp đồng</a>
+        </div>
+        <p th:unless="${canCreateContract}">Nhân viên này không đủ điều kiện để tạo hợp đồng mới.</p>
+        <div th:replace="~{fragments/employee-contracts :: table(${contracts}, 'manager')}"></div>
+    </section>
+
+    <section class="store-create-card employee-related" th:if="${tab == 'history'}" aria-labelledby="employee-history-title">
+        <h2 id="employee-history-title">Lịch sử</h2>
+        <p>Gồm tạo hồ sơ, cửa hàng hiện tại, chứng chỉ, tạo và gia hạn hợp đồng, hết hạn, chấm dứt, nghỉ việc và đào tạo. Hệ thống chưa lưu từng lần điều chuyển cửa hàng trong quá khứ.</p>
+        <p class="empty" th:if="${history == null or #lists.isEmpty(history)}">Chưa có sự kiện nào.</p>
+        <ol class="employee-history" th:if="${history != null and !#lists.isEmpty(history)}">
+            <li th:each="event : ${history}">
+                <time th:text="${event.date != null} ? ${#temporals.format(event.date, 'dd/MM/yyyy')} : 'Chưa rõ ngày'">01/01/2026</time>
+                <strong th:text="${event.title}">Sự kiện</strong>
+                <p th:text="${event.detail}">Chi tiết</p>
+            </li>
+        </ol>
     </section>
 </main>
 </body>

@@ -30,6 +30,37 @@
     <p class="flash success" th:if="${successMessage}" th:text="${successMessage}"></p>
     <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}"></p>
 
+    <section class="store-stats" aria-label="Thống kê nhân sự">
+        <article class="store-stat">
+            <div>
+                <span>Tổng số nhân viên</span>
+                <strong th:text="${employees != null ? #lists.size(employees) : 0}">0</strong>
+            </div>
+        </article>
+        <article class="store-stat">
+            <div>
+                <span>Đang làm việc</span>
+                <strong th:text="${employees != null ? #lists.size(employees.?[status != null and status.name() == 'ACTIVE']) : 0}">0</strong>
+            </div>
+        </article>
+        <article class="store-stat">
+            <div>
+                <span>Hợp đồng còn hiệu lực</span>
+                <strong th:text="${effectiveContractCount != null ? effectiveContractCount : 0}">0</strong>
+                <small>Gồm cả hợp đồng sắp hết hạn</small>
+            </div>
+        </article>
+        <article class="store-stat">
+            <div>
+                <span>Hợp đồng sắp hết hạn</span>
+                <strong th:text="${expiringContractCount != null ? expiringContractCount : 0}">0</strong>
+                <small>Trong vòng 30 ngày</small>
+            </div>
+        </article>
+    </section>
+
+    <p class="flash error" th:if="${contractError}" th:text="${contractError}"></p>
+
     <section class="store-panel employee-panel">
         <div class="store-panel-top">
             <div>
@@ -48,22 +79,39 @@
 
         <div class="store-toolbar employee-toolbar">
             <label class="store-search employee-search">
-                <input id="employeeNameSearch" type="search" placeholder="Tìm theo tên, mã nhân viên hoặc email..." autocomplete="off">
+                <input id="employeeNameSearch" type="search" placeholder="Tìm theo mã nhân viên, họ tên, email hoặc CCCD..." autocomplete="off">
             </label>
 
             <div class="employee-filters">
-                <select id="employeeRoleFilter">
+                <select id="employeeRoleFilter" aria-label="Lọc theo chức vụ">
                     <option value="ALL">Tất cả chức vụ</option>
                     <option value="MANAGER">Manager</option>
                     <option value="STAFF">Staff</option>
                     <option value="NONE">Chưa có tài khoản</option>
                 </select>
 
-                <select id="employeeStatusFilter">
-                    <option value="ALL">Tất cả trạng thái</option>
+                <select id="employeeStatusFilter" aria-label="Lọc theo trạng thái nhân sự">
+                    <option value="ALL">Tất cả trạng thái nhân viên</option>
                     <option value="ACTIVE">Đang làm việc</option>
                     <option value="ON_LEAVE">Đang nghỉ phép</option>
                     <option value="TERMINATED">Đã nghỉ việc</option>
+                </select>
+
+                <select id="employeeContractFilter" aria-label="Lọc theo trạng thái hợp đồng">
+                    <option value="ALL">Tất cả hợp đồng</option>
+                    <option value="NONE">Chưa có hợp đồng</option>
+                    <option value="DANG_HIEU_LUC">Đang hiệu lực</option>
+                    <option value="SAP_HET_HAN">Sắp hết hạn</option>
+                    <option value="CHUA_HIEU_LUC">Chưa hiệu lực</option>
+                    <option value="DA_HET_HAN">Đã hết hạn</option>
+                    <option value="DA_CHAM_DUT">Đã chấm dứt</option>
+                </select>
+
+                <select id="employeeSort" aria-label="Sắp xếp danh sách">
+                    <option value="default">Sắp xếp mặc định</option>
+                    <option value="name">Họ tên A–Z</option>
+                    <option value="hire">Ngày vào làm</option>
+                    <option value="contract">Trạng thái hợp đồng</option>
                 </select>
             </div>
         </div>
@@ -76,16 +124,17 @@
                 <th>Mã</th>
                 <th>Nhân viên</th>
                 <th>Chức vụ</th>
-                <th>Số điện thoại</th>
-                <th>CCCD</th>
+                <th>Số CCCD</th>
+                <th>Ngày vào làm</th>
                 <th>Chứng chỉ</th>
-                <th>Trạng thái</th>
+                <th>Trạng thái nhân viên</th>
+                <th>Trạng thái hợp đồng</th>
                 <th>Hành động</th>
             </tr>
             </thead>
             <tbody>
             <tr th:if="${employees == null or #lists.isEmpty(employees)}">
-                <td colspan="9" class="empty">Cửa hàng chưa có nhân viên.</td>
+                <td colspan="10" class="empty">Cửa hàng chưa có nhân viên.</td>
             </tr>
 
             <tr th:each="employee : ${employees}" class="employee-row"
@@ -94,7 +143,11 @@
                          data-employee-name=${employee.fullName},
                          data-employee-email=${employee.email ?: ''},
                          data-employee-phone=${employee.phone ?: ''},
-                         data-employee-role=${employee.roleName != null ? employee.roleName.name() : 'NONE'},
+                         data-employee-citizen=${employee.citizenIdMasked ?: ''},
+                         data-hire=${employee.hireDate},
+                         data-contract-status=${employee.contractStatusKey ?: 'NONE'},
+                         data-contract-label=${employee.contractStatusLabel ?: 'Chưa có hợp đồng'},
+                         data-employee-role=${(employee.storeManager or (employee.roleName != null and employee.roleName.name() == 'MANAGER')) ? 'MANAGER' : (employee.roleName != null ? employee.roleName.name() : 'NONE')},
                          data-employee-status=${employee.status != null ? employee.status.name() : ''}">
                 <td class="employee-index"></td>
                 <td th:text="${employee.id}">1</td>
@@ -107,8 +160,8 @@
                     <span th:if="${!employee.storeManager and employee.roleName?.name() == 'STAFF'}" class="badge">Staff</span>
                     <span th:if="${!employee.storeManager and employee.roleName == null}" class="muted">Chưa có tài khoản</span>
                 </td>
-                <td th:text="${employee.phone != null and !#strings.isEmpty(employee.phone) ? employee.phone : 'Chưa cập nhật'}">SĐT</td>
                 <td th:text="${employee.citizenIdMasked != null ? employee.citizenIdMasked : 'Chưa cập nhật'}">079******123</td>
+                <td th:text="${employee.hireDate != null} ? ${#temporals.format(employee.hireDate, 'dd/MM/yyyy')} : 'Chưa cập nhật'">01/01/2026</td>
                 <td>
                     <span th:if="${employee.hasCertificate}" class="badge badge-ok">Có</span>
                     <span th:unless="${employee.hasCertificate}" class="muted">Chưa có</span>
@@ -118,6 +171,14 @@
                     <span th:if="${employee.status != null and employee.status.name() == 'ON_LEAVE'}" class="badge badge-wait">Đang nghỉ phép</span>
                     <span th:if="${employee.status != null and employee.status.name() == 'TERMINATED'}" class="badge badge-off">Đã nghỉ việc</span>
                     <span th:if="${employee.status == null}" class="muted">Chưa cập nhật</span>
+                </td>
+                <td>
+                    <span th:if="${employee.contractStatusKey == null or employee.contractStatusKey == 'NONE'}" class="muted"
+                          th:text="${employee.contractStatusLabel != null ? employee.contractStatusLabel : 'Chưa có hợp đồng'}">Chưa có hợp đồng</span>
+                    <span th:if="${employee.contractStatusKey == 'DANG_HIEU_LUC'}" class="badge badge-ok" th:text="${employee.contractStatusLabel}">Đang hiệu lực</span>
+                    <span th:if="${employee.contractStatusKey == 'SAP_HET_HAN'}" class="badge badge-wait" th:text="${employee.contractStatusLabel}">Sắp hết hạn</span>
+                    <span th:if="${employee.contractStatusKey == 'CHUA_HIEU_LUC'}" class="badge" th:text="${employee.contractStatusLabel}">Chưa hiệu lực</span>
+                    <span th:if="${employee.contractStatusKey == 'DA_HET_HAN' or employee.contractStatusKey == 'DA_CHAM_DUT'}" class="badge badge-off" th:text="${employee.contractStatusLabel}">Đã hết hạn</span>
                 </td>
                 <td>
                     <a th:if="${selectedStore != null}"
@@ -134,7 +195,7 @@
             </tr>
 
             <tr id="employeeNoMatch" hidden>
-                <td colspan="9" class="empty">Không tìm thấy nhân viên phù hợp.</td>
+                <td colspan="10" class="empty">Không tìm thấy nhân viên phù hợp.</td>
             </tr>
             </tbody>
         </table>

@@ -369,6 +369,16 @@ class EmploymentContractServiceImplTest {
     }
 
     @Test
+    void staffListsOnlyOwnContracts() {
+        when(contractRepository.findByEmployeeId(30)).thenReturn(List.of());
+
+        assertTrue(service.listForEmployee(staff, 30).isEmpty());
+
+        BusinessException error = assertThrows(BusinessException.class, () -> service.listForEmployee(staff, 31));
+        assertEquals("Bạn không có quyền xem hợp đồng này.", error.getMessage());
+    }
+
+    @Test
     void changingTheProfileCitizenIdDoesNotRewriteTheSignedFile() throws Exception {
         allowEmployee();
         EmploymentContractResponse created = service.create(

@@ -11,6 +11,7 @@ import com.example.coffee_hrm.security.DatabaseUserDetailsService;
 import com.example.coffee_hrm.security.RoleBasedRedirector;
 import com.example.coffee_hrm.security.SecurityConfig;
 import com.example.coffee_hrm.service.EmployeeService;
+import com.example.coffee_hrm.service.EmploymentContractService;
 import com.example.coffee_hrm.service.NotificationService;
 import com.example.coffee_hrm.service.RecruitmentRequestService;
 import com.example.coffee_hrm.service.ResignationProposalService;
@@ -49,6 +50,8 @@ class AdminEmployeeControllerTest {
     private StoreService storeService;
     @MockitoBean
     private EmployeeService employeeService;
+    @MockitoBean
+    private EmploymentContractService contractService;
     @MockitoBean
     private DatabaseUserDetailsService userDetailsService;
     @MockitoBean

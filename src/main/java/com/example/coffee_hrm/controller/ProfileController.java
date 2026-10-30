@@ -4,9 +4,12 @@ import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.dto.request.ChangePasswordRequest;
 import com.example.coffee_hrm.dto.request.UpdateProfileRequest;
+import com.example.coffee_hrm.dto.response.EmploymentContractResponse;
 import com.example.coffee_hrm.dto.response.MyProfileView;
 import com.example.coffee_hrm.security.AuthenticatedUser;
+import com.example.coffee_hrm.service.EmploymentContractService;
 import com.example.coffee_hrm.service.ProfileService;
+import com.example.coffee_hrm.service.support.EmployeeRecordSupport;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -23,6 +26,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.util.List;
+
 @Controller
 @RequiredArgsConstructor
 @RequestMapping("/profile")
@@ -30,6 +35,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 public class ProfileController {
 
     private final ProfileService profileService;
+    private final EmploymentContractService contractService;
 
     @GetMapping
     public String profile(@AuthenticationPrincipal AuthenticatedUser user, Model model) {
@@ -119,7 +125,31 @@ public class ProfileController {
         if (!model.containsAttribute("profileForm")) {
             model.addAttribute("profileForm", formFrom(profile));
         }
+        List<EmploymentContractResponse> contracts = contractsOf(user, profile);
+        model.addAttribute("contracts", contracts);
+        model.addAttribute("contractRole", user.getRoleName() == RoleName.MANAGER ? "manager" : "staff");
+        model.addAttribute("history", EmployeeRecordSupport.history(
+                null,
+                profile == null ? null : profile.getHireDate(),
+                profile == null ? null : profile.getTerminationDate(),
+                profile == null ? null : profile.getStoreName(),
+                null,
+                false,
+                List.of(),
+                contracts));
         return "profile/MyProfile";
+    }
+
+    private List<EmploymentContractResponse> contractsOf(AuthenticatedUser user, MyProfileView profile) {
+        if (profile == null || profile.getEmployeeId() == null) {
+            return List.of();
+        }
+        try {
+            List<EmploymentContractResponse> loaded = contractService.listForEmployee(user, profile.getEmployeeId());
+            return loaded == null ? List.of() : loaded;
+        } catch (BusinessException ex) {
+            return List.of();
+        }
     }
 
     private UpdateProfileRequest formFrom(MyProfileView profile) {

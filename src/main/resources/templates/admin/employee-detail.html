@@ -28,7 +28,16 @@
     <p class="flash success" th:if="${successMessage}" th:text="${successMessage}"></p>
     <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}"></p>
 
-    <div class="employee-detail-grid">
+    <nav class="employee-tabs" aria-label="Nội dung hồ sơ">
+        <a th:href="@{/admin/stores/{storeId}/employees/{employeeId}(storeId=${store.id}, employeeId=${employee.id})}"
+           th:classappend="${tab == null or tab == 'profile'} ? ' is-active'">Hồ sơ nhân viên</a>
+        <a th:href="@{/admin/stores/{storeId}/employees/{employeeId}(storeId=${store.id}, employeeId=${employee.id}, tab='contract')}"
+           th:classappend="${tab == 'contract'} ? ' is-active'">Hợp đồng</a>
+        <a th:href="@{/admin/stores/{storeId}/employees/{employeeId}(storeId=${store.id}, employeeId=${employee.id}, tab='history')}"
+           th:classappend="${tab == 'history'} ? ' is-active'">Lịch sử</a>
+    </nav>
+
+    <div class="employee-detail-grid" th:if="${tab == null or tab == 'profile'}">
         <section class="store-create-card" aria-labelledby="employee-personal-title">
             <h2 id="employee-personal-title">Thông tin cá nhân</h2>
             <dl class="store-create-facts">
@@ -173,6 +182,25 @@
             </div>
         </section>
     </div>
+
+    <section class="store-create-card employee-related" th:if="${tab == 'contract'}" aria-labelledby="admin-contract-title">
+        <h2 id="admin-contract-title">Hợp đồng</h2>
+        <p>Admin xem hợp đồng của nhân viên. Tạo hợp đồng và tải file đã ký thuộc Manager của cửa hàng. Hợp đồng cũ và file đã ký được giữ nguyên.</p>
+        <div th:replace="~{fragments/employee-contracts :: table(${contracts}, 'admin')}"></div>
+    </section>
+
+    <section class="store-create-card employee-related" th:if="${tab == 'history'}" aria-labelledby="admin-history-title">
+        <h2 id="admin-history-title">Lịch sử</h2>
+        <p>Gồm tạo hồ sơ, cửa hàng hiện tại, chứng chỉ, hợp đồng, gia hạn, hết hạn và nghỉ việc. Hệ thống chưa lưu từng lần điều chuyển cửa hàng trong quá khứ.</p>
+        <p class="empty" th:if="${history == null or #lists.isEmpty(history)}">Chưa có sự kiện nào.</p>
+        <ol class="employee-history" th:if="${history != null and !#lists.isEmpty(history)}">
+            <li th:each="event : ${history}">
+                <time th:text="${event.date != null} ? ${#temporals.format(event.date, 'dd/MM/yyyy')} : 'Chưa rõ ngày'">01/01/2026</time>
+                <strong th:text="${event.title}">Sự kiện</strong>
+                <p th:text="${event.detail}">Chi tiết</p>
+            </li>
+        </ol>
+    </section>
 </main>
 <script th:src="@{/js/AdminDashboard.js}"></script>
 </body>

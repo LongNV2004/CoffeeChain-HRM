@@ -3,9 +3,12 @@ package com.example.coffee_hrm.controller;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.dto.response.EmployeeResponse;
+import com.example.coffee_hrm.dto.response.EmploymentContractResponse;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.EmployeeService;
+import com.example.coffee_hrm.service.EmploymentContractService;
 import com.example.coffee_hrm.service.StoreService;
+import com.example.coffee_hrm.service.support.EmployeeRecordSupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataAccessException;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -48,6 +51,7 @@ public class AdminEmployeeController {
 
     private final StoreService storeService;
     private final EmployeeService employeeService;
+    private final EmploymentContractService contractService;
 
     @GetMapping("/employees")
     public String viewChainStores(
@@ -67,19 +71,29 @@ public class AdminEmployeeController {
                                      @AuthenticationPrincipal AuthenticatedUser user,
                                      Model model,
                                      RedirectAttributes redirectAttributes) {
+        List<EmployeeResponse> employees;
         try {
             model.addAttribute("selectedStore", storeService.getStore(user, storeId));
-            model.addAttribute("employees", employeeService.getStoreEmployees(user, storeId));
+            employees = employeeService.getStoreEmployees(user, storeId);
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
             return EMPLOYEES_HOME_REDIRECT;
         }
+        if (employees == null) {
+            employees = List.of();
+        }
+        model.addAttribute("employees", employees);
+        EmployeeRecordSupport.ContractTotals totals = EmployeeRecordSupport.applyCurrentStatus(
+                employees, contractsOfStore(user));
+        model.addAttribute("effectiveContractCount", totals.effectiveCount());
+        model.addAttribute("expiringContractCount", totals.expiringCount());
         return STORE_EMPLOYEES_VIEW;
     }
 
     @GetMapping("/stores/{storeId}/employees/{employeeId}")
     public String viewEmployeeDetail(@PathVariable Integer storeId,
                                      @PathVariable Integer employeeId,
+                                     @RequestParam(name = "tab", defaultValue = "profile") String tab,
                                      @AuthenticationPrincipal AuthenticatedUser user,
                                      Model model,
                                      RedirectAttributes redirectAttributes) {
@@ -89,13 +103,37 @@ public class AdminEmployeeController {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
             return EMPLOYEES_HOME_REDIRECT;
         }
+        EmployeeResponse employee;
         try {
-            model.addAttribute("employee", employeeService.getStoreEmployee(user, storeId, employeeId));
+            employee = employeeService.getStoreEmployee(user, storeId, employeeId);
+            model.addAttribute("employee", employee);
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
             return STORE_EMPLOYEES_REDIRECT;
         }
+        List<EmploymentContractResponse> contracts = contractsOf(user, employeeId);
+        model.addAttribute("contracts", contracts);
+        model.addAttribute("history", EmployeeRecordSupport.history(employee, List.of(), contracts));
+        model.addAttribute("tab", "contract".equals(tab) || "history".equals(tab) ? tab : "profile");
         return EMPLOYEE_DETAIL_VIEW;
+    }
+
+    private List<EmploymentContractResponse> contractsOfStore(AuthenticatedUser user) {
+        try {
+            List<EmploymentContractResponse> loaded = contractService.list(user);
+            return loaded == null ? List.of() : loaded;
+        } catch (BusinessException ex) {
+            return List.of();
+        }
+    }
+
+    private List<EmploymentContractResponse> contractsOf(AuthenticatedUser user, Integer employeeId) {
+        try {
+            List<EmploymentContractResponse> loaded = contractService.listForEmployee(user, employeeId);
+            return loaded == null ? List.of() : loaded;
+        } catch (BusinessException ex) {
+            return List.of();
+        }
     }
 
     @PostMapping("/stores/{storeId}/employees/{employeeId}/role")

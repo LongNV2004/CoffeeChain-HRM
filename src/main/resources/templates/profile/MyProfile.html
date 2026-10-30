@@ -38,6 +38,12 @@
         </div>
     </section>
 
+    <nav class="employee-tabs profile-tabs" aria-label="Nội dung hồ sơ">
+        <a href="#personal-panel">Hồ sơ nhân viên</a>
+        <a href="#contracts">Hợp đồng</a>
+        <a href="#history">Lịch sử</a>
+    </nav>
+
     <div class="profile-grid">
         <section class="panel" id="personal-panel" aria-labelledby="personal-title"
                  th:classappend="${profileFormOpen != null and profileFormOpen} ? ' is-editing' : ''">
@@ -175,6 +181,25 @@
             </ul>
         </section>
     </div>
+
+    <section class="panel" id="contracts" aria-labelledby="contract-title">
+        <h2 id="contract-title">Hợp đồng của tôi</h2>
+        <p class="profile-note">Chỉ hiển thị hợp đồng của tài khoản đang đăng nhập. File đã ký có thể xem hoặc tải về.</p>
+        <div th:replace="~{fragments/employee-contracts :: table(${contracts}, ${contractRole})}"></div>
+    </section>
+
+    <section class="panel" id="history" aria-labelledby="history-title">
+        <h2 id="history-title">Lịch sử</h2>
+        <p class="profile-note">Gồm ngày vào làm, cửa hàng hiện tại, hợp đồng, gia hạn, hết hạn và nghỉ việc. Chỉ hiển thị dữ liệu của tài khoản đang đăng nhập.</p>
+        <p class="profile-empty" th:if="${history == null or #lists.isEmpty(history)}">Chưa có sự kiện nào.</p>
+        <ol class="employee-history" th:if="${history != null and !#lists.isEmpty(history)}">
+            <li th:each="event : ${history}">
+                <time th:text="${event.date != null} ? ${#temporals.format(event.date, 'dd/MM/yyyy')} : 'Chưa rõ ngày'">01/01/2026</time>
+                <strong th:text="${event.title}">Sự kiện</strong>
+                <p th:text="${event.detail}">Chi tiết</p>
+            </li>
+        </ol>
+    </section>
 
     <section class="panel" id="security" aria-labelledby="security-title">
         <div class="panel-head">

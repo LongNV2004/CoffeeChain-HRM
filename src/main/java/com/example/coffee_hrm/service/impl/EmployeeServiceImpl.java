@@ -739,6 +739,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .roleName(user != null && user.getRole() != null ? user.getRole().getRoleName() : null)
                 .accountActive(user == null ? null : Boolean.TRUE.equals(user.getIsActive()))
                 .hasCertificate(Boolean.TRUE.equals(employee.getHasCertificate()))
+                .certificateIssuedOn(employee.getCertificateIssuedOn())
                 .managementCertified(Boolean.TRUE.equals(employee.getManagementCertified()))
                 .storeManager(manager != null && manager.getId().equals(employee.getId()))
                 .build();

@@ -65,6 +65,12 @@ body:has(.coffee-sidebar) main.wrap {
     margin: 0;
     padding: 2px 4px 36px;
 }
+body:has(.coffee-sidebar) main.wrap.employee-page,
+body:has(.coffee-sidebar) main.wrap.employee-detail-page,
+body:has(.coffee-sidebar) main.wrap.profile-page {
+    max-width: none;
+    width: 100%;
+}
 body:has(.coffee-sidebar) .dash-main,
 body:has(.coffee-sidebar) .ml-page,
 body:has(.coffee-sidebar) .store-page {

@@ -111,11 +111,6 @@
             <path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/>
             <path d="M14 3v5h5M9 13h6M9 17h6"/>
         </symbol>
-        <symbol id="coffee-i-rules" viewBox="0 0 24 24">
-            <path d="M8 3.5h8v3H8z"/>
-            <path d="M7 5h10a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>
-            <path d="M9 11h6M9 15h4"/>
-        </symbol>
         <symbol id="coffee-i-transfer" viewBox="0 0 24 24">
             <path d="M4 8h12m0 0-3-3m3 3-3 3M20 16H8m0 0 3-3m-3 3 3 3"/>
         </symbol>
@@ -203,24 +198,20 @@
                     <a th:href="@{/admin/training}" th:classappend="${active == 'training'} ? ' is-active'">Đào tạo</a>
                 </div>
             </div>
+            <a class="coffee-menu-item" th:href="@{/admin/transfer}"
+               th:classappend="${active == 'transfer'} ? ' is-active'" title="Điều chuyển nhân sự">
+                <svg class="coffee-icon"><use href="#coffee-i-transfer"/></svg>
+                <span class="coffee-side-label">Điều chuyển nhân sự</span>
+            </a>
             <a class="coffee-menu-item" th:href="@{/admin/salary}"
                th:classappend="${active == 'salary'} ? ' is-active'" title="Quản lý lương">
                 <svg class="coffee-icon"><use href="#coffee-i-salary"/></svg>
                 <span class="coffee-side-label">Quản lý lương</span>
             </a>
-            <a class="coffee-menu-item" th:href="@{/admin/contract}"
-               th:classappend="${active == 'contract'} ? ' is-active'" title="Hợp đồng">
-                <svg class="coffee-icon"><use href="#coffee-i-contract"/></svg>
-                <span class="coffee-side-label">Hợp đồng</span>
-            </a>
             <a class="coffee-menu-item" th:href="@{/attendance/admin/reports}"
                th:classappend="${active == 'reports'} ? ' is-active'" title="Báo cáo toàn chuỗi">
                 <svg class="coffee-icon"><use href="#coffee-i-chart"/></svg>
                 <span class="coffee-side-label">Báo cáo toàn chuỗi</span>
-            </a>
-            <a class="coffee-menu-item" href="#" title="Nội quy cửa hàng" onclick="event.preventDefault()">
-                <svg class="coffee-icon"><use href="#coffee-i-rules"/></svg>
-                <span class="coffee-side-label">Nội quy cửa hàng</span>
             </a>
         </div>
 
@@ -282,7 +273,7 @@
                     <svg class="coffee-icon coffee-chevron coffee-side-label"><use href="#coffee-i-chevron"/></svg>
                 </button>
                 <div class="coffee-group-children">
-                    <a th:href="@{/manager/employees}" th:classappend="${active == 'employees'} ? ' is-active'">Danh sách nhân sự</a>
+                    <a th:href="@{/manager/employees}" th:classappend="${active == 'employees'} ? ' is-active'">Quản lý hồ sơ nhân sự</a>
                     <a th:href="@{/manager/recruitment}" th:classappend="${active == 'recruitment'} ? ' is-active'">Đề xuất tuyển nhân sự</a>
                     <a th:href="@{/manager/resignation}" th:classappend="${active == 'resignation'} ? ' is-active'">Đề xuất nghỉ việc nhân sự</a>
                     <a th:href="@{/training}" th:classappend="${active == 'training'} ? ' is-active'">Đào tạo</a>
@@ -293,24 +284,20 @@
                 <svg class="coffee-icon"><use href="#coffee-i-leave"/></svg>
                 <span class="coffee-side-label">Đơn nghỉ phép</span>
             </a>
+            <a class="coffee-menu-item" th:href="@{/manager/transfer}"
+               th:classappend="${active == 'transfer'} ? ' is-active'" title="Điều chuyển nhân sự">
+                <svg class="coffee-icon"><use href="#coffee-i-transfer"/></svg>
+                <span class="coffee-side-label">Điều chuyển nhân sự</span>
+            </a>
             <a class="coffee-menu-item" th:href="@{/manager/salary}"
                th:classappend="${active == 'salary'} ? ' is-active'" title="Quản lý lương">
                 <svg class="coffee-icon"><use href="#coffee-i-salary"/></svg>
                 <span class="coffee-side-label">Quản lý lương</span>
             </a>
-            <a class="coffee-menu-item" th:href="@{/manager/contract}"
-               th:classappend="${active == 'contract'} ? ' is-active'" title="Hợp đồng">
-                <svg class="coffee-icon"><use href="#coffee-i-contract"/></svg>
-                <span class="coffee-side-label">Hợp đồng</span>
-            </a>
             <a class="coffee-menu-item" th:href="@{/attendance/manager/reports}"
                th:classappend="${active == 'reports' or active == 'attendance-report'} ? ' is-active'" title="Báo cáo cửa hàng">
                 <svg class="coffee-icon"><use href="#coffee-i-chart"/></svg>
                 <span class="coffee-side-label">Báo cáo Store</span>
-            </a>
-            <a class="coffee-menu-item" href="#" title="Nội quy cửa hàng" onclick="event.preventDefault()">
-                <svg class="coffee-icon"><use href="#coffee-i-rules"/></svg>
-                <span class="coffee-side-label">Nội quy cửa hàng</span>
             </a>
         </div>
 
@@ -375,19 +362,15 @@
                 <svg class="coffee-icon"><use href="#coffee-i-leave"/></svg>
                 <span class="coffee-side-label">Đơn nghỉ phép</span>
             </a>
+            <a class="coffee-menu-item" th:href="@{/staff/transfer}"
+               th:classappend="${active == 'transfer'} ? ' is-active'" title="Điều chuyển nhân sự">
+                <svg class="coffee-icon"><use href="#coffee-i-transfer"/></svg>
+                <span class="coffee-side-label">Điều chuyển nhân sự</span>
+            </a>
             <a class="coffee-menu-item" th:href="@{/staff/salary}"
                th:classappend="${active == 'salary'} ? ' is-active'" title="Quản lý lương">
                 <svg class="coffee-icon"><use href="#coffee-i-salary"/></svg>
                 <span class="coffee-side-label">Quản lý lương</span>
-            </a>
-            <a class="coffee-menu-item" th:href="@{/staff/contract}"
-               th:classappend="${active == 'contract'} ? ' is-active'" title="Hợp đồng">
-                <svg class="coffee-icon"><use href="#coffee-i-contract"/></svg>
-                <span class="coffee-side-label">Hợp đồng</span>
-            </a>
-            <a class="coffee-menu-item" href="#" title="Nội quy cửa hàng" onclick="event.preventDefault()">
-                <svg class="coffee-icon"><use href="#coffee-i-rules"/></svg>
-                <span class="coffee-side-label">Nội quy cửa hàng</span>
             </a>
         </div>
     </nav>

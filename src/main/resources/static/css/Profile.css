@@ -1,4 +1,35 @@
-.profile-page { display: grid; gap: 16px; }
+.profile-page { display: grid; gap: 16px; width: 100%; max-width: none; }
+.profile-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.profile-tabs a {
+    padding: 8px 14px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--espresso);
+    font-weight: 600;
+    text-decoration: none;
+}
+.employee-history { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.employee-history li {
+    display: grid;
+    gap: 4px;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: #fff;
+}
+.employee-history time, .employee-history p { color: var(--ink-soft); }
+.employee-history p { margin: 0; }
+.profile-page .employee-contract-table { width: 100%; border-collapse: collapse; }
+.profile-page .employee-contract-table th,
+.profile-page .employee-contract-table td {
+    padding: 10px 8px;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    vertical-align: middle;
+}
+.profile-page .store-table-scroll { overflow-x: auto; }
+.profile-page .employee-file-actions { display: inline-flex; gap: 10px; }
 .profile-hero {
     display: flex;
     align-items: center;
