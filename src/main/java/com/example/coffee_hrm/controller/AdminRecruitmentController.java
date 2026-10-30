@@ -2,8 +2,11 @@ package com.example.coffee_hrm.controller;
 
 import com.example.coffee_hrm.common.enums.RecruitmentProposalStatus;
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.dto.response.AdminStoreCard;
 import com.example.coffee_hrm.dto.response.CandidateApprovalResult;
 import com.example.coffee_hrm.dto.response.CandidateRejectionResult;
+import com.example.coffee_hrm.dto.response.RecruitmentRequestResponse;
+import com.example.coffee_hrm.dto.response.StoreResponse;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.RecruitmentRequestService;
 import com.example.coffee_hrm.service.StoreService;
@@ -21,7 +24,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Controller
 @RequiredArgsConstructor
@@ -40,6 +45,12 @@ public class AdminRecruitmentController {
                        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate createdTo,
                        @AuthenticationPrincipal AuthenticatedUser user,
                        Model model) {
+        List<StoreResponse> stores = storeService.getStores(user);
+        if (storeId == null) {
+            model.addAttribute("storeCards", recruitmentCards(user, stores));
+            model.addAttribute("stores", stores);
+            return "admin/recruitment-list";
+        }
         try {
             model.addAttribute("requests", recruitmentRequestService.listForAdmin(
                     user, storeId, managerId, status, createdFrom, createdTo));
@@ -47,7 +58,7 @@ public class AdminRecruitmentController {
             model.addAttribute("errorMessage", ex.getMessage());
             model.addAttribute("requests", List.of());
         }
-        model.addAttribute("stores", storeService.getStores(user));
+        model.addAttribute("stores", stores);
         model.addAttribute("managers", recruitmentRequestService.listManagerOptions());
         model.addAttribute("statuses", RecruitmentProposalStatus.values());
         model.addAttribute("storeId", storeId);
@@ -113,5 +124,33 @@ public class AdminRecruitmentController {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
         }
         return "redirect:/admin/recruitment/" + id;
+    }
+
+    private List<AdminStoreCard> recruitmentCards(AuthenticatedUser user, List<StoreResponse> stores) {
+        Map<Integer, int[]> counts = new HashMap<>();
+        try {
+            for (RecruitmentRequestResponse request : recruitmentRequestService.listForAdmin(
+                    user, null, null, null, null, null)) {
+                if (request.getStoreId() == null) {
+                    continue;
+                }
+                int[] count = counts.computeIfAbsent(request.getStoreId(), ignored -> new int[2]);
+                count[0]++;
+                count[1] += request.getPendingCount();
+            }
+        } catch (BusinessException ex) {
+            counts.clear();
+        }
+        return stores.stream()
+                .map(store -> {
+                    int[] count = counts.getOrDefault(store.getId(), new int[2]);
+                    return AdminStoreCard.of(
+                            store,
+                            count[0] + " đề xuất",
+                            "Chờ duyệt " + count[1] + " nhân viên",
+                            "/admin/recruitment?storeId=" + store.getId(),
+                            "Xem đề xuất");
+                })
+                .toList();
     }
 }

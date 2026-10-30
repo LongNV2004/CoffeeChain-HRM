@@ -8,6 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
     <link rel="stylesheet" th:href="@{/css/SalaryPage.css}">
+    <link rel="stylesheet" th:href="@{/css/StoreManagement.css}">
 </head>
 <body>
 <th:block th:if="${navRole == 'admin'}">
@@ -20,30 +21,44 @@
     <header th:replace="~{fragments/navbar :: staff('salary')}"></header>
 </th:block>
 
-<main class="wrap dash-main salary-page">
+<main id="chainStorePage" class="wrap dash-main salary-page" th:classappend="${storeCards != null} ? ' store-page'">
     <section class="welcome">
         <div class="eyebrow" th:text="${eyebrow}">CoffeeHRM</div>
         <h1>Tính lương theo tháng</h1>
-        <p th:text="${board.periodLabel}">Tháng 10/2026</p>
+        <p th:if="${storeCards != null}">Chọn một cửa hàng để xem lương của cửa hàng đó.</p>
+        <p th:if="${storeCards == null}">
+            <a class="back-link" th:if="${navRole == 'admin' and board.selectedStoreId != null}"
+               th:href="@{/admin/salary(period=${board.monthValue})}">← Tất cả cửa hàng</a>
+            <span th:text="${board.periodLabel}">Tháng 10/2026</span>
+            <span th:each="store : ${board.stores}" th:if="${navRole == 'admin' and store.id == board.selectedStoreId}">
+                · <span th:text="${store.name}">Cửa hàng</span>
+            </span>
+        </p>
     </section>
 
     <p class="flash success" th:if="${successMessage}" th:text="${successMessage}">Đã tính lương.</p>
     <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}">Không chốt được.</p>
     <p class="flash error" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
 
-    <form class="salary-filters" method="get" th:action="${board.homePath}">
+    <form class="salary-filters" method="get" th:action="@{/admin/salary}" th:if="${storeCards != null}">
         <label>Tháng
             <input type="month" name="period" th:value="${board.monthValue}" required>
         </label>
-        <label th:if="${board.canFilterStore}">Cửa hàng
-            <select name="storeId" aria-label="Cửa hàng">
-                <option value="">Toàn chuỗi</option>
-                <option th:each="store : ${board.stores}"
-                        th:value="${store.id}"
-                        th:text="${store.name}"
-                        th:selected="${store.id == board.selectedStoreId}">Cửa hàng</option>
-            </select>
+        <div class="salary-filter-actions">
+            <button class="primary-btn" type="submit">Xem kỳ</button>
+        </div>
+    </form>
+
+    <th:block th:if="${storeCards != null}">
+        <section th:replace="~{fragments/adminStoreCards :: grid(${storeCards})}"></section>
+    </th:block>
+
+    <form class="salary-filters" method="get" th:action="${board.homePath}" th:if="${storeCards == null}">
+        <label>Tháng
+            <input type="month" name="period" th:value="${board.monthValue}" required>
         </label>
+        <input type="hidden" name="storeId" th:if="${navRole == 'admin' and board.selectedStoreId != null}"
+               th:value="${board.selectedStoreId}">
         <label>Nhân viên
             <select name="employeeId" aria-label="Nhân viên">
                 <option value="">Tất cả</option>
@@ -63,11 +78,12 @@
         </label>
         <div class="salary-filter-actions">
             <button class="primary-btn" type="submit">Lọc</button>
-            <a class="ghost-btn" th:href="${board.homePath}">Làm mới</a>
+            <a class="ghost-btn"
+               th:href="${navRole == 'admin' and board.selectedStoreId != null} ? |${board.homePath}?storeId=${board.selectedStoreId}&period=${board.monthValue}| : ${board.homePath}">Làm mới</a>
         </div>
     </form>
 
-    <section class="salary-stats">
+    <section class="salary-stats" th:if="${storeCards == null}">
         <article>
             <span>Tổng số nhân viên</span>
             <strong th:text="${board.employeeCount}">0</strong>
@@ -82,11 +98,11 @@
         </article>
     </section>
 
-    <p class="salary-note" th:if="${board.reviewShifts > 0}"
+    <p class="salary-note" th:if="${storeCards == null and board.reviewShifts > 0}"
        th:text="|Còn ${board.reviewShifts} ca thiếu dữ liệu. Những ca này có lương 0 và chưa thể chốt.|">Còn ca thiếu dữ liệu.</p>
-    <p class="salary-note" th:if="${board.locked}">Bảng lương kỳ này đã chốt. Số giờ và mức lương/giờ được giữ nguyên.</p>
+    <p class="salary-note" th:if="${storeCards == null and board.locked}">Bảng lương kỳ này đã chốt. Số giờ và mức lương/giờ được giữ nguyên.</p>
 
-    <div class="salary-actions" th:if="${board.canCalculate or board.canLock or board.canExport}">
+    <div class="salary-actions" th:if="${storeCards == null and (board.canCalculate or board.canLock or board.canExport)}">
         <form th:if="${board.canCalculate}" method="post" th:action="${board.homePath + '/calculate'}"
               onsubmit="return confirm('Tính lương cả cửa hàng cho tháng này? Kết quả chưa chốt sẽ được ghi lại.');">
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
@@ -105,7 +121,7 @@
         <span class="badge" th:if="${!board.canFilterStore}" th:text="${board.statusLabel}">Chưa tính</span>
     </div>
 
-    <section class="panel">
+    <section class="panel" th:if="${storeCards == null}">
         <h2>Bảng lương</h2>
         <p class="empty" th:if="${#lists.isEmpty(board.rows)}">Không có nhân viên được phân ca trong kỳ đã chọn.</p>
         <div class="salary-table-wrap" th:if="${!#lists.isEmpty(board.rows)}">
@@ -145,5 +161,6 @@
         </div>
     </section>
 </main>
+<script th:src="@{/js/EmployeeManagement.js}" defer></script>
 </body>
 </html>

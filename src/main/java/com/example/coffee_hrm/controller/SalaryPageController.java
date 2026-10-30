@@ -1,9 +1,13 @@
 package com.example.coffee_hrm.controller;
 
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.dto.response.AdminStoreCard;
+import com.example.coffee_hrm.dto.response.PayrollBoardView;
 import com.example.coffee_hrm.dto.response.PayrollDetailView;
+import com.example.coffee_hrm.dto.response.StoreResponse;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.PayrollService;
+import com.example.coffee_hrm.service.StoreService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -21,11 +25,17 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import jakarta.servlet.http.HttpServletRequest;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 @Controller
 @RequiredArgsConstructor
 public class SalaryPageController {
 
     private final PayrollService payrollService;
+    private final StoreService storeService;
 
     @GetMapping("/admin/salary")
     @PreAuthorize("hasRole('ADMIN')")
@@ -186,14 +196,43 @@ public class SalaryPageController {
                           Model model) {
         model.addAttribute("navRole", payrollNav(user));
         model.addAttribute("eyebrow", eyebrow);
+        PayrollBoardView board;
         try {
-            model.addAttribute("board", payrollService.board(user, year, month, period, storeId, employeeId, status));
+            board = payrollService.board(user, year, month, period, storeId, employeeId, status);
+            model.addAttribute("board", board);
             model.addAttribute("pageError", null);
         } catch (BusinessException ex) {
-            model.addAttribute("board", payrollService.empty(user));
+            board = payrollService.empty(user);
+            model.addAttribute("board", board);
             model.addAttribute("pageError", ex.getMessage());
         }
+        if ("admin".equals(payrollNav(user)) && storeId == null) {
+            model.addAttribute("storeCards", salaryCards(user, board));
+        }
         return "salary/SalaryPage";
+    }
+
+    private List<AdminStoreCard> salaryCards(AuthenticatedUser user, PayrollBoardView board) {
+        Map<Integer, List<PayrollBoardView.Row>> rowsByStore = new HashMap<>();
+        for (PayrollBoardView.Row row : board.getRows()) {
+            if (row.getStoreId() == null) {
+                continue;
+            }
+            rowsByStore.computeIfAbsent(row.getStoreId(), ignored -> new ArrayList<>()).add(row);
+        }
+        String period = board.getMonthValue() == null ? "" : board.getMonthValue();
+        List<AdminStoreCard> cards = new ArrayList<>();
+        for (StoreResponse store : storeService.getStores(user)) {
+            List<PayrollBoardView.Row> rows = rowsByStore.getOrDefault(store.getId(), List.of());
+            int hours = rows.stream().mapToInt(PayrollBoardView.Row::getPayableHours).sum();
+            cards.add(AdminStoreCard.of(
+                    store,
+                    rows.size() + " nhân viên",
+                    hours + " giờ được tính lương · " + board.getPeriodLabel(),
+                    "/admin/salary?storeId=" + store.getId() + "&period=" + period,
+                    "Xem lương"));
+        }
+        return cards;
     }
 
     private String detail(AuthenticatedUser user,

@@ -1,6 +1,3 @@
--- Chứng chỉ quản lý, tách khỏi chứng chỉ nhân viên.
--- Không xóa dữ liệu. Có thể chạy lại.
-
 IF COL_LENGTH('dbo.Employees', 'ManagementCertified') IS NULL
 BEGIN
     ALTER TABLE dbo.Employees

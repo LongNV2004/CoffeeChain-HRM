@@ -17,6 +17,8 @@ import com.example.coffee_hrm.entity.Role;
 import com.example.coffee_hrm.entity.Store;
 import com.example.coffee_hrm.entity.User;
 import com.example.coffee_hrm.repository.EmployeeRepository;
+import com.example.coffee_hrm.service.ocr.ContractOcrService;
+import com.example.coffee_hrm.service.ocr.ContractSamples;
 import com.example.coffee_hrm.repository.EmploymentContractRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.repository.UserRepository;
@@ -75,7 +77,8 @@ class EmploymentContractServiceImplTest {
         PlatformTransactionManager transactionManager = mock(PlatformTransactionManager.class);
         when(transactionManager.getTransaction(any())).thenReturn(mock(TransactionStatus.class));
         service = new EmploymentContractServiceImpl(
-                contractRepository, employeeRepository, storeRepository, userRepository, fileStore, transactionManager, "");
+                contractRepository, employeeRepository, storeRepository, userRepository, fileStore,
+                new ContractOcrService(employeeRepository, storeRepository), transactionManager, "");
         Employee managerEmployee = Employee.builder().id(10).fullName("Quản lý").status(EmployeeStatus.ACTIVE).build();
         store = Store.builder().id(1).storeName("Cửa hàng A").manager(managerEmployee).build();
         otherStore = Store.builder().id(2).storeName("Cửa hàng B").build();
@@ -112,13 +115,11 @@ class EmploymentContractServiceImplTest {
     }
 
     @Test
-    void managerCreatesDocxContract() throws Exception {
+    void managerCannotCreateFromDocxBecauseSignaturesCannotBeChecked() {
         allowEmployee();
-        EmploymentContractResponse response = service.create(manager, request(null, new BigDecimal("8500000")), docx("hop-dong.docx"));
-
-        assertTrue(response.isHasFile());
-        assertEquals("hop-dong.docx", response.getOriginalFileName());
-        assertEquals(ContractValidityStatus.DANG_HIEU_LUC, response.getValidityStatus());
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> service.create(manager, request(null, new BigDecimal("8500000")), docx("hop-dong.docx")));
+        assertTrue(error.getMessage().contains("DOCX"));
     }
 
     @Test
@@ -412,7 +413,11 @@ class EmploymentContractServiceImplTest {
     }
 
     private static ContractFilePayload pdf(String name) {
-        return new ContractFilePayload(name, "%PDF-1.4\n".getBytes(StandardCharsets.US_ASCII));
+        try {
+            return new ContractFilePayload(name, ContractSamples.signedContract("Nhan vien", "079203000123"));
+        } catch (java.io.IOException ex) {
+            throw new java.io.UncheckedIOException(ex);
+        }
     }
 
     private static ContractFilePayload docx(String name) throws Exception {

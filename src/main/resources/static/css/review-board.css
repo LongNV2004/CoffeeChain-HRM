@@ -1,32 +1,33 @@
 .review-page { background: transparent; min-width: 0; overflow-x: hidden; }
 .review-board {
-    --rv-brown: #765039;
-    --rv-ink: #29241F;
-    --rv-muted: #6F675F;
-    --rv-line: #E6E1DA;
-    --rv-green: #1F7A45;
-    --rv-green-bg: #E7F6EE;
-    --rv-amber: #B86A12;
-    --rv-amber-bg: #FFF4E5;
-    --rv-red: #C2453A;
-    --rv-red-bg: #FDECEA;
+    --rv-brown: #8C5335;
+    --rv-ink: #26170F;
+    --rv-muted: #7A6A5C;
+    --rv-line: #E5D8C8;
+    --rv-green: #2F6B45;
+    --rv-green-bg: #E5F3EA;
+    --rv-amber: #8C4E32;
+    --rv-amber-bg: #F8E7D4;
+    --rv-red: #9F3B32;
+    --rv-red-bg: #F8E4E1;
+    --rv-fill: #2B1D16;
     color: var(--rv-ink);
-    font-family: Inter, "Be Vietnam Pro", sans-serif;
+    font-family: "Be Vietnam Pro", Inter, sans-serif;
     padding: 8px 8px 28px;
 }
-.review-board h1 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -.02em; }
-.review-board h2 { margin: 0; font-size: 18px; font-weight: 700; }
+.review-board h1 { margin: 0; font-family: Fraunces, serif; font-size: 32px; font-weight: 600; letter-spacing: -.03em; color: #1A1715; }
+.review-board h2 { margin: 0; font-family: Fraunces, serif; font-size: 20px; font-weight: 600; }
 .rv-head p { margin: 6px 0 0; color: var(--rv-muted); font-size: 14px; }
 .rv-crumb { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; color: var(--rv-muted); font-size: 13px; }
 .rv-crumb a { color: var(--rv-brown); font-weight: 600; }
 .rv-flash { margin: 14px 0 0; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--rv-line); font-size: 14px; }
-.rv-flash.success { background: var(--rv-green-bg); color: var(--rv-green); border-color: #C9E8D6; }
-.rv-flash.error { background: var(--rv-red-bg); color: var(--rv-red); border-color: #F3CFCB; }
+.rv-flash.success { background: var(--rv-green-bg); color: var(--rv-green); border-color: #C9E4D4; }
+.rv-flash.error { background: var(--rv-red-bg); color: var(--rv-red); border-color: #F0D0CB; }
 .rv-toolbar, .rv-stat, .rv-shift, .rv-day, .rv-summary {
-    background: #fff;
+    background: #FFFCF7;
     border: 1px solid var(--rv-line);
-    border-radius: 12px;
-    box-shadow: 0 1px 2px rgba(41, 36, 31, .04);
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(43, 27, 18, .04), 0 12px 28px rgba(43, 27, 18, .06);
 }
 .rv-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 16px; padding: 10px 12px; }
 .rv-week, .rv-filters, .rv-summary-actions, .rv-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -41,7 +42,7 @@
 .rv-icon-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .rv-text-btn, .rv-filters button, .rv-approve, .rv-reject, .rv-toggle { padding: 8px 12px; }
 .rv-filters { margin-left: auto; }
-.rv-filters button.is-on, .rv-approve { background: var(--rv-brown); color: #fff; border-color: var(--rv-brown); }
+.rv-filters button.is-on, .rv-approve { background: var(--rv-fill); color: #FDFBF8; border-color: var(--rv-fill); }
 .rv-reject { color: var(--rv-red); }
 .rv-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
 .rv-stat { display: flex; gap: 12px; align-items: flex-start; padding: 14px; min-width: 0; }
@@ -63,7 +64,7 @@
 .rv-day { padding: 12px; min-width: 0; }
 .rv-demand, .rv-ratio, .rv-person p { margin: 8px 0 0; overflow-wrap: anywhere; }
 .rv-demand strong, .rv-ratio strong { color: var(--rv-ink); }
-.rv-bar { height: 6px; margin-top: 8px; border-radius: 99px; background: #F0ECE7; overflow: hidden; }
+.rv-bar { height: 6px; margin-top: 8px; border-radius: 99px; background: #EFE6DA; overflow: hidden; }
 .rv-bar > span { display: block; height: 100%; background: var(--rv-brown); }
 .rv-bar.enough > span { background: var(--rv-green); }
 .rv-bar.short > span { background: var(--rv-red); }
@@ -71,7 +72,7 @@
 .rv-badge.is-enough { background: var(--rv-green-bg); color: var(--rv-green); }
 .rv-badge.is-warn { background: var(--rv-amber-bg); color: var(--rv-amber); }
 .rv-badge.is-short { background: var(--rv-red-bg); color: var(--rv-red); }
-.rv-badge.is-muted { background: #F3F1EE; color: var(--rv-muted); }
+.rv-badge.is-muted { background: #EEEAE4; color: var(--rv-muted); }
 .rv-details { margin-top: 10px; }
 .rv-details summary { cursor: pointer; font-size: 13px; font-weight: 700; color: var(--rv-brown); }
 .rv-pos { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--rv-line); }

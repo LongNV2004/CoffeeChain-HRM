@@ -1,5 +1,3 @@
--- Bảng lương theo tháng. Script bổ sung, không xóa dữ liệu hiện có.
--- Một cửa hàng chỉ có một kỳ lương cho mỗi tháng. Tính lại trước khi chốt sẽ thay dòng cũ, không cộng thêm.
 SET QUOTED_IDENTIFIER ON;
 GO
 

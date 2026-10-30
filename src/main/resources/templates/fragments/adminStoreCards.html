@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<body>
+<section th:fragment="grid(cards)" class="store-panel">
+    <div class="store-panel-top">
+        <div>
+            <h2>Danh sách cửa hàng</h2>
+            <p>Tổng số <strong th:text="${cards == null ? 0 : #lists.size(cards)}">0</strong> cửa hàng trong hệ thống.</p>
+        </div>
+    </div>
+
+    <div class="store-toolbar">
+        <label class="store-search">
+            <span class="sr-only">Tìm cửa hàng</span>
+            <input id="chainStoreSearch" type="search" placeholder="Tìm theo tên hoặc mã cửa hàng..." autocomplete="off">
+        </label>
+    </div>
+
+    <p class="chain-store-empty" th:if="${cards == null or #lists.isEmpty(cards)}">Chưa có cửa hàng nào.</p>
+
+    <div class="chain-store-grid" th:if="${cards != null and !#lists.isEmpty(cards)}">
+        <article th:each="card : ${cards}" class="chain-store-card"
+                 th:attr="data-store-name=${card.storeName},data-store-code=${card.id}">
+            <div class="chain-store-card-top">
+                <div>
+                    <p class="chain-store-kicker">Cửa hàng</p>
+                    <h2 th:text="${card.storeName}">Tên cửa hàng</h2>
+                    <p class="chain-store-code">Mã cửa hàng: <span th:text="${card.id}">1</span></p>
+                </div>
+                <span class="store-badge"
+                      th:classappend="${card.stateKey == 'pre-opening'} ? ' store-badge--preopening' : (${card.stateKey == 'inactive'} ? ' store-badge--inactive' : ' store-badge--active')"
+                      th:text="${card.statusLabel}">Hoạt động</span>
+            </div>
+            <p class="chain-store-address" th:text="${card.address}">Địa chỉ</p>
+            <p class="chain-store-count">
+                <strong th:text="${card.metric}">0</strong>
+                <small th:text="${card.metricHint}">Ghi chú</small>
+            </p>
+            <div class="chain-store-actions">
+                <a class="store-btn store-btn--primary" th:if="${card.actionHref != null}"
+                   th:href="${card.actionHref}" th:text="${card.actionLabel}">Xem</a>
+                <span class="store-btn store-btn--secondary is-disabled" th:if="${card.actionHref == null}"
+                      th:text="${card.actionLabel}">Chưa gửi</span>
+                <a class="store-btn store-btn--secondary" th:if="${card.secondaryHref != null}"
+                   th:href="${card.secondaryHref}" th:text="${card.secondaryLabel}">Tải Excel</a>
+                <form class="chain-store-revise" method="post" th:if="${card.canRevise}"
+                      th:action="@{/attendance/admin/reports/{id}/revision(id=${card.reportId})}">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                    <input type="hidden" name="year" th:value="${card.reportYear}">
+                    <input type="hidden" name="month" th:value="${card.reportMonth}">
+                    <input type="text" name="note" maxlength="500" placeholder="Lý do gửi lại" aria-label="Lý do gửi lại">
+                    <button class="store-btn store-btn--secondary" type="submit">Gửi lại</button>
+                </form>
+            </div>
+        </article>
+    </div>
+    <p id="chainStoreNoMatch" class="chain-store-empty" hidden>Không tìm thấy cửa hàng phù hợp.</p>
+</section>
+</body>
+</html>

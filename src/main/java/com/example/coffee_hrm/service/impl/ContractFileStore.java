@@ -75,11 +75,12 @@ public class ContractFileStore {
         }
         int dot = name.lastIndexOf('.');
         if (dot < 0 || dot == name.length() - 1) {
-            throw new BusinessException("File hợp đồng phải là PDF hoặc DOCX.");
+            throw new BusinessException("File hợp đồng phải là PDF, DOCX, JPG hoặc PNG.");
         }
         String extension = name.substring(dot + 1).toLowerCase(Locale.ROOT);
-        if (!"pdf".equals(extension) && !"docx".equals(extension)) {
-            throw new BusinessException("File hợp đồng phải là PDF hoặc DOCX.");
+        if (!"pdf".equals(extension) && !"docx".equals(extension)
+                && !"jpg".equals(extension) && !"jpeg".equals(extension) && !"png".equals(extension)) {
+            throw new BusinessException("File hợp đồng phải là PDF, DOCX, JPG hoặc PNG.");
         }
         return extension;
     }
@@ -91,10 +92,37 @@ public class ContractFileStore {
             }
             return PDF;
         }
+        if ("jpg".equals(extension) || "jpeg".equals(extension)) {
+            if (!isJpeg(content)) {
+                throw new BusinessException("Nội dung file không phải ảnh JPEG hợp lệ.");
+            }
+            return "image/jpeg";
+        }
+        if ("png".equals(extension)) {
+            if (!isPng(content)) {
+                throw new BusinessException("Nội dung file không phải ảnh PNG hợp lệ.");
+            }
+            return "image/png";
+        }
         if (!isDocx(content)) {
             throw new BusinessException("Nội dung file không phải DOCX hợp lệ.");
         }
         return DOCX;
+    }
+
+    private static boolean isJpeg(byte[] content) {
+        return content.length >= 3
+                && (content[0] & 0xff) == 0xff
+                && (content[1] & 0xff) == 0xd8
+                && (content[2] & 0xff) == 0xff;
+    }
+
+    private static boolean isPng(byte[] content) {
+        return content.length >= 8
+                && (content[0] & 0xff) == 0x89
+                && content[1] == 'P'
+                && content[2] == 'N'
+                && content[3] == 'G';
     }
 
     private static boolean isPdf(byte[] content) {
@@ -139,7 +167,7 @@ public class ContractFileStore {
     }
 
     private Path resolve(String storedName) {
-        if (storedName == null || !storedName.matches("c[0-9a-f]{32}\\.(pdf|docx)")) {
+        if (storedName == null || !storedName.matches("c[0-9a-f]{32}\\.(pdf|docx|jpg|jpeg|png)")) {
             throw new BusinessException("Không tìm thấy file hợp đồng.");
         }
         Path path = directory.resolve(storedName).normalize();

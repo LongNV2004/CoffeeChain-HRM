@@ -204,7 +204,7 @@ class AdminPagesRenderTest {
                         .createdAt(LocalDateTime.of(2026, 10, 4, 8, 0))
                         .build()));
 
-        mockMvc.perform(get("/admin/recruitment").with(user(admin())))
+        mockMvc.perform(get("/admin/recruitment").param("storeId", "5").with(user(admin())))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Tuyển barista")))
                 .andExpect(content().string(containsString("Store A")))
@@ -214,6 +214,33 @@ class AdminPagesRenderTest {
                 .andExpect(content().string(containsString("/admin/recruitment/3")))
                 .andExpect(content().string(not(containsString("name=\"password\""))))
                 .andExpect(content().string(not(containsString("/approve"))));
+    }
+
+    @Test
+    void recruitmentHomeListsStoresAsCards() throws Exception {
+        when(storeService.getStores(any())).thenReturn(List.of(StoreResponse.builder()
+                .id(5)
+                .storeName("Coffee Nguyễn Trãi")
+                .address("12 Nguyễn Trãi")
+                .statusLabel("Hoạt động")
+                .stateKey("active")
+                .build()));
+        when(recruitmentRequestService.listForAdmin(any(), nullable(Integer.class), nullable(Integer.class),
+                nullable(RecruitmentProposalStatus.class), nullable(java.time.LocalDate.class), nullable(java.time.LocalDate.class)))
+                .thenReturn(List.of(RecruitmentRequestResponse.builder()
+                        .id(3)
+                        .storeId(5)
+                        .pendingCount(2)
+                        .status(RecruitmentProposalStatus.PENDING)
+                        .build()));
+
+        mockMvc.perform(get("/admin/recruitment").with(user(admin())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Coffee Nguyễn Trãi")))
+                .andExpect(content().string(containsString("1 đề xuất")))
+                .andExpect(content().string(containsString("Chờ duyệt 2 nhân viên")))
+                .andExpect(content().string(containsString("/admin/recruitment?storeId=5")))
+                .andExpect(content().string(containsString("Xem đề xuất")));
     }
 
     @Test

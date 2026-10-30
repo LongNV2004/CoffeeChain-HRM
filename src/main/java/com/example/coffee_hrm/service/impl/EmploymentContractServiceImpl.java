@@ -25,6 +25,7 @@ import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.EmploymentContractService;
+import com.example.coffee_hrm.service.ocr.ContractOcrService;
 import com.example.coffee_hrm.service.support.ContractShiftQuota;
 import com.example.coffee_hrm.service.impl.ContractFileStore.StoredContractFile;
 import org.springframework.beans.factory.annotation.Value;
@@ -58,6 +59,7 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
     private final StoreRepository storeRepository;
     private final UserRepository userRepository;
     private final ContractFileStore fileStore;
+    private final ContractOcrService contractOcrService;
     private final Integer expiringWithinDays;
     private final TransactionTemplate newContractTransaction;
 
@@ -66,6 +68,7 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
                                          StoreRepository storeRepository,
                                          UserRepository userRepository,
                                          ContractFileStore fileStore,
+                                         ContractOcrService contractOcrService,
                                          PlatformTransactionManager transactionManager,
                                          @Value("${coffee-hrm.contract.expiring-within-days:}") String expiringWithinDays) {
         this.contractRepository = contractRepository;
@@ -73,6 +76,7 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
         this.storeRepository = storeRepository;
         this.userRepository = userRepository;
         this.fileStore = fileStore;
+        this.contractOcrService = contractOcrService;
         this.expiringWithinDays = parseExpiringWithinDays(expiringWithinDays);
         this.newContractTransaction = new TransactionTemplate(transactionManager);
         this.newContractTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -203,6 +207,8 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
             throw new BusinessException(CitizenIds.MISSING_FOR_CONTRACT);
         }
         requireNoUnresolvedOverlap(employee.getId(), startDate, endDate);
+        ContractOcrService.Acceptance acceptance = contractOcrService.requireAccepted(
+                file.originalName(), file.content(), employee);
         User creator = actor.getUserId() == null ? null : userRepository.findById(actor.getUserId()).orElse(null);
         StoredContractFile stored = fileStore.store(file);
         EmploymentContract saved = null;
@@ -223,6 +229,10 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
                         .signingStatus(ContractSigningStatus.DA_TAI_BAN_KY)
                         .signedFilePath(stored.storedName())
                         .terminatedDate(null)
+                        .signatureFileHash(acceptance.fileHash())
+                        .signatureCheckedAt(VietnamTime.now())
+                        .signatureCheckResult(acceptance.result())
+                        .signatureCheckedByUserId(actor.getUserId())
                         .build()));
                 break;
             } catch (DataIntegrityViolationException ex) {

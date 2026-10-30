@@ -106,6 +106,18 @@ public class EmploymentContract {
     @Column(name = "TerminatedDate")
     private LocalDate terminatedDate;
 
+    @Column(name = "SignatureFileHash", length = 64)
+    private String signatureFileHash;
+
+    @Column(name = "SignatureCheckedAt")
+    private LocalDateTime signatureCheckedAt;
+
+    @Column(name = "SignatureCheckResult", length = 40)
+    private String signatureCheckResult;
+
+    @Column(name = "SignatureCheckedByUserId")
+    private Integer signatureCheckedByUserId;
+
     @CreationTimestamp
     @Column(name = "CreatedAt", nullable = false, updatable = false)
     private LocalDateTime createdAt;

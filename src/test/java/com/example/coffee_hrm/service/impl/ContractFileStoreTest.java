@@ -51,7 +51,7 @@ class ContractFileStoreTest {
     void rejectsWrongTypeOversizeAndUnsafeNames() {
         BusinessException wrong = assertThrows(BusinessException.class,
                 () -> store.store(new ContractFilePayload("hop-dong.txt", "hello".getBytes(StandardCharsets.UTF_8))));
-        assertEquals("File hợp đồng phải là PDF hoặc DOCX.", wrong.getMessage());
+        assertEquals("File hợp đồng phải là PDF, DOCX, JPG hoặc PNG.", wrong.getMessage());
 
         BusinessException fakePdf = assertThrows(BusinessException.class,
                 () -> store.store(new ContractFilePayload("hop-dong.pdf", "hello".getBytes(StandardCharsets.UTF_8))));

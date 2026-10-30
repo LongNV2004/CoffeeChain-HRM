@@ -1,13 +1,19 @@
 package com.example.coffee_hrm.controller;
 
+import com.example.coffee_hrm.common.enums.ContractValidityStatus;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.dto.request.ContractFilePayload;
 import com.example.coffee_hrm.dto.request.CreateEmploymentContractRequest;
+import com.example.coffee_hrm.dto.response.AdminStoreCard;
+import com.example.coffee_hrm.dto.response.ContractOcrView;
 import com.example.coffee_hrm.dto.response.ContractDownload;
 import com.example.coffee_hrm.dto.response.EmploymentContractListView;
 import com.example.coffee_hrm.dto.response.EmploymentContractResponse;
+import com.example.coffee_hrm.dto.response.StoreResponse;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.EmploymentContractService;
+import com.example.coffee_hrm.service.StoreService;
+import com.example.coffee_hrm.service.ocr.ContractOcrService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ContentDisposition;
@@ -24,6 +30,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
@@ -34,13 +41,17 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Controller
 @RequiredArgsConstructor
 public class ContractPageController {
 
     private final EmploymentContractService contractService;
+    private final StoreService storeService;
+    private final ContractOcrService contractOcrService;
 
     @GetMapping("/admin/contract")
     @PreAuthorize("hasRole('ADMIN')")
@@ -119,6 +130,23 @@ public class ContractPageController {
         return file(actor, id);
     }
 
+    @PostMapping(value = "/manager/contract/ocr", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('MANAGER')")
+    @ResponseBody
+    public ContractOcrView ocr(@AuthenticationPrincipal AuthenticatedUser actor,
+                               @RequestParam(value = "contractFile", required = false) MultipartFile contractFile) {
+        try {
+            if (contractFile == null || contractFile.isEmpty()) {
+                return failedOcr("Vui lòng chọn file hợp đồng.");
+            }
+            return contractOcrService.inspect(actor, contractFile.getOriginalFilename(), contractFile.getBytes());
+        } catch (BusinessException ex) {
+            return failedOcr(ex.getMessage());
+        } catch (IOException ex) {
+            return failedOcr("Không đọc được file hợp đồng.");
+        }
+    }
+
     @GetMapping("/manager/contract/create")
     @PreAuthorize("hasRole('MANAGER')")
     public String createForm(@AuthenticationPrincipal AuthenticatedUser actor, Model model) {
@@ -168,13 +196,47 @@ public class ContractPageController {
             fromDate = null;
             toDate = null;
         }
+        boolean landing = "admin".equals(role)
+                && storeId == null
+                && (keyword == null || keyword.isBlank())
+                && (validity == null || validity.isBlank())
+                && fromDate == null
+                && toDate == null;
         try {
+            if (landing) {
+                model.addAttribute("storeCards", contractCards(actor));
+            }
             model.addAttribute("view", contractService.search(actor, keyword, storeId, validity, fromDate, toDate, page));
         } catch (BusinessException ex) {
             model.addAttribute("errorMessage", ex.getMessage());
             model.addAttribute("view", EmploymentContractListView.empty("admin".equals(role), "manager".equals(role)));
         }
         return "contract/ContractPage";
+    }
+
+    private List<AdminStoreCard> contractCards(AuthenticatedUser actor) {
+        Map<Integer, int[]> counts = new HashMap<>();
+        for (EmploymentContractResponse contract : contractService.list(actor)) {
+            if (contract.getStoreId() == null) {
+                continue;
+            }
+            int[] count = counts.computeIfAbsent(contract.getStoreId(), ignored -> new int[2]);
+            count[0]++;
+            if (contract.getValidityStatus() == ContractValidityStatus.DANG_HIEU_LUC) {
+                count[1]++;
+            }
+        }
+        List<AdminStoreCard> cards = new java.util.ArrayList<>();
+        for (StoreResponse store : storeService.getStores(actor)) {
+            int[] count = counts.getOrDefault(store.getId(), new int[2]);
+            cards.add(AdminStoreCard.of(
+                    store,
+                    count[0] + " hợp đồng",
+                    count[1] + " đang hiệu lực",
+                    "/admin/contract?storeId=" + store.getId(),
+                    "Xem hợp đồng"));
+        }
+        return cards;
     }
 
     private String renderDetail(AuthenticatedUser actor, String role, String eyebrow, Integer id,
@@ -225,6 +287,25 @@ public class ContractPageController {
         return "contract/ContractCreate";
     }
 
+    private static ContractOcrView failedOcr(String message) {
+        ContractOcrView.Signature unknown = ContractOcrView.Signature.builder()
+                .status("CHUA_XAC_DINH")
+                .label("Chưa xác định")
+                .location("Chưa xác định vị trí")
+                .reason(message)
+                .build();
+        return ContractOcrView.builder()
+                .status("FAILED")
+                .message(message)
+                .fields(List.of())
+                .warnings(List.of())
+                .managerSignature(unknown)
+                .employeeSignature(unknown)
+                .overall("CAN_KIEM_TRA")
+                .allowsCreate(false)
+                .build();
+    }
+
     private static void rejectCrossField(CreateEmploymentContractRequest form, BindingResult binding) {
         if (form.getEndDate() != null && form.getStartDate() != null && form.getEndDate().isBefore(form.getStartDate())) {
             binding.rejectValue("endDate", "endDate", "Ngày kết thúc không được trước ngày bắt đầu hiệu lực.");
@@ -250,7 +331,11 @@ public class ContractPageController {
 
     private static void attachFieldError(BusinessException ex, BindingResult binding, Model model) {
         String message = ex.getMessage() == null ? "Không thể tạo hợp đồng." : ex.getMessage();
-        if (message.contains("file") || message.contains("File") || message.contains("PDF") || message.contains("DOCX")) {
+        if (message.contains("chữ ký") || message.contains("căn cước") || message.contains("Họ tên")
+                || message.contains("họ tên") || message.contains("OCR") || message.contains("hợp đồng lao động")) {
+            model.addAttribute("errorMessage", message);
+        } else if (message.contains("file") || message.contains("File") || message.contains("PDF") || message.contains("DOCX")
+                || message.contains("JPG") || message.contains("PNG") || message.contains("ảnh")) {
             binding.reject("contractFile", message);
         } else if (message.contains("chính bạn") || message.contains("nhân viên") || message.contains("Nhân viên")) {
             binding.rejectValue("employeeId", "employeeId", message);

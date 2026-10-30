@@ -3,10 +3,13 @@ package com.example.coffee_hrm.controller;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.response.AdminAttendanceReportPage;
+import com.example.coffee_hrm.dto.response.AdminStoreCard;
 import com.example.coffee_hrm.dto.response.ManagerAttendanceReportPage;
+import com.example.coffee_hrm.dto.response.StoreResponse;
 import com.example.coffee_hrm.report.ReportExcelFile;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.AttendanceReportService;
+import com.example.coffee_hrm.service.StoreService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.ContentDisposition;
@@ -25,15 +28,21 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Controller
 @RequiredArgsConstructor
 @RequestMapping("/attendance")
 public class AttendanceReportController {
 
+    private static final DateTimeFormatter REPORT_TIME = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+
     private final AttendanceReportService attendanceReportService;
+    private final StoreService storeService;
 
     @GetMapping("/manager/reports")
     @PreAuthorize("hasRole('MANAGER')")
@@ -137,18 +146,21 @@ public class AttendanceReportController {
             AdminAttendanceReportPage page = attendanceReportService.adminPage(user, year, month, storeId, status);
             model.addAttribute("report", page);
             model.addAttribute("years", years(page.getYear()));
+            model.addAttribute("storeCards", reportCards(user, page));
             model.addAttribute("pageError", null);
         } catch (BusinessException ex) {
             int fallbackYear = year == null ? LocalDate.now(VietnamTime.ZONE).getYear() : year;
             int fallbackMonth = month == null ? LocalDate.now(VietnamTime.ZONE).getMonthValue() : month;
             model.addAttribute("report", emptyAdmin(fallbackYear, fallbackMonth));
             model.addAttribute("years", years(fallbackYear));
+            model.addAttribute("storeCards", List.of());
             model.addAttribute("pageError", ex.getMessage());
         } catch (DataAccessException ex) {
             int fallbackYear = year == null ? LocalDate.now(VietnamTime.ZONE).getYear() : year;
             int fallbackMonth = month == null ? LocalDate.now(VietnamTime.ZONE).getMonthValue() : month;
             model.addAttribute("report", emptyAdmin(fallbackYear, fallbackMonth));
             model.addAttribute("years", years(fallbackYear));
+            model.addAttribute("storeCards", List.of());
             model.addAttribute("pageError", SCHEMA_MESSAGE);
         }
         return "admin/AdminAttendanceReport";
@@ -269,6 +281,54 @@ public class AttendanceReportController {
             values.add(year);
         }
         return values;
+    }
+
+    private List<AdminStoreCard> reportCards(AuthenticatedUser user, AdminAttendanceReportPage page) {
+        Map<Integer, StoreResponse> stores = new HashMap<>();
+        try {
+            for (StoreResponse store : storeService.getStores(user)) {
+                stores.put(store.getId(), store);
+            }
+        } catch (BusinessException ex) {
+            stores.clear();
+        }
+        List<AdminStoreCard> cards = new ArrayList<>();
+        for (AdminAttendanceReportPage.Row row : page.getRows()) {
+            StoreResponse store = stores.get(row.getStoreId());
+            String address = store == null || store.getAddress() == null || store.getAddress().isBlank()
+                    ? "Chưa cập nhật"
+                    : store.getAddress();
+            String stateKey = switch (row.getStatusCode() == null ? "" : row.getStatusCode()) {
+                case "APPROVED" -> "active";
+                case "WAITING", "REVISION" -> "pre-opening";
+                default -> "inactive";
+            };
+            String version = row.getVersionNumber() == null ? "—" : String.valueOf(row.getVersionNumber());
+            String hint = row.isSubmitted()
+                    ? "Gửi lúc " + (row.getSubmittedAt() == null ? "—" : REPORT_TIME.format(row.getSubmittedAt()))
+                    + (row.isStale() ? " · Cần cập nhật" : "")
+                    : "Cửa hàng chưa gửi báo cáo kỳ này";
+            cards.add(AdminStoreCard.builder()
+                    .id(row.getStoreId())
+                    .storeName(row.getStoreName())
+                    .address(address)
+                    .statusLabel(row.getStatusLabel())
+                    .stateKey(stateKey)
+                    .metric(row.isSubmitted() ? "Phiên bản " + version : "Chưa gửi")
+                    .metricHint((row.getManagerName() == null || row.getManagerName().isBlank()
+                            ? "Chưa có quản lý"
+                            : row.getManagerName()) + " · " + hint)
+                    .actionHref(row.isSubmitted() ? "/attendance/admin/reports/" + row.getReportId() : null)
+                    .actionLabel(row.isSubmitted() ? "Xem báo cáo" : "Chưa gửi")
+                    .secondaryHref(row.isSubmitted() ? "/attendance/admin/reports/" + row.getReportId() + "/excel" : null)
+                    .secondaryLabel(row.isSubmitted() ? "Tải Excel" : null)
+                    .reportId(row.getReportId())
+                    .reportYear(page.getYear())
+                    .reportMonth(page.getMonth())
+                    .canRevise(row.isSubmitted() && !"REVISION".equals(row.getStatusCode()))
+                    .build());
+        }
+        return cards;
     }
 
     private ManagerAttendanceReportPage emptyManager(AuthenticatedUser user, int year, int month) {
