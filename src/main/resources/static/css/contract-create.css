@@ -266,6 +266,11 @@ body:has(.coffee-sidebar) main.cc-page.wrap {
 }
 
 .cc-flag { color: var(--cc-warn); }
+.cc-flag.is-ok { color: var(--cc-ok); }
+.cc-page input.is-recognized,
+.cc-page select.is-recognized { border-color: var(--cc-ok); }
+.cc-page input.is-review,
+.cc-page select.is-review { border-color: var(--cc-warn); }
 .cc-error { color: var(--cc-bad); }
 .cc-warn-list { margin: 12px 0 0; padding-left: 18px; color: var(--cc-warn); }
 .cc-warn-list:empty { display: none; }

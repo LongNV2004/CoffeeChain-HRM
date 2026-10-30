@@ -4,9 +4,11 @@ import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.dto.request.ContractFilePayload;
 import com.example.coffee_hrm.dto.request.CreateEmploymentContractRequest;
 import com.example.coffee_hrm.dto.response.ContractDownload;
+import com.example.coffee_hrm.dto.response.ContractOcrView;
 import com.example.coffee_hrm.dto.response.EmploymentContractResponse;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.EmploymentContractService;
+import com.example.coffee_hrm.service.ocr.ContractOcrService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ContentDisposition;
@@ -24,6 +26,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
@@ -39,6 +42,7 @@ import java.util.List;
 public class ContractPageController {
 
     private final EmploymentContractService contractService;
+    private final ContractOcrService contractOcrService;
 
     @GetMapping("/admin/contract")
     @PreAuthorize("hasRole('ADMIN')")
@@ -114,6 +118,23 @@ public class ContractPageController {
             model.addAttribute("form", form);
         }
         return renderCreate(actor, model);
+    }
+
+    @PostMapping(value = "/manager/contract/ocr", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('MANAGER')")
+    @ResponseBody
+    public ContractOcrView ocr(@AuthenticationPrincipal AuthenticatedUser actor,
+                               @RequestParam(value = "contractFile", required = false) MultipartFile contractFile) {
+        try {
+            if (contractFile == null || contractFile.isEmpty()) {
+                return failedOcr("Vui lòng chọn file hợp đồng.");
+            }
+            return contractOcrService.inspect(actor, contractFile.getOriginalFilename(), contractFile.getBytes());
+        } catch (BusinessException ex) {
+            return failedOcr(ex.getMessage());
+        } catch (IOException ex) {
+            return failedOcr("Không đọc được file hợp đồng.");
+        }
     }
 
     @PostMapping("/manager/contract/create")
@@ -202,6 +223,25 @@ public class ContractPageController {
             }
         }
         return "contract/ContractCreate";
+    }
+
+    private static ContractOcrView failedOcr(String message) {
+        ContractOcrView.Signature unknown = ContractOcrView.Signature.builder()
+                .status("CHUA_XAC_DINH")
+                .label("Chưa xác định")
+                .location("Chưa xác định vị trí")
+                .reason(message)
+                .build();
+        return ContractOcrView.builder()
+                .status("FAILED")
+                .message(message)
+                .fields(List.of())
+                .warnings(List.of())
+                .managerSignature(unknown)
+                .employeeSignature(unknown)
+                .overall("CAN_KIEM_TRA")
+                .allowsCreate(false)
+                .build();
     }
 
     private static void rejectCrossField(CreateEmploymentContractRequest form, BindingResult binding) {

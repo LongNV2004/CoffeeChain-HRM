@@ -48,7 +48,20 @@
     retry.addEventListener("click", function () {
         if (currentFile()) extract(currentFile());
     });
-    if (employee) employee.addEventListener("change", refreshCreate);
+    if (employee) {
+        employee.addEventListener("change", function () {
+            employee.dataset.userEdited = "1";
+            refreshCreate();
+        });
+    }
+    ["salary", "startDate", "endDate", "weeklyShiftCount"].forEach(function (key) {
+        var input = document.getElementById(key);
+        if (!input) return;
+        input.addEventListener("input", function () {
+            input.dataset.userEdited = "1";
+            input.classList.remove("is-recognized", "is-review");
+        });
+    });
     var start = document.getElementById("startDate");
     var end = document.getElementById("endDate");
     if (start && end) {
@@ -119,7 +132,7 @@
         }
         ocr.done = true;
         applyFields(data.fields || []);
-        if (data.suggestedEmployeeId && employee) {
+        if (data.suggestedEmployeeId && employee && employee.dataset.userEdited !== "1") {
             var option = employee.querySelector("option[value='" + data.suggestedEmployeeId + "']");
             if (option) {
                 employee.value = String(data.suggestedEmployeeId);
@@ -156,16 +169,30 @@
     function applyFields(fields) {
         var known = { startDate: 1, endDate: 1, salary: 1, weeklyShiftCount: 1 };
         fields.forEach(function (field) {
+            var confidence = field.confidence || (field.recognized ? "OK" : "MISSING");
             if (field.key === "citizenId") {
                 ocr.citizen = field.recognized ? field.value || "" : "";
                 document.getElementById("citizenDisplay").value = field.recognized ? (field.display || field.value) : "";
-                mark("citizen", !field.recognized);
+                mark("citizen", confidence);
             } else if (field.key === "fullName") {
                 ocr.name = field.recognized ? field.display || field.value || "" : "";
             } else if (known[field.key]) {
                 var input = document.getElementById(field.key);
-                if (input) input.value = field.recognized && field.value ? field.value : "";
-                mark(field.key, !field.recognized);
+                if (!input) return;
+                var next = field.recognized && field.value ? field.value : "";
+                if (input.dataset.userEdited === "1" && input.value && next && input.value !== next) {
+                    input.classList.add("is-review");
+                    mark(field.key, "REVIEW", "Cần kiểm tra: hợp đồng ghi " + (field.display || next) + ".");
+                    return;
+                }
+                if (input.dataset.userEdited !== "1") {
+                    input.value = next;
+                }
+                input.classList.remove("is-recognized", "is-review");
+                if (next && input.dataset.userEdited !== "1") {
+                    input.classList.add(confidence === "REVIEW" ? "is-review" : "is-recognized");
+                }
+                mark(field.key, next ? confidence : "MISSING");
             }
         });
     }
@@ -173,11 +200,14 @@
     function clearFields() {
         ["startDate", "endDate", "salary", "weeklyShiftCount"].forEach(function (key) {
             var input = document.getElementById(key);
-            if (input) input.value = "";
-            mark(key, false);
+            if (!input) return;
+            input.classList.remove("is-recognized", "is-review");
+            if (input.dataset.userEdited === "1") return;
+            input.value = "";
+            mark(key, "");
         });
         document.getElementById("citizenDisplay").value = "";
-        mark("citizen", false);
+        mark("citizen", "");
     }
 
     function paintSign(who, sign) {
@@ -230,15 +260,21 @@
         }
         var citizenFlag = document.getElementById("citizen-flag");
         if (citizenFlag && ocr.done) {
+            citizenFlag.classList.remove("is-ok", "is-review");
             if (!ocr.citizen) {
                 citizenFlag.hidden = false;
                 citizenFlag.textContent = "Chưa trích xuất được";
             } else if (option && option.value && citizen && citizen !== ocr.citizen) {
                 citizenFlag.hidden = false;
+                citizenFlag.classList.add("is-review");
                 citizenFlag.textContent = "Không khớp CCCD trên hồ sơ nhân viên.";
+            } else if (citizenFlag.textContent.indexOf("Cần kiểm tra") === 0) {
+                citizenFlag.hidden = false;
+                citizenFlag.classList.add("is-review");
             } else {
-                citizenFlag.hidden = true;
-                citizenFlag.textContent = "";
+                citizenFlag.hidden = false;
+                citizenFlag.classList.add("is-ok");
+                citizenFlag.textContent = "Đã nhận dạng";
             }
         }
         if (ocr.done && !ocr.failed && ocr.manager === "CO_CHU_KY" && ocr.worker === "CO_CHU_KY") {
@@ -307,13 +343,27 @@
         desc.textContent = detail || "";
     }
 
-    function mark(key, missing) {
+    function mark(key, confidence, custom) {
         var node = key === "citizen"
             ? document.getElementById("citizen-flag")
             : document.getElementById(key + "-flag");
         if (!node) return;
-        node.hidden = !missing;
-        node.textContent = missing ? "Chưa trích xuất được" : "";
+        node.classList.remove("is-ok", "is-review");
+        if (confidence === "OK") {
+            node.hidden = false;
+            node.textContent = "Đã nhận dạng";
+            node.classList.add("is-ok");
+        } else if (confidence === "REVIEW") {
+            node.hidden = false;
+            node.textContent = custom || "Cần kiểm tra";
+            node.classList.add("is-review");
+        } else if (confidence === "MISSING") {
+            node.hidden = false;
+            node.textContent = "Chưa trích xuất được";
+        } else {
+            node.hidden = true;
+            node.textContent = "";
+        }
     }
 
     function listWarnings(items) {

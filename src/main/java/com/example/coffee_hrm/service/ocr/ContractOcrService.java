@@ -176,28 +176,31 @@ public class ContractOcrService {
 
     private static List<ContractOcrView.Field> fields(ContractFieldParser.Parsed parsed) {
         return List.of(
-                field("fullName", "Họ và tên", parsed.fullName(), parsed.fullName()),
-                field("citizenId", "Số căn cước công dân", parsed.citizenId(), mask(parsed.citizenId())),
-                field("birthDate", "Ngày sinh", iso(parsed.birthDate()), display(parsed.birthDate())),
-                field("address", "Địa chỉ cư trú", parsed.address(), parsed.address()),
-                field("phone", "Số điện thoại", parsed.phone(), parsed.phone()),
-                field("employeeCode", "Mã nhân viên trên hợp đồng", parsed.employeeCode(), parsed.employeeCode()),
-                field("startDate", "Ngày bắt đầu", iso(parsed.startDate()), display(parsed.startDate())),
-                field("endDate", "Ngày kết thúc", iso(parsed.endDate()), display(parsed.endDate())),
-                field("salary", "Mức lương (đồng/giờ)", salary(parsed.salary()), salary(parsed.salary())),
-                field("weeklyShiftCount", "Số ca/tuần",
+                field(parsed, "fullName", "Họ và tên", parsed.fullName(), parsed.fullName()),
+                field(parsed, "citizenId", "Số căn cước công dân", parsed.citizenId(), mask(parsed.citizenId())),
+                field(parsed, "birthDate", "Ngày sinh", iso(parsed.birthDate()), display(parsed.birthDate())),
+                field(parsed, "address", "Địa chỉ cư trú", parsed.address(), parsed.address()),
+                field(parsed, "phone", "Số điện thoại", parsed.phone(), parsed.phone()),
+                field(parsed, "employeeCode", "Mã nhân viên trên hợp đồng", parsed.employeeCode(), parsed.employeeCode()),
+                field(parsed, "startDate", "Ngày bắt đầu", iso(parsed.startDate()), display(parsed.startDate())),
+                field(parsed, "endDate", "Ngày kết thúc", iso(parsed.endDate()), display(parsed.endDate())),
+                field(parsed, "salary", "Mức lương (đồng/giờ)", salary(parsed.salary()), salary(parsed.salary())),
+                field(parsed, "weeklyShiftCount", "Số ca/tuần",
                         parsed.weeklyShiftCount() == null ? null : parsed.weeklyShiftCount().toString(),
                         parsed.weeklyShiftCount() == null ? null : parsed.weeklyShiftCount() + " ca/tuần"));
     }
 
-    private static ContractOcrView.Field field(String key, String label, String value, String display) {
+    private static ContractOcrView.Field field(ContractFieldParser.Parsed parsed, String key, String label,
+                                               String value, String display) {
         boolean recognized = value != null && !value.isBlank();
+        boolean review = recognized && parsed.reviewKeys().contains(key);
         return ContractOcrView.Field.builder()
                 .key(key)
                 .label(label)
                 .value(recognized ? value : null)
                 .display(recognized ? display : "Chưa nhận dạng được")
                 .recognized(recognized)
+                .confidence(recognized ? (review ? "REVIEW" : "OK") : "MISSING")
                 .source("OCR")
                 .build();
     }

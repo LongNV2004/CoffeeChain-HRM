@@ -29,6 +29,7 @@ public class ContractOcrView {
         private final String value;
         private final String display;
         private final boolean recognized;
+        private final String confidence;
         private final String source;
     }
 

@@ -3,6 +3,7 @@ package com.example.coffee_hrm.service.ocr;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.encryption.InvalidPasswordException;
 import org.apache.pdfbox.text.PDFTextStripper;
 
 import javax.imageio.ImageIO;
@@ -68,6 +69,8 @@ final class ContractDocumentReader {
                 return new Read("", true, "PDF là ảnh quét và máy chưa có Tesseract với gói ngôn ngữ vie, nên không đọc được chữ.");
             }
             return new Read(scanned, true, null);
+        } catch (InvalidPasswordException ex) {
+            throw new BusinessException("File PDF đang được đặt mật khẩu. Hãy tải bản không khóa.");
         } catch (BusinessException ex) {
             throw ex;
         } catch (IOException ex) {

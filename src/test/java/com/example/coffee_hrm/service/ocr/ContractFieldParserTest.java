@@ -1,7 +1,13 @@
 package com.example.coffee_hrm.service.ocr;
 
+import com.example.coffee_hrm.common.exception.BusinessException;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.encryption.AccessPermission;
+import org.apache.pdfbox.pdmodel.encryption.StandardProtectionPolicy;
 import org.junit.jupiter.api.Test;
 
+import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -126,5 +132,42 @@ class ContractFieldParserTest {
         assertEquals(java.time.LocalDate.of(2027, 10, 1), parsed.endDate());
         assertEquals(new BigDecimal("25000"), parsed.salary());
         assertEquals(7, parsed.weeklyShiftCount());
+    }
+
+    @Test
+    void employeeAPdfJoinsDigitsSplitByDots() throws Exception {
+        byte[] pdf = ContractFieldParserTest.class.getResourceAsStream("/ocr/nhan-vien-a.pdf").readAllBytes();
+        ContractDocumentReader.Read read = ContractDocumentReader.read("Mau_Hop_Dong_Lao_Dong_Nhan_Vien_A.pdf", pdf);
+        ContractFieldParser.Parsed parsed = ContractFieldParser.parse(read.text());
+
+        assertFalse(read.scanned());
+        assertTrue(parsed.contract());
+        assertEquals("Nguyễn Văn A", parsed.fullName());
+        assertEquals("012345678903", parsed.citizenId());
+        assertEquals(java.time.LocalDate.of(2004, 2, 11), parsed.birthDate());
+        assertEquals(java.time.LocalDate.of(2026, 10, 30), parsed.startDate());
+        assertEquals(java.time.LocalDate.of(2026, 11, 30), parsed.endDate());
+        assertEquals(new BigDecimal("25000"), parsed.salary());
+        assertEquals(12, parsed.weeklyShiftCount());
+        assertEquals("6", parsed.employeeCode());
+        assertTrue(parsed.reviewKeys().contains("startDate"));
+        assertTrue(parsed.reviewKeys().contains("salary"));
+        assertFalse(parsed.reviewKeys().contains("citizenId"));
+        assertFalse(parsed.fullName().equals("Mau_Hop_Dong_Lao_Dong_Nhan_Vien_A"));
+    }
+
+    @Test
+    void passwordProtectedPdfIsRejected() throws Exception {
+        try (PDDocument document = new PDDocument()) {
+            document.addPage(new PDPage());
+            StandardProtectionPolicy policy = new StandardProtectionPolicy("owner-secret", "user-secret", new AccessPermission());
+            policy.setEncryptionKeyLength(128);
+            document.protect(policy);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            document.save(out);
+            BusinessException ex = org.junit.jupiter.api.Assertions.assertThrows(BusinessException.class,
+                    () -> ContractDocumentReader.read("khoa.pdf", out.toByteArray()));
+            assertTrue(ex.getMessage().contains("mật khẩu"));
+        }
     }
 }
