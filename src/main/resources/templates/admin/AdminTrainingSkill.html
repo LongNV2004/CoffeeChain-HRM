@@ -26,7 +26,7 @@
     <section class="panel">
         <h2>Chứng chỉ nhân viên</h2>
         <h2>Thêm kỹ năng</h2>
-        <form class="stack-form" th:action="@{/admin/training/skills}" th:object="${skillForm}" method="post">
+        <form class="stack-form" th:action="@{/admin/training/skills}" th:object="${skillForm}" method="post" enctype="multipart/form-data">
             <p class="flash error" th:if="${skillError}" th:text="${skillError}">Error</p>
             <label>Tên kỹ năng
                 <input type="text" th:field="*{skillName}" maxlength="100" pattern="[^0-9]*" title="Tên kỹ năng không được chứa số" required>
@@ -34,6 +34,10 @@
             <label>Yêu cầu
                 <textarea th:field="*{requirements}" maxlength="500" rows="2"></textarea>
             </label>
+            <label>Tài liệu
+                <input type="file" name="documents" accept=".pdf,.docx,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" multiple>
+            </label>
+            <p class="hint">PDF, DOCX, JPG hoặc PNG. Tối đa 5 file, mỗi file 2 MB.</p>
             <input type="hidden" name="certificateKind" value="STAFF">
             <button class="primary-btn" type="submit">Thêm kỹ năng</button>
         </form>
@@ -47,18 +51,40 @@
             <tr>
                 <th>Kỹ năng</th>
                 <th>Yêu cầu</th>
+                <th>Tài liệu</th>
                 <th>Trạng thái</th>
                 <th></th>
             </tr>
             </thead>
             <tbody>
             <tr th:if="${#lists.isEmpty(skills)}">
-                <td colspan="4" class="empty">Chưa có kỹ năng đào tạo.</td>
+                <td colspan="5" class="empty">Chưa có kỹ năng đào tạo.</td>
             </tr>
             <tr th:each="skill : ${skills}"
                 th:attr="data-id=${skill.id},data-name=${skill.skillName},data-requirements=${skill.requirements}">
                 <td th:text="${skill.skillName}">Skill</td>
                 <td th:text="${skill.requirements} ?: '—'">Req</td>
+                <td>
+                    <ul class="skill-docs" th:if="${!#lists.isEmpty(skill.documents)}">
+                        <li th:each="file : ${skill.documents}">
+                            <a th:href="@{/admin/training/skills/documents/{id}(id=${file.id})}" th:text="${file.originalName}">Tài liệu</a>
+                        </li>
+                    </ul>
+                    <span th:if="${#lists.isEmpty(skill.documents)}">—</span>
+                    <template class="skill-doc-editor">
+                        <li th:each="file : ${skill.documents}">
+                            <a th:href="@{/admin/training/skills/documents/{id}(id=${file.id})}" th:text="${file.originalName}">Tài liệu</a>
+                            <form th:action="@{/admin/training/skills/documents/{id}/delete(id=${file.id})}"
+                                  method="post"
+                                  data-coffee-confirm="Xóa tài liệu này?"
+                                  data-coffee-title="Xóa tài liệu"
+                                  data-coffee-ok="Xóa"
+                                  data-coffee-tone="danger">
+                                <button class="link-btn danger" type="submit">Xóa</button>
+                            </form>
+                        </li>
+                    </template>
+                </td>
                 <td>
                     <span class="badge" th:classappend="${skill.status.name() == 'ACTIVE'} ? ' badge-ok' : ' badge-off'"
                           th:text="${skill.status.dbValue}">Active</span>
@@ -88,25 +114,35 @@
             </tbody>
         </table>
 
-        <form id="update-skill-form" class="stack-form hidden"
-              th:action="@{/admin/training/skills/0}"
-              th:object="${updateSkillForm}"
-              method="post">
+        <div id="skill-editor" class="hidden">
             <h3>Cập nhật kỹ năng</h3>
-            <p class="flash error" th:if="${skillUpdateError}" th:text="${skillUpdateError}">Error</p>
-            <input type="hidden" id="editingSkillId" th:value="${editingSkillId}">
-            <label>Tên kỹ năng
-                <input type="text" th:field="*{skillName}" maxlength="100" pattern="[^0-9]*" title="Tên kỹ năng không được chứa số" required>
-            </label>
-            <label>Yêu cầu
-                <textarea th:field="*{requirements}" maxlength="500" rows="2"></textarea>
-            </label>
-            <input type="hidden" name="certificateKind" value="STAFF">
-            <div class="form-actions">
-                <button class="primary-btn" type="submit">Lưu thay đổi</button>
-                <button class="logout-btn" type="button" id="cancel-edit">Hủy</button>
+            <div id="edit-doc-block" class="edit-docs" hidden>
+                <p class="hint">Tài liệu hiện có</p>
+                <ul id="edit-skill-documents" class="skill-docs"></ul>
             </div>
-        </form>
+            <form id="update-skill-form" class="stack-form"
+                  th:action="@{/admin/training/skills/0}"
+                  th:object="${updateSkillForm}"
+                  method="post"
+                  enctype="multipart/form-data">
+                <p class="flash error" th:if="${skillUpdateError}" th:text="${skillUpdateError}">Error</p>
+                <input type="hidden" id="editingSkillId" th:value="${editingSkillId}">
+                <label>Tên kỹ năng
+                    <input type="text" th:field="*{skillName}" maxlength="100" pattern="[^0-9]*" title="Tên kỹ năng không được chứa số" required>
+                </label>
+                <label>Yêu cầu
+                    <textarea th:field="*{requirements}" maxlength="500" rows="2"></textarea>
+                </label>
+                <label>Thêm tài liệu
+                    <input type="file" name="documents" accept=".pdf,.docx,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" multiple>
+                </label>
+                <input type="hidden" name="certificateKind" value="STAFF">
+                <div class="form-actions">
+                    <button class="primary-btn" type="submit">Lưu thay đổi</button>
+                    <button class="logout-btn" type="button" id="cancel-edit">Hủy</button>
+                </div>
+            </form>
+        </div>
     </section>
 </main>
 <script th:src="@{/js/AdminDashboard.js}"></script>

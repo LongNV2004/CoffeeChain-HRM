@@ -8,6 +8,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @NoArgsConstructor
@@ -23,4 +24,6 @@ public class TrainingSkillResponse {
     private CertificateKind certificateKind;
     private String createdByName;
     private LocalDateTime createdAt;
+    @Builder.Default
+    private List<SkillDocumentResponse> documents = List.of();
 }

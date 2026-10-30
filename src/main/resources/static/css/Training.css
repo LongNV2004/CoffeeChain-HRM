@@ -178,6 +178,11 @@ th{color:var(--ink-soft);font-weight:500;}
   font:inherit;color:var(--espresso);border:1px solid var(--line);background:#fff;
   padding:8px 10px;border-radius:6px;width:100%;resize:vertical;
 }
+.edit-docs{margin:0 0 14px;}
+.skill-docs{list-style:none;margin:0;padding:0;display:grid;gap:6px;}
+.skill-docs li{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+.skill-docs form{display:inline;}
+.hint{margin:0;color:var(--ink-soft);font-size:13px;}
 .skill-result-list{margin:0;padding-left:18px;}
 .skill-result-list li{margin:2px 0;}
 .training-table{width:100%;border-collapse:collapse;margin-top:14px;font-size:14px;}

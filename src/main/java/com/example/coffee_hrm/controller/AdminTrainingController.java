@@ -4,12 +4,18 @@ import com.example.coffee_hrm.common.enums.CertificateKind;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.dto.request.CreateCentralizedTrainingRequest;
 import com.example.coffee_hrm.dto.request.CreateTrainingSkillRequest;
+import com.example.coffee_hrm.dto.request.SkillFilePayload;
 import com.example.coffee_hrm.dto.request.UpdateTrainingSkillRequest;
+import com.example.coffee_hrm.dto.response.SkillDocumentDownload;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.TrainingService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
@@ -21,9 +27,14 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 @Controller
 @RequiredArgsConstructor
@@ -90,6 +101,7 @@ public class AdminTrainingController {
     @PostMapping("/skills")
     public String createSkill(@Valid @ModelAttribute("skillForm") CreateTrainingSkillRequest skillForm,
                               BindingResult bindingResult,
+                              @RequestParam(value = "documents", required = false) List<MultipartFile> documents,
                               @AuthenticationPrincipal AuthenticatedUser user,
                               RedirectAttributes redirectAttributes) {
         if (bindingResult.hasErrors()) {
@@ -98,12 +110,16 @@ public class AdminTrainingController {
             return skillRedirect(skillForm.getCertificateKind());
         }
         try {
-            trainingService.createSkill(skillForm, user);
+            trainingService.createSkill(skillForm, user, filesOf(documents));
             redirectAttributes.addFlashAttribute("successMessage", "Đã thêm kỹ năng đào tạo.");
             return skillRedirect(skillForm.getCertificateKind());
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("skillForm", skillForm);
             redirectAttributes.addFlashAttribute("skillError", ex.getMessage());
+            return skillRedirect(skillForm.getCertificateKind());
+        } catch (IOException ex) {
+            redirectAttributes.addFlashAttribute("skillForm", skillForm);
+            redirectAttributes.addFlashAttribute("skillError", "Không đọc được tài liệu đính kèm.");
             return skillRedirect(skillForm.getCertificateKind());
         }
     }
@@ -113,6 +129,7 @@ public class AdminTrainingController {
                               @Valid @ModelAttribute("updateSkillForm") UpdateTrainingSkillRequest updateSkillForm,
                               BindingResult bindingResult,
                               @RequestParam(required = false) CertificateKind certificateKind,
+                              @RequestParam(value = "documents", required = false) List<MultipartFile> documents,
                               @AuthenticationPrincipal AuthenticatedUser user,
                               RedirectAttributes redirectAttributes) {
         if (bindingResult.hasErrors()) {
@@ -122,7 +139,7 @@ public class AdminTrainingController {
             return skillRedirect(certificateKind);
         }
         try {
-            var updated = trainingService.updateSkill(id, updateSkillForm, user);
+            var updated = trainingService.updateSkill(id, updateSkillForm, user, filesOf(documents));
             redirectAttributes.addFlashAttribute("successMessage", "Đã cập nhật kỹ năng đào tạo.");
             return skillRedirect(updated.getCertificateKind());
         } catch (BusinessException ex) {
@@ -130,7 +147,41 @@ public class AdminTrainingController {
             redirectAttributes.addFlashAttribute("skillUpdateError", ex.getMessage());
             redirectAttributes.addFlashAttribute("editingSkillId", id);
             return skillRedirect(certificateKind);
+        } catch (IOException ex) {
+            redirectAttributes.addFlashAttribute("updateSkillForm", updateSkillForm);
+            redirectAttributes.addFlashAttribute("skillUpdateError", "Không đọc được tài liệu đính kèm.");
+            redirectAttributes.addFlashAttribute("editingSkillId", id);
+            return skillRedirect(certificateKind);
         }
+    }
+
+    @GetMapping("/skills/documents/{id}")
+    public ResponseEntity<byte[]> downloadSkillDocument(@PathVariable Integer id,
+                                                        @AuthenticationPrincipal AuthenticatedUser user) {
+        return attachment(trainingService.downloadSkillDocument(id, user));
+    }
+
+    @PostMapping("/skills/documents/{id}/delete")
+    public String deleteSkillDocument(@PathVariable Integer id,
+                                      @AuthenticationPrincipal AuthenticatedUser user,
+                                      RedirectAttributes redirectAttributes) {
+        try {
+            Integer skillId = trainingService.skillIdOfDocument(id);
+            CertificateKind kind = trainingService.removeSkillDocument(id, user);
+            redirectAttributes.addFlashAttribute("successMessage", "Đã xóa tài liệu kỹ năng.");
+            redirectAttributes.addFlashAttribute("editingSkillId", skillId);
+            return skillRedirect(kind);
+        } catch (BusinessException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
+            return "redirect:/admin/training/skills";
+        }
+    }
+
+    @GetMapping("/classes/{id}/documents/{documentId}")
+    public ResponseEntity<byte[]> downloadClassMaterial(@PathVariable Integer id,
+                                                        @PathVariable Integer documentId,
+                                                        @AuthenticationPrincipal AuthenticatedUser user) {
+        return attachment(trainingService.downloadClassMaterialForAdmin(id, documentId, user));
     }
 
     @PostMapping("/skills/{id}/deactivate")
@@ -221,6 +272,30 @@ public class AdminTrainingController {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
         }
         return "redirect:/admin/training/classes/" + id;
+    }
+
+    private List<SkillFilePayload> filesOf(List<MultipartFile> documents) throws IOException {
+        if (documents == null || documents.isEmpty()) {
+            return List.of();
+        }
+        List<SkillFilePayload> payloads = new ArrayList<>();
+        for (MultipartFile file : documents) {
+            if (file == null || file.isEmpty()) {
+                continue;
+            }
+            payloads.add(new SkillFilePayload(file.getOriginalFilename(), file.getBytes()));
+        }
+        return payloads;
+    }
+
+    private ResponseEntity<byte[]> attachment(SkillDocumentDownload file) {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename(file.fileName(), StandardCharsets.UTF_8)
+                        .build()
+                        .toString())
+                .contentType(MediaType.parseMediaType(file.contentType()))
+                .body(file.content());
     }
 
     private String skillRedirect(CertificateKind certificateKind) {

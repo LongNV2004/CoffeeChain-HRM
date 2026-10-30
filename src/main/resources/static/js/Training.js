@@ -11,6 +11,24 @@ document.addEventListener('DOMContentLoaded', function () {
     context = '';
   }
 
+  var editor = document.getElementById('skill-editor');
+
+  function fillDocuments(row) {
+    var block = document.getElementById('edit-doc-block');
+    var list = document.getElementById('edit-skill-documents');
+    if (!block || !list) {
+      return;
+    }
+    list.replaceChildren();
+    var source = row.querySelector('template.skill-doc-editor');
+    if (source && source.content && source.content.children.length) {
+      list.appendChild(source.content.cloneNode(true));
+      block.hidden = false;
+      return;
+    }
+    block.hidden = true;
+  }
+
   function openEdit(row) {
     if (!form) {
       return;
@@ -23,8 +41,9 @@ document.addEventListener('DOMContentLoaded', function () {
       description.value = row.getAttribute('data-description') || '';
     }
     form.querySelector('[name="requirements"]').value = row.getAttribute('data-requirements') || '';
-    form.classList.remove('hidden');
-    form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    fillDocuments(row);
+    (editor || form).classList.remove('hidden');
+    (editor || form).scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   document.querySelectorAll('.edit-skill').forEach(function (button) {
@@ -38,7 +57,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   if (cancel && form) {
     cancel.addEventListener('click', function () {
-      form.classList.add('hidden');
+      (editor || form).classList.add('hidden');
     });
   }
 

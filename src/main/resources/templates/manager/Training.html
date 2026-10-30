@@ -32,8 +32,8 @@
                 <thead>
                 <tr>
                     <th>Kỹ năng</th>
-                    <th>Mô tả</th>
                     <th>Yêu cầu</th>
+                    <th>Tài liệu</th>
                     <th>Trạng thái</th>
                 </tr>
                 </thead>
@@ -43,8 +43,15 @@
                 </tr>
                 <tr th:each="skill : ${skills}">
                     <td th:text="${skill.skillName}">Skill</td>
-                    <td th:text="${skill.description} ?: '—'">Desc</td>
                     <td th:text="${skill.requirements} ?: '—'">Req</td>
+                    <td>
+                        <ul class="skill-docs" th:if="${!#lists.isEmpty(skill.documents)}">
+                            <li th:each="file : ${skill.documents}">
+                                <a th:href="@{/training/skills/documents/{id}(id=${file.id})}" th:text="${file.originalName}">Tài liệu</a>
+                            </li>
+                        </ul>
+                        <span th:if="${#lists.isEmpty(skill.documents)}">—</span>
+                    </td>
                     <td>
                         <span class="badge" th:classappend="${skill.status.name() == 'ACTIVE'} ? ' badge-ok' : ' badge-off'"
                               th:text="${skill.status.dbValue}">Active</span>

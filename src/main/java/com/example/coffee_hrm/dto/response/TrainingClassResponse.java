@@ -45,6 +45,8 @@ public class TrainingClassResponse {
     private boolean ended;
     private String createdByName;
     private List<TrainingClassStudentResponse> students;
+    @Builder.Default
+    private List<SkillDocumentResponse> materials = List.of();
     private String approvedByName;
     private LocalDateTime approvedAt;
     private LocalDateTime createdAt;

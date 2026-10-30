@@ -17,8 +17,11 @@ import com.example.coffee_hrm.dto.request.CreateManagementTrainingRequest;
 import com.example.coffee_hrm.dto.request.CreateTrainingClassRequest;
 import com.example.coffee_hrm.dto.request.CreateTrainingSkillRequest;
 import com.example.coffee_hrm.dto.request.EvaluateTrainingStudentRequest;
+import com.example.coffee_hrm.dto.request.SkillFilePayload;
 import com.example.coffee_hrm.dto.request.UpdateTrainingSkillRequest;
 import com.example.coffee_hrm.dto.response.EmployeeSkillStatusLine;
+import com.example.coffee_hrm.dto.response.SkillDocumentDownload;
+import com.example.coffee_hrm.dto.response.SkillDocumentResponse;
 import com.example.coffee_hrm.dto.response.ManagementTrainingView;
 import com.example.coffee_hrm.dto.response.EmployeeTrainingClassResponse;
 import com.example.coffee_hrm.dto.response.TrainingClassResponse;
@@ -31,6 +34,7 @@ import com.example.coffee_hrm.entity.Store;
 import com.example.coffee_hrm.entity.TrainingClass;
 import com.example.coffee_hrm.entity.TrainingClassEnrollment;
 import com.example.coffee_hrm.entity.TrainingSkill;
+import com.example.coffee_hrm.entity.TrainingSkillDocument;
 import com.example.coffee_hrm.entity.User;
 import com.example.coffee_hrm.repository.EmployeeOpenSkill;
 import com.example.coffee_hrm.repository.EmployeePassedSkill;
@@ -40,6 +44,7 @@ import com.example.coffee_hrm.repository.NotificationRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.repository.TrainingClassEnrollmentRepository;
 import com.example.coffee_hrm.repository.TrainingClassRepository;
+import com.example.coffee_hrm.repository.TrainingSkillDocumentRepository;
 import com.example.coffee_hrm.repository.TrainingSkillRepository;
 import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
@@ -84,6 +89,8 @@ public class TrainingServiceImpl implements TrainingService {
     private final UserRepository userRepository;
     private final NotificationRepository notificationRepository;
     private final NotificationService notificationService;
+    private final TrainingSkillDocumentRepository trainingSkillDocumentRepository;
+    private final SkillDocumentStore skillDocumentStore;
 
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final String TRAINING_CLASS_REF = "TRAINING_CLASS";
@@ -114,11 +121,19 @@ public class TrainingServiceImpl implements TrainingService {
     @Override
     @Transactional
     public TrainingSkillResponse createSkill(CreateTrainingSkillRequest request, AuthenticatedUser actor) {
+        return createSkill(request, actor, List.of());
+    }
+
+    @Override
+    @Transactional
+    public TrainingSkillResponse createSkill(CreateTrainingSkillRequest request, AuthenticatedUser actor,
+                                             List<SkillFilePayload> files) {
         requireAdmin(actor, "Chỉ Admin mới được tạo kỹ năng đào tạo.");
         String skillName = requireSkillName(request.getSkillName());
         if (trainingSkillRepository.existsBySkillNameIgnoreCase(skillName)) {
             throw new BusinessException("Tên kỹ năng đã tồn tại.");
         }
+        List<SkillDocumentStore.Stored> prepared = skillDocumentStore.prepare(files, 0);
 
         TrainingSkill skill = TrainingSkill.builder()
                 .skillName(skillName)
@@ -130,12 +145,21 @@ public class TrainingServiceImpl implements TrainingService {
                         : request.getCertificateKind())
                 .createdBy(loadUser(actor.getUserId()))
                 .build();
-        return toSkillResponse(trainingSkillRepository.save(skill));
+        TrainingSkill saved = trainingSkillRepository.save(skill);
+        persistDocuments(saved, prepared);
+        return toSkillResponse(saved);
     }
 
     @Override
     @Transactional
     public TrainingSkillResponse updateSkill(Integer skillId, UpdateTrainingSkillRequest request, AuthenticatedUser actor) {
+        return updateSkill(skillId, request, actor, List.of());
+    }
+
+    @Override
+    @Transactional
+    public TrainingSkillResponse updateSkill(Integer skillId, UpdateTrainingSkillRequest request,
+                                             AuthenticatedUser actor, List<SkillFilePayload> files) {
         requireAdmin(actor, "Chỉ Admin mới được sửa kỹ năng đào tạo.");
         TrainingSkill skill = trainingSkillRepository.findById(skillId)
                 .orElseThrow(() -> new BusinessException("Không tìm thấy kỹ năng đào tạo."));
@@ -147,12 +171,15 @@ public class TrainingServiceImpl implements TrainingService {
         if (trainingSkillRepository.existsBySkillNameIgnoreCaseAndIdNot(skillName, skillId)) {
             throw new BusinessException("Tên kỹ năng đã tồn tại.");
         }
+        int alreadyStored = (int) trainingSkillDocumentRepository.countBySkill_Id(skillId);
+        List<SkillDocumentStore.Stored> prepared = skillDocumentStore.prepare(files, alreadyStored);
 
         skill.setSkillName(skillName);
         if (request.getDescription() != null) {
             skill.setDescription(blankToNull(request.getDescription()));
         }
         skill.setRequirements(blankToNull(request.getRequirements()));
+        persistDocuments(skill, prepared);
         return toSkillResponse(skill);
     }
 
@@ -349,6 +376,7 @@ public class TrainingServiceImpl implements TrainingService {
         return toClassResponse(trainingClass, enrollments).toBuilder()
                 .evaluable(trainer)
                 .rosterVisible(trainer)
+                .materials(trainer ? materialsOf(trainingClass) : List.of())
                 .build();
     }
 
@@ -788,6 +816,7 @@ public class TrainingServiceImpl implements TrainingService {
         return toClassResponse(trainingClass, enrollments).toBuilder()
                 .evaluable(trainer)
                 .rosterVisible(trainer || creator)
+                .materials(trainer ? materialsOf(trainingClass) : List.of())
                 .build();
     }
 
@@ -1851,6 +1880,124 @@ public class TrainingServiceImpl implements TrainingService {
                 .certificateKind(kindOf(skill))
                 .createdByName(createdByName)
                 .createdAt(skill.getCreatedAt())
+                .documents(documentsOf(skill.getId()))
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public CertificateKind removeSkillDocument(Integer documentId, AuthenticatedUser actor) {
+        requireAdmin(actor, "Chỉ Admin mới được xóa tài liệu kỹ năng.");
+        TrainingSkillDocument document = trainingSkillDocumentRepository.findById(documentId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy tài liệu kỹ năng."));
+        CertificateKind kind = document.getSkill() == null ? CertificateKind.STAFF : kindOf(document.getSkill());
+        trainingSkillDocumentRepository.delete(document);
+        skillDocumentStore.delete(document.getStoredName());
+        return kind;
+    }
+
+    @Override
+    public Integer skillIdOfDocument(Integer documentId) {
+        TrainingSkillDocument document = requireDocument(documentId);
+        return document.getSkill() == null ? null : document.getSkill().getId();
+    }
+
+    @Override
+    public SkillDocumentDownload downloadSkillDocument(Integer documentId, AuthenticatedUser actor) {
+        requireAdmin(actor, "Chỉ Admin mới được tải tài liệu kỹ năng.");
+        return toDownload(requireDocument(documentId));
+    }
+
+    @Override
+    public SkillDocumentDownload downloadSkillDocumentForManager(Integer documentId, AuthenticatedUser manager) {
+        requireManager(manager);
+        return toDownload(requireDocument(documentId));
+    }
+
+    @Override
+    public SkillDocumentDownload downloadClassMaterialForManager(Integer classId, Integer documentId,
+                                                                 AuthenticatedUser manager) {
+        TrainingClass trainingClass = requireManagedApprovedClass(classId, manager);
+        return downloadForTrainer(trainingClass, documentId, manager);
+    }
+
+    @Override
+    public SkillDocumentDownload downloadClassMaterialForAdmin(Integer classId, Integer documentId,
+                                                               AuthenticatedUser admin) {
+        requireAdmin(admin, "Chỉ Admin mới được xem lớp đào tạo.");
+        TrainingClass trainingClass = trainingClassRepository.findByIdWithDetails(classId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy lớp đào tạo."));
+        if (trainingClass.getStatus() != TrainingClassStatus.APPROVED) {
+            throw new BusinessException("Không tìm thấy lớp đào tạo.");
+        }
+        return downloadForTrainer(trainingClass, documentId, admin);
+    }
+
+    private SkillDocumentDownload downloadForTrainer(TrainingClass trainingClass, Integer documentId,
+                                                     AuthenticatedUser actor) {
+        if (!isTrainer(trainingClass, actor)) {
+            throw new BusinessException("Chỉ người đào tạo của lớp này mới xem được tài liệu kỹ năng.");
+        }
+        TrainingSkillDocument document = requireDocument(documentId);
+        Integer skillId = document.getSkill() == null ? null : document.getSkill().getId();
+        if (skillId == null || !skillIdsOf(trainingClass).contains(skillId)) {
+            throw new BusinessException("Tài liệu không thuộc kỹ năng của lớp đào tạo này.");
+        }
+        return toDownload(document);
+    }
+
+    private TrainingSkillDocument requireDocument(Integer documentId) {
+        return trainingSkillDocumentRepository.findById(documentId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy tài liệu kỹ năng."));
+    }
+
+    private SkillDocumentDownload toDownload(TrainingSkillDocument document) {
+        return new SkillDocumentDownload(
+                skillDocumentStore.read(document.getStoredName()),
+                document.getOriginalName(),
+                document.getContentType());
+    }
+
+    private void persistDocuments(TrainingSkill skill, List<SkillDocumentStore.Stored> prepared) {
+        if (prepared == null || prepared.isEmpty()) {
+            return;
+        }
+        for (SkillDocumentStore.Stored stored : prepared) {
+            skillDocumentStore.write(stored);
+            trainingSkillDocumentRepository.save(TrainingSkillDocument.builder()
+                    .skill(skill)
+                    .storedName(stored.storedName())
+                    .originalName(stored.originalName())
+                    .contentType(stored.contentType())
+                    .sizeBytes(stored.size())
+                    .build());
+        }
+    }
+
+    private List<SkillDocumentResponse> documentsOf(Integer skillId) {
+        if (skillId == null) {
+            return List.of();
+        }
+        return trainingSkillDocumentRepository.findBySkill_IdOrderByIdAsc(skillId).stream()
+                .map(this::toDocumentResponse)
+                .toList();
+    }
+
+    private List<SkillDocumentResponse> materialsOf(TrainingClass trainingClass) {
+        Set<Integer> skillIds = skillIdsOf(trainingClass);
+        if (skillIds.isEmpty()) {
+            return List.of();
+        }
+        return trainingSkillDocumentRepository.findBySkill_IdInOrderByIdAsc(skillIds).stream()
+                .map(this::toDocumentResponse)
+                .toList();
+    }
+
+    private SkillDocumentResponse toDocumentResponse(TrainingSkillDocument document) {
+        return SkillDocumentResponse.builder()
+                .id(document.getId())
+                .originalName(document.getOriginalName())
+                .sizeBytes(document.getSizeBytes())
                 .build();
     }
 

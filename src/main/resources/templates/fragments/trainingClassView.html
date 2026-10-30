@@ -146,5 +146,15 @@
     </tbody>
 </table>
 
+<section th:fragment="materials(detail, link)" class="panel" style="margin-top:16px;" th:if="${detail.evaluable}">
+    <h2>Tài liệu kỹ năng</h2>
+    <p class="empty" th:if="${#lists.isEmpty(detail.materials)}">Chưa có tài liệu đính kèm.</p>
+    <ul class="skill-docs" th:if="${!#lists.isEmpty(detail.materials)}">
+        <li th:each="file : ${detail.materials}">
+            <a th:href="@{${link}(classId=${detail.id}, id=${file.id})}" th:text="${file.originalName}">Tài liệu</a>
+        </li>
+    </ul>
+</section>
+
 </body>
 </html>

@@ -31,6 +31,8 @@
         <dl th:replace="~{fragments/trainingClassView :: classInfo(${classDetail})}"></dl>
     </section>
 
+    <section th:replace="~{fragments/trainingClassView :: materials(${classDetail}, '/admin/training/classes/{classId}/documents/{id}')}"></section>
+
     <th:block th:each="student : ${classDetail.students}"
               th:if="${!classDetail.rosterVisible and student.employeeId == viewerEmployeeId}">
         <section th:replace="~{fragments/trainingClassView :: ownResult(${student.resultLabel}, ${classDetail.trainingTypeLabel}, ${student.evaluatedAt}, ${student.evaluationNote})}"></section>

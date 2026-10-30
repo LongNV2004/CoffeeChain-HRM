@@ -6,8 +6,11 @@ import com.example.coffee_hrm.dto.request.CreateManagementTrainingRequest;
 import com.example.coffee_hrm.dto.request.CreateTrainingClassRequest;
 import com.example.coffee_hrm.dto.request.CreateTrainingSkillRequest;
 import com.example.coffee_hrm.dto.request.EvaluateTrainingStudentRequest;
+import com.example.coffee_hrm.common.enums.CertificateKind;
+import com.example.coffee_hrm.dto.request.SkillFilePayload;
 import com.example.coffee_hrm.dto.request.UpdateTrainingSkillRequest;
 import com.example.coffee_hrm.dto.response.EmployeeSkillStatusLine;
+import com.example.coffee_hrm.dto.response.SkillDocumentDownload;
 import com.example.coffee_hrm.dto.response.ManagementTrainingView;
 import com.example.coffee_hrm.dto.response.EmployeeTrainingClassResponse;
 import com.example.coffee_hrm.dto.response.TrainingClassResponse;
@@ -32,7 +35,23 @@ public interface TrainingService {
 
     TrainingSkillResponse createSkill(CreateTrainingSkillRequest request, AuthenticatedUser actor);
 
+    TrainingSkillResponse createSkill(CreateTrainingSkillRequest request, AuthenticatedUser actor, List<SkillFilePayload> files);
+
     TrainingSkillResponse updateSkill(Integer skillId, UpdateTrainingSkillRequest request, AuthenticatedUser actor);
+
+    TrainingSkillResponse updateSkill(Integer skillId, UpdateTrainingSkillRequest request, AuthenticatedUser actor, List<SkillFilePayload> files);
+
+    CertificateKind removeSkillDocument(Integer documentId, AuthenticatedUser actor);
+
+    Integer skillIdOfDocument(Integer documentId);
+
+    SkillDocumentDownload downloadSkillDocument(Integer documentId, AuthenticatedUser actor);
+
+    SkillDocumentDownload downloadSkillDocumentForManager(Integer documentId, AuthenticatedUser manager);
+
+    SkillDocumentDownload downloadClassMaterialForManager(Integer classId, Integer documentId, AuthenticatedUser manager);
+
+    SkillDocumentDownload downloadClassMaterialForAdmin(Integer classId, Integer documentId, AuthenticatedUser admin);
 
     TrainingSkillResponse deactivateSkill(Integer skillId, AuthenticatedUser actor);
 

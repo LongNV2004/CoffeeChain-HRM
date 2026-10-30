@@ -30,6 +30,7 @@ import com.example.coffee_hrm.repository.NotificationRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.repository.TrainingClassEnrollmentRepository;
 import com.example.coffee_hrm.repository.TrainingClassRepository;
+import com.example.coffee_hrm.repository.TrainingSkillDocumentRepository;
 import com.example.coffee_hrm.repository.TrainingSkillRepository;
 import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.repository.EmployeeOpenSkill;
@@ -88,6 +89,10 @@ class TrainingServiceImplTest {
     private NotificationRepository notificationRepository;
     @Mock
     private NotificationService notificationService;
+    @Mock
+    private TrainingSkillDocumentRepository trainingSkillDocumentRepository;
+    @Mock
+    private SkillDocumentStore skillDocumentStore;
 
     @InjectMocks
     private TrainingServiceImpl trainingService;

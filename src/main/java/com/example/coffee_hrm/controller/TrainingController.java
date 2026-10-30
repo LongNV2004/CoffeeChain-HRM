@@ -7,6 +7,11 @@ import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.TrainingService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import com.example.coffee_hrm.dto.response.SkillDocumentDownload;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
@@ -21,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 
 @Controller
@@ -66,10 +72,37 @@ public class TrainingController {
         }
     }
 
+    @GetMapping("/classes/{id}/documents/{documentId}")
+    public ResponseEntity<byte[]> downloadClassMaterial(@PathVariable Integer id,
+                                                        @PathVariable Integer documentId,
+                                                        @AuthenticationPrincipal AuthenticatedUser user) {
+        SkillDocumentDownload file = trainingService.downloadClassMaterialForManager(id, documentId, user);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename(file.fileName(), StandardCharsets.UTF_8)
+                        .build()
+                        .toString())
+                .contentType(MediaType.parseMediaType(file.contentType()))
+                .body(file.content());
+    }
+
     @GetMapping("/create")
     public String createClassPage(RedirectAttributes redirectAttributes) {
         redirectAttributes.addFlashAttribute("errorMessage", "Chỉ Admin mới được tạo lớp đào tạo.");
         return "redirect:/training";
+    }
+
+    @GetMapping("/skills/documents/{id}")
+    public ResponseEntity<byte[]> downloadSkillDocument(@PathVariable Integer id,
+                                                        @AuthenticationPrincipal AuthenticatedUser user) {
+        SkillDocumentDownload file = trainingService.downloadSkillDocumentForManager(id, user);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename(file.fileName(), StandardCharsets.UTF_8)
+                        .build()
+                        .toString())
+                .contentType(MediaType.parseMediaType(file.contentType()))
+                .body(file.content());
     }
 
     @GetMapping("/skills")
