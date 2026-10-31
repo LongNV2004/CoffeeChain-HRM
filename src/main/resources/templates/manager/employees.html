@@ -67,30 +67,6 @@
                 <strong th:text="${directory.terminatedCount}">0</strong>
             </div>
         </article>
-        <article class="store-stat">
-            <div>
-                <span>Manager</span>
-                <strong th:text="${directory.managerCount}">0</strong>
-            </div>
-        </article>
-        <article class="store-stat">
-            <div>
-                <span>Staff</span>
-                <strong th:text="${directory.staffCount}">0</strong>
-            </div>
-        </article>
-        <article class="store-stat">
-            <div>
-                <span>Chưa có tài khoản</span>
-                <strong th:text="${directory.noAccountCount}">0</strong>
-            </div>
-        </article>
-        <article class="store-stat" th:if="${directory.otherCount > 0}">
-            <div>
-                <span>Vai trò khác</span>
-                <strong th:text="${directory.otherCount}">0</strong>
-            </div>
-        </article>
     </section>
 
     <section class="store-panel employee-panel">
@@ -172,7 +148,7 @@
                     <td th:text="${employee.id}">1</td>
                     <td class="employee-person">
                         <a th:href="@{/manager/employees/{id}(id=${employee.id})}"
-                           th:text="${employee.fullName != null and !#strings.isEmpty(employee.fullName) ? employee.fullName : 'Chưa cập nhật'}">Nhân viên</a>
+                           th:text="${employee.fullName != null and !#strings.isEmpty(employee.fullName) ? employee.fullName : 'Nhân viên'}">Nhân viên</a>
                     </td>
                     <td th:text="${employee.citizenIdMasked != null ? employee.citizenIdMasked : 'Chưa cập nhật'}">079******123</td>
                     <td>

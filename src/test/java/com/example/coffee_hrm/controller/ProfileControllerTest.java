@@ -257,6 +257,57 @@ class ProfileControllerTest {
                 .andExpect(content().string(not(containsString("079203000123"))));
     }
 
+    @Test
+    void defaultProfileScreenDisplaysPersonalProfileOnly() throws Exception {
+        AuthenticatedUser staff = actor(RoleName.STAFF, 11);
+        when(profileService.getProfile(staff)).thenReturn(profile(RoleName.STAFF, List.of()));
+
+        mockMvc.perform(get("/profile").with(user(staff)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Thông tin cá nhân")))
+                .andExpect(content().string(containsString("Bảo mật tài khoản")))
+                .andExpect(content().string(not(containsString("Hợp đồng của tôi"))))
+                .andExpect(content().string(not(containsString("employee-history"))));
+    }
+
+    @Test
+    void contractTabDisplaysContractsScreenOnly() throws Exception {
+        AuthenticatedUser staff = actor(RoleName.STAFF, 11);
+        when(profileService.getProfile(staff)).thenReturn(profile(RoleName.STAFF, List.of()));
+
+        mockMvc.perform(get("/profile").param("tab", "contract").with(user(staff)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Hợp đồng của tôi")))
+                .andExpect(content().string(not(containsString("Thông tin cá nhân"))))
+                .andExpect(content().string(not(containsString("Bảo mật tài khoản"))))
+                .andExpect(content().string(not(containsString("employee-history"))));
+
+        // Kiểm tra alias /profile/contracts
+        mockMvc.perform(get("/profile/contracts").with(user(staff)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Hợp đồng của tôi")))
+                .andExpect(content().string(not(containsString("Thông tin cá nhân"))));
+    }
+
+    @Test
+    void historyTabDisplaysHistoryScreenOnly() throws Exception {
+        AuthenticatedUser staff = actor(RoleName.STAFF, 11);
+        when(profileService.getProfile(staff)).thenReturn(profile(RoleName.STAFF, List.of()));
+
+        mockMvc.perform(get("/profile").param("tab", "history").with(user(staff)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Lịch sử")))
+                .andExpect(content().string(not(containsString("Thông tin cá nhân"))))
+                .andExpect(content().string(not(containsString("Hợp đồng của tôi"))))
+                .andExpect(content().string(not(containsString("Bảo mật tài khoản"))));
+
+        // Kiểm tra alias /profile/history
+        mockMvc.perform(get("/profile/history").with(user(staff)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Lịch sử")))
+                .andExpect(content().string(not(containsString("Thông tin cá nhân"))));
+    }
+
     private AuthenticatedUser actor(RoleName roleName, int userId) {
         Employee employee = roleName == RoleName.ADMIN
                 ? null

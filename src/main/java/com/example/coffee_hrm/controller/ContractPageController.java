@@ -59,7 +59,7 @@ public class ContractPageController {
     @GetMapping("/staff/contract")
     @PreAuthorize("hasRole('STAFF')")
     public String staffContract() {
-        return "redirect:/profile";
+        return "redirect:/profile?tab=contract";
     }
 
     @GetMapping("/admin/contract/{id:\\d+}")
@@ -180,7 +180,7 @@ public class ContractPageController {
                 path = path + "?tab=contract";
             }
             if ("staff".equals(role)) {
-                path = "/profile#contracts";
+                path = "/profile?tab=contract";
             }
             return "redirect:" + path;
         } catch (BusinessException ex) {
@@ -262,7 +262,7 @@ public class ContractPageController {
             return "redirect:/admin/employees";
         }
         if (uri.contains("/staff/contract")) {
-            return "redirect:/profile";
+            return "redirect:/profile?tab=contract";
         }
         return "redirect:/manager/employees";
     }
@@ -272,14 +272,14 @@ public class ContractPageController {
             return "redirect:/admin/employees";
         }
         if ("staff".equals(role)) {
-            return "redirect:/profile";
+            return "redirect:/profile?tab=contract";
         }
         return "redirect:/manager/employees";
     }
 
     private static String contractListPath(String role, EmploymentContractResponse contract) {
         if ("staff".equals(role)) {
-            return "/profile";
+            return "/profile?tab=contract";
         }
         if ("manager".equals(role) && contract.getEmployeeId() != null) {
             return "/manager/employees/" + contract.getEmployeeId() + "?tab=contract";

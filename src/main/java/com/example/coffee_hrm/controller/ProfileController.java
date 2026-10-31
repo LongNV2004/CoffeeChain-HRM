@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.List;
@@ -38,11 +39,28 @@ public class ProfileController {
     private final EmploymentContractService contractService;
 
     @GetMapping
-    public String profile(@AuthenticationPrincipal AuthenticatedUser user, Model model) {
+    public String profile(@RequestParam(name = "tab", defaultValue = "profile") String tab,
+                          @AuthenticationPrincipal AuthenticatedUser user,
+                          Model model) {
         if (user == null) {
             return "redirect:/login";
         }
-        return render(user, model);
+        return render(user, tab, model);
+    }
+
+    @GetMapping("/contract")
+    public String contractTab(@AuthenticationPrincipal AuthenticatedUser user, Model model) {
+        return profile("contract", user, model);
+    }
+
+    @GetMapping("/contracts")
+    public String contractsTab(@AuthenticationPrincipal AuthenticatedUser user, Model model) {
+        return profile("contract", user, model);
+    }
+
+    @GetMapping("/history")
+    public String historyTab(@AuthenticationPrincipal AuthenticatedUser user, Model model) {
+        return profile("history", user, model);
     }
 
     @PostMapping
@@ -57,7 +75,7 @@ public class ProfileController {
         if (bindingResult.hasErrors()) {
             model.addAttribute("errorMessage", firstError(bindingResult));
             model.addAttribute("profileFormOpen", true);
-            return render(user, model);
+            return render(user, "profile", model);
         }
         try {
             profileService.updateProfile(user, profileForm);
@@ -66,7 +84,7 @@ public class ProfileController {
         } catch (BusinessException ex) {
             model.addAttribute("errorMessage", ex.getMessage());
             model.addAttribute("profileFormOpen", true);
-            return render(user, model);
+            return render(user, "profile", model);
         }
     }
 
@@ -93,7 +111,7 @@ public class ProfileController {
             clearSecrets(passwordForm);
             model.addAttribute("errorMessage", firstError(bindingResult));
             model.addAttribute("passwordFormOpen", true);
-            return render(user, model);
+            return render(user, "profile", model);
         }
         try {
             profileService.changePassword(user, passwordForm, request, response);
@@ -103,11 +121,13 @@ public class ProfileController {
             clearSecrets(passwordForm);
             model.addAttribute("errorMessage", ex.getMessage());
             model.addAttribute("passwordFormOpen", true);
-            return render(user, model);
+            return render(user, "profile", model);
         }
     }
 
-    private String render(AuthenticatedUser user, Model model) {
+    private String render(AuthenticatedUser user, String tab, Model model) {
+        String activeTab = normalizeTab(tab);
+        model.addAttribute("tab", activeTab);
         if (!model.containsAttribute("passwordForm")) {
             model.addAttribute("passwordForm", new ChangePasswordRequest());
         }
@@ -138,6 +158,16 @@ public class ProfileController {
                 List.of(),
                 contracts));
         return "profile/MyProfile";
+    }
+
+    private String normalizeTab(String tab) {
+        if ("contract".equalsIgnoreCase(tab) || "contracts".equalsIgnoreCase(tab)) {
+            return "contract";
+        }
+        if ("history".equalsIgnoreCase(tab)) {
+            return "history";
+        }
+        return "profile";
     }
 
     private List<EmploymentContractResponse> contractsOf(AuthenticatedUser user, MyProfileView profile) {

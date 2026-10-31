@@ -1,13 +1,26 @@
 .profile-page { display: grid; gap: 16px; width: 100%; max-width: none; }
 .profile-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
 .profile-tabs a {
-    padding: 8px 14px;
+    padding: 8px 16px;
     border: 1px solid var(--line);
     border-radius: 999px;
     background: #fff;
     color: var(--espresso);
     font-weight: 600;
     text-decoration: none;
+    transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+}
+.profile-tabs a:hover {
+    background: var(--cream);
+}
+.profile-tabs a.is-active {
+    background: var(--espresso);
+    color: #fff;
+    border-color: var(--espresso);
+}
+.profile-tabs a.is-active:hover {
+    background: var(--espresso);
+    color: #fff;
 }
 .employee-history { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
 .employee-history li {
