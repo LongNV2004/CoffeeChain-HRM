@@ -510,11 +510,21 @@ public class ScheduleServiceImpl implements ScheduleService {
             }
             shiftRows.add(WeeklyScheduleView.ShiftRow.builder() .shiftId(shift.getId()) .shiftName(shift.getShiftName()) .startTime(shift.getStartTime()) .endTime(shift.getEndTime()) .formattedTime(shift.getStartTime().format(TIME_FORMATTER) + " – " + shift.getEndTime().format(TIME_FORMATTER)) .dayCells(cells) .build());
         }
+        // Điểm chuyên cần tính theo tháng hiện tại (reset 100đ đầu mỗi tháng).
+        Map<Integer, Integer> monthScores = reliabilityService != null
+                ? reliabilityService.getCurrentMonthScores(store.getId())
+                : Map.of();
+        java.util.function.ToIntFunction<Employee> monthScoreOf =
+                emp -> monthScores.getOrDefault(emp.getId(), ReliabilityService.INITIAL_SCORE);
+        // Điểm chuyên cần tính theo tháng hiện tại (reset 100đ đầu mỗi tháng).
+        Map<Integer, Integer> monthScores = reliabilityService.getCurrentMonthScores(store.getId());
+        java.util.function.ToIntFunction<Employee> monthScoreOf =
+                emp -> monthScores.getOrDefault(emp.getId(), ReliabilityService.INITIAL_SCORE);
         List<WeeklyScheduleView.EmployeeOption> employeeOptions = activeEmployees.stream()
-                .sorted(Comparator.comparingInt(Employee::getEffectiveReliabilityScore).reversed()
+                .sorted(Comparator.comparingInt(monthScoreOf).reversed()
                         .thenComparing(Employee::getFullName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
                 .map(emp -> {
-                    int score = emp.getEffectiveReliabilityScore();
+                    int score = monthScoreOf.applyAsInt(emp);
                     String tierLabel = ReliabilityServiceImpl.resolveTier(score).label();
                     return WeeklyScheduleView.EmployeeOption.builder()
                             .employeeId(emp.getId())
@@ -540,7 +550,7 @@ public class ScheduleServiceImpl implements ScheduleService {
                 .filter(e -> Objects.equals(e.getId(), currentEmpId))
                 .findFirst()
                 .orElse(null);
-        int currentStaffScore = currentStaffObj != null ? currentStaffObj.getEffectiveReliabilityScore() : 100;
+        int currentStaffScore = currentStaffObj != null ? monthScoreOf.applyAsInt(currentStaffObj) : ReliabilityService.INITIAL_SCORE;
         String currentStaffTier = ReliabilityServiceImpl.resolveTier(currentStaffScore).label();
         return WeeklyScheduleView.builder() .storeId(store.getId()) .storeName(store.getStoreName()) .storeAddress(store.getAddress()) .weekStartDate(monday) .weekEndDate(sunday) .prevWeekDate(monday.minusWeeks(1)) .nextWeekDate(monday.plusWeeks(1)) .days(dayHeaders) .shiftRows(shiftRows) .storeEmployees(employeeOptions) .colleagueShifts(colleagueShifts) .pendingShiftChanges(changeItems) .incomingRequests(incomingItems) .openRescueRequests(openRescueItems) .currentStaffReliabilityScore(currentStaffScore) .currentStaffTierLabel(currentStaffTier) .currentStaffPrioritySchedule(currentStaffScore >= 105) .totalAssignments(totalCount) .publishedAssignments(publishedCount) .draftAssignments(draftCount) .fullyPublished(totalCount > 0 && draftCount == 0) .build();
     }

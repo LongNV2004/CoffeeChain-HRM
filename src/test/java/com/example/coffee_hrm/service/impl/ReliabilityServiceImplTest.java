@@ -311,6 +311,8 @@ class ReliabilityServiceImplTest {
     @Test
     void lateArrivalAndEarlyLeaveDeductOnCheckout() {
         Attendance attendance = punctualityAttendance(901, 45, 15);
+        // Lần trừ thứ 2 thấy được khoản -4 vừa ghi trong tháng
+        when(reliabilityScoreLogRepository.sumDeltaForEmployeeInRange(eq(30), any(), any())).thenReturn(0, -4);
 
         reliabilityService.recordPunctualityPenaltyOnCheckout(attendance);
 
@@ -370,42 +372,97 @@ class ReliabilityServiceImplTest {
 
     @Test
     void leaderboardRanksTopPerformersAndGrantsKpiAndPrioritySchedule() {
-        empRescuer.setReliabilityScore(115);
-        empRequester.setReliabilityScore(90);
+        // Giá trị cộng dồn cũ trên Employee không còn được dùng để xếp hạng tháng.
+        empRescuer.setReliabilityScore(999);
+        empRequester.setReliabilityScore(999);
 
         when(employeeRepository.findByIdWithStore(30)).thenReturn(Optional.of(empRescuer));
         when(employeeRepository.findByStore_IdAndStatus(10, EmployeeStatus.ACTIVE))
                 .thenReturn(List.of(empManager, empRequester, empRescuer));
 
-        ReliabilityScoreLog logRescue = ReliabilityScoreLog.builder()
-                .id(1)
-                .employee(empRescuer)
-                .store(store)
-                .actionType(ReliabilityActionType.RESCUE_SHIFT_24H.getDbValue())
-                .pointsDelta(5)
-                .scoreAfter(115)
-                .reason("Hỗ trợ ca gấp ca tối")
-                .createdAt(VietnamTime.now())
-                .build();
+        LocalDateTime now = VietnamTime.now();
+        YearMonth thisMonth = YearMonth.from(now);
+        LocalDateTime lastMonthTime = thisMonth.minusMonths(1).atDay(15).atTime(10, 0);
+        // Danh sách trả về theo thứ tự mới nhất trước (giống query thật).
         when(reliabilityScoreLogRepository.findForStoreInRange(eq(10), any(), any()))
-                .thenReturn(List.of(logRescue));
-        when(reliabilityScoreLogRepository.findRecentForStore(eq(10), any()))
-                .thenReturn(List.of(logRescue));
-        when(reliabilityScoreLogRepository.findRecentForEmployee(eq(30), any()))
-                .thenReturn(List.of(logRescue));
+                .thenReturn(List.of(
+                        scoreLog(4, empRescuer, ReliabilityActionType.RESCUE_SHIFT_24H, 5, now),
+                        scoreLog(3, empRescuer, ReliabilityActionType.RESCUE_SHIFT_24H, 5, now.minusSeconds(1)),
+                        scoreLog(2, empRescuer, ReliabilityActionType.MANAGER_BONUS, 5, now.minusSeconds(2)),
+                        scoreLog(1, empRequester, ReliabilityActionType.LATE_SHIFT_CANCEL, -10, now.minusSeconds(3)),
+                        scoreLog(0, empRescuer, ReliabilityActionType.MANAGER_PENALTY, -20, lastMonthTime)));
         when(shiftChangeRequestRepository.findOpenRescueRequestsForStore(10))
                 .thenReturn(List.of());
 
-        ReliabilityLeaderboardView view = reliabilityService.getLeaderboardForStaff(staffUser, YearMonth.now());
+        ReliabilityLeaderboardView view = reliabilityService.getLeaderboardForStaff(staffUser, thisMonth);
 
         assertNotNull(view);
         assertEquals(2, view.getLeaderboardEntries().size());
         ReliabilityLeaderboardView.RankEntry rank1 = view.getLeaderboardEntries().getFirst();
         assertEquals(1, rank1.getRank());
         assertEquals(30, rank1.getEmployeeId());
+        // Tháng này: 100 + 5 + 5 + 5 = 115 (khoản -20 tháng trước không tính)
         assertEquals(115, rank1.getReliabilityScore());
         assertTrue(rank1.isKpiRewardEligible());
         assertTrue(rank1.isPriorityScheduleEligible());
-        assertEquals(1, view.getTotalRescueShiftsMonth());
+        assertEquals(90, view.getLeaderboardEntries().get(1).getReliabilityScore());
+        assertEquals(2, view.getTotalRescueShiftsMonth());
+        assertNull(view.getNextMonthParam());
+        assertTrue(view.isCurrentMonth());
+
+        // Lịch sử điểm của tôi chỉ gồm biến động tháng đang xem, "điểm sau" tính lũy kế trong tháng
+        assertEquals(3, view.getMyRecentLogs().size());
+        assertEquals(115, view.getMyRecentLogs().getFirst().getScoreAfter());
+
+        // Lịch sử các tháng: tháng này 115đ hạng 1, tháng trước 80đ
+        assertEquals(6, view.getMonthlyHistory().size());
+        assertEquals(115, view.getMonthlyHistory().get(0).getMyScore());
+        assertEquals(1, view.getMonthlyHistory().get(0).getMyRank());
+        assertEquals(80, view.getMonthlyHistory().get(1).getMyScore());
+        assertFalse(view.getMonthlyHistory().get(2).isHasActivity());
+    }
+
+    @Test
+    void futureMonthIsClampedToCurrentMonth() {
+        when(employeeRepository.findByIdWithStore(30)).thenReturn(Optional.of(empRescuer));
+        when(employeeRepository.findByStore_IdAndStatus(10, EmployeeStatus.ACTIVE))
+                .thenReturn(List.of(empRescuer));
+        when(reliabilityScoreLogRepository.findForStoreInRange(eq(10), any(), any())).thenReturn(List.of());
+        when(shiftChangeRequestRepository.findOpenRescueRequestsForStore(10)).thenReturn(List.of());
+
+        YearMonth thisMonth = YearMonth.from(VietnamTime.today());
+        ReliabilityLeaderboardView view = reliabilityService.getLeaderboardForStaff(staffUser, thisMonth.plusMonths(3));
+
+        assertEquals(thisMonth.toString(), view.getSelectedMonth());
+        assertEquals(100, view.getMySummary().getReliabilityScore());
+    }
+
+    @Test
+    void scoreAfterResetsEachMonth() {
+        // Employee còn giá trị cộng dồn cũ nhưng tháng này chưa có biến động nào -> mốc là 100
+        empRequester.setReliabilityScore(140);
+        when(reliabilityScoreLogRepository.sumDeltaForEmployeeInRange(eq(20), any(), any())).thenReturn(0);
+        LocalDateTime urgentStart = VietnamTime.now().plusHours(6);
+        Shift shift = Shift.builder().id(7).shiftName("Ca Tối").store(store)
+                .startTime(urgentStart.toLocalTime()).endTime(urgentStart.toLocalTime().plusHours(4)).build();
+        ShiftAssignment assignment = ShiftAssignment.builder().id(507).employee(empRequester).shift(shift)
+                .workDate(urgentStart.toLocalDate()).status(AssignmentStatus.ASSIGNED).build();
+
+        reliabilityService.recordLateShiftChangeIfUrgent(empRequester, assignment, 77);
+
+        assertEquals(90, empRequester.getReliabilityScore());
+    }
+
+    private ReliabilityScoreLog scoreLog(int id, Employee emp, ReliabilityActionType type, int delta, LocalDateTime at) {
+        return ReliabilityScoreLog.builder()
+                .id(id)
+                .employee(emp)
+                .store(store)
+                .actionType(type.getDbValue())
+                .pointsDelta(delta)
+                .scoreAfter(999)
+                .reason(type.getLabel())
+                .createdAt(at)
+                .build();
     }
 }

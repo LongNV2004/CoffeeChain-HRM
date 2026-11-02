@@ -20,6 +20,10 @@ public class ReliabilityLeaderboardView {
     private String periodLabel;
     private String prevMonthParam;
     private String nextMonthParam;
+    /** true khi đang xem tháng hiện tại (mới cho phép điều chỉnh điểm thủ công). */
+    private boolean currentMonth;
+    /** Tóm tắt điểm chuyên cần các tháng gần nhất, mới nhất trước. */
+    private List<MonthHistoryItem> monthlyHistory;
 
     private int totalStaffCount;
     private String averageReliabilityScore;
@@ -155,5 +159,23 @@ public class ReliabilityLeaderboardView {
             }
             return pointsDelta + " đ";
         }
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class MonthHistoryItem {
+        private String monthParam;
+        private String label;
+        private boolean selected;
+        private boolean hasActivity;
+        private String topEmployeeName;
+        private Integer topScore;
+        // Chỉ có giá trị ở giao diện Nhân viên
+        private Integer myScore;
+        private Integer myRank;
+        private int totalStaff;
     }
 }
