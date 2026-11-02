@@ -682,3 +682,62 @@ body {
     font-family: inherit;
     font-size: 13.5px;
 }
+
+/* Lịch sử điểm chuyên cần các tháng */
+.lb-history-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 12px;
+}
+
+.lb-history-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--paper, #F6F1EA);
+    color: var(--espresso);
+    text-decoration: none;
+    transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+
+.lb-history-tile:hover {
+    border-color: var(--caramel, #B88752);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(38, 23, 15, 0.08);
+}
+
+.lb-history-tile.is-selected {
+    background: var(--espresso, #26170F);
+    border-color: var(--espresso, #26170F);
+    color: #FFFCF7;
+}
+
+.lb-history-month {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+    opacity: .75;
+}
+
+.lb-history-score {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 24px;
+    line-height: 1.1;
+}
+
+.lb-history-meta {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+}
+
+.lb-history-tile.is-selected .lb-history-meta {
+    color: rgba(255, 252, 247, 0.78);
+}
+
+.lb-history-meta.muted {
+    font-style: italic;
+}

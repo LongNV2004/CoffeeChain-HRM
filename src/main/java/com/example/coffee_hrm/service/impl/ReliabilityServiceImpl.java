@@ -23,7 +23,6 @@ import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.ReliabilityService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,6 +47,8 @@ public class ReliabilityServiceImpl implements ReliabilityService {
     private static final String REF_SHIFT_ASSIGNMENT = "SHIFT_ASSIGNMENT";
     private static final String REF_MANAGER_ADJUST = "MANAGER_ADJUST";
     private static final String REF_ATTENDANCE = "ATTENDANCE";
+    /** Số tháng hiển thị trong mục "Lịch sử các tháng". */
+    private static final int HISTORY_MONTHS = 6;
 
     private final EmployeeRepository employeeRepository;
     private final StoreRepository storeRepository;
@@ -383,9 +384,14 @@ public class ReliabilityServiceImpl implements ReliabilityService {
             Employee currentStaff,
             boolean isManagerView) {
 
-        YearMonth targetMonth = requestedMonth != null ? requestedMonth : YearMonth.from(VietnamTime.today());
+        YearMonth currentMonth = YearMonth.from(VietnamTime.today());
+        YearMonth targetMonth = requestedMonth != null ? requestedMonth : currentMonth;
+        if (targetMonth.isAfter(currentMonth)) {
+            targetMonth = currentMonth;
+        }
         LocalDateTime monthStart = targetMonth.atDay(1).atStartOfDay();
         LocalDateTime monthEndExclusive = targetMonth.plusMonths(1).atDay(1).atStartOfDay();
+        YearMonth historyStartMonth = targetMonth.minusMonths(HISTORY_MONTHS - 1);
 
         List<Employee> activeEmployees = employeeRepository.findByStore_IdAndStatus(store.getId(), EmployeeStatus.ACTIVE);
         Integer managerEmpId = store.getManager() != null ? store.getManager().getId() : null;
@@ -396,8 +402,14 @@ public class ReliabilityServiceImpl implements ReliabilityService {
             staffMembers = activeEmployees;
         }
 
-        List<ReliabilityScoreLog> monthlyLogs = reliabilityScoreLogRepository.findForStoreInRange(
-                store.getId(), monthStart, monthEndExclusive);
+        // Điểm chuyên cần tính riêng từng tháng: mỗi tháng khởi đầu 100đ + tổng biến động trong tháng đó.
+        List<ReliabilityScoreLog> historyLogs = reliabilityScoreLogRepository.findForStoreInRange(
+                store.getId(), historyStartMonth.atDay(1).atStartOfDay(), monthEndExclusive);
+        List<ReliabilityScoreLog> monthlyLogs = historyLogs.stream()
+                .filter(l -> l.getCreatedAt() != null
+                        && !l.getCreatedAt().isBefore(monthStart)
+                        && l.getCreatedAt().isBefore(monthEndExclusive))
+                .toList();
 
         Map<Integer, List<ReliabilityScoreLog>> logsByEmployee = new HashMap<>();
         for (ReliabilityScoreLog log : monthlyLogs) {
@@ -449,7 +461,7 @@ public class ReliabilityServiceImpl implements ReliabilityService {
                 }
             }
 
-            int score = emp.getEffectiveReliabilityScore();
+            int score = Math.max(0, INITIAL_SCORE + netDelta);
             TierMeta tier = resolveTier(score);
 
             entries.add(ReliabilityLeaderboardView.RankEntry.builder()
@@ -515,10 +527,22 @@ public class ReliabilityServiceImpl implements ReliabilityService {
                 ? buildCompletedSwapCandidates(store.getId())
                 : List.of();
 
-        List<ReliabilityLeaderboardView.ScoreLogItem> recentLogs = reliabilityScoreLogRepository
-                .findRecentForStore(store.getId(), PageRequest.of(0, 25))
-                .stream()
-                .map(this::toScoreLogItem)
+        // "Điểm sau" của từng biến động = 100đ + lũy kế trong tháng (không dùng giá trị cộng dồn cũ trong DB).
+        Map<ReliabilityScoreLog, Integer> monthlyScoreAfter = new IdentityHashMap<>();
+        Map<Integer, Integer> runningByEmployee = new HashMap<>();
+        for (int i = monthlyLogs.size() - 1; i >= 0; i--) {
+            ReliabilityScoreLog log = monthlyLogs.get(i);
+            if (log.getEmployee() == null) {
+                continue;
+            }
+            int delta = log.getPointsDelta() != null ? log.getPointsDelta() : 0;
+            int running = runningByEmployee.merge(log.getEmployee().getId(), delta, Integer::sum);
+            monthlyScoreAfter.put(log, Math.max(0, INITIAL_SCORE + running));
+        }
+
+        List<ReliabilityLeaderboardView.ScoreLogItem> recentLogs = monthlyLogs.stream()
+                .limit(50)
+                .map(l -> toScoreLogItem(l, monthlyScoreAfter.get(l)))
                 .toList();
 
         ReliabilityLeaderboardView.RankEntry mySummary = null;
@@ -532,7 +556,7 @@ public class ReliabilityServiceImpl implements ReliabilityService {
                     .filter(e -> Objects.equals(e.getEmployeeId(), currentStaff.getId()))
                     .findFirst()
                     .orElse(null);
-            int myScore = mySummary != null ? mySummary.getReliabilityScore() : currentStaff.getEffectiveReliabilityScore();
+            int myScore = mySummary != null ? mySummary.getReliabilityScore() : INITIAL_SCORE;
             if (myScore < 90) {
                 nextTierLabel = "Ổn định (90 đ)";
                 pointsToNextTier = 90 - myScore;
@@ -550,12 +574,14 @@ public class ReliabilityServiceImpl implements ReliabilityService {
                 pointsToNextTier = 0;
                 progressPercent = 100;
             }
-            myRecentLogs = reliabilityScoreLogRepository
-                    .findRecentForEmployee(currentStaff.getId(), PageRequest.of(0, 15))
-                    .stream()
-                    .map(this::toScoreLogItem)
+            myRecentLogs = monthlyLogs.stream()
+                    .filter(l -> l.getEmployee() != null && Objects.equals(l.getEmployee().getId(), currentStaff.getId()))
+                    .map(l -> toScoreLogItem(l, monthlyScoreAfter.get(l)))
                     .toList();
         }
+
+        List<ReliabilityLeaderboardView.MonthHistoryItem> monthlyHistory = buildMonthlyHistory(
+                historyLogs, staffMembers, historyStartMonth, targetMonth, currentStaff);
 
         return ReliabilityLeaderboardView.builder()
                 .storeId(store.getId())
@@ -564,7 +590,8 @@ public class ReliabilityServiceImpl implements ReliabilityService {
                 .selectedMonth(targetMonth.toString())
                 .periodLabel("Tháng " + String.format("%02d/%d", targetMonth.getMonthValue(), targetMonth.getYear()))
                 .prevMonthParam(targetMonth.minusMonths(1).toString())
-                .nextMonthParam(targetMonth.plusMonths(1).toString())
+                .nextMonthParam(targetMonth.isBefore(currentMonth) ? targetMonth.plusMonths(1).toString() : null)
+                .currentMonth(targetMonth.equals(currentMonth))
                 .totalStaffCount(entries.size())
                 .averageReliabilityScore(String.format(Locale.US, "%.1f", avgScore))
                 .totalRescueShiftsMonth(totalRescueMonth)
@@ -581,7 +608,87 @@ public class ReliabilityServiceImpl implements ReliabilityService {
                 .openRescueShifts(openRescueShifts)
                 .completedSwapCandidates(swapCandidates)
                 .recentLogs(recentLogs)
+                .monthlyHistory(monthlyHistory)
                 .build();
+    }
+
+    /**
+     * Tóm tắt điểm chuyên cần các tháng gần nhất (mới nhất trước): người dẫn đầu từng tháng
+     * và điểm/hạng của nhân viên đang xem.
+     */
+    private List<ReliabilityLeaderboardView.MonthHistoryItem> buildMonthlyHistory(
+            List<ReliabilityScoreLog> historyLogs,
+            List<Employee> staffMembers,
+            YearMonth fromMonth,
+            YearMonth toMonth,
+            Employee currentStaff) {
+
+        Map<YearMonth, Map<Integer, Integer>> deltaByMonth = new HashMap<>();
+        for (ReliabilityScoreLog log : historyLogs) {
+            if (log.getEmployee() == null || log.getCreatedAt() == null) {
+                continue;
+            }
+            int delta = log.getPointsDelta() != null ? log.getPointsDelta() : 0;
+            deltaByMonth.computeIfAbsent(YearMonth.from(log.getCreatedAt()), k -> new HashMap<>())
+                    .merge(log.getEmployee().getId(), delta, Integer::sum);
+        }
+
+        List<ReliabilityLeaderboardView.MonthHistoryItem> items = new ArrayList<>();
+        for (YearMonth m = toMonth; !m.isBefore(fromMonth); m = m.minusMonths(1)) {
+            Map<Integer, Integer> deltas = deltaByMonth.getOrDefault(m, Map.of());
+            List<Employee> ranked = staffMembers.stream()
+                    .sorted(Comparator
+                            .comparingInt((Employee e) -> deltas.getOrDefault(e.getId(), 0)).reversed()
+                            .thenComparing(Employee::getFullName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
+                    .toList();
+            Employee top = deltas.isEmpty() || ranked.isEmpty() ? null : ranked.get(0);
+
+            Integer myScore = null;
+            Integer myRank = null;
+            if (currentStaff != null) {
+                myScore = Math.max(0, INITIAL_SCORE + deltas.getOrDefault(currentStaff.getId(), 0));
+                for (int i = 0; i < ranked.size(); i++) {
+                    if (Objects.equals(ranked.get(i).getId(), currentStaff.getId())) {
+                        myRank = i + 1;
+                        break;
+                    }
+                }
+            }
+
+            items.add(ReliabilityLeaderboardView.MonthHistoryItem.builder()
+                    .monthParam(m.toString())
+                    .label(String.format("Tháng %02d/%d", m.getMonthValue(), m.getYear()))
+                    .selected(m.equals(toMonth))
+                    .hasActivity(!deltas.isEmpty())
+                    .topEmployeeName(top != null ? top.getFullName() : null)
+                    .topScore(top != null ? Math.max(0, INITIAL_SCORE + deltas.getOrDefault(top.getId(), 0)) : null)
+                    .myScore(myScore)
+                    .myRank(myRank)
+                    .totalStaff(ranked.size())
+                    .build());
+        }
+        return items;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Integer, Integer> getCurrentMonthScores(Integer storeId) {
+        Map<Integer, Integer> scores = new HashMap<>();
+        if (storeId == null) {
+            return scores;
+        }
+        YearMonth month = YearMonth.from(VietnamTime.today());
+        List<ReliabilityScoreLog> logs = reliabilityScoreLogRepository.findForStoreInRange(
+                storeId, month.atDay(1).atStartOfDay(), month.plusMonths(1).atDay(1).atStartOfDay());
+        for (ReliabilityScoreLog log : logs) {
+            if (log.getEmployee() == null) {
+                continue;
+            }
+            int delta = log.getPointsDelta() != null ? log.getPointsDelta() : 0;
+            scores.merge(log.getEmployee().getId(), delta, Integer::sum);
+        }
+        scores.replaceAll((id, delta) -> Math.max(0, INITIAL_SCORE + delta));
+        return scores;
     }
 
     private List<ReliabilityLeaderboardView.RescueShiftItem> buildOpenRescueShifts(
@@ -668,7 +775,7 @@ public class ReliabilityServiceImpl implements ReliabilityService {
         return list;
     }
 
-    private ReliabilityLeaderboardView.ScoreLogItem toScoreLogItem(ReliabilityScoreLog log) {
+    private ReliabilityLeaderboardView.ScoreLogItem toScoreLogItem(ReliabilityScoreLog log, Integer monthlyScoreAfter) {
         ReliabilityActionType type = ReliabilityActionType.fromDbValue(log.getActionType());
         int delta = log.getPointsDelta() != null ? log.getPointsDelta() : 0;
         return ReliabilityLeaderboardView.ScoreLogItem.builder()
@@ -678,7 +785,8 @@ public class ReliabilityServiceImpl implements ReliabilityService {
                 .actionType(log.getActionType())
                 .actionLabel(type.getLabel())
                 .pointsDelta(delta)
-                .scoreAfter(log.getScoreAfter() != null ? log.getScoreAfter() : INITIAL_SCORE)
+                .scoreAfter(monthlyScoreAfter != null ? monthlyScoreAfter
+                        : (log.getScoreAfter() != null ? log.getScoreAfter() : INITIAL_SCORE))
                 .reason(log.getReason())
                 .createdAtFormatted(log.getCreatedAt() != null ? log.getCreatedAt().format(DATE_TIME_FORMATTER) : "—")
                 .positive(delta > 0)
@@ -695,8 +803,12 @@ public class ReliabilityServiceImpl implements ReliabilityService {
             Integer referenceId,
             LocalDateTime now) {
 
-        int currentScore = employee.getEffectiveReliabilityScore();
-        int newScore = Math.max(0, currentScore + pointsDelta);
+        // Điểm chuyên cần reset mỗi tháng: 100đ + tổng biến động của tháng hiện tại.
+        LocalDateTime at = now != null ? now : VietnamTime.now();
+        YearMonth month = YearMonth.from(at);
+        Integer monthDelta = employee.getId() == null ? null : reliabilityScoreLogRepository.sumDeltaForEmployeeInRange(
+                employee.getId(), month.atDay(1).atStartOfDay(), month.plusMonths(1).atDay(1).atStartOfDay());
+        int newScore = Math.max(0, INITIAL_SCORE + (monthDelta != null ? monthDelta : 0) + pointsDelta);
         employee.setReliabilityScore(newScore);
         employeeRepository.save(employee);
 

@@ -32,14 +32,14 @@
                 <span>Điểm chuyên cần &amp; Hỗ trợ ca gấp</span>
             </div>
             <h1 th:text="'Nhân viên xuất sắc — ' + ${leaderboard.storeName}">Nhân viên xuất sắc</h1>
-            <p th:text="${leaderboard.storeAddress + ' • Khởi đầu 100 điểm • Nhận hỗ trợ ca (+5đ), hoàn thành ca đổi (+2đ), ưu tiên chọn lịch tuần sau'}">
+            <p th:text="${leaderboard.storeAddress + ' • Mỗi tháng khởi đầu 100 điểm • Nhận hỗ trợ ca (+5đ), hoàn thành ca đổi (+2đ), ưu tiên chọn lịch tuần sau'}">
                 Địa chỉ cửa hàng
             </p>
         </div>
         <div class="lb-header-controls">
             <a class="lb-nav-btn" th:href="@{/schedule/staff/leaderboard(month=${leaderboard.prevMonthParam})}">← Tháng trước</a>
             <span class="lb-period-pill" th:text="${leaderboard.periodLabel}">Tháng 10/2026</span>
-            <a class="lb-nav-btn" th:href="@{/schedule/staff/leaderboard(month=${leaderboard.nextMonthParam})}">Tháng sau →</a>
+            <a class="lb-nav-btn" th:if="${leaderboard.nextMonthParam != null}" th:href="@{/schedule/staff/leaderboard(month=${leaderboard.nextMonthParam})}">Tháng sau →</a>
             <a class="lb-nav-btn primary" th:href="@{/schedule/staff/shift-change}">
                 <i data-lucide="arrow-left-right" style="width:14px;height:14px;"></i> Trang Đổi ca
             </a>
@@ -309,17 +309,45 @@
         </div>
     </section>
 
+    <!-- Lịch sử điểm chuyên cần các tháng (mỗi tháng khởi đầu lại 100đ) -->
+    <section class="lb-panel" th:if="${!#lists.isEmpty(leaderboard.monthlyHistory)}">
+        <div class="lb-panel-head">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <i data-lucide="calendar-range" style="width:20px;height:20px;color:var(--espresso);"></i>
+                <div>
+                    <h2 style="margin:0;">Lịch sử các tháng</h2>
+                    <small style="color:var(--ink-soft);">Điểm chuyên cần tính riêng từng tháng, mỗi tháng khởi đầu lại 100 điểm. Bấm vào tháng để xem chi tiết.</small>
+                </div>
+            </div>
+        </div>
+        <div class="lb-history-grid">
+            <a class="lb-history-tile" th:each="h : ${leaderboard.monthlyHistory}"
+               th:classappend="${h.selected} ? ' is-selected'"
+               th:href="@{/schedule/staff/leaderboard(month=${h.monthParam})}">
+                <span class="lb-history-month" th:text="${h.label}">Tháng 10/2026</span>
+                <th:block th:if="${h.myScore != null}">
+                    <strong class="lb-history-score" th:text="${h.myScore} + ' đ'">100 đ</strong>
+                    <span class="lb-history-meta" th:if="${h.myRank != null}"
+                          th:text="'Hạng ' + ${h.myRank} + '/' + ${h.totalStaff}">Hạng 1/5</span>
+                </th:block>
+                <span class="lb-history-meta" th:if="${h.topEmployeeName != null}"
+                      th:text="'Dẫn đầu: ' + ${h.topEmployeeName} + ' (' + ${h.topScore} + ' đ)'">Dẫn đầu</span>
+                <span class="lb-history-meta muted" th:unless="${h.hasActivity}">Chưa có biến động</span>
+            </a>
+        </div>
+    </section>
+
     <!-- My Score History (Nhân viên chỉ xem lịch sử điểm của chính mình) -->
     <section class="lb-panel">
         <div class="lb-panel-head">
             <div style="display:flex;align-items:center;gap:8px;">
                 <i data-lucide="clipboard-list" style="width:20px;height:20px;color:var(--espresso);"></i>
-                <h2 style="margin:0;">Lịch sử điểm chuyên cần của tôi</h2>
+                <h2 style="margin:0;" th:text="'Biến động điểm của tôi — ' + ${leaderboard.periodLabel}">Biến động điểm của tôi</h2>
             </div>
             <small style="color:var(--ink-soft);">Ghi vết minh bạch các biến động điểm chuyên cần cá nhân của bạn</small>
         </div>
         <p th:if="${#lists.isEmpty(leaderboard.myRecentLogs)}" style="color:var(--ink-soft);font-size:13.5px;margin:0;">
-            Bạn đang giữ nguyên mốc khởi đầu 100 điểm chuyên cần. Hãy nhận hỗ trợ ca hoặc hoàn thành tốt ca đổi để tích lũy thêm điểm!
+            Tháng này bạn chưa có biến động nào, đang giữ mốc khởi đầu 100 điểm. Hãy nhận hỗ trợ ca hoặc hoàn thành tốt ca đổi để tích lũy thêm điểm!
         </p>
         <div class="lb-log-list" th:if="${!#lists.isEmpty(leaderboard.myRecentLogs)}">
             <div class="lb-log-item" th:each="log : ${leaderboard.myRecentLogs}">

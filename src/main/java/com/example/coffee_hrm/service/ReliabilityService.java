@@ -11,6 +11,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.YearMonth;
+import java.util.Map;
 
 public interface ReliabilityService {
 
@@ -78,4 +79,10 @@ public interface ReliabilityService {
      * Dữ liệu Bảng xếp hạng "Nhân viên xuất sắc" & Hồ sơ Điểm chuyên cần cá nhân cho Nhân viên.
      */
     ReliabilityLeaderboardView getLeaderboardForStaff(AuthenticatedUser staff, YearMonth month);
+
+    /**
+     * Điểm chuyên cần tháng hiện tại của nhân viên trong cửa hàng (100đ + biến động trong tháng).
+     * Nhân viên chưa có biến động nào trong tháng không có trong map (mặc định 100đ).
+     */
+    Map<Integer, Integer> getCurrentMonthScores(Integer storeId);
 }
