@@ -516,10 +516,6 @@ public class ScheduleServiceImpl implements ScheduleService {
                 : Map.of();
         java.util.function.ToIntFunction<Employee> monthScoreOf =
                 emp -> monthScores.getOrDefault(emp.getId(), ReliabilityService.INITIAL_SCORE);
-        // Điểm chuyên cần tính theo tháng hiện tại (reset 100đ đầu mỗi tháng).
-        Map<Integer, Integer> monthScores = reliabilityService.getCurrentMonthScores(store.getId());
-        java.util.function.ToIntFunction<Employee> monthScoreOf =
-                emp -> monthScores.getOrDefault(emp.getId(), ReliabilityService.INITIAL_SCORE);
         List<WeeklyScheduleView.EmployeeOption> employeeOptions = activeEmployees.stream()
                 .sorted(Comparator.comparingInt(monthScoreOf).reversed()
                         .thenComparing(Employee::getFullName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
