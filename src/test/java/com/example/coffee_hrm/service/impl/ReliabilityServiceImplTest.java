@@ -5,6 +5,8 @@ import com.example.coffee_hrm.common.enums.AssignmentStatus;
 import com.example.coffee_hrm.common.enums.CertificationStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.ReliabilityActionType;
+import com.example.coffee_hrm.entity.ShiftCoverInvitation;
+import com.example.coffee_hrm.common.enums.InvitationStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.response.ReliabilityLeaderboardView;
@@ -180,40 +182,102 @@ class ReliabilityServiceImplTest {
     }
 
     @Test
-    void emergencyDeclineFirstTimeWarnsSecondTimeDeducts5Points() {
-        LocalDateTime urgentStart = VietnamTime.now().plusHours(5);
-        Shift shift = Shift.builder()
-                .id(3)
-                .shiftName("Ca Sáng")
-                .store(store)
-                .startTime(urgentStart.toLocalTime())
-                .endTime(urgentStart.toLocalTime().plusHours(4))
-                .build();
-        ShiftAssignment assignment = ShiftAssignment.builder()
-                .id(503)
-                .employee(empRequester)
-                .shift(shift)
-                .workDate(urgentStart.toLocalDate())
-                .status(AssignmentStatus.ASSIGNED)
-                .build();
-        ShiftChangeRequest req1 = ShiftChangeRequest.builder()
-                .id(101)
-                .assignment(assignment)
-                .employee(empRequester)
-                .targetEmployee(empRescuer)
-                .build();
+    void urgentInvitationDeclineFirstTwoFreeThenDeducts3Points() {
+        ShiftCoverInvitation invitation = urgentInvitation(501, true);
 
-        // Lần 1 trong tháng: chỉ cảnh báo (0 điểm)
+        // Lần 1 và 2 trong tháng: miễn trừ (0 điểm)
         when(reliabilityScoreLogRepository.countByEmployee_IdAndActionTypeInAndCreatedAtBetween(
-                eq(30), anyCollection(), any(), any())).thenReturn(0L);
-        reliabilityService.recordEmergencyDeclineIfApplicable(empRescuer, req1);
+                eq(30), anyCollection(), any(), any())).thenReturn(0L, 1L, 2L);
+        assertEquals(1, reliabilityService.recordInvitationDecline(invitation, false));
         assertEquals(100, empRescuer.getReliabilityScore());
 
-        // Lần 2 trong tháng: trừ 5 điểm
+        invitation.setId(502);
+        assertEquals(2, reliabilityService.recordInvitationDecline(invitation, true));
+        assertEquals(100, empRescuer.getReliabilityScore());
+
+        // Lần 3: trừ 3 điểm
+        invitation.setId(503);
+        assertEquals(3, reliabilityService.recordInvitationDecline(invitation, false));
+        assertEquals(97, empRescuer.getReliabilityScore());
+        ArgumentCaptor<ReliabilityScoreLog> logCaptor = ArgumentCaptor.forClass(ReliabilityScoreLog.class);
+        verify(reliabilityScoreLogRepository, times(3)).save(logCaptor.capture());
+        assertEquals(ReliabilityActionType.EMERGENCY_DECLINE_PENALTY.getDbValue(), logCaptor.getAllValues().get(2).getActionType());
+        assertEquals(-3, logCaptor.getAllValues().get(2).getPointsDelta());
+        assertEquals("COVER_INVITATION", logCaptor.getAllValues().get(2).getReferenceType());
+    }
+
+    @Test
+    void nonUrgentInvitationDeclineIsNeverPenalized() {
         when(reliabilityScoreLogRepository.countByEmployee_IdAndActionTypeInAndCreatedAtBetween(
-                eq(30), anyCollection(), any(), any())).thenReturn(1L);
-        reliabilityService.recordEmergencyDeclineIfApplicable(empRescuer, req1);
-        assertEquals(95, empRescuer.getReliabilityScore());
+                eq(30), anyCollection(), any(), any())).thenReturn(5L);
+
+        reliabilityService.recordInvitationDecline(urgentInvitation(510, false), false);
+
+        assertEquals(100, empRescuer.getReliabilityScore());
+        verify(reliabilityScoreLogRepository, never()).save(any());
+    }
+
+    @Test
+    void absenceOnAcceptedUrgentShiftRevokesBonusAndDeducts15() {
+        LocalDateTime shiftTime = VietnamTime.now().minusHours(6);
+        Shift shift = Shift.builder().id(8).shiftName("Ca Sáng").store(store)
+                .startTime(shiftTime.toLocalTime()).endTime(shiftTime.toLocalTime().plusHours(4)).build();
+        ShiftAssignment assignment = ShiftAssignment.builder().id(508).employee(empRescuer).shift(shift)
+                .workDate(shiftTime.toLocalDate()).status(AssignmentStatus.ASSIGNED).build();
+        ShiftChangeRequest approved = ShiftChangeRequest.builder().id(108).assignment(assignment)
+                .employee(empRequester).targetEmployee(empRescuer).status(ApprovalStatus.APPROVED).build();
+        Attendance absent = Attendance.builder().id(908).employee(empRescuer).store(store).shift(shift)
+                .workDate(shiftTime.toLocalDate()).build();
+
+        when(shiftAssignmentRepository.findByEmployee_IdAndWorkDateAndStatus(30, shiftTime.toLocalDate(), AssignmentStatus.ASSIGNED))
+                .thenReturn(List.of(assignment));
+        when(shiftChangeRequestRepository.findAllByAssignmentId(508)).thenReturn(List.of(approved));
+        when(reliabilityScoreLogRepository.existsByEmployee_IdAndActionTypeAndReferenceTypeAndReferenceId(
+                30, ReliabilityActionType.RESCUE_SHIFT_24H.getDbValue(), "SHIFT_CHANGE", 108)).thenReturn(true);
+        when(reliabilityScoreLogRepository.existsByEmployee_IdAndActionTypeAndReferenceTypeAndReferenceId(
+                30, ReliabilityActionType.RESCUE_REVOKED.getDbValue(), "SHIFT_CHANGE", 108)).thenReturn(false);
+        when(reliabilityScoreLogRepository.sumDeltaForEmployeeInRange(eq(30), any(), any())).thenReturn(5, 0);
+
+        reliabilityService.revokeRescueOnAbsence(absent);
+
+        // 100 + 5 (đã cộng) - 5 (thu hồi) - 15 (bỏ ca) = 85
+        assertEquals(85, empRescuer.getReliabilityScore());
+        ArgumentCaptor<ReliabilityScoreLog> logCaptor = ArgumentCaptor.forClass(ReliabilityScoreLog.class);
+        verify(reliabilityScoreLogRepository, times(2)).save(logCaptor.capture());
+        assertEquals(ReliabilityActionType.RESCUE_REVOKED.getDbValue(), logCaptor.getAllValues().get(0).getActionType());
+        assertEquals(ReliabilityActionType.ABANDONED_ACCEPTED_SHIFT.getDbValue(), logCaptor.getAllValues().get(1).getActionType());
+        assertEquals(-15, logCaptor.getAllValues().get(1).getPointsDelta());
+    }
+
+    @Test
+    void absenceWithoutRescueBonusDoesNothing() {
+        LocalDateTime shiftTime = VietnamTime.now().minusHours(6);
+        Shift shift = Shift.builder().id(9).shiftName("Ca Sáng").store(store)
+                .startTime(shiftTime.toLocalTime()).endTime(shiftTime.toLocalTime().plusHours(4)).build();
+        ShiftAssignment assignment = ShiftAssignment.builder().id(509).employee(empRescuer).shift(shift)
+                .workDate(shiftTime.toLocalDate()).status(AssignmentStatus.ASSIGNED).build();
+        Attendance absent = Attendance.builder().id(909).employee(empRescuer).store(store).shift(shift)
+                .workDate(shiftTime.toLocalDate()).build();
+        when(shiftAssignmentRepository.findByEmployee_IdAndWorkDateAndStatus(30, shiftTime.toLocalDate(), AssignmentStatus.ASSIGNED))
+                .thenReturn(List.of(assignment));
+        when(shiftChangeRequestRepository.findAllByAssignmentId(509)).thenReturn(List.of());
+
+        reliabilityService.revokeRescueOnAbsence(absent);
+
+        verify(reliabilityScoreLogRepository, never()).save(any());
+    }
+
+    private ShiftCoverInvitation urgentInvitation(int id, boolean urgent) {
+        LocalDateTime start = VietnamTime.now().plusHours(5);
+        Shift shift = Shift.builder().id(3).shiftName("Ca Sáng").store(store)
+                .startTime(start.toLocalTime()).endTime(start.toLocalTime().plusHours(4)).build();
+        ShiftAssignment assignment = ShiftAssignment.builder().id(503).employee(empRequester).shift(shift)
+                .workDate(start.toLocalDate()).status(AssignmentStatus.ASSIGNED).build();
+        ShiftChangeRequest request = ShiftChangeRequest.builder().id(101).assignment(assignment)
+                .employee(empRequester).status(ApprovalStatus.PENDING).build();
+        return ShiftCoverInvitation.builder().id(id).request(request).employee(empRescuer)
+                .status(InvitationStatus.DECLINED).urgent(urgent)
+                .sentAt(VietnamTime.now()).expiresAt(VietnamTime.now().plusHours(2)).build();
     }
 
     @Test

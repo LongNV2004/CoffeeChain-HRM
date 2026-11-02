@@ -8,6 +8,7 @@ import com.example.coffee_hrm.dto.response.WeeklyScheduleView;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.ReliabilityService;
 import com.example.coffee_hrm.service.ScheduleService;
+import com.example.coffee_hrm.service.ShiftCoverInvitationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -22,6 +23,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
+import java.util.List;
 
 @Controller
 @RequiredArgsConstructor
@@ -30,6 +32,7 @@ public class ScheduleController {
 
     private final ScheduleService scheduleService;
     private final ReliabilityService reliabilityService;
+    private final ShiftCoverInvitationService shiftCoverInvitationService;
 
     // ==========================================
     // MANAGER ENDPOINTS
@@ -44,6 +47,7 @@ public class ScheduleController {
 
         WeeklyScheduleView scheduleView = scheduleService.getWeeklyScheduleForManager(user, date);
         model.addAttribute("schedule", scheduleView);
+        model.addAttribute("coverPanels", shiftCoverInvitationService.getManagerPanels(user));
         if (!model.containsAttribute("assignForm")) {
             model.addAttribute("assignForm", new AssignShiftRequest());
         }
@@ -116,6 +120,27 @@ public class ScheduleController {
         }
 
         return "redirect:/schedule/manager" + returnDateParam;
+    }
+
+    @PostMapping("/manager/requests/{id}/invite")
+    @PreAuthorize("hasRole('MANAGER')")
+    public String inviteCover(
+            @PathVariable("id") Integer id,
+            @RequestParam(value = "employeeIds", required = false) List<Integer> employeeIds,
+            @RequestParam(value = "currentWeek", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate currentWeek,
+            @AuthenticationPrincipal AuthenticatedUser user,
+            RedirectAttributes redirectAttributes) {
+
+        String returnDateParam = currentWeek != null ? "?date=" + currentWeek : "";
+        try {
+            int sent = shiftCoverInvitationService.invite(id, employeeIds, user);
+            redirectAttributes.addFlashAttribute("successMessage",
+                    "Đã gửi " + sent + " lời mời hỗ trợ ca. Nhân viên có " + ShiftCoverInvitationService.RESPONSE_WINDOW_HOURS
+                            + " giờ để phản hồi.");
+        } catch (BusinessException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
+        }
+        return "redirect:/schedule/manager" + returnDateParam + "#shift-change-requests";
     }
 
     @PostMapping("/manager/requests/{id}/reject")
@@ -221,6 +246,7 @@ public class ScheduleController {
         model.addAttribute("currentEmployeeId", user.getEmployeeId());
         model.addAttribute("shiftChangePage", shiftChangePage);
         model.addAttribute("schedulePath", shiftChangePage ? "/schedule/staff/shift-change" : "/schedule/staff");
+        model.addAttribute("coverInvitations", shiftCoverInvitationService.getPendingForStaff(user));
         if (!model.containsAttribute("changeForm")) {
             model.addAttribute("changeForm", new CreateShiftChangeRequestDto());
         }
@@ -317,6 +343,53 @@ public class ScheduleController {
 
         if ("leaderboard".equalsIgnoreCase(origin)) {
             return "redirect:/schedule/staff/leaderboard";
+        }
+        return staffScheduleRedirect(origin, currentWeek);
+    }
+
+    @PostMapping("/staff/invitations/{id}/accept")
+    @PreAuthorize("hasRole('STAFF')")
+    public String acceptCoverInvitation(
+            @PathVariable("id") Integer id,
+            @RequestParam(value = "currentWeek", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate currentWeek,
+            @RequestParam(value = "origin", required = false) String origin,
+            @AuthenticationPrincipal AuthenticatedUser user,
+            RedirectAttributes redirectAttributes) {
+
+        try {
+            shiftCoverInvitationService.accept(id, user);
+            redirectAttributes.addFlashAttribute("successMessage",
+                    "Bạn đã nhận lời mời hỗ trợ ca. Đơn đã chuyển lên Quản lý duyệt (+5 điểm chuyên cần nếu là ca gấp).");
+        } catch (BusinessException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
+        }
+        return staffScheduleRedirect(origin, currentWeek);
+    }
+
+    @PostMapping("/staff/invitations/{id}/decline")
+    @PreAuthorize("hasRole('STAFF')")
+    public String declineCoverInvitation(
+            @PathVariable("id") Integer id,
+            @RequestParam(value = "reason", required = false) String reason,
+            @RequestParam(value = "note", required = false) String note,
+            @RequestParam(value = "currentWeek", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate currentWeek,
+            @RequestParam(value = "origin", required = false) String origin,
+            @AuthenticationPrincipal AuthenticatedUser user,
+            RedirectAttributes redirectAttributes) {
+
+        try {
+            int count = shiftCoverInvitationService.decline(id, reason, note, user);
+            String message = "Bạn đã từ chối lời mời hỗ trợ ca.";
+            if (count > 0 && count <= ReliabilityService.FREE_URGENT_DECLINES_PER_MONTH) {
+                message += " Lần " + count + "/" + ReliabilityService.FREE_URGENT_DECLINES_PER_MONTH
+                        + " được miễn trừ điểm trong tháng.";
+            } else if (count > ReliabilityService.FREE_URGENT_DECLINES_PER_MONTH) {
+                message += " Đây là lần thứ " + count + " trong tháng nên bị trừ "
+                        + Math.abs(ReliabilityService.URGENT_DECLINE_PENALTY) + " điểm chuyên cần.";
+            }
+            redirectAttributes.addFlashAttribute("successMessage", message);
+        } catch (BusinessException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
         }
         return staffScheduleRedirect(origin, currentWeek);
     }

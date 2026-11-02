@@ -14,6 +14,7 @@ import com.example.coffee_hrm.entity.ReliabilityScoreLog;
 import com.example.coffee_hrm.entity.Shift;
 import com.example.coffee_hrm.entity.ShiftAssignment;
 import com.example.coffee_hrm.entity.ShiftChangeRequest;
+import com.example.coffee_hrm.entity.ShiftCoverInvitation;
 import com.example.coffee_hrm.entity.Store;
 import com.example.coffee_hrm.repository.EmployeeRepository;
 import com.example.coffee_hrm.repository.ReliabilityScoreLogRepository;
@@ -47,6 +48,7 @@ public class ReliabilityServiceImpl implements ReliabilityService {
     private static final String REF_SHIFT_ASSIGNMENT = "SHIFT_ASSIGNMENT";
     private static final String REF_MANAGER_ADJUST = "MANAGER_ADJUST";
     private static final String REF_ATTENDANCE = "ATTENDANCE";
+    private static final String REF_COVER_INVITATION = "COVER_INVITATION";
     /** Số tháng hiển thị trong mục "Lịch sử các tháng". */
     private static final int HISTORY_MONTHS = 6;
 
@@ -96,49 +98,100 @@ public class ReliabilityServiceImpl implements ReliabilityService {
 
     @Override
     @Transactional
-    public void recordEmergencyDeclineIfApplicable(Employee targetEmployee, ShiftChangeRequest request) {
-        if (targetEmployee == null || request == null || request.getAssignment() == null
-                || request.getAssignment().getShift() == null) {
-            return;
+    public int recordInvitationDecline(ShiftCoverInvitation invitation, boolean expired) {
+        if (invitation == null || invitation.getEmployee() == null || invitation.getId() == null) {
+            return 0;
         }
-        ShiftAssignment assignment = request.getAssignment();
-        LocalDateTime now = VietnamTime.now();
-        if (!isWithin24Hours(assignment.getWorkDate(), assignment.getShift().getStartTime(), now)) {
-            return;
+        Employee employee = invitation.getEmployee();
+        int prior = countUrgentDeclinesThisMonth(employee.getId());
+        if (!invitation.isUrgent()) {
+            return prior;
         }
-        YearMonth currentMonth = YearMonth.from(now);
-        LocalDateTime monthStart = currentMonth.atDay(1).atStartOfDay();
-        LocalDateTime monthEnd = currentMonth.plusMonths(1).atDay(1).atStartOfDay();
-
-        long priorDeclines = reliabilityScoreLogRepository.countByEmployee_IdAndActionTypeInAndCreatedAtBetween(
-                targetEmployee.getId(),
-                List.of(
-                        ReliabilityActionType.EMERGENCY_DECLINE_WARNING.getDbValue(),
-                        ReliabilityActionType.EMERGENCY_DECLINE_PENALTY.getDbValue()),
-                monthStart,
-                monthEnd);
-
-        String shiftLabel = assignment.getShift().getShiftName() + " ngày " + assignment.getWorkDate().format(DATE_FORMATTER);
-        if (priorDeclines >= 1) {
-            String reason = "Từ chối ca khẩn cấp (<24h) lần thứ " + (priorDeclines + 1) + " trong tháng: " + shiftLabel;
-            applyScoreDelta(
-                    targetEmployee,
-                    ReliabilityActionType.EMERGENCY_DECLINE_PENALTY,
-                    EXCESSIVE_EMERGENCY_DECLINE_PENALTY,
-                    reason,
-                    REF_SHIFT_CHANGE,
-                    request.getId(),
-                    now);
+        if (reliabilityScoreLogRepository.existsByEmployee_IdAndActionTypeAndReferenceTypeAndReferenceId(
+                employee.getId(), ReliabilityActionType.EMERGENCY_DECLINE_WARNING.getDbValue(), REF_COVER_INVITATION, invitation.getId())
+                || reliabilityScoreLogRepository.existsByEmployee_IdAndActionTypeAndReferenceTypeAndReferenceId(
+                employee.getId(), ReliabilityActionType.EMERGENCY_DECLINE_PENALTY.getDbValue(), REF_COVER_INVITATION, invitation.getId())) {
+            return prior;
+        }
+        int nth = prior + 1;
+        String verb = expired ? "Không phản hồi (hết hạn)" : "Từ chối";
+        String shiftLabel = invitationShiftLabel(invitation);
+        if (nth <= FREE_URGENT_DECLINES_PER_MONTH) {
+            applyScoreDelta(employee, ReliabilityActionType.EMERGENCY_DECLINE_WARNING, 0,
+                    verb + " lời mời hỗ trợ ca gấp " + shiftLabel + " — lần " + nth + "/" + FREE_URGENT_DECLINES_PER_MONTH
+                            + " miễn trừ trong tháng",
+                    REF_COVER_INVITATION, invitation.getId(), VietnamTime.now());
         } else {
-            String reason = "Nhắc nhở lần 1 từ chối ca khẩn cấp (<24h): " + shiftLabel + " (Từ lần 2 trong tháng trừ 5đ)";
-            applyScoreDelta(
-                    targetEmployee,
-                    ReliabilityActionType.EMERGENCY_DECLINE_WARNING,
-                    0,
-                    reason,
-                    REF_SHIFT_CHANGE,
-                    request.getId(),
-                    now);
+            applyScoreDelta(employee, ReliabilityActionType.EMERGENCY_DECLINE_PENALTY, URGENT_DECLINE_PENALTY,
+                    verb + " lời mời hỗ trợ ca gấp " + shiftLabel + " — lần thứ " + nth + " trong tháng",
+                    REF_COVER_INVITATION, invitation.getId(), VietnamTime.now());
+        }
+        return nth;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public int countUrgentDeclinesThisMonth(Integer employeeId) {
+        if (employeeId == null) {
+            return 0;
+        }
+        YearMonth month = YearMonth.from(VietnamTime.now());
+        return (int) reliabilityScoreLogRepository.countByEmployee_IdAndActionTypeInAndCreatedAtBetween(
+                employeeId,
+                List.of(ReliabilityActionType.EMERGENCY_DECLINE_WARNING.getDbValue(),
+                        ReliabilityActionType.EMERGENCY_DECLINE_PENALTY.getDbValue()),
+                month.atDay(1).atStartOfDay(),
+                month.plusMonths(1).atDay(1).atStartOfDay());
+    }
+
+    private String invitationShiftLabel(ShiftCoverInvitation invitation) {
+        ShiftChangeRequest request = invitation.getRequest();
+        if (request == null || request.getAssignment() == null || request.getAssignment().getShift() == null) {
+            return "";
+        }
+        ShiftAssignment a = request.getAssignment();
+        return "(" + a.getShift().getShiftName() + " ngày " + a.getWorkDate().format(DATE_FORMATTER) + ")";
+    }
+
+    @Override
+    @Transactional
+    public void revokeRescueOnAbsence(Attendance absent) {
+        if (absent == null || absent.getEmployee() == null || absent.getShift() == null || absent.getWorkDate() == null) {
+            return;
+        }
+        Employee employee = absent.getEmployee();
+        List<ShiftAssignment> sameDay = shiftAssignmentRepository.findByEmployee_IdAndWorkDateAndStatus(
+                employee.getId(), absent.getWorkDate(), AssignmentStatus.ASSIGNED);
+        if (sameDay == null) {
+            return;
+        }
+        for (ShiftAssignment assignment : sameDay) {
+            if (assignment.getShift() == null || !Objects.equals(assignment.getShift().getId(), absent.getShift().getId())) {
+                continue;
+            }
+            List<ShiftChangeRequest> changes = shiftChangeRequestRepository.findAllByAssignmentId(assignment.getId());
+            if (changes == null) {
+                continue;
+            }
+            for (ShiftChangeRequest change : changes) {
+                if (change.getStatus() != ApprovalStatus.APPROVED || change.getId() == null) {
+                    continue;
+                }
+                boolean rewarded = reliabilityScoreLogRepository.existsByEmployee_IdAndActionTypeAndReferenceTypeAndReferenceId(
+                        employee.getId(), ReliabilityActionType.RESCUE_SHIFT_24H.getDbValue(), REF_SHIFT_CHANGE, change.getId());
+                boolean alreadyRevoked = reliabilityScoreLogRepository.existsByEmployee_IdAndActionTypeAndReferenceTypeAndReferenceId(
+                        employee.getId(), ReliabilityActionType.RESCUE_REVOKED.getDbValue(), REF_SHIFT_CHANGE, change.getId());
+                if (!rewarded || alreadyRevoked) {
+                    continue;
+                }
+                String label = assignment.getShift().getShiftName() + " ngày " + absent.getWorkDate().format(DATE_FORMATTER);
+                applyScoreDelta(employee, ReliabilityActionType.RESCUE_REVOKED, -RESCUE_SHIFT_BONUS,
+                        "Thu hồi +5đ hỗ trợ ca gấp do vắng mặt: " + label,
+                        REF_SHIFT_CHANGE, change.getId(), VietnamTime.now());
+                applyScoreDelta(employee, ReliabilityActionType.ABANDONED_ACCEPTED_SHIFT, ABANDONED_ACCEPTED_SHIFT_PENALTY,
+                        "Đã nhận hỗ trợ ca gấp nhưng vắng mặt: " + label,
+                        REF_SHIFT_CHANGE, change.getId(), VietnamTime.now());
+            }
         }
     }
 
@@ -157,11 +210,9 @@ public class ReliabilityServiceImpl implements ReliabilityService {
         LocalTime startTime = assignment.getShift().getStartTime();
         LocalDateTime now = VietnamTime.now();
 
-        boolean rescuedWithin24h = isWithin24Hours(workDate, startTime, now)
-                || (approvedRequest.getTargetAgreedAt() != null
-                    && isWithin24Hours(workDate, startTime, approvedRequest.getTargetAgreedAt()))
-                || (approvedRequest.getRequestDate() != null
-                    && isWithin24Hours(workDate, startTime, approvedRequest.getRequestDate()));
+        // Tính "gấp" tại thời điểm nhân viên đồng ý nhận ca (chưa có thì lấy thời điểm duyệt).
+        LocalDateTime agreedAt = approvedRequest.getTargetAgreedAt() != null ? approvedRequest.getTargetAgreedAt() : now;
+        boolean rescuedWithin24h = isWithin24Hours(workDate, startTime, agreedAt);
 
         if (!rescuedWithin24h) {
             return;
