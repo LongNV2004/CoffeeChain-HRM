@@ -137,6 +137,12 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
 
     @Override
     public String registrationBlockedMessage(AuthenticatedUser staff) {
+        if (staff != null && staff.getEmployeeId() != null) {
+            Employee current = employeeRepository.findById(staff.getEmployeeId()).orElse(null);
+            if (current != null && current.getStatus() == EmployeeStatus.TERMINATED) {
+                return com.example.coffee_hrm.security.StaffEmploymentGuard.DENIED_MESSAGE;
+            }
+        }
         Employee employee = requireStaffEmployee(staff);
         if (!isCertified(employee)) {
             return NOT_CERTIFIED_MESSAGE;

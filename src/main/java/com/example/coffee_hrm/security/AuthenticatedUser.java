@@ -52,7 +52,7 @@ public class AuthenticatedUser implements UserDetails {
         String displayName = employee != null && employee.getFullName() != null
                 ? employee.getFullName()
                 : user.getUsername();
-        boolean staffResigned = employee != null
+        boolean staffEnded = employee != null
                 && employee.getStatus() == EmployeeStatus.TERMINATED
                 && user.getRole().getRoleName() == RoleName.STAFF;
         return new AuthenticatedUser(
@@ -64,7 +64,7 @@ public class AuthenticatedUser implements UserDetails {
                 displayName,
                 store != null ? store.getId() : null,
                 store != null ? store.getStoreName() : null,
-                Boolean.TRUE.equals(user.getIsActive()) && !staffResigned
+                staffEnded || Boolean.TRUE.equals(user.getIsActive())
         );
     }
 

@@ -1,6 +1,7 @@
 package com.example.coffee_hrm.service.impl;
 
 import com.example.coffee_hrm.common.enums.CertificateKind;
+import com.example.coffee_hrm.common.enums.ContractValidityStatus;
 import com.example.coffee_hrm.common.enums.CertificationStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.NotificationType;
@@ -30,6 +31,7 @@ import com.example.coffee_hrm.dto.response.TrainingEmployeeOption;
 import com.example.coffee_hrm.dto.response.TrainingSkillResponse;
 import com.example.coffee_hrm.dto.response.TrainingTrainerOption;
 import com.example.coffee_hrm.entity.Employee;
+import com.example.coffee_hrm.entity.EmploymentContract;
 import com.example.coffee_hrm.entity.Store;
 import com.example.coffee_hrm.entity.TrainingClass;
 import com.example.coffee_hrm.entity.TrainingClassEnrollment;
@@ -40,6 +42,7 @@ import com.example.coffee_hrm.repository.EmployeeOpenSkill;
 import com.example.coffee_hrm.repository.EmployeePassedSkill;
 import com.example.coffee_hrm.repository.EmployeeSkillTrainingFact;
 import com.example.coffee_hrm.repository.EmployeeRepository;
+import com.example.coffee_hrm.repository.EmploymentContractRepository;
 import com.example.coffee_hrm.repository.NotificationRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.repository.TrainingClassEnrollmentRepository;
@@ -91,6 +94,7 @@ public class TrainingServiceImpl implements TrainingService {
     private final NotificationService notificationService;
     private final TrainingSkillDocumentRepository trainingSkillDocumentRepository;
     private final SkillDocumentStore skillDocumentStore;
+    private final EmploymentContractRepository employmentContractRepository;
 
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final String TRAINING_CLASS_REF = "TRAINING_CLASS";
@@ -222,8 +226,8 @@ public class TrainingServiceImpl implements TrainingService {
         if (store == null) {
             return List.of();
         }
-        List<Employee> employees = excludeManagerAccounts(
-                employeeRepository.findByStore_IdAndStatus(store.getId(), EmployeeStatus.ACTIVE));
+        List<Employee> employees = withoutEndedContracts(excludeManagerAccounts(
+                employeeRepository.findByStore_IdAndStatus(store.getId(), EmployeeStatus.ACTIVE)));
         Map<Integer, Set<Integer>> passedSkills = passedSkillIdsByEmployee(employees);
         Map<Integer, List<EmployeeOpenSkill>> openSkills = openSkillsByEmployee(employees, null);
         Map<Integer, Map<Integer, SkillSnapshot>> snapshots = skillSnapshotsByEmployee(employees);
@@ -262,10 +266,10 @@ public class TrainingServiceImpl implements TrainingService {
     @Override
     public List<TrainingEmployeeOption> listActiveEmployees(AuthenticatedUser admin) {
         requireAdmin(admin, "Chỉ Admin mới được tạo lớp đào tạo.");
-        List<Employee> employees = excludeManagerAccounts(
+        List<Employee> employees = withoutEndedContracts(excludeManagerAccounts(
                 employeeRepository.findByStatusWithStore(EmployeeStatus.ACTIVE)).stream()
                 .filter(employee -> employee.getStore() != null && employee.getStore().getId() != null)
-                .toList();
+                .toList());
         Map<Integer, Set<Integer>> passedSkills = passedSkillIdsByEmployee(employees);
         Map<Integer, List<EmployeeOpenSkill>> openSkills = openSkillsByEmployee(employees, null);
         Map<Integer, Map<Integer, SkillSnapshot>> snapshots = skillSnapshotsByEmployee(employees);
@@ -281,11 +285,15 @@ public class TrainingServiceImpl implements TrainingService {
         Set<Integer> managers = managerEmployeeIds();
         Set<Integer> admins = new HashSet<>(userRepository.findEmployeeIdsByRoleName(RoleName.ADMIN));
         Set<Integer> staff = new HashSet<>(userRepository.findEmployeeIdsByRoleName(RoleName.STAFF));
+        Set<Integer> endedContracts = employeeIdsWithEndedContract(employees);
         List<Employee> candidates = employees.stream()
                 .filter(employee -> admins.contains(employee.getId())
                         || (employee.getStore() != null
                         && employee.getStore().getId() != null
                         && (managers.contains(employee.getId()) || staff.contains(employee.getId()))))
+                .filter(employee -> employee.getId() == null
+                        || !staff.contains(employee.getId())
+                        || !endedContracts.contains(employee.getId()))
                 .toList();
         Map<Integer, Set<Integer>> passedSkills = passedSkillIdsByEmployee(candidates);
         Map<Integer, List<EmployeeOpenSkill>> openSkills = openSkillsByEmployee(candidates, null);
@@ -1471,6 +1479,10 @@ public class TrainingServiceImpl implements TrainingService {
             if (employee.getStatus() != EmployeeStatus.ACTIVE) {
                 throw new BusinessException("Chỉ được thêm nhân viên đang làm việc tại cửa hàng.");
             }
+            if (employeeIdsWithEndedContract(List.of(employee)).contains(employee.getId())) {
+                throw new BusinessException("Nhân viên " + employee.getFullName()
+                        + " đã hết hạn hợp đồng, không thể thêm vào lớp đào tạo.");
+            }
             if (trainingClass.getId() != null
                     && trainingClassEnrollmentRepository.existsByTrainingClass_IdAndEmployee_Id(
                     trainingClass.getId(), employeeId)) {
@@ -1504,14 +1516,64 @@ public class TrainingServiceImpl implements TrainingService {
             if (storeIds.isEmpty()) {
                 return List.of();
             }
-            return excludeManagerAccounts(
-                    employeeRepository.findByStoreIdsAndStatus(storeIds, EmployeeStatus.ACTIVE));
+            return withoutEndedContracts(excludeManagerAccounts(
+                    employeeRepository.findByStoreIdsAndStatus(storeIds, EmployeeStatus.ACTIVE)));
         }
         if (trainingClass.getStore() == null) {
             return List.of();
         }
-        return excludeManagerAccounts(employeeRepository.findByStore_IdAndStatus(
-                trainingClass.getStore().getId(), EmployeeStatus.ACTIVE));
+        return withoutEndedContracts(excludeManagerAccounts(employeeRepository.findByStore_IdAndStatus(
+                trainingClass.getStore().getId(), EmployeeStatus.ACTIVE)));
+    }
+
+    private List<Employee> withoutEndedContracts(List<Employee> employees) {
+        if (employees == null || employees.isEmpty()) {
+            return List.of();
+        }
+        Set<Integer> ended = employeeIdsWithEndedContract(employees);
+        if (ended.isEmpty()) {
+            return employees;
+        }
+        return employees.stream()
+                .filter(employee -> employee.getId() == null || !ended.contains(employee.getId()))
+                .toList();
+    }
+
+    private Set<Integer> employeeIdsWithEndedContract(Collection<Employee> employees) {
+        List<Integer> ids = employees == null
+                ? List.of()
+                : employees.stream().map(Employee::getId).filter(Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) {
+            return Set.of();
+        }
+        List<EmploymentContract> contracts = employmentContractRepository.findByEmployeeIds(ids);
+        if (contracts == null || contracts.isEmpty()) {
+            return Set.of();
+        }
+        LocalDate today = VietnamTime.today();
+        Map<Integer, List<EmploymentContract>> byEmployee = new HashMap<>();
+        for (EmploymentContract contract : contracts) {
+            if (contract.getEmployee() == null || contract.getEmployee().getId() == null) {
+                continue;
+            }
+            byEmployee.computeIfAbsent(contract.getEmployee().getId(), ignored -> new ArrayList<>()).add(contract);
+        }
+        Set<Integer> ended = new HashSet<>();
+        for (Map.Entry<Integer, List<EmploymentContract>> entry : byEmployee.entrySet()) {
+            if (entry.getValue().stream().allMatch(contract -> contractHasEnded(contract, today))) {
+                ended.add(entry.getKey());
+            }
+        }
+        return ended;
+    }
+
+    private boolean contractHasEnded(EmploymentContract contract, LocalDate today) {
+        if (contract.getStartDate() == null) {
+            return false;
+        }
+        ContractValidityStatus status = ContractValidityRules.resolve(
+                contract.getStartDate(), contract.getEndDate(), contract.getTerminatedDate(), today, null);
+        return status == ContractValidityStatus.DA_HET_HAN || status == ContractValidityStatus.DA_CHAM_DUT;
     }
 
     private List<Employee> excludeManagerAccounts(List<Employee> employees) {

@@ -200,7 +200,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
     @Override
     @Transactional
     public LeaveRequestResponse cancel(Integer id, AuthenticatedUser user) {
-        Employee employee = requireEmployee(user, true);
+        Employee employee = requireEmployeeForCancel(user);
         LeaveRequest request = leaveRequestRepository.lockById(id)
                 .orElseThrow(() -> new BusinessException("Không tìm thấy đơn nghỉ phép."));
         if (request.getEmployee() == null || !Objects.equals(request.getEmployee().getId(), employee.getId())) {
@@ -561,7 +561,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         }
         Employee employee = employeeRepository.findByIdWithStoreAndManager(user.getEmployeeId())
                 .orElseThrow(() -> new BusinessException("Không tìm thấy nhân viên."));
-        assertEmployment(user, employee);
+        assertEmployment(user, employee, false);
         return employee;
     }
 
@@ -573,16 +573,32 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 ? employeeRepository.lockByIdForLeaveRequest(user.getEmployeeId())
                 : employeeRepository.findByIdWithStoreAndManager(user.getEmployeeId()))
                 .orElseThrow(() -> new BusinessException("Không tìm thấy nhân viên."));
-        assertEmployment(user, employee);
+        assertEmployment(user, employee, true);
         return employee;
     }
 
-    private void assertEmployment(AuthenticatedUser user, Employee employee) {
+    private Employee requireEmployeeForCancel(AuthenticatedUser user) {
+        if (user == null || user.getEmployeeId() == null) {
+            throw new BusinessException("Tài khoản chưa được gắn với nhân viên/cửa hàng.");
+        }
+        Employee employee = employeeRepository.lockByIdForLeaveRequest(user.getEmployeeId())
+                .orElseThrow(() -> new BusinessException("Không tìm thấy nhân viên."));
+        if (employee.getStatus() == EmployeeStatus.TERMINATED) {
+            return employee;
+        }
+        assertEmployment(user, employee, true);
+        return employee;
+    }
+
+    private void assertEmployment(AuthenticatedUser user, Employee employee, boolean writing) {
+        if (employee.getStatus() == EmployeeStatus.TERMINATED) {
+            if (writing) {
+                throw new BusinessException("Nhân viên đã nghỉ việc, không thể gửi đơn nghỉ phép.");
+            }
+            return;
+        }
         if (!user.isActive()) {
             throw new BusinessException("Tài khoản đã bị khóa, không thể thao tác đơn nghỉ phép.");
-        }
-        if (employee.getStatus() == EmployeeStatus.TERMINATED) {
-            throw new BusinessException("Nhân viên đã nghỉ việc, không thể gửi hoặc hủy đơn.");
         }
         if (employee.getStore() == null
                 || !Objects.equals(employee.getStore().getId(), user.getStoreId())

@@ -438,7 +438,7 @@ function syncEmployeeEligibility() {
       empty.hidden = false;
       empty.textContent = kind === 'MANAGEMENT'
         ? 'Không có Admin hoặc Manager phù hợp.'
-        : 'Không có Staff thuộc các cửa hàng đã chọn.';
+        : 'Không có Staff còn hợp đồng';
     } else {
       empty.hidden = true;
     }

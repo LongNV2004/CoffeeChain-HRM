@@ -322,8 +322,8 @@
                 <div class="coffee-group-children">
                     <a th:href="@{/schedule/staff}" th:classappend="${active == 'schedule'} ? ' is-active'">Lịch làm việc</a>
                     <a th:href="@{/schedule/staff/shift-change}" th:classappend="${active == 'shift-change'} ? ' is-active'">Đổi ca</a>
-                    <a th:href="@{/availability}" th:classappend="${active == 'availability'} ? ' is-active'">Đăng kí lịch làm việc</a>
-                    <a th:href="@{/schedule/staff/overtime}" th:classappend="${active == 'overtime'} ? ' is-active'">Đăng kí tăng ca</a>
+                    <a th:unless="${staffEmploymentEnded}" th:href="@{/availability}" th:classappend="${active == 'availability'} ? ' is-active'">Đăng kí lịch làm việc</a>
+                    <a th:unless="${staffEmploymentEnded}" th:href="@{/schedule/staff/overtime}" th:classappend="${active == 'overtime'} ? ' is-active'">Đăng kí tăng ca</a>
                 </div>
             </div>
             <div class="coffee-menu-group"
@@ -336,7 +336,7 @@
                     <svg class="coffee-icon coffee-chevron coffee-side-label"><use href="#coffee-i-chevron"/></svg>
                 </button>
                 <div class="coffee-group-children">
-                    <a th:href="@{/attendance/staff/choose}"
+                    <a th:unless="${staffEmploymentEnded}" th:href="@{/attendance/staff/choose}"
                        th:classappend="${active == 'attendance'} ? ' is-active'">Chấm công</a>
                     <a th:href="@{/attendance/staff/history}"
                        th:classappend="${active == 'attendance-track'} ? ' is-active'">Theo dõi chấm công</a>
@@ -351,9 +351,6 @@
                th:classappend="${active == 'training'} ? ' is-active'" title="Đào tạo">
                 <svg class="coffee-icon"><use href="#coffee-i-training"/></svg>
                 <span class="coffee-side-label">Đào tạo</span>
-                <span class="coffee-menu-count coffee-side-label"
-                      th:if="${activeTrainingCount != null and activeTrainingCount > 0}"
-                      th:text="${activeTrainingCount > 99} ? '99+' : ${activeTrainingCount}">1</span>
             </a>
             <a class="coffee-menu-item" th:href="@{/staff/leave}"
                th:classappend="${active == 'leave'} ? ' is-active'" title="Đơn nghỉ phép">

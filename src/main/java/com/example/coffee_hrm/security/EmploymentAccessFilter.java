@@ -47,14 +47,21 @@ public class EmploymentAccessFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
             return;
         }
+        if (block == StaffEmploymentGuard.Block.EMPLOYMENT_ENDED) {
+            if (StaffEmploymentGuard.allowsWhenEmploymentEnded(pathOf(request), request.getMethod())) {
+                filterChain.doFilter(request, response);
+                return;
+            }
+            denyFormerStaff(request, response);
+            return;
+        }
 
         endSession(request, response, authentication);
         if (isPublic(pathOf(request))) {
             filterChain.doFilter(request, response);
             return;
         }
-        String code = block == StaffEmploymentGuard.Block.EMPLOYMENT_ENDED ? "terminated" : "inactive";
-        response.sendRedirect(request.getContextPath() + "/login?loginError=true&errorCode=" + code);
+        response.sendRedirect(request.getContextPath() + "/login?loginError=true&errorCode=inactive");
     }
 
     private void endSession(HttpServletRequest request, HttpServletResponse response, Authentication authentication) {
@@ -75,6 +82,20 @@ public class EmploymentAccessFilter extends OncePerRequestFilter {
                 ? "/"
                 : request.getContextPath());
         response.addCookie(cookie);
+    }
+
+    private void denyFormerStaff(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        String accept = request.getHeader("Accept");
+        boolean json = (accept != null && accept.contains("application/json"))
+                || "XMLHttpRequest".equals(request.getHeader("X-Requested-With"));
+        if (json) {
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            response.setCharacterEncoding("UTF-8");
+            response.setContentType("application/json");
+            response.getWriter().write("{\"message\":\"" + StaffEmploymentGuard.DENIED_MESSAGE + "\"}");
+            return;
+        }
+        response.sendRedirect(request.getContextPath() + "/dashboard/staff?limited=1");
     }
 
     private boolean isPublic(String path) {

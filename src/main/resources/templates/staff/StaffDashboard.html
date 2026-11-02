@@ -13,6 +13,8 @@
 <header th:replace="~{fragments/navbar :: staff('dashboard')}"></header>
 
 <main class="wrap dash-main staff-home">
+    <p class="stf-unassigned" th:if="${param.limited != null or staffEmploymentEnded}">Tài khoản đã nghỉ việc chỉ được xem thông tin và lịch sử.</p>
+
     <header class="stf-page-head">
         <div>
             <h1>Tổng quan cá nhân</h1>
@@ -42,7 +44,7 @@
             <strong class="stf-kpi-value" th:text="${dashboard.upcomingSlotCount}">0</strong>
             <span class="stf-kpi-hint" th:text="${dashboard.upcomingWindowLabel}">7 ngày tiếp theo</span>
         </a>
-        <a class="stf-kpi" th:href="@{/availability}">
+        <a class="stf-kpi" th:href="${staffEmploymentEnded} ? @{/schedule/staff} : @{/availability}">
             <span class="stf-kpi-icon stf-icon-pending" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4.5l3 2"/></svg>
             </span>
@@ -81,7 +83,7 @@
         </div>
         <div class="stf-empty" th:if="${#lists.isEmpty(dashboard.upcomingShifts)}">
             <p>Bạn chưa có lịch làm việc sắp tới.</p>
-            <a th:if="${dashboard.canRegister}" th:href="@{/availability}">Đăng ký ca làm</a>
+            <a th:if="${dashboard.canRegister and !staffEmploymentEnded}" th:href="@{/availability}">Đăng ký ca làm</a>
         </div>
         <div class="stf-shifts" th:if="${!#lists.isEmpty(dashboard.upcomingShifts)}">
             <article class="stf-shift" th:each="item : ${dashboard.upcomingShifts}">
@@ -148,7 +150,7 @@
             </div>
             <p class="stf-note" th:if="${!dashboard.canRegister}" th:text="${dashboard.registerBlockedMessage}">Bạn chưa đủ điều kiện đăng ký ca.</p>
             <div class="stf-actions">
-                <a class="stf-btn" th:if="${dashboard.canRegister}" th:href="@{/availability}">Đăng ký ca làm</a>
+                <a class="stf-btn" th:if="${dashboard.canRegister and !staffEmploymentEnded}" th:href="@{/availability}">Đăng ký ca làm</a>
                 <a class="stf-card-link" th:unless="${dashboard.canRegister}" th:href="@{/training/staff}">Xem đào tạo</a>
             </div>
         </section>

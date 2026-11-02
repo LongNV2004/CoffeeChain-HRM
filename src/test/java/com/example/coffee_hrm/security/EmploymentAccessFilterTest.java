@@ -42,18 +42,39 @@ class EmploymentAccessFilterTest {
     }
 
     @Test
-    void activeSessionOfATerminatedStaffIsEnded() throws Exception {
+    void terminatedStaffCanReadTheDashboardButNotRegisterAShift() throws Exception {
         User staff = account(RoleName.STAFF, EmployeeStatus.TERMINATED, false);
         when(userRepository.findByIdWithRole(11)).thenReturn(Optional.of(staff));
         authenticate(staff);
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/dashboard/staff");
-        request.setSession(new MockHttpSession());
+        MockHttpServletRequest dashboard = new MockHttpServletRequest("GET", "/dashboard/staff");
+        MockHttpServletResponse dashboardResponse = new MockHttpServletResponse();
+
+        new EmploymentAccessFilter(provider()).doFilter(dashboard, dashboardResponse, chain);
+
+        assertNull(dashboardResponse.getRedirectedUrl());
+        verify(chain).doFilter(dashboard, dashboardResponse);
+
+        authenticate(staff);
+        MockHttpServletRequest register = new MockHttpServletRequest("GET", "/availability");
+        MockHttpServletResponse registerResponse = new MockHttpServletResponse();
+        new EmploymentAccessFilter(provider()).doFilter(register, registerResponse, chain);
+
+        assertEquals("/dashboard/staff?limited=1", registerResponse.getRedirectedUrl());
+        verify(chain, never()).doFilter(register, registerResponse);
+    }
+
+    @Test
+    void terminatedStaffCheckInIsRejected() throws Exception {
+        User staff = account(RoleName.STAFF, EmployeeStatus.TERMINATED, true);
+        when(userRepository.findByIdWithRole(11)).thenReturn(Optional.of(staff));
+        authenticate(staff);
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/attendance/staff/check-in");
+        request.addHeader("Accept", "application/json");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         new EmploymentAccessFilter(provider()).doFilter(request, response, chain);
 
-        assertEquals("/login?loginError=true&errorCode=terminated", response.getRedirectedUrl());
-        assertNull(SecurityContextHolder.getContext().getAuthentication());
+        assertEquals(403, response.getStatus());
         verify(chain, never()).doFilter(request, response);
     }
 

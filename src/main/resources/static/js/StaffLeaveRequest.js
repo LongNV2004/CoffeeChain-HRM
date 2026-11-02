@@ -189,6 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loadSlots(monday, addDays(monday, 6));
     }
 
+    if (form && type) {
     type.addEventListener('change', validatePreview);
     document.getElementById('leaveThisWeek').addEventListener('click', () => showWeek(0));
     document.getElementById('leaveNextWeek').addEventListener('click', () => showWeek(1));
@@ -217,6 +218,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         submit.disabled = true;
     });
+    }
     function cell(text) {
         const node = document.createElement('td');
         node.textContent = text == null || text === '' ? '—' : String(text);

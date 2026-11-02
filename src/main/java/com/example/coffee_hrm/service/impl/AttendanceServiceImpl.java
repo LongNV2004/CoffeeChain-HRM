@@ -2,6 +2,7 @@ package com.example.coffee_hrm.service.impl;
 
 import com.example.coffee_hrm.common.enums.AssignmentStatus;
 import com.example.coffee_hrm.common.enums.AttendanceStatus;
+import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.geo.GeoDistance;
@@ -173,6 +174,7 @@ public class AttendanceServiceImpl implements AttendanceService {
 
     void checkIn(AuthenticatedUser user, AttendanceLocation location, LocalDateTime rawNow,
                  byte[] photo, Integer assignmentId) {
+        rejectIfEmploymentEnded(user);
         Employee employee = resolveCheckEmployee(user);
         LocalDateTime now = exactTime(rawNow);
         if (user.getRoleName() == RoleName.MANAGER) {
@@ -215,6 +217,7 @@ public class AttendanceServiceImpl implements AttendanceService {
 
     void checkOut(AuthenticatedUser user, AttendanceLocation location, LocalDateTime rawNow,
                   byte[] photo, Integer assignmentId) {
+        rejectIfEmploymentEnded(user);
         Employee employee = resolveCheckEmployee(user);
         LocalDateTime now = exactTime(rawNow);
         if (user.getRoleName() == RoleName.MANAGER) {
@@ -1003,6 +1006,16 @@ public class AttendanceServiceImpl implements AttendanceService {
         }
         return employeeRepository.findByIdWithStore(user.getEmployeeId())
                 .orElseThrow(() -> new BusinessException("Không tìm thấy thông tin hồ sơ nhân viên."));
+    }
+
+    private void rejectIfEmploymentEnded(AuthenticatedUser user) {
+        if (user == null || user.getRoleName() != RoleName.STAFF || user.getEmployeeId() == null) {
+            return;
+        }
+        Employee employee = employeeRepository.findById(user.getEmployeeId()).orElse(null);
+        if (employee != null && employee.getStatus() == EmployeeStatus.TERMINATED) {
+            throw new BusinessException(com.example.coffee_hrm.security.StaffEmploymentGuard.DENIED_MESSAGE);
+        }
     }
 
     private Store resolveManagedStore(AuthenticatedUser user) {

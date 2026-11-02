@@ -149,6 +149,7 @@ public class ScheduleServiceImpl implements ScheduleService {
     @Transactional
     public void requestShiftChange(CreateShiftChangeRequestDto request, AuthenticatedUser user) {
         Employee currentEmployee = resolveStaffEmployee(user);
+        rejectIfEmploymentEnded(currentEmployee);
         ShiftAssignment assignment = shiftAssignmentRepository.findByIdWithDetails(request.getAssignmentId()) .orElseThrow(() -> new BusinessException("Không tìm thấy ca làm việc."));
         if (!Objects.equals(assignment.getEmployee().getId(), currentEmployee.getId())) {
             throw new BusinessException("Bạn chỉ có thể gửi yêu cầu đổi cho ca làm việc của chính mình.");
@@ -224,6 +225,7 @@ public class ScheduleServiceImpl implements ScheduleService {
     @Transactional
     public void respondToIncomingShiftChange(Integer requestId, boolean agreed, AuthenticatedUser user) {
         Employee currentEmployee = resolveStaffEmployee(user);
+        rejectIfEmploymentEnded(currentEmployee);
         ShiftChangeRequest changeRequest = shiftChangeRequestRepository.findByIdWithDetails(requestId) .orElseThrow(() -> new BusinessException("Không tìm thấy yêu cầu đổi ca."));
         if (changeRequest.getTargetEmployee() == null || !Objects.equals(changeRequest.getTargetEmployee().getId(), currentEmployee.getId())) {
             throw new BusinessException("Bạn không phải là người nhận trong yêu cầu đổi ca này.");
@@ -249,6 +251,7 @@ public class ScheduleServiceImpl implements ScheduleService {
     @Transactional
     public void volunteerRescueShift(Integer requestId, AuthenticatedUser user) {
         Employee currentEmployee = resolveStaffEmployee(user);
+        rejectIfEmploymentEnded(currentEmployee);
         requireCertifiedForSharedSchedule(currentEmployee);
         ShiftChangeRequest changeRequest = shiftChangeRequestRepository.findByIdWithDetails(requestId)
                 .orElseThrow(() -> new BusinessException("Không tìm thấy yêu cầu đổi ca cần hỗ trợ gấp."));
@@ -663,6 +666,12 @@ public class ScheduleServiceImpl implements ScheduleService {
             throw new BusinessException("Tài khoản quản lý chưa được gắn hồ sơ nhân viên.");
         }
         return storeRepository.findByManager_Id(user.getEmployeeId()) .orElseThrow(() -> new BusinessException("Bạn chưa được phân công quản lý cửa hàng nào."));
+    }
+
+    private void rejectIfEmploymentEnded(Employee employee) {
+        if (employee != null && employee.getStatus() == EmployeeStatus.TERMINATED) {
+            throw new BusinessException(com.example.coffee_hrm.security.StaffEmploymentGuard.DENIED_MESSAGE);
+        }
     }
 
     private Employee resolveStaffEmployee(AuthenticatedUser user) {

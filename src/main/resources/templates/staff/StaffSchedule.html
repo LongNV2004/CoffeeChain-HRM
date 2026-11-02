@@ -106,7 +106,7 @@
                     </div>
                 </div>
 
-                <div class="incoming-card-actions">
+                <div class="incoming-card-actions" th:unless="${staffEmploymentEnded}">
                     <form th:action="@{/schedule/staff/requests/{id}/rescue(id=${rescue.requestId})}" method="post" style="display:inline;">
                         <input type="hidden" name="origin" value="shift-change">
                         <input type="hidden" name="currentWeek" th:value="${schedule.weekStartDate}">
@@ -144,7 +144,7 @@
                             </div>
                             <div class="card-bottom">
                                 <button type="button" class="btn btn-swap"
-                                        th:if="${assign.canRequestChange}"
+                                        th:if="${assign.canRequestChange and !staffEmploymentEnded}"
                                         th:data-assignment-id="${assign.assignmentId}"
                                         th:data-shift-title="${row.shiftName + ' (' + #temporals.format(cell.date, 'dd/MM/yyyy') + ')'}"
                                         onclick="openChangeModal(this.getAttribute('data-assignment-id'), this.getAttribute('data-shift-title'))">
@@ -254,7 +254,7 @@
                     </div>
                 </div>
 
-                <div class="incoming-card-actions">
+                <div class="incoming-card-actions" th:unless="${staffEmploymentEnded}">
                     <form th:action="@{/schedule/staff/requests/{id}/respond(id=${inReq.requestId})}" method="post" style="display:inline;">
                         <input type="hidden" name="origin" value="shift-change" th:if="${shiftChangePage}">
                         <input type="hidden" name="agreed" value="true">

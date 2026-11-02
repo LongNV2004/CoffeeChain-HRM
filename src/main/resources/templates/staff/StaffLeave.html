@@ -40,7 +40,7 @@
         <p class="leave-note" th:text="${context.scheduleNote}">Nghỉ theo ngày.</p>
     </section>
 
-    <section class="panel leave-create" th:if="${context != null}">
+    <section class="panel leave-create" th:if="${context != null and !staffEmploymentEnded}">
         <div class="leave-split">
             <form class="leave-dialog-form" id="leaveCreateForm" method="post" th:action="@{/staff/leave}">
                 <h2>Tạo đơn</h2>

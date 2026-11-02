@@ -20,12 +20,14 @@ import com.example.coffee_hrm.dto.request.UpdateTrainingSkillRequest;
 import com.example.coffee_hrm.dto.response.EmployeeSkillStatusLine;
 import com.example.coffee_hrm.dto.response.TrainingClassStudentResponse;
 import com.example.coffee_hrm.entity.Employee;
+import com.example.coffee_hrm.entity.EmploymentContract;
 import com.example.coffee_hrm.entity.Store;
 import com.example.coffee_hrm.entity.TrainingClass;
 import com.example.coffee_hrm.entity.TrainingClassEnrollment;
 import com.example.coffee_hrm.entity.TrainingSkill;
 import com.example.coffee_hrm.entity.User;
 import com.example.coffee_hrm.repository.EmployeeRepository;
+import com.example.coffee_hrm.repository.EmploymentContractRepository;
 import com.example.coffee_hrm.repository.NotificationRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.repository.TrainingClassEnrollmentRepository;
@@ -93,6 +95,8 @@ class TrainingServiceImplTest {
     private TrainingSkillDocumentRepository trainingSkillDocumentRepository;
     @Mock
     private SkillDocumentStore skillDocumentStore;
+    @Mock
+    private EmploymentContractRepository employmentContractRepository;
 
     @InjectMocks
     private TrainingServiceImpl trainingService;
@@ -949,6 +953,49 @@ class TrainingServiceImplTest {
         assertEquals(List.of(2), trainers.stream().map(item -> item.getUserId()).toList());
         assertEquals(5, trainers.getFirst().getStoreId());
         assertEquals("Store A", trainers.getFirst().getStoreName());
+    }
+
+    @Test
+    void adminClassPickerHidesStaffWhoseContractHasEnded() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        Employee current = employee(30, "Đang làm", store, EmployeeStatus.ACTIVE);
+        Employee expired = employee(31, "Hết hợp đồng", store, EmployeeStatus.ACTIVE);
+        Employee renewed = employee(32, "Đã gia hạn", store, EmployeeStatus.ACTIVE);
+        Employee noContract = employee(33, "Chưa có hợp đồng", store, EmployeeStatus.ACTIVE);
+        LocalDate today = VietnamTime.today();
+        when(userRepository.findEmployeeIdsByRoleName(RoleName.MANAGER)).thenReturn(List.of());
+        when(userRepository.findEmployeeIdsByRoleName(RoleName.ADMIN)).thenReturn(List.of());
+        when(userRepository.findEmployeeIdsByRoleName(RoleName.STAFF)).thenReturn(List.of(30, 31, 32, 33));
+        when(employeeRepository.findByStatusWithStore(EmployeeStatus.ACTIVE))
+                .thenReturn(List.of(current, expired, renewed, noContract));
+        when(employmentContractRepository.findByEmployeeIds(any())).thenReturn(List.of(
+                contract(current, today.minusMonths(1), today.plusMonths(1)),
+                contract(expired, today.minusMonths(2), today.minusDays(1)),
+                contract(renewed, today.minusMonths(3), today.minusDays(2)),
+                contract(renewed, today, today.plusMonths(2))));
+
+        var employees = trainingService.listClassCandidates(admin);
+
+        assertEquals(List.of(30, 32, 33), employees.stream().map(item -> item.getEmployeeId()).toList());
+    }
+
+    @Test
+    void adminCannotEnrollStaffWhoseContractHasEnded() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        TrainingClass trainingClass = approvedClass(store, VietnamTime.today().plusDays(1));
+        Employee expired = employee(31, "Hết hợp đồng", store, EmployeeStatus.ACTIVE);
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
+        when(trainingClassRepository.findByIdWithDetails(10)).thenReturn(Optional.of(trainingClass));
+        when(trainingClassEnrollmentRepository.countByTrainingClass_Id(10)).thenReturn(0L);
+        when(employeeRepository.findByIdWithStore(31)).thenReturn(Optional.of(expired));
+        when(employmentContractRepository.findByEmployeeIds(any())).thenReturn(List.of(
+                contract(expired, VietnamTime.today().minusMonths(2), VietnamTime.today().minusDays(1))));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> trainingService.addStudentsToClass(
+                10, AddTrainingClassStudentsRequest.builder().employeeIds(List.of(31)).build(), manager));
+
+        assertEquals("Nhân viên Hết hợp đồng đã hết hạn hợp đồng, không thể thêm vào lớp đào tạo.", ex.getMessage());
+        verify(trainingClassEnrollmentRepository, never()).save(any());
     }
 
     @Test
@@ -2261,6 +2308,14 @@ class TrainingServiceImplTest {
                 .maxParticipants(20)
                 .skills(Set.of(TrainingSkill.builder().id(1).skillName("Espresso").build()))
                 .createdBy(user(2, RoleName.MANAGER, 20))
+                .build();
+    }
+
+    private EmploymentContract contract(Employee employee, LocalDate startDate, LocalDate endDate) {
+        return EmploymentContract.builder()
+                .employee(employee)
+                .startDate(startDate)
+                .endDate(endDate)
                 .build();
     }
 

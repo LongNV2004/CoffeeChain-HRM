@@ -2,7 +2,6 @@ package com.example.coffee_hrm.service.impl;
 
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
-import com.example.coffee_hrm.common.exception.EmploymentEndedException;
 import com.example.coffee_hrm.dto.request.LoginRequest;
 import com.example.coffee_hrm.entity.Employee;
 import com.example.coffee_hrm.entity.Role;
@@ -59,25 +58,21 @@ class AuthServiceImplTest {
     }
 
     @Test
-    void terminatedStaffCannotLoginWithTheCorrectPassword() {
+    void terminatedStaffCanLoginWithTheCorrectPassword() {
         User staff = account(RoleName.STAFF, EmployeeStatus.TERMINATED, true, "secret");
         when(userRepository.findByUsername("an@shop.vn")).thenReturn(Optional.of(staff));
+        when(userRepository.save(staff)).thenReturn(staff);
 
-        EmploymentEndedException ex = assertThrows(EmploymentEndedException.class,
-                () -> service.authenticate(login("an@shop.vn", "secret"), request(), response()));
-
-        assertEquals(EmploymentEndedException.MESSAGE, ex.getMessage());
+        assertEquals(11, service.authenticate(login("an@shop.vn", "secret"), request(), response()).getUserId());
     }
 
     @Test
-    void inactiveTerminatedStaffGetsTheEmploymentEndedMessage() {
+    void inactiveTerminatedStaffCanStillLogin() {
         User staff = account(RoleName.STAFF, EmployeeStatus.TERMINATED, false, "secret");
         when(userRepository.findByUsername("an@shop.vn")).thenReturn(Optional.of(staff));
+        when(userRepository.save(staff)).thenReturn(staff);
 
-        EmploymentEndedException ex = assertThrows(EmploymentEndedException.class,
-                () -> service.authenticate(login("an@shop.vn", "secret"), request(), response()));
-
-        assertEquals(EmploymentEndedException.MESSAGE, ex.getMessage());
+        assertEquals(RoleName.STAFF, service.authenticate(login("an@shop.vn", "secret"), request(), response()).getRoleName());
     }
 
     @Test
@@ -89,7 +84,6 @@ class AuthServiceImplTest {
                 () -> service.authenticate(login("an@shop.vn", "secret"), request(), response()));
 
         assertTrue(ex.getMessage().contains("vô hiệu hóa"));
-        assertTrue(!(ex instanceof EmploymentEndedException));
     }
 
     @Test
@@ -115,16 +109,14 @@ class AuthServiceImplTest {
     }
 
     @Test
-    void terminatedStaffFoundByEmailStillCannotLogin() {
+    void terminatedStaffFoundByEmailCanLogin() {
         User staff = account(RoleName.STAFF, EmployeeStatus.TERMINATED, false, "secret");
         staff.setUsername("an.nguyen");
         when(userRepository.findByUsername("an@shop.vn")).thenReturn(Optional.empty());
         when(userRepository.findByEmployeeEmail("an@shop.vn")).thenReturn(java.util.List.of(staff));
+        when(userRepository.save(staff)).thenReturn(staff);
 
-        EmploymentEndedException ex = assertThrows(EmploymentEndedException.class,
-                () -> service.authenticate(login("an@shop.vn", "secret"), request(), response()));
-
-        assertEquals(EmploymentEndedException.MESSAGE, ex.getMessage());
+        assertEquals(11, service.authenticate(login("an@shop.vn", "secret"), request(), response()).getUserId());
     }
 
     @Test

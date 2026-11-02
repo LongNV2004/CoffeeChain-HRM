@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -54,6 +55,14 @@ public interface EmploymentContractRepository extends JpaRepository<EmploymentCo
             ORDER BY c.startDate DESC, c.id DESC
             """)
     List<EmploymentContract> findByEmployeeId(@Param("employeeId") Integer employeeId);
+
+    @Query("""
+            SELECT c
+            FROM EmploymentContract c
+            JOIN FETCH c.employee e
+            WHERE e.id IN :employeeIds
+            """)
+    List<EmploymentContract> findByEmployeeIds(@Param("employeeIds") Collection<Integer> employeeIds);
 
     @Query("""
             SELECT c.contractCode

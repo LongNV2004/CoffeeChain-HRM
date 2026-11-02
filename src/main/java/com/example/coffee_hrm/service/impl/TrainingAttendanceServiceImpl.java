@@ -1,6 +1,7 @@
 package com.example.coffee_hrm.service.impl;
 
 import com.example.coffee_hrm.common.enums.AttendanceStatus;
+import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.enums.TrainingClassStatus;
 import com.example.coffee_hrm.common.enums.TrainingType;
@@ -161,6 +162,7 @@ public class TrainingAttendanceServiceImpl implements TrainingAttendanceService 
     }
 
     void checkIn(AuthenticatedUser user, Integer classId, AttendanceLocation location, LocalDateTime rawNow, byte[] photo) {
+        rejectIfEmploymentEnded(user);
         CheckInPlan plan = planCheckIn(user, classId, location, rawNow);
         TrainingAttendance attendance = TrainingAttendance.builder()
                 .employee(plan.employee())
@@ -190,6 +192,7 @@ public class TrainingAttendanceServiceImpl implements TrainingAttendanceService 
     }
 
     void checkOut(AuthenticatedUser user, Integer classId, AttendanceLocation location, LocalDateTime rawNow, byte[] photo) {
+        rejectIfEmploymentEnded(user);
         CheckOutPlan plan = planCheckOut(user, classId, location, rawNow);
         TrainingAttendance attendance = plan.attendance();
         LocalDateTime checkIn = attendance.getCheckInTime() == null ? plan.now() : attendance.getCheckInTime();
@@ -504,6 +507,16 @@ public class TrainingAttendanceServiceImpl implements TrainingAttendanceService 
         }
         return employeeRepository.findByIdWithStore(user.getEmployeeId())
                 .orElseThrow(() -> new BusinessException("Không tìm thấy thông tin hồ sơ nhân viên."));
+    }
+
+    private void rejectIfEmploymentEnded(AuthenticatedUser user) {
+        if (user == null || user.getRoleName() != RoleName.STAFF || user.getEmployeeId() == null) {
+            return;
+        }
+        Employee employee = employeeRepository.findById(user.getEmployeeId()).orElse(null);
+        if (employee != null && employee.getStatus() == EmployeeStatus.TERMINATED) {
+            throw new BusinessException(com.example.coffee_hrm.security.StaffEmploymentGuard.DENIED_MESSAGE);
+        }
     }
 
     private LocalDateTime scheduledEnd(TrainingAttendance attendance) {

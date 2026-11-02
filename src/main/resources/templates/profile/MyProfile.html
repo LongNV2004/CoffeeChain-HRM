@@ -55,7 +55,7 @@
                 <h2 id="personal-title">Thông tin cá nhân</h2>
                 <form id="profile-edit-form" th:action="@{/profile}" th:object="${profileForm}" method="post">
                     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                    <div class="profile-edit-bar">
+                    <div class="profile-edit-bar" th:unless="${staffEmploymentEnded}">
                         <button type="button" class="profile-edit-btn" data-profile-edit>Chỉnh sửa thông tin</button>
                         <div class="profile-edit-actions">
                             <button type="button" class="profile-cancel-btn" data-profile-cancel>Hủy</button>

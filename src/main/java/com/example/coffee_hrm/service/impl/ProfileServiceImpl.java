@@ -137,6 +137,9 @@ public class ProfileServiceImpl implements ProfileService {
         if (employee == null || employee.getId() == null) {
             throw new BusinessException(PROFILE_MISSING);
         }
+        if (employee.getStatus() == EmployeeStatus.TERMINATED) {
+            throw new BusinessException(com.example.coffee_hrm.security.StaffEmploymentGuard.DENIED_MESSAGE);
+        }
 
         String fullName = requireFullName(request == null ? null : request.getFullName());
         String phone = requirePhone(request == null ? null : request.getPhone());

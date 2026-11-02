@@ -1,6 +1,5 @@
 package com.example.coffee_hrm.service.impl;
 
-import com.example.coffee_hrm.common.exception.EmploymentEndedException;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.LoginRequest;
 import com.example.coffee_hrm.dto.response.LoginResponse;
@@ -43,9 +42,6 @@ public class AuthServiceImpl implements AuthService {
         User user = resolveAccount(request.getUsername());
 
         StaffEmploymentGuard.Block block = StaffEmploymentGuard.assess(user);
-        if (block == StaffEmploymentGuard.Block.EMPLOYMENT_ENDED) {
-            throw new EmploymentEndedException();
-        }
         if (block == StaffEmploymentGuard.Block.INACTIVE) {
             throw new DisabledException("Tài khoản đã bị vô hiệu hóa.");
         }
