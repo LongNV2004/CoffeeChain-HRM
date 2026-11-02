@@ -33,3 +33,4 @@ BEGIN
         ON dbo.ShiftCoverInvitations (Status, ExpiresAt);
 END
 GO
+

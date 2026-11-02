@@ -37,3 +37,4 @@ public interface ShiftCoverInvitationService {
     /** Chuyển các lời mời quá hạn sang Hết hạn (tính như từ chối). Trả về số lời mời đã xử lý. */
     int expireOverdue();
 }
+

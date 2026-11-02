@@ -25,6 +25,15 @@ public class ReliabilityLeaderboardView {
     /** Tóm tắt điểm chuyên cần các tháng gần nhất, mới nhất trước. */
     private List<MonthHistoryItem> monthlyHistory;
 
+    // Chốt danh hiệu Nhân viên xuất sắc tháng
+    private boolean monthClosed;
+    private boolean canCloseMonth;
+    private List<RankEntry> awardProposals;
+    private List<AwardItem> awards;
+    private int minShiftsForAward;
+    private int minScoreForAward;
+    private int manualAdjustCap;
+
     private int totalStaffCount;
     private String averageReliabilityScore;
     private int totalRescueShiftsMonth;
@@ -75,6 +84,20 @@ public class ReliabilityLeaderboardView {
         private int lateCancelsCount;
         private int emergencyDeclinesCount;
         private int punctualityViolationsCount;
+
+        // Điều kiện xét danh hiệu tháng
+        private int shiftsWorked;
+        private int absencesCount;
+        private int abandonedCount;
+        private boolean awardEligible;
+        private String ineligibleReason;
+        /** Hạng danh hiệu đã chốt (1–3), null nếu tháng chưa chốt hoặc không đạt. */
+        private Integer awardRank;
+        private String awardTitle;
+
+        // Điều chỉnh thủ công đã dùng trong tháng (hạn mức ±15)
+        private int manualBonusUsed;
+        private int manualPenaltyUsed;
 
         private String tierCode;
         private String tierLabel;
@@ -177,5 +200,22 @@ public class ReliabilityLeaderboardView {
         private Integer myScore;
         private Integer myRank;
         private int totalStaff;
+        /** Người đạt "Nhân viên xuất sắc tháng" đã được chốt (null nếu chưa chốt). */
+        private String awardWinnerName;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class AwardItem {
+        private int rank;
+        private String title;
+        private Integer employeeId;
+        private String employeeName;
+        private int monthScore;
+        private String overrideReason;
+        private String decidedAt;
     }
 }

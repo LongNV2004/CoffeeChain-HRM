@@ -67,3 +67,4 @@ public interface ShiftCoverInvitationRepository extends JpaRepository<ShiftCover
 
     boolean existsByRequest_IdAndEmployee_Id(Integer requestId, Integer employeeId);
 }
+

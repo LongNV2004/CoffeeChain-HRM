@@ -18,3 +18,4 @@ public enum InvitationStatus {
 
     private final String label;
 }
+

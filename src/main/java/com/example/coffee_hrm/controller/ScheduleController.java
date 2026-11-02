@@ -1,5 +1,6 @@
 package com.example.coffee_hrm.controller;
 
+import com.example.coffee_hrm.common.enums.ManualAdjustCategory;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.dto.request.AssignShiftRequest;
 import com.example.coffee_hrm.dto.request.CreateShiftChangeRequestDto;
@@ -173,6 +174,7 @@ public class ScheduleController {
         YearMonth month = parseYearMonth(monthParam);
         ReliabilityLeaderboardView leaderboard = reliabilityService.getLeaderboardForManager(user, month);
         model.addAttribute("leaderboard", leaderboard);
+        model.addAttribute("adjustCategories", ManualAdjustCategory.values());
         return "manager/ManagerLeaderboard";
     }
 
@@ -198,16 +200,35 @@ public class ScheduleController {
     @PreAuthorize("hasRole('MANAGER')")
     public String adjustReliabilityScore(
             @RequestParam(value = "employeeId", required = false) Integer employeeId,
-            @RequestParam(value = "pointsDelta", defaultValue = "0") int pointsDelta,
+            @RequestParam(value = "category", required = false) String category,
             @RequestParam(value = "reason", required = false) String reason,
             @RequestParam(value = "month", required = false) String monthParam,
             @AuthenticationPrincipal AuthenticatedUser user,
             RedirectAttributes redirectAttributes) {
 
         try {
-            reliabilityService.adjustScoreByManager(employeeId, pointsDelta, reason, user);
+            reliabilityService.adjustScoreByManager(employeeId, category, reason, user);
             redirectAttributes.addFlashAttribute("successMessage",
                     "Đã cập nhật điểm chuyên cần cho nhân viên thành công.");
+        } catch (BusinessException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
+        }
+        return "redirect:/schedule/manager/leaderboard" + buildMonthQuery(monthParam);
+    }
+
+    @PostMapping("/manager/reliability/close-month")
+    @PreAuthorize("hasRole('MANAGER')")
+    public String closeMonth(
+            @RequestParam(value = "month", required = false) String monthParam,
+            @RequestParam(value = "firstPlaceEmployeeId", required = false) Integer firstPlaceEmployeeId,
+            @RequestParam(value = "overrideReason", required = false) String overrideReason,
+            @AuthenticationPrincipal AuthenticatedUser user,
+            RedirectAttributes redirectAttributes) {
+
+        try {
+            reliabilityService.closeMonth(user, parseYearMonth(monthParam), firstPlaceEmployeeId, overrideReason);
+            redirectAttributes.addFlashAttribute("successMessage",
+                    "Đã chốt danh hiệu Nhân viên xuất sắc tháng và gửi thông báo đến nhân viên.");
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
         }

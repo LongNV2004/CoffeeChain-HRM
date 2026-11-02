@@ -60,6 +60,20 @@ public interface ReliabilityScoreLogRepository extends JpaRepository<Reliability
             @Param("start") LocalDateTime start,
             @Param("endExclusive") LocalDateTime endExclusive);
 
+    @Query("""
+            SELECT COALESCE(SUM(l.pointsDelta), 0)
+            FROM ReliabilityScoreLog l
+            WHERE l.employee.id = :employeeId
+              AND l.actionType = :actionType
+              AND l.createdAt >= :start
+              AND l.createdAt < :endExclusive
+            """)
+    Integer sumDeltaForEmployeeAndActionInRange(
+            @Param("employeeId") Integer employeeId,
+            @Param("actionType") String actionType,
+            @Param("start") LocalDateTime start,
+            @Param("endExclusive") LocalDateTime endExclusive);
+
     boolean existsByEmployee_IdAndActionTypeAndReferenceTypeAndReferenceId(
             Integer employeeId,
             String actionType,

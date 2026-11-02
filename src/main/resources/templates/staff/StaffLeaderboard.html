@@ -128,7 +128,7 @@
             </div>
             <div class="lb-rule-text">
                 <strong>Quyền lợi "Nhân viên xuất sắc tháng"</strong>
-                <span>Top 3 điểm chuyên cần cao nhất tháng được thưởng KPI &amp; ưu tiên chọn lịch tuần sau.</span>
+                <span th:text="'Xét khi làm tối thiểu ' + ${leaderboard.minShiftsForAward} + ' ca, không vắng, không bỏ ca đã nhận và đạt từ ' + ${leaderboard.minScoreForAward} + 'đ. Quản lý chốt Top 3 sau khi hết tháng.'">Điều kiện xét</span>
             </div>
         </div>
     </section>
@@ -276,6 +276,7 @@
                     </td>
                     <td>
                         <strong th:text="${row.fullName}">Trần Văn Tuấn</strong>
+                        <span class="lb-award-badge" th:if="${row.awardTitle != null}" th:text="${row.awardTitle}">Nhân viên xuất sắc tháng</span>
                         <span th:if="${row.currentStaff}"
                               style="font-size:11px;font-weight:700;color:#B45309;margin-left:4px;">(Tôi)</span>
                     </td>
@@ -330,7 +331,9 @@
                     <span class="lb-history-meta" th:if="${h.myRank != null}"
                           th:text="'Hạng ' + ${h.myRank} + '/' + ${h.totalStaff}">Hạng 1/5</span>
                 </th:block>
-                <span class="lb-history-meta" th:if="${h.topEmployeeName != null}"
+                <span class="lb-history-award" th:if="${h.awardWinnerName != null}"
+                      th:text="'Xuất sắc: ' + ${h.awardWinnerName}">Xuất sắc</span>
+                <span class="lb-history-meta" th:if="${h.awardWinnerName == null and h.topEmployeeName != null}"
                       th:text="'Dẫn đầu: ' + ${h.topEmployeeName} + ' (' + ${h.topScore} + ' đ)'">Dẫn đầu</span>
                 <span class="lb-history-meta muted" th:unless="${h.hasActivity}">Chưa có biến động</span>
             </a>

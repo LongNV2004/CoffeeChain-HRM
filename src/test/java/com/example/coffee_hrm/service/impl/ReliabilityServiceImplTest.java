@@ -9,6 +9,11 @@ import com.example.coffee_hrm.entity.ShiftCoverInvitation;
 import com.example.coffee_hrm.common.enums.InvitationStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.time.VietnamTime;
+import com.example.coffee_hrm.repository.UserRepository;
+import com.example.coffee_hrm.repository.MonthlyEmployeeAwardRepository;
+import com.example.coffee_hrm.repository.AttendanceRepository;
+import com.example.coffee_hrm.entity.MonthlyEmployeeAward;
+import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.dto.response.ReliabilityLeaderboardView;
 import com.example.coffee_hrm.entity.Attendance;
 import com.example.coffee_hrm.entity.Employee;
@@ -56,6 +61,12 @@ class ReliabilityServiceImplTest {
     private ShiftAssignmentRepository shiftAssignmentRepository;
     @Mock
     private ReliabilityScoreLogRepository reliabilityScoreLogRepository;
+    @Mock
+    private MonthlyEmployeeAwardRepository monthlyEmployeeAwardRepository;
+    @Mock
+    private AttendanceRepository attendanceRepository;
+    @Mock
+    private UserRepository userRepository;
 
     @InjectMocks
     private ReliabilityServiceImpl reliabilityService;
@@ -455,6 +466,7 @@ class ReliabilityServiceImplTest {
                         scoreLog(2, empRescuer, ReliabilityActionType.MANAGER_BONUS, 5, now.minusSeconds(2)),
                         scoreLog(1, empRequester, ReliabilityActionType.LATE_SHIFT_CANCEL, -10, now.minusSeconds(3)),
                         scoreLog(0, empRescuer, ReliabilityActionType.MANAGER_PENALTY, -20, lastMonthTime)));
+        when(attendanceRepository.findForMonthlyReport(eq(10), any(), any())).thenReturn(workedShifts(empRescuer, 8));
         when(shiftChangeRequestRepository.findOpenRescueRequestsForStore(10))
                 .thenReturn(List.of());
 
@@ -515,6 +527,104 @@ class ReliabilityServiceImplTest {
         reliabilityService.recordLateShiftChangeIfUrgent(empRequester, assignment, 77);
 
         assertEquals(90, empRequester.getReliabilityScore());
+    }
+
+    @Test
+    void manualAdjustUsesCategoryPointsAndPrefixesReason() {
+        when(storeRepository.findByManager_Id(1)).thenReturn(Optional.of(store));
+        when(employeeRepository.findByIdWithStore(30)).thenReturn(Optional.of(empRescuer));
+        when(reliabilityScoreLogRepository.sumDeltaForEmployeeAndActionInRange(eq(30), eq("MANAGER_BONUS"), any(), any())).thenReturn(10);
+
+        reliabilityService.adjustScoreByManager(30, "EVENT_SUPPORT", "Hỗ trợ khai trương chi nhánh Q7", managerUser);
+
+        ArgumentCaptor<ReliabilityScoreLog> logCaptor = ArgumentCaptor.forClass(ReliabilityScoreLog.class);
+        verify(reliabilityScoreLogRepository).save(logCaptor.capture());
+        assertEquals(5, logCaptor.getValue().getPointsDelta());
+        assertTrue(logCaptor.getValue().getReason().startsWith("[Hỗ trợ sự kiện / khai trương]"));
+    }
+
+    @Test
+    void manualAdjustRejectsWhenMonthlyCapExceededOrInvalid() {
+        when(storeRepository.findByManager_Id(1)).thenReturn(Optional.of(store));
+        when(employeeRepository.findByIdWithStore(30)).thenReturn(Optional.of(empRescuer));
+        when(reliabilityScoreLogRepository.sumDeltaForEmployeeAndActionInRange(eq(30), eq("MANAGER_BONUS"), any(), any())).thenReturn(12);
+
+        BusinessException capEx = assertThrows(BusinessException.class,
+                () -> reliabilityService.adjustScoreByManager(30, "INITIATIVE", "Sáng kiến", managerUser));
+        assertTrue(capEx.getMessage().contains("12/15"));
+        assertThrows(BusinessException.class, () -> reliabilityService.adjustScoreByManager(30, "BOGUS", "x", managerUser));
+        assertThrows(BusinessException.class, () -> reliabilityService.adjustScoreByManager(30, "CUSTOMER_PRAISE", "  ", managerUser));
+        verify(reliabilityScoreLogRepository, never()).save(any());
+    }
+
+    @Test
+    void ineligibleReasonListsAllUnmetConditions() {
+        ReliabilityLeaderboardView.RankEntry entry = ReliabilityLeaderboardView.RankEntry.builder()
+                .reliabilityScore(120).shiftsWorked(5).absencesCount(1).abandonedCount(0).build();
+        assertEquals("mới làm 5/8 ca, vắng 1 ca", ReliabilityServiceImpl.ineligibleReason(entry));
+
+        entry.setShiftsWorked(8);
+        entry.setAbsencesCount(0);
+        assertNull(ReliabilityServiceImpl.ineligibleReason(entry));
+    }
+
+    @Test
+    void closeMonthRejectsCurrentMonthAndRequiresReasonForOverride() {
+        when(storeRepository.findByManager_Id(1)).thenReturn(Optional.of(store));
+        YearMonth current = YearMonth.from(VietnamTime.today());
+
+        assertThrows(BusinessException.class, () -> reliabilityService.closeMonth(managerUser, current, null, null));
+
+        YearMonth last = current.minusMonths(1);
+        when(employeeRepository.findByStore_IdAndStatus(10, EmployeeStatus.ACTIVE))
+                .thenReturn(List.of(empManager, empRequester, empRescuer));
+        when(reliabilityScoreLogRepository.findForStoreInRange(eq(10), any(), any())).thenReturn(List.of(
+                scoreLog(1, empRescuer, ReliabilityActionType.RESCUE_SHIFT_24H, 5, last.atDay(10).atTime(9, 0)),
+                scoreLog(2, empRescuer, ReliabilityActionType.MANAGER_BONUS, 5, last.atDay(9).atTime(9, 0))));
+        when(attendanceRepository.findForMonthlyReport(eq(10), any(), any())).thenReturn(workedShifts(empRescuer, 8));
+        when(shiftChangeRequestRepository.findOpenRescueRequestsForStore(10)).thenReturn(List.of());
+
+        // Chọn người khác đề xuất mà không ghi lý do -> từ chối
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> reliabilityService.closeMonth(managerUser, last, 20, "  "));
+        assertTrue(ex.getMessage().contains("lý do"));
+        verify(monthlyEmployeeAwardRepository, never()).save(any());
+    }
+
+    @Test
+    void closeMonthSavesProposedWinner() {
+        when(storeRepository.findByManager_Id(1)).thenReturn(Optional.of(store));
+        YearMonth last = YearMonth.from(VietnamTime.today()).minusMonths(1);
+        when(employeeRepository.findByStore_IdAndStatus(10, EmployeeStatus.ACTIVE))
+                .thenReturn(List.of(empManager, empRequester, empRescuer));
+        when(reliabilityScoreLogRepository.findForStoreInRange(eq(10), any(), any())).thenReturn(List.of(
+                scoreLog(1, empRescuer, ReliabilityActionType.RESCUE_SHIFT_24H, 5, last.atDay(10).atTime(9, 0)),
+                scoreLog(2, empRescuer, ReliabilityActionType.MANAGER_BONUS, 5, last.atDay(9).atTime(9, 0))));
+        when(attendanceRepository.findForMonthlyReport(eq(10), any(), any())).thenReturn(workedShifts(empRescuer, 8));
+        when(shiftChangeRequestRepository.findOpenRescueRequestsForStore(10)).thenReturn(List.of());
+        when(userRepository.findById(100)).thenReturn(Optional.of(User.builder().id(100).build()));
+        when(employeeRepository.findById(30)).thenReturn(Optional.of(empRescuer));
+
+        reliabilityService.closeMonth(managerUser, last, null, null);
+
+        ArgumentCaptor<MonthlyEmployeeAward> captor = ArgumentCaptor.forClass(MonthlyEmployeeAward.class);
+        verify(monthlyEmployeeAwardRepository).save(captor.capture());
+        assertEquals(1, captor.getValue().getAwardRank());
+        assertEquals(30, captor.getValue().getEmployee().getId());
+        assertEquals(110, captor.getValue().getMonthScore());
+        assertEquals(last.toString(), captor.getValue().getAwardMonth());
+    }
+
+    private List<Attendance> workedShifts(Employee emp, int count) {
+        Shift shift = Shift.builder().id(11).shiftName("Ca Sáng").store(store)
+                .startTime(java.time.LocalTime.of(7, 0)).endTime(java.time.LocalTime.of(12, 0)).build();
+        List<Attendance> list = new java.util.ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            list.add(Attendance.builder().id(1000 + i).employee(emp).store(store).shift(shift)
+                    .workDate(VietnamTime.today()).checkOutTime(VietnamTime.now())
+                    .status(com.example.coffee_hrm.common.enums.AttendanceStatus.ON_TIME).build());
+        }
+        return list;
     }
 
     private ReliabilityScoreLog scoreLog(int id, Employee emp, ReliabilityActionType type, int delta, LocalDateTime at) {

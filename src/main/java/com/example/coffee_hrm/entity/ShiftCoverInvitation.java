@@ -64,3 +64,4 @@ public class ShiftCoverInvitation {
     @Column(name = "RespondedAt")
     private LocalDateTime respondedAt;
 }
+

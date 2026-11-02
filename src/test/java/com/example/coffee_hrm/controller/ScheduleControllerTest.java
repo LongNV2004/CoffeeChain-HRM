@@ -174,6 +174,43 @@ class ScheduleControllerTest {
                 .build();
     }
 
+    @Test
+    void managerLeaderboardRendersCloseMonthFormAndCategories() throws Exception {
+        ReliabilityLeaderboardView view = sampleLeaderboard();
+        view.setCurrentMonth(false);
+        view.setCanCloseMonth(true);
+        view.setMinShiftsForAward(8);
+        view.setMinScoreForAward(105);
+        view.setManualAdjustCap(15);
+        view.getLeaderboardEntries().forEach(e -> { e.setAwardEligible(true); e.setShiftsWorked(9); });
+        view.setAwardProposals(view.getLeaderboardEntries());
+        view.setAwards(java.util.List.of());
+        when(reliabilityService.getLeaderboardForManager(any(), any())).thenReturn(view);
+
+        mockMvc.perform(get("/schedule/manager/leaderboard").param("month", "2026-10").with(user(manager())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Chốt kết quả tháng")))
+                .andExpect(content().string(containsString("(đủ điều kiện)")))
+                .andExpect(content().string(containsString("Được khách hàng khen")))
+                .andExpect(content().string(containsString("Chưa chốt")));
+    }
+
+    @Test
+    void managerLeaderboardRendersClosedAwards() throws Exception {
+        ReliabilityLeaderboardView view = sampleLeaderboard();
+        view.setCurrentMonth(false);
+        view.setMonthClosed(true);
+        view.setAwards(java.util.List.of(ReliabilityLeaderboardView.AwardItem.builder()
+                .rank(1).title("Nhân viên xuất sắc tháng").employeeId(30).employeeName("Trần Văn Tuấn")
+                .monthScore(115).decidedAt("01/11/2026 09:00").overrideReason("Được khách khen nhiều lần").build()));
+        when(reliabilityService.getLeaderboardForManager(any(), any())).thenReturn(view);
+
+        mockMvc.perform(get("/schedule/manager/leaderboard").param("month", "2026-10").with(user(manager())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Đã chốt")))
+                .andExpect(content().string(containsString("Lý do chọn khác đề xuất: Được khách khen nhiều lần")));
+    }
+
     private ReliabilityLeaderboardView sampleLeaderboard() {
         ReliabilityLeaderboardView.RankEntry top1 = ReliabilityLeaderboardView.RankEntry.builder()
                 .rank(1)

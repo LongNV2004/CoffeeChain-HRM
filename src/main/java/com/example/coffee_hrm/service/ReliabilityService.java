@@ -28,6 +28,13 @@ public interface ReliabilityService {
     /** Nhận hỗ trợ ca gấp rồi vắng mặt: thu hồi +5 và trừ thêm 15đ. */
     int ABANDONED_ACCEPTED_SHIFT_PENALTY = -15;
 
+    /** Điều kiện xét danh hiệu Nhân viên xuất sắc tháng. */
+    int MIN_SHIFTS_FOR_AWARD = 8;
+    int MIN_SCORE_FOR_AWARD = 105;
+
+    /** Hạn mức điều chỉnh thủ công mỗi nhân viên mỗi tháng (tổng cộng tối đa +15, tổng trừ tối đa -15). */
+    int MANUAL_ADJUST_MONTHLY_CAP = 15;
+
     /** Đi muộn / về sớm: ≤30 phút -2đ, 31–60 phút -4đ, trên 60 phút -6đ. */
     int PUNCTUALITY_MINOR_PENALTY = -2;
     int PUNCTUALITY_MODERATE_PENALTY = -4;
@@ -86,9 +93,16 @@ public interface ReliabilityService {
     void confirmSwappedShiftCompletion(Integer requestId, AuthenticatedUser manager);
 
     /**
-     * Quản lý điều chỉnh (thưởng/phạt) điểm chuyên cần cho nhân viên trong cửa hàng.
+     * Quản lý điều chỉnh điểm chuyên cần theo danh mục ({@link com.example.coffee_hrm.common.enums.ManualAdjustCategory}),
+     * bắt buộc lý do, tối đa +15 / -15 điểm thủ công mỗi nhân viên mỗi tháng.
      */
-    void adjustScoreByManager(Integer employeeId, int pointsDelta, String reason, AuthenticatedUser manager);
+    void adjustScoreByManager(Integer employeeId, String category, String reason, AuthenticatedUser manager);
+
+    /**
+     * Chốt danh hiệu tháng đã kết thúc. Hệ thống đề xuất Top 3 đủ điều kiện; Quản lý có thể đổi người Hạng 1
+     * (bắt buộc ghi lý do). Sau khi chốt không chốt lại được.
+     */
+    void closeMonth(AuthenticatedUser manager, YearMonth month, Integer firstPlaceEmployeeId, String overrideReason);
 
     /**
      * Dữ liệu Bảng xếp hạng "Nhân viên xuất sắc" cho Quản lý cửa hàng.

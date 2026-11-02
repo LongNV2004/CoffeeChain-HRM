@@ -741,3 +741,17 @@ body {
 .lb-history-meta.muted {
     font-style: italic;
 }
+
+/* Danh hiệu tháng */
+.lb-award-badge { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #FEF3C7; color: #92400E; vertical-align: middle; }
+.lb-award-state { padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #F3F4F6; color: #4B5563; }
+.lb-award-state.is-closed { background: #DCFCE7; color: #166534; }
+.lb-award-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.lb-award-item { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper, #F6F1EA); }
+.lb-award-item.is-first { border-color: var(--caramel, #B88752); background: #FFF7E8; }
+.lb-award-rank { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; background: var(--espresso, #26170F); color: #FFFCF7; flex-shrink: 0; }
+.lb-award-item.is-first .lb-award-rank { background: var(--caramel, #B88752); }
+.lb-award-meta { font-size: 12.5px; color: var(--ink-soft); margin-top: 2px; }
+.lb-award-form { margin-top: 14px; }
+.lb-history-award { font-size: 12.5px; font-weight: 700; color: #92400E; }
+.lb-history-tile.is-selected .lb-history-award { color: #FDE68A; }

@@ -49,6 +49,28 @@ public class ReliabilitySchemaInitializer implements ApplicationRunner {
             END
             """;
 
+    /** Danh hiệu Nhân viên xuất sắc tháng (xem db/monthly-employee-award.sql). */
+    static final String MONTHLY_EMPLOYEE_AWARDS_DDL = """
+            IF OBJECT_ID(N'dbo.MonthlyEmployeeAwards', N'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.MonthlyEmployeeAwards (
+                    AwardId INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                    StoreId INT NOT NULL,
+                    AwardMonth CHAR(7) NOT NULL,
+                    EmployeeId INT NOT NULL,
+                    AwardRank INT NOT NULL,
+                    MonthScore INT NOT NULL,
+                    OverrideReason NVARCHAR(255) NULL,
+                    DecidedBy INT NOT NULL,
+                    DecidedAt DATETIME2 NOT NULL,
+                    CONSTRAINT FK_MonthlyEmployeeAwards_Store FOREIGN KEY (StoreId) REFERENCES dbo.Stores(StoreId),
+                    CONSTRAINT FK_MonthlyEmployeeAwards_Employee FOREIGN KEY (EmployeeId) REFERENCES dbo.Employees(EmployeeId),
+                    CONSTRAINT FK_MonthlyEmployeeAwards_DecidedBy FOREIGN KEY (DecidedBy) REFERENCES dbo.Users(UserId),
+                    CONSTRAINT UX_MonthlyEmployeeAwards_Store_Month_Rank UNIQUE (StoreId, AwardMonth, AwardRank)
+                );
+            END
+            """;
+
     @Override
     public void run(ApplicationArguments args) {
         jdbcTemplate.execute("""
@@ -85,6 +107,7 @@ public class ReliabilitySchemaInitializer implements ApplicationRunner {
                 END
                 """);
         jdbcTemplate.execute(SHIFT_COVER_INVITATIONS_DDL);
+        jdbcTemplate.execute(MONTHLY_EMPLOYEE_AWARDS_DDL);
         log.info("Đã kiểm tra cấu trúc dữ liệu Điểm chuyên cần & Hỗ trợ ca gấp (ReliabilityScore & ReliabilityScoreLogs).");
     }
 }

@@ -78,3 +78,4 @@ public final class CoverInvitationView {
         private boolean nextDeclinePenalized;
     }
 }
+
