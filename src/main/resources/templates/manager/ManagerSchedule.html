@@ -151,15 +151,51 @@
                     <span class="badge-type"
                           th:if="${req.urgentWithin24h}"
                           style="background:#FEE2E2;color:#991B1B;font-weight:700;margin-left:4px;display:inline-flex;align-items:center;gap:3px;">
-                        <i data-lucide="flame" style="width:13px;height:13px;"></i> Sát giờ (&lt;24h) • Hỗ trợ ca gấp +5đ
+                        <i data-lucide="flame" style="width:13px;height:13px;"></i> Sát giờ (&lt;24h) • Người tự nguyện nhận +5đ
                     </span>
                     <div style="font-size:12px;color:var(--ink-soft);margin-top:4px;" th:text="${req.proposalSummary}">
                         Đổi chéo với: Lê Thị Thu
                     </div>
+                    <th:block th:with="panel=${coverPanels != null ? coverPanels.get(req.requestId) : null}">
+                    <div class="cover-status" th:if="${panel != null and !#lists.isEmpty(panel.invitations)}">
+                        <div class="cover-status-title">Lời mời hỗ trợ đã gửi</div>
+                        <div class="cover-status-row" th:each="inv : ${panel.invitations}">
+                            <span class="cover-status-name" th:text="${inv.employeeName}">Lê Thị Thu</span>
+                            <span class="cover-pill" th:classappend="${'cover-' + #strings.toLowerCase(inv.statusCode)}"
+                                  th:text="${inv.statusLabel}">Chờ phản hồi</span>
+                            <span class="cover-status-meta"
+                                  th:text="${(inv.declineReasonLabel != null ? inv.declineReasonLabel + (inv.declineNote != null ? ': ' + inv.declineNote : '') + ' · ' : '') + inv.timeLabel}">còn 1h20</span>
+                        </div>
+                    </div>
+                    </th:block>
                 </td>
                 <td th:text="${req.reason}">Bận việc gia đình</td>
                 <td th:text="${req.requestDate}">21/09/2026 10:00</td>
                 <td class="req-actions">
+                    <th:block th:with="panel=${coverPanels != null ? coverPanels.get(req.requestId) : null}">
+                    <details class="cover-invite" th:if="${panel != null}">
+                        <summary class="btn btn-secondary" style="padding:6px 12px;font-size:12px;">
+                            <i data-lucide="send" style="width:13px;height:13px;vertical-align:middle;"></i> Mời hỗ trợ
+                        </summary>
+                        <form class="cover-invite-form" th:action="@{/schedule/manager/requests/{id}/invite(id=${req.requestId})}" method="post">
+                            <input type="hidden" name="currentWeek" th:value="${schedule.weekStartDate}">
+                            <p class="cover-invite-help">
+                                Chỉ hiện nhân viên <strong>đủ điều kiện</strong> (không trùng ca, không nghỉ phép, đã có chứng chỉ).
+                                Nhân viên có 2 giờ để phản hồi; ai đồng ý trước sẽ nhận ca.
+                                <span th:if="${panel.urgent}">Ca gấp: từ chối/hết hạn từ lần 3 trong tháng bị -3đ.</span>
+                            </p>
+                            <p th:if="${#lists.isEmpty(panel.candidates)}" class="cover-invite-empty">Không có nhân viên nào đủ điều kiện nhận ca này.</p>
+                            <label class="cover-candidate" th:each="c : ${panel.candidates}" th:classappend="${c.alreadyInvited} ? ' is-disabled'">
+                                <input type="checkbox" name="employeeIds" th:value="${c.employeeId}" th:disabled="${c.alreadyInvited}">
+                                <span class="cover-candidate-name" th:text="${c.fullName}">Lê Thị Thu</span>
+                                <span class="cover-candidate-meta"
+                                      th:text="${c.monthScore + 'đ' + (c.urgentDeclinesThisMonth > 0 ? ' · đã từ chối ' + c.urgentDeclinesThisMonth + ' lần' : '') + (c.alreadyInvited ? ' · đã mời' : '')}">100đ</span>
+                            </label>
+                            <button type="submit" class="btn btn-publish" style="padding:6px 12px;font-size:12px;margin-top:8px;"
+                                    th:disabled="${!panel.canInvite}">Gửi lời mời</button>
+                        </form>
+                    </details>
+                    </th:block>
                     <button type="button" class="btn btn-publish" style="padding:6px 12px;font-size:12px;"
                             th:attr="data-id=${req.requestId},
                                      data-emp=${req.employeeName},
@@ -219,7 +255,7 @@
                     </option>
                 </select>
                 <small id="replacementHelp" style="color:var(--ink-soft);display:block;margin-top:4px;">
-                    Sau khi duyệt, nhân viên được chọn sẽ thay thế và xuất hiện tại ca làm việc này trên lịch.
+                    Sau khi duyệt, nhân viên được chọn sẽ thay thế và xuất hiện tại ca làm việc này trên lịch. Nhân viên do Quản lý tự chỉ định (không qua lời mời/xung phong) không được cộng +5đ hỗ trợ ca gấp.
                 </small>
             </div>
 

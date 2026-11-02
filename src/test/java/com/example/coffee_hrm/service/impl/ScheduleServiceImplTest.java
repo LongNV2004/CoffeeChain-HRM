@@ -1,5 +1,13 @@
 package com.example.coffee_hrm.service.impl;
 
+import com.example.coffee_hrm.service.ReliabilityService;
+
+import com.example.coffee_hrm.repository.ShiftCoverInvitationRepository;
+
+import com.example.coffee_hrm.entity.ShiftCoverInvitation;
+
+import com.example.coffee_hrm.common.enums.InvitationStatus;
+
 import com.example.coffee_hrm.common.enums.ApprovalStatus;
 import com.example.coffee_hrm.common.enums.AssignmentStatus;
 import com.example.coffee_hrm.common.enums.CertificationStatus;
@@ -52,6 +60,10 @@ class ScheduleServiceImplTest {
     private LeaveRequestRepository leaveRequestRepository;
     @Mock
     private ApprovedLeaveCoverage approvedLeaveCoverage;
+    @Mock
+    private ReliabilityService reliabilityService;
+    @Mock
+    private ShiftCoverInvitationRepository shiftCoverInvitationRepository;
 
     @InjectMocks
     private ScheduleServiceImpl scheduleService;
@@ -336,6 +348,8 @@ class ScheduleServiceImplTest {
 
         assertEquals(ApprovalStatus.APPROVED, pending.getStatus());
         assertEquals(empThu, assignment.getEmployee()); // Original employee replaced by Thu!
+        // Người do Quản lý tự chỉ định (không tự nguyện) không được +5 hỗ trợ ca gấp
+        verify(reliabilityService, never()).recordRescueShiftOnApproval(any(), any());
         verify(shiftAssignmentRepository).save(assignment);
         verify(shiftChangeRequestRepository).save(pending);
     }
@@ -396,6 +410,8 @@ class ScheduleServiceImplTest {
         assertNotNull(pendingRequest.getTargetAgreedAt());
         assertEquals(ApprovalStatus.REJECTED, pendingRequest.getStatus()); // Automatically rejected
         assertTrue(pendingRequest.getReason().contains("Đồng nghiệp từ chối"));
+        // Từ chối lời nhờ của đồng nghiệp không bị trừ điểm
+        verifyNoInteractions(reliabilityService);
         verify(shiftChangeRequestRepository).save(pendingRequest);
     }
 
@@ -717,13 +733,53 @@ class ScheduleServiceImplTest {
         when(shiftAssignmentRepository.findByEmployee_IdAndWorkDateAndStatus(30, tomorrow, AssignmentStatus.ASSIGNED))
                 .thenReturn(List.of());
 
+        ShiftCoverInvitation thuInvite = ShiftCoverInvitation.builder().id(1).employee(empThu).status(InvitationStatus.PENDING).build();
+        ShiftCoverInvitation otherInvite = ShiftCoverInvitation.builder().id(2).employee(empManager).status(InvitationStatus.PENDING).build();
+        when(shiftCoverInvitationRepository.findByRequest_IdAndStatus(77, InvitationStatus.PENDING))
+                .thenReturn(List.of(thuInvite, otherInvite));
+
         scheduleService.volunteerRescueShift(77, thuUser);
+
+        assertEquals(InvitationStatus.ACCEPTED, thuInvite.getStatus());
+        assertEquals(InvitationStatus.CANCELLED, otherInvite.getStatus());
 
         assertEquals(empThu, openRescueReq.getTargetEmployee());
         assertTrue(openRescueReq.getIsTargetAgreed());
         assertNotNull(openRescueReq.getTargetAgreedAt());
         assertTrue(openRescueReq.getReason().contains("Hỗ trợ ca gấp"));
         verify(shiftChangeRequestRepository).save(openRescueReq);
+    }
+
+    @Test
+    void resolveShiftChangeAwardsRescueBonusOnlyToVoluntaryTaker() {
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        User mgr = buildUser(2, "manager1", RoleName.MANAGER, empManager);
+        when(userRepository.findById(2)).thenReturn(Optional.of(mgr));
+        when(employeeRepository.lockByIdForLeaveRequest(30)).thenReturn(Optional.of(empThu));
+
+        ShiftAssignment assignment = ShiftAssignment.builder()
+                .id(101)
+                .employee(empTuan)
+                .shift(shiftMorning)
+                .workDate(VietnamTime.today().plusDays(1))
+                .status(AssignmentStatus.ASSIGNED)
+                .build();
+        ShiftChangeRequest volunteered = ShiftChangeRequest.builder()
+                .id(61)
+                .assignment(assignment)
+                .employee(empTuan)
+                .targetEmployee(empThu)
+                .isTargetAgreed(true)
+                .targetAgreedAt(VietnamTime.now())
+                .status(ApprovalStatus.PENDING)
+                .reason("[Nhờ Quản lý sắp xếp người thay thế] [Hỗ trợ ca gấp: Thu xung phong nhận thay]")
+                .build();
+        when(shiftChangeRequestRepository.findByIdWithDetails(61)).thenReturn(Optional.of(volunteered));
+
+        scheduleService.resolveShiftChange(61, true, null, managerUser);
+
+        assertEquals(ApprovalStatus.APPROVED, volunteered.getStatus());
+        verify(reliabilityService).recordRescueShiftOnApproval(volunteered, empThu);
     }
 
     private User buildUser(Integer id, String username, RoleName roleName, Employee employee) {

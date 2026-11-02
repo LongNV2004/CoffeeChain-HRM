@@ -2,6 +2,7 @@ package com.example.coffee_hrm.controller;
 
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.dto.response.ReliabilityLeaderboardView;
+import com.example.coffee_hrm.dto.response.WeeklyScheduleView;
 import com.example.coffee_hrm.entity.Role;
 import com.example.coffee_hrm.entity.User;
 import com.example.coffee_hrm.security.AuthenticatedUser;
@@ -11,6 +12,7 @@ import com.example.coffee_hrm.security.SecurityConfig;
 import com.example.coffee_hrm.service.NotificationService;
 import com.example.coffee_hrm.service.RecruitmentRequestService;
 import com.example.coffee_hrm.service.ReliabilityService;
+import com.example.coffee_hrm.service.ShiftCoverInvitationService;
 import com.example.coffee_hrm.service.ResignationProposalService;
 import com.example.coffee_hrm.service.ScheduleService;
 import com.example.coffee_hrm.service.TrainingService;
@@ -26,6 +28,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -33,6 +36,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -47,6 +51,8 @@ class ScheduleControllerTest {
     private ScheduleService scheduleService;
     @MockitoBean
     private ReliabilityService reliabilityService;
+    @MockitoBean
+    private ShiftCoverInvitationService shiftCoverInvitationService;
     @MockitoBean
     private DatabaseUserDetailsService userDetailsService;
     @MockitoBean
@@ -91,6 +97,118 @@ class ScheduleControllerTest {
                 .andExpect(redirectedUrl("/schedule/staff/leaderboard"));
 
         verify(scheduleService).volunteerRescueShift(any(), any());
+    }
+
+    @Test
+    void managerScheduleRendersCoverInvitationPanel() throws Exception {
+        when(scheduleService.getWeeklyScheduleForManager(any(), any())).thenReturn(sampleWeek(pendingOpenRequest()));
+        when(shiftCoverInvitationService.getManagerPanels(any())).thenReturn(java.util.Map.of(77,
+                com.example.coffee_hrm.dto.response.CoverInvitationView.ManagerPanel.builder()
+                        .requestId(77).urgent(true).canInvite(true).pendingCount(1)
+                        .invitations(java.util.List.of(com.example.coffee_hrm.dto.response.CoverInvitationView.InvitationItem.builder()
+                                .invitationId(1).employeeName("Phạm Minh Đức").statusCode("DECLINED").statusLabel("Từ chối")
+                                .declineReasonLabel("Lịch học / thi").timeLabel("14:10 02/11").build()))
+                        .candidates(java.util.List.of(com.example.coffee_hrm.dto.response.CoverInvitationView.Candidate.builder()
+                                .employeeId(30).fullName("Lê Thị Thu").monthScore(108).build()))
+                        .build()));
+
+        mockMvc.perform(get("/schedule/manager").with(user(manager())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Mời hỗ trợ")))
+                .andExpect(content().string(containsString("Lê Thị Thu")))
+                .andExpect(content().string(containsString("108đ")))
+                .andExpect(content().string(containsString("Lịch học / thi")))
+                .andExpect(content().string(containsString("cover-declined")));
+    }
+
+    @Test
+    void staffScheduleRendersCoverInvitationCard() throws Exception {
+        when(scheduleService.getWeeklyScheduleForStaff(any(), any())).thenReturn(sampleWeek(null));
+        when(shiftCoverInvitationService.getPendingForStaff(any())).thenReturn(java.util.List.of(
+                com.example.coffee_hrm.dto.response.CoverInvitationView.StaffCard.builder()
+                        .invitationId(900).requestId(77).requesterName("Trần Văn Tuấn").shiftName("Ca Chiều")
+                        .timeRange("12:00 – 17:00").workDate(java.time.LocalDate.now()).urgent(true)
+                        .expiresAtLabel("16:00 02/11").minutesLeft(110).declinesUsed(2).freeDeclines(2)
+                        .nextDeclinePenalized(true).build()));
+
+        mockMvc.perform(get("/schedule/staff").with(user(staff())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Lời mời hỗ trợ ca từ Quản lý")))
+                .andExpect(content().string(containsString("Thay Trần Văn Tuấn")))
+                .andExpect(content().string(containsString("từ chối lần này sẽ bị -3đ")))
+                .andExpect(content().string(containsString("/schedule/staff/invitations/900/decline")));
+    }
+
+    @Test
+    void staffDeclineInvitationShowsQuotaMessage() throws Exception {
+        when(shiftCoverInvitationService.decline(eq(900), eq("STUDY"), any(), any())).thenReturn(1);
+
+        mockMvc.perform(post("/schedule/staff/invitations/900/decline")
+                        .with(user(staff())).with(csrf())
+                        .param("reason", "STUDY"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(flash().attribute("successMessage", containsString("Lần 1/2 được miễn trừ")));
+    }
+
+    private WeeklyScheduleView sampleWeek(WeeklyScheduleView.ShiftChangeItem pending) {
+        java.time.LocalDate monday = java.time.LocalDate.of(2026, 11, 2);
+        return WeeklyScheduleView.builder()
+                .storeId(10).storeName("CoffeeHRM").storeAddress("123")
+                .weekStartDate(monday).weekEndDate(monday.plusDays(6))
+                .prevWeekDate(monday.minusWeeks(1)).nextWeekDate(monday.plusWeeks(1))
+                .days(java.util.List.of()).shiftRows(java.util.List.of())
+                .storeEmployees(java.util.List.of()).colleagueShifts(java.util.List.of())
+                .pendingShiftChanges(pending == null ? java.util.List.of() : java.util.List.of(pending))
+                .incomingRequests(java.util.List.of()).openRescueRequests(java.util.List.of())
+                .currentStaffReliabilityScore(100).currentStaffTierLabel("Ổn định")
+                .build();
+    }
+
+    private WeeklyScheduleView.ShiftChangeItem pendingOpenRequest() {
+        return WeeklyScheduleView.ShiftChangeItem.builder()
+                .requestId(77).employeeName("Trần Văn Tuấn").shiftName("Ca Chiều")
+                .workDate(java.time.LocalDate.of(2026, 11, 2)).timeRange("12:00 – 17:00")
+                .reason("Việc gấp").requestDate("02/11/2026 09:00")
+                .changeType("MANAGER_ASSIGN").changeTypeLabel("Nhờ Quản lý tìm người")
+                .proposalSummary("Chờ Quản lý phân công").urgentWithin24h(true)
+                .build();
+    }
+
+    @Test
+    void managerLeaderboardRendersCloseMonthFormAndCategories() throws Exception {
+        ReliabilityLeaderboardView view = sampleLeaderboard();
+        view.setCurrentMonth(false);
+        view.setCanCloseMonth(true);
+        view.setMinShiftsForAward(8);
+        view.setMinScoreForAward(105);
+        view.setManualAdjustCap(15);
+        view.getLeaderboardEntries().forEach(e -> { e.setAwardEligible(true); e.setShiftsWorked(9); });
+        view.setAwardProposals(view.getLeaderboardEntries());
+        view.setAwards(java.util.List.of());
+        when(reliabilityService.getLeaderboardForManager(any(), any())).thenReturn(view);
+
+        mockMvc.perform(get("/schedule/manager/leaderboard").param("month", "2026-10").with(user(manager())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Chốt kết quả tháng")))
+                .andExpect(content().string(containsString("(đủ điều kiện)")))
+                .andExpect(content().string(containsString("Được khách hàng khen")))
+                .andExpect(content().string(containsString("Chưa chốt")));
+    }
+
+    @Test
+    void managerLeaderboardRendersClosedAwards() throws Exception {
+        ReliabilityLeaderboardView view = sampleLeaderboard();
+        view.setCurrentMonth(false);
+        view.setMonthClosed(true);
+        view.setAwards(java.util.List.of(ReliabilityLeaderboardView.AwardItem.builder()
+                .rank(1).title("Nhân viên xuất sắc tháng").employeeId(30).employeeName("Trần Văn Tuấn")
+                .monthScore(115).decidedAt("01/11/2026 09:00").overrideReason("Được khách khen nhiều lần").build()));
+        when(reliabilityService.getLeaderboardForManager(any(), any())).thenReturn(view);
+
+        mockMvc.perform(get("/schedule/manager/leaderboard").param("month", "2026-10").with(user(manager())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Đã chốt")))
+                .andExpect(content().string(containsString("Lý do chọn khác đề xuất: Được khách khen nhiều lần")));
     }
 
     private ReliabilityLeaderboardView sampleLeaderboard() {
