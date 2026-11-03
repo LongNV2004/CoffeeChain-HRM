@@ -39,8 +39,8 @@
         <div class="lb-header-controls">
             <a class="lb-nav-btn" th:href="@{/schedule/manager/leaderboard(month=${leaderboard.prevMonthParam})}">← Tháng trước</a>
             <span class="lb-period-pill" th:text="${leaderboard.periodLabel}">Tháng 10/2026</span>
-            <a class="lb-nav-btn" th:href="@{/schedule/manager/leaderboard(month=${leaderboard.nextMonthParam})}">Tháng sau →</a>
-            <button type="button" class="lb-nav-btn primary" onclick="openAdjustModal(null, '')">
+            <a class="lb-nav-btn" th:if="${leaderboard.nextMonthParam != null}" th:href="@{/schedule/manager/leaderboard(month=${leaderboard.nextMonthParam})}">Tháng sau →</a>
+            <button type="button" class="lb-nav-btn primary" th:if="${leaderboard.currentMonth}" onclick="openAdjustModal(null, '')">
                 <i data-lucide="zap" style="width:14px;height:14px;"></i> Thưởng / Trừ điểm
             </button>
             <a class="lb-nav-btn" th:href="@{/schedule/manager}">
@@ -68,8 +68,8 @@
         <div class="lb-rule-card">
             <div class="lb-rule-icon minus-ten">-10đ</div>
             <div class="lb-rule-text">
-                <strong>Hủy/Đổi sát giờ &amp; Từ chối khẩn</strong>
-                <span>Xin đổi/hủy ca sát giờ (&lt;24h): -10đ. Từ chối ca khẩn cấp từ lần 2/tháng: -5đ.</span>
+                <strong>Sát giờ, từ chối &amp; bỏ ca</strong>
+                <span>Xin đổi/hủy ca sát giờ (&lt;24h): -10đ. Từ chối/hết hạn lời mời gấp của Quản lý: 2 lần đầu/tháng miễn trừ, từ lần 3: -3đ. Nhận ca gấp rồi vắng: thu hồi +5đ và -15đ. Từ chối lời nhờ của đồng nghiệp: không trừ.</span>
             </div>
         </div>
         <div class="lb-rule-card">
@@ -85,7 +85,7 @@
             </div>
             <div class="lb-rule-text">
                 <strong>Đặc quyền "Nhân viên xuất sắc"</strong>
-                <span>Top 3 điểm chuyên cần cao nhất tháng được thưởng KPI &amp; ưu tiên chọn lịch tuần sau.</span>
+                <span th:text="'Xét khi làm tối thiểu ' + ${leaderboard.minShiftsForAward} + ' ca, không vắng, không bỏ ca đã nhận và đạt từ ' + ${leaderboard.minScoreForAward} + 'đ. Quản lý chốt Top 3 sau khi hết tháng.'">Điều kiện xét</span>
             </div>
         </div>
     </section>
@@ -186,7 +186,7 @@
                     <th>Biến động tháng</th>
                     <th>Hỗ trợ ca gấp (+5đ)</th>
                     <th>Hoàn thành đổi (+2đ)</th>
-                    <th>Hủy sát giờ / Từ chối khẩn</th>
+                    <th>Sát giờ / Từ chối lời mời</th>
                     <th>Đi muộn / Về sớm</th>
                     <th>Đề xuất Thưởng KPI &amp; Lịch</th>
                     <th>Thao tác</th>
@@ -201,6 +201,7 @@
                     </td>
                     <td>
                         <strong th:text="${row.fullName}">Trần Văn Tuấn</strong>
+                        <span class="lb-award-badge" th:if="${row.awardTitle != null}" th:text="${row.awardTitle}">Nhân viên xuất sắc tháng</span>
                         <div style="font-size:12px;color:var(--ink-soft);" th:text="${row.email}">tuan@fpt.edu.vn</div>
                     </td>
                     <td>
@@ -231,7 +232,7 @@
                               th:text="${row.rewardBadgeLabel}">—</span>
                     </td>
                     <td>
-                        <button type="button" class="lb-btn lb-btn-outline"
+                        <button type="button" class="lb-btn lb-btn-outline" th:if="${leaderboard.currentMonth}"
                                 th:attr="data-emp-id=${row.employeeId},data-emp-name=${row.fullName}"
                                 onclick="openAdjustModal(this.getAttribute('data-emp-id'), this.getAttribute('data-emp-name'))">
                             ± Điểm
@@ -245,6 +246,98 @@
                 </tr>
                 </tbody>
             </table>
+        </div>
+    </section>
+
+    <!-- Chốt danh hiệu Nhân viên xuất sắc tháng -->
+    <section class="lb-panel lb-award-panel" th:if="${!leaderboard.currentMonth}">
+        <div class="lb-panel-head">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <i data-lucide="award" style="width:20px;height:20px;color:var(--caramel-dark);"></i>
+                <div>
+                    <h2 style="margin:0;" th:text="'Danh hiệu ' + ${leaderboard.periodLabel}">Danh hiệu tháng</h2>
+                    <small style="color:var(--ink-soft);"
+                           th:text="'Điều kiện: tối thiểu ' + ${leaderboard.minShiftsForAward} + ' ca đã làm, không vắng, không bỏ ca đã nhận, từ ' + ${leaderboard.minScoreForAward} + 'đ. Danh hiệu không cộng thêm điểm.'">Điều kiện</small>
+                </div>
+            </div>
+            <span class="lb-award-state" th:classappend="${leaderboard.monthClosed} ? ' is-closed' : ''"
+                  th:text="${leaderboard.monthClosed} ? 'Đã chốt' : 'Chưa chốt'">Chưa chốt</span>
+        </div>
+
+        <div class="lb-award-list" th:if="${leaderboard.monthClosed}">
+            <div class="lb-award-item" th:each="a : ${leaderboard.awards}" th:classappend="${a.rank == 1} ? ' is-first' : ''">
+                <span class="lb-award-rank" th:text="${a.rank}">1</span>
+                <div>
+                    <strong th:text="${a.employeeName}">Trần Văn Tuấn</strong>
+                    <div class="lb-award-meta" th:text="${a.title + ' · ' + a.monthScore + 'đ · chốt lúc ' + a.decidedAt}">Nhân viên xuất sắc tháng</div>
+                    <div class="lb-award-meta" th:if="${a.overrideReason != null}" th:text="'Lý do chọn khác đề xuất: ' + ${a.overrideReason}">Lý do</div>
+                </div>
+            </div>
+        </div>
+
+        <form th:if="${leaderboard.canCloseMonth}" th:action="@{/schedule/manager/reliability/close-month}" method="post" class="lb-award-form">
+            <input type="hidden" name="month" th:value="${leaderboard.selectedMonth}">
+            <p class="lb-award-meta" th:if="${#lists.isEmpty(leaderboard.awardProposals)}">
+                Không có nhân viên nào đủ điều kiện trong tháng này. Nếu vẫn muốn trao danh hiệu, hãy chọn nhân viên và ghi lý do.
+            </p>
+            <div class="lb-award-list" th:unless="${#lists.isEmpty(leaderboard.awardProposals)}">
+                <div class="lb-award-item" th:each="p, st : ${leaderboard.awardProposals}" th:classappend="${st.index == 0} ? ' is-first' : ''">
+                    <span class="lb-award-rank" th:text="${st.count}">1</span>
+                    <div>
+                        <strong th:text="${p.fullName}">Trần Văn Tuấn</strong>
+                        <div class="lb-award-meta"
+                             th:text="${p.reliabilityScore + 'đ · ' + p.shiftsWorked + ' ca · ' + p.rescueShiftsCount + ' lần hỗ trợ ca gấp · ' + p.punctualityViolationsCount + ' lần muộn/sớm'}">115đ</div>
+                    </div>
+                </div>
+            </div>
+            <div class="lb-form-group" style="margin-top:12px;">
+                <label for="firstPlace">Nhân viên xuất sắc tháng (Hạng 1)</label>
+                <select id="firstPlace" name="firstPlaceEmployeeId" class="lb-form-control">
+                    <option th:each="row : ${leaderboard.leaderboardEntries}"
+                            th:value="${row.employeeId}"
+                            th:selected="${!#lists.isEmpty(leaderboard.awardProposals) and row.employeeId == leaderboard.awardProposals[0].employeeId}"
+                            th:text="${row.fullName + ' — ' + row.reliabilityScore + 'đ' + (row.awardEligible ? ' (đủ điều kiện)' : ' (chưa đủ: ' + row.ineligibleReason + ')')}">Trần Văn Tuấn</option>
+                </select>
+            </div>
+            <div class="lb-form-group">
+                <label for="overrideReason">Lý do (bắt buộc nếu chọn khác đề xuất)</label>
+                <textarea id="overrideReason" name="overrideReason" rows="2" maxlength="255" class="lb-form-control"
+                          placeholder="VD: Được khách khen nhiều lần, hỗ trợ khai trương chi nhánh mới..."></textarea>
+            </div>
+            <button type="submit" class="lb-btn lb-btn-gold"
+                    data-coffee-confirm="Sau khi chốt sẽ không thay đổi được. Hệ thống sẽ gửi thông báo cho nhân viên đạt danh hiệu."
+                    data-coffee-title="Chốt danh hiệu tháng"
+                    data-coffee-ok="Chốt danh hiệu">Chốt kết quả tháng</button>
+        </form>
+    </section>
+
+    <!-- Lịch sử điểm chuyên cần các tháng (mỗi tháng khởi đầu lại 100đ) -->
+    <section class="lb-panel" th:if="${!#lists.isEmpty(leaderboard.monthlyHistory)}">
+        <div class="lb-panel-head">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <i data-lucide="calendar-range" style="width:20px;height:20px;color:var(--espresso);"></i>
+                <div>
+                    <h2 style="margin:0;">Lịch sử các tháng</h2>
+                    <small style="color:var(--ink-soft);">Điểm chuyên cần tính riêng từng tháng, mỗi tháng khởi đầu lại 100 điểm. Bấm vào tháng để xem chi tiết.</small>
+                </div>
+            </div>
+        </div>
+        <div class="lb-history-grid">
+            <a class="lb-history-tile" th:each="h : ${leaderboard.monthlyHistory}"
+               th:classappend="${h.selected} ? ' is-selected'"
+               th:href="@{/schedule/manager/leaderboard(month=${h.monthParam})}">
+                <span class="lb-history-month" th:text="${h.label}">Tháng 10/2026</span>
+                <th:block th:if="${h.myScore != null}">
+                    <strong class="lb-history-score" th:text="${h.myScore} + ' đ'">100 đ</strong>
+                    <span class="lb-history-meta" th:if="${h.myRank != null}"
+                          th:text="'Hạng ' + ${h.myRank} + '/' + ${h.totalStaff}">Hạng 1/5</span>
+                </th:block>
+                <span class="lb-history-award" th:if="${h.awardWinnerName != null}"
+                      th:text="'Xuất sắc: ' + ${h.awardWinnerName}">Xuất sắc</span>
+                <span class="lb-history-meta" th:if="${h.awardWinnerName == null and h.topEmployeeName != null}"
+                      th:text="'Dẫn đầu: ' + ${h.topEmployeeName} + ' (' + ${h.topScore} + ' đ)'">Dẫn đầu</span>
+                <span class="lb-history-meta muted" th:unless="${h.hasActivity}">Chưa có biến động</span>
+            </a>
         </div>
     </section>
 
@@ -297,14 +390,14 @@
                 <div style="display:flex;align-items:center;gap:8px;">
                     <i data-lucide="history" style="width:20px;height:20px;color:var(--espresso);"></i>
                     <div>
-                        <h2 style="margin:0;">Nhật ký biến động điểm chuyên cần gần đây</h2>
+                        <h2 style="margin:0;" th:text="'Nhật ký biến động điểm — ' + ${leaderboard.periodLabel}">Nhật ký biến động điểm</h2>
                         <small style="color:var(--ink-soft);">Mọi lượt cộng/trừ điểm đều được ghi vết minh bạch theo thời gian thực.</small>
                     </div>
                 </div>
             </div>
 
             <p th:if="${#lists.isEmpty(leaderboard.recentLogs)}" style="color:var(--ink-soft);font-size:13.5px;margin:0;">
-                Chưa có biến động điểm chuyên cần nào được ghi nhận.
+                Tháng này chưa có biến động điểm chuyên cần nào.
             </p>
 
             <div class="lb-log-list" th:if="${!#lists.isEmpty(leaderboard.recentLogs)}">
@@ -345,21 +438,22 @@
                     <option value="">-- Chọn nhân viên --</option>
                     <option th:each="emp : ${leaderboard.leaderboardEntries}"
                             th:value="${emp.employeeId}"
-                            th:text="${emp.fullName + ' (Hiện tại: ' + emp.reliabilityScore + 'đ)'}">
+                            th:text="${emp.fullName + ' (' + emp.reliabilityScore + 'đ · đã cộng ' + emp.manualBonusUsed + '/' + leaderboard.manualAdjustCap + ', đã trừ ' + emp.manualPenaltyUsed + '/' + leaderboard.manualAdjustCap + ')'}">
                         Trần Văn Tuấn (100đ)
                     </option>
                 </select>
             </div>
 
             <div class="lb-form-group">
-                <label for="adjPointsDelta">Mức cộng / trừ điểm *</label>
-                <select id="adjPointsDelta" name="pointsDelta" class="lb-form-control" required>
-                    <option value="5">+5 điểm — Hỗ trợ ca gấp đột xuất (&lt;24h)</option>
-                    <option value="2">+2 điểm — Hoàn thành tốt ca đổi / hỗ trợ cửa hàng</option>
-                    <option value="10">+10 điểm — Thưởng "Nhân viên xuất sắc"</option>
-                    <option value="-5">-5 điểm — Từ chối quá nhiều ca khẩn cấp</option>
-                    <option value="-10">-10 điểm — Xin hủy/bỏ ca sát giờ (&lt;24h)</option>
+                <label for="adjCategory">Danh mục *</label>
+                <select id="adjCategory" name="category" class="lb-form-control" required>
+                    <option value="">-- Chọn danh mục --</option>
+                    <option th:each="c : ${adjustCategories}"
+                            th:value="${c.name()}"
+                            th:text="${(c.points > 0 ? '+' : '') + c.points + ' điểm — ' + c.label}">+3 điểm — Được khách hàng khen</option>
                 </select>
+                <small style="color:var(--ink-soft);display:block;margin-top:4px;"
+                       th:text="'Mỗi nhân viên được cộng tối đa ' + ${leaderboard.manualAdjustCap} + ' điểm và trừ tối đa ' + ${leaderboard.manualAdjustCap} + ' điểm thủ công mỗi tháng. Nhân viên sẽ thấy lý do trong lịch sử điểm.'">Hạn mức</small>
             </div>
 
             <div class="lb-form-group">

@@ -2,28 +2,37 @@ package com.example.coffee_hrm.service.impl;
 
 import com.example.coffee_hrm.common.enums.ApprovalStatus;
 import com.example.coffee_hrm.common.enums.AssignmentStatus;
+import com.example.coffee_hrm.common.enums.AttendanceStatus;
 import com.example.coffee_hrm.common.enums.CertificationStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
+import com.example.coffee_hrm.common.enums.ManualAdjustCategory;
+import com.example.coffee_hrm.common.enums.NotificationType;
 import com.example.coffee_hrm.common.enums.ReliabilityActionType;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.response.ReliabilityLeaderboardView;
 import com.example.coffee_hrm.entity.Attendance;
 import com.example.coffee_hrm.entity.Employee;
+import com.example.coffee_hrm.entity.MonthlyEmployeeAward;
 import com.example.coffee_hrm.entity.ReliabilityScoreLog;
 import com.example.coffee_hrm.entity.Shift;
 import com.example.coffee_hrm.entity.ShiftAssignment;
 import com.example.coffee_hrm.entity.ShiftChangeRequest;
+import com.example.coffee_hrm.entity.ShiftCoverInvitation;
 import com.example.coffee_hrm.entity.Store;
+import com.example.coffee_hrm.entity.User;
+import com.example.coffee_hrm.repository.AttendanceRepository;
 import com.example.coffee_hrm.repository.EmployeeRepository;
+import com.example.coffee_hrm.repository.MonthlyEmployeeAwardRepository;
 import com.example.coffee_hrm.repository.ReliabilityScoreLogRepository;
 import com.example.coffee_hrm.repository.ShiftAssignmentRepository;
 import com.example.coffee_hrm.repository.ShiftChangeRequestRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
+import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
+import com.example.coffee_hrm.service.NotificationService;
 import com.example.coffee_hrm.service.ReliabilityService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,12 +57,19 @@ public class ReliabilityServiceImpl implements ReliabilityService {
     private static final String REF_SHIFT_ASSIGNMENT = "SHIFT_ASSIGNMENT";
     private static final String REF_MANAGER_ADJUST = "MANAGER_ADJUST";
     private static final String REF_ATTENDANCE = "ATTENDANCE";
+    private static final String REF_COVER_INVITATION = "COVER_INVITATION";
+    /** Số tháng hiển thị trong mục "Lịch sử các tháng". */
+    private static final int HISTORY_MONTHS = 6;
 
     private final EmployeeRepository employeeRepository;
     private final StoreRepository storeRepository;
     private final ShiftChangeRequestRepository shiftChangeRequestRepository;
     private final ShiftAssignmentRepository shiftAssignmentRepository;
     private final ReliabilityScoreLogRepository reliabilityScoreLogRepository;
+    private final MonthlyEmployeeAwardRepository monthlyEmployeeAwardRepository;
+    private final AttendanceRepository attendanceRepository;
+    private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     @Override
     public boolean isWithin24Hours(LocalDate workDate, LocalTime startTime, LocalDateTime referenceTime) {
@@ -95,49 +111,100 @@ public class ReliabilityServiceImpl implements ReliabilityService {
 
     @Override
     @Transactional
-    public void recordEmergencyDeclineIfApplicable(Employee targetEmployee, ShiftChangeRequest request) {
-        if (targetEmployee == null || request == null || request.getAssignment() == null
-                || request.getAssignment().getShift() == null) {
-            return;
+    public int recordInvitationDecline(ShiftCoverInvitation invitation, boolean expired) {
+        if (invitation == null || invitation.getEmployee() == null || invitation.getId() == null) {
+            return 0;
         }
-        ShiftAssignment assignment = request.getAssignment();
-        LocalDateTime now = VietnamTime.now();
-        if (!isWithin24Hours(assignment.getWorkDate(), assignment.getShift().getStartTime(), now)) {
-            return;
+        Employee employee = invitation.getEmployee();
+        int prior = countUrgentDeclinesThisMonth(employee.getId());
+        if (!invitation.isUrgent()) {
+            return prior;
         }
-        YearMonth currentMonth = YearMonth.from(now);
-        LocalDateTime monthStart = currentMonth.atDay(1).atStartOfDay();
-        LocalDateTime monthEnd = currentMonth.plusMonths(1).atDay(1).atStartOfDay();
-
-        long priorDeclines = reliabilityScoreLogRepository.countByEmployee_IdAndActionTypeInAndCreatedAtBetween(
-                targetEmployee.getId(),
-                List.of(
-                        ReliabilityActionType.EMERGENCY_DECLINE_WARNING.getDbValue(),
-                        ReliabilityActionType.EMERGENCY_DECLINE_PENALTY.getDbValue()),
-                monthStart,
-                monthEnd);
-
-        String shiftLabel = assignment.getShift().getShiftName() + " ngày " + assignment.getWorkDate().format(DATE_FORMATTER);
-        if (priorDeclines >= 1) {
-            String reason = "Từ chối ca khẩn cấp (<24h) lần thứ " + (priorDeclines + 1) + " trong tháng: " + shiftLabel;
-            applyScoreDelta(
-                    targetEmployee,
-                    ReliabilityActionType.EMERGENCY_DECLINE_PENALTY,
-                    EXCESSIVE_EMERGENCY_DECLINE_PENALTY,
-                    reason,
-                    REF_SHIFT_CHANGE,
-                    request.getId(),
-                    now);
+        if (reliabilityScoreLogRepository.existsByEmployee_IdAndActionTypeAndReferenceTypeAndReferenceId(
+                employee.getId(), ReliabilityActionType.EMERGENCY_DECLINE_WARNING.getDbValue(), REF_COVER_INVITATION, invitation.getId())
+                || reliabilityScoreLogRepository.existsByEmployee_IdAndActionTypeAndReferenceTypeAndReferenceId(
+                employee.getId(), ReliabilityActionType.EMERGENCY_DECLINE_PENALTY.getDbValue(), REF_COVER_INVITATION, invitation.getId())) {
+            return prior;
+        }
+        int nth = prior + 1;
+        String verb = expired ? "Không phản hồi (hết hạn)" : "Từ chối";
+        String shiftLabel = invitationShiftLabel(invitation);
+        if (nth <= FREE_URGENT_DECLINES_PER_MONTH) {
+            applyScoreDelta(employee, ReliabilityActionType.EMERGENCY_DECLINE_WARNING, 0,
+                    verb + " lời mời hỗ trợ ca gấp " + shiftLabel + " — lần " + nth + "/" + FREE_URGENT_DECLINES_PER_MONTH
+                            + " miễn trừ trong tháng",
+                    REF_COVER_INVITATION, invitation.getId(), VietnamTime.now());
         } else {
-            String reason = "Nhắc nhở lần 1 từ chối ca khẩn cấp (<24h): " + shiftLabel + " (Từ lần 2 trong tháng trừ 5đ)";
-            applyScoreDelta(
-                    targetEmployee,
-                    ReliabilityActionType.EMERGENCY_DECLINE_WARNING,
-                    0,
-                    reason,
-                    REF_SHIFT_CHANGE,
-                    request.getId(),
-                    now);
+            applyScoreDelta(employee, ReliabilityActionType.EMERGENCY_DECLINE_PENALTY, URGENT_DECLINE_PENALTY,
+                    verb + " lời mời hỗ trợ ca gấp " + shiftLabel + " — lần thứ " + nth + " trong tháng",
+                    REF_COVER_INVITATION, invitation.getId(), VietnamTime.now());
+        }
+        return nth;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public int countUrgentDeclinesThisMonth(Integer employeeId) {
+        if (employeeId == null) {
+            return 0;
+        }
+        YearMonth month = YearMonth.from(VietnamTime.now());
+        return (int) reliabilityScoreLogRepository.countByEmployee_IdAndActionTypeInAndCreatedAtBetween(
+                employeeId,
+                List.of(ReliabilityActionType.EMERGENCY_DECLINE_WARNING.getDbValue(),
+                        ReliabilityActionType.EMERGENCY_DECLINE_PENALTY.getDbValue()),
+                month.atDay(1).atStartOfDay(),
+                month.plusMonths(1).atDay(1).atStartOfDay());
+    }
+
+    private String invitationShiftLabel(ShiftCoverInvitation invitation) {
+        ShiftChangeRequest request = invitation.getRequest();
+        if (request == null || request.getAssignment() == null || request.getAssignment().getShift() == null) {
+            return "";
+        }
+        ShiftAssignment a = request.getAssignment();
+        return "(" + a.getShift().getShiftName() + " ngày " + a.getWorkDate().format(DATE_FORMATTER) + ")";
+    }
+
+    @Override
+    @Transactional
+    public void revokeRescueOnAbsence(Attendance absent) {
+        if (absent == null || absent.getEmployee() == null || absent.getShift() == null || absent.getWorkDate() == null) {
+            return;
+        }
+        Employee employee = absent.getEmployee();
+        List<ShiftAssignment> sameDay = shiftAssignmentRepository.findByEmployee_IdAndWorkDateAndStatus(
+                employee.getId(), absent.getWorkDate(), AssignmentStatus.ASSIGNED);
+        if (sameDay == null) {
+            return;
+        }
+        for (ShiftAssignment assignment : sameDay) {
+            if (assignment.getShift() == null || !Objects.equals(assignment.getShift().getId(), absent.getShift().getId())) {
+                continue;
+            }
+            List<ShiftChangeRequest> changes = shiftChangeRequestRepository.findAllByAssignmentId(assignment.getId());
+            if (changes == null) {
+                continue;
+            }
+            for (ShiftChangeRequest change : changes) {
+                if (change.getStatus() != ApprovalStatus.APPROVED || change.getId() == null) {
+                    continue;
+                }
+                boolean rewarded = reliabilityScoreLogRepository.existsByEmployee_IdAndActionTypeAndReferenceTypeAndReferenceId(
+                        employee.getId(), ReliabilityActionType.RESCUE_SHIFT_24H.getDbValue(), REF_SHIFT_CHANGE, change.getId());
+                boolean alreadyRevoked = reliabilityScoreLogRepository.existsByEmployee_IdAndActionTypeAndReferenceTypeAndReferenceId(
+                        employee.getId(), ReliabilityActionType.RESCUE_REVOKED.getDbValue(), REF_SHIFT_CHANGE, change.getId());
+                if (!rewarded || alreadyRevoked) {
+                    continue;
+                }
+                String label = assignment.getShift().getShiftName() + " ngày " + absent.getWorkDate().format(DATE_FORMATTER);
+                applyScoreDelta(employee, ReliabilityActionType.RESCUE_REVOKED, -RESCUE_SHIFT_BONUS,
+                        "Thu hồi +5đ hỗ trợ ca gấp do vắng mặt: " + label,
+                        REF_SHIFT_CHANGE, change.getId(), VietnamTime.now());
+                applyScoreDelta(employee, ReliabilityActionType.ABANDONED_ACCEPTED_SHIFT, ABANDONED_ACCEPTED_SHIFT_PENALTY,
+                        "Đã nhận hỗ trợ ca gấp nhưng vắng mặt: " + label,
+                        REF_SHIFT_CHANGE, change.getId(), VietnamTime.now());
+            }
         }
     }
 
@@ -156,11 +223,9 @@ public class ReliabilityServiceImpl implements ReliabilityService {
         LocalTime startTime = assignment.getShift().getStartTime();
         LocalDateTime now = VietnamTime.now();
 
-        boolean rescuedWithin24h = isWithin24Hours(workDate, startTime, now)
-                || (approvedRequest.getTargetAgreedAt() != null
-                    && isWithin24Hours(workDate, startTime, approvedRequest.getTargetAgreedAt()))
-                || (approvedRequest.getRequestDate() != null
-                    && isWithin24Hours(workDate, startTime, approvedRequest.getRequestDate()));
+        // Tính "gấp" tại thời điểm nhân viên đồng ý nhận ca (chưa có thì lấy thời điểm duyệt).
+        LocalDateTime agreedAt = approvedRequest.getTargetAgreedAt() != null ? approvedRequest.getTargetAgreedAt() : now;
+        boolean rescuedWithin24h = isWithin24Hours(workDate, startTime, agreedAt);
 
         if (!rescuedWithin24h) {
             return;
@@ -326,37 +391,132 @@ public class ReliabilityServiceImpl implements ReliabilityService {
 
     @Override
     @Transactional
-    public void adjustScoreByManager(Integer employeeId, int pointsDelta, String reason, AuthenticatedUser manager) {
+    public void adjustScoreByManager(Integer employeeId, String categoryParam, String reason, AuthenticatedUser manager) {
         Store store = resolveManagerStore(manager);
         if (employeeId == null) {
             throw new BusinessException("Vui lòng chọn nhân viên cần điều chỉnh điểm chuyên cần.");
         }
-        if (pointsDelta == 0 || pointsDelta < -50 || pointsDelta > 50) {
-            throw new BusinessException("Số điểm điều chỉnh phải khác 0 và nằm trong khoảng -50 đến +50 điểm.");
+        ManualAdjustCategory category = ManualAdjustCategory.fromParam(categoryParam);
+        if (category == null) {
+            throw new BusinessException("Vui lòng chọn danh mục khen thưởng / nhắc nhở.");
         }
         String trimmedReason = reason == null ? "" : reason.trim();
         if (trimmedReason.isEmpty()) {
-            throw new BusinessException("Vui lòng nhập lý do thưởng hoặc trừ điểm chuyên cần.");
-        }
-        if (trimmedReason.length() > 250) {
-            trimmedReason = trimmedReason.substring(0, 250);
+            throw new BusinessException("Vui lòng nhập lý do cụ thể cho lần điều chỉnh điểm.");
         }
         Employee employee = employeeRepository.findByIdWithStore(employeeId)
                 .orElseThrow(() -> new BusinessException("Không tìm thấy nhân viên."));
         if (employee.getStore() == null || !Objects.equals(employee.getStore().getId(), store.getId())) {
             throw new BusinessException("Nhân viên không thuộc cửa hàng bạn quản lý.");
         }
-        ReliabilityActionType actionType = pointsDelta > 0
+        ReliabilityActionType actionType = category.isBonus()
                 ? ReliabilityActionType.MANAGER_BONUS
                 : ReliabilityActionType.MANAGER_PENALTY;
-        applyScoreDelta(
-                employee,
-                actionType,
-                pointsDelta,
-                trimmedReason,
-                REF_MANAGER_ADJUST,
-                null,
-                VietnamTime.now());
+        LocalDateTime now = VietnamTime.now();
+        YearMonth month = YearMonth.from(now);
+        Integer usedRaw = reliabilityScoreLogRepository.sumDeltaForEmployeeAndActionInRange(
+                employee.getId(), actionType.getDbValue(), month.atDay(1).atStartOfDay(), month.plusMonths(1).atDay(1).atStartOfDay());
+        int used = Math.abs(usedRaw != null ? usedRaw : 0);
+        if (used + Math.abs(category.getPoints()) > MANUAL_ADJUST_MONTHLY_CAP) {
+            throw new BusinessException("Vượt hạn mức điều chỉnh thủ công trong tháng: " + employee.getFullName()
+                    + " đã được " + (category.isBonus() ? "cộng " : "trừ ") + used + "/" + MANUAL_ADJUST_MONTHLY_CAP
+                    + " điểm, không thể " + (category.isBonus() ? "cộng" : "trừ") + " thêm " + Math.abs(category.getPoints()) + " điểm.");
+        }
+        String fullReason = "[" + category.getLabel() + "] " + trimmedReason;
+        applyScoreDelta(employee, actionType, category.getPoints(), fullReason, REF_MANAGER_ADJUST, null, now);
+    }
+
+    @Override
+    @Transactional
+    public void closeMonth(AuthenticatedUser manager, YearMonth month, Integer firstPlaceEmployeeId, String overrideReason) {
+        Store store = resolveManagerStore(manager);
+        YearMonth currentMonth = YearMonth.from(VietnamTime.today());
+        if (month == null || !month.isBefore(currentMonth)) {
+            throw new BusinessException("Chỉ có thể chốt danh hiệu cho tháng đã kết thúc.");
+        }
+        if (monthlyEmployeeAwardRepository.existsByStore_IdAndAwardMonth(store.getId(), month.toString())) {
+            throw new BusinessException("Tháng " + monthLabel(month) + " đã được chốt danh hiệu trước đó.");
+        }
+        ReliabilityLeaderboardView view = buildLeaderboardView(store, month, null, true);
+        List<ReliabilityLeaderboardView.RankEntry> proposals = view.getAwardProposals();
+        Map<Integer, ReliabilityLeaderboardView.RankEntry> byId = new HashMap<>();
+        view.getLeaderboardEntries().forEach(e -> byId.put(e.getEmployeeId(), e));
+
+        ReliabilityLeaderboardView.RankEntry first;
+        String reasonForOverride = overrideReason == null ? "" : overrideReason.trim();
+        Integer proposedFirstId = proposals.isEmpty() ? null : proposals.getFirst().getEmployeeId();
+        if (firstPlaceEmployeeId == null || Objects.equals(firstPlaceEmployeeId, proposedFirstId)) {
+            if (proposals.isEmpty()) {
+                throw new BusinessException("Tháng " + monthLabel(month)
+                        + " không có nhân viên đủ điều kiện. Nếu vẫn muốn trao danh hiệu, hãy chọn nhân viên và ghi lý do.");
+            }
+            first = proposals.getFirst();
+            reasonForOverride = "";
+        } else {
+            first = byId.get(firstPlaceEmployeeId);
+            if (first == null) {
+                throw new BusinessException("Nhân viên được chọn không thuộc bảng xếp hạng cửa hàng tháng này.");
+            }
+            if (reasonForOverride.isEmpty()) {
+                throw new BusinessException("Bạn đang chọn người khác đề xuất của hệ thống — vui lòng ghi lý do.");
+            }
+            if (reasonForOverride.length() > 255) {
+                reasonForOverride = reasonForOverride.substring(0, 255);
+            }
+        }
+
+        List<ReliabilityLeaderboardView.RankEntry> winners = new ArrayList<>();
+        winners.add(first);
+        for (ReliabilityLeaderboardView.RankEntry p : proposals) {
+            if (winners.size() >= 3) {
+                break;
+            }
+            if (!Objects.equals(p.getEmployeeId(), first.getEmployeeId())) {
+                winners.add(p);
+            }
+        }
+
+        User decidedBy = userRepository.findById(manager.getUserId())
+                .orElseThrow(() -> new BusinessException("Không tìm thấy tài khoản quản lý."));
+        LocalDateTime now = VietnamTime.now();
+        for (int i = 0; i < winners.size(); i++) {
+            ReliabilityLeaderboardView.RankEntry w = winners.get(i);
+            Employee employee = employeeRepository.findById(w.getEmployeeId())
+                    .orElseThrow(() -> new BusinessException("Không tìm thấy nhân viên."));
+            monthlyEmployeeAwardRepository.save(MonthlyEmployeeAward.builder()
+                    .store(store)
+                    .awardMonth(month.toString())
+                    .employee(employee)
+                    .awardRank(i + 1)
+                    .monthScore(w.getReliabilityScore())
+                    .overrideReason(i == 0 && !reasonForOverride.isEmpty() ? reasonForOverride : null)
+                    .decidedBy(decidedBy)
+                    .decidedAt(now)
+                    .build());
+            notifyAward(employee, i + 1, month);
+        }
+    }
+
+    private void notifyAward(Employee employee, int rank, YearMonth month) {
+        if (notificationService == null || employee == null) {
+            return;
+        }
+        userRepository.findByEmployee_Id(employee.getId())
+                .filter(u -> u.getId() != null && Boolean.TRUE.equals(u.getIsActive()))
+                .ifPresent(u -> notificationService.notifyUsers(List.of(u),
+                        rank == 1 ? "Chúc mừng Nhân viên xuất sắc tháng!" : "Chúc mừng bạn vào Top tháng!",
+                        "Bạn đạt " + awardTitle(rank) + " " + monthLabel(month) + " tại cửa hàng.",
+                        NotificationType.MONTHLY_AWARD_GRANTED,
+                        null,
+                        null));
+    }
+
+    static String awardTitle(int rank) {
+        return rank == 1 ? "Nhân viên xuất sắc tháng" : "Top " + rank + " tháng";
+    }
+
+    private static String monthLabel(YearMonth m) {
+        return String.format("%02d/%d", m.getMonthValue(), m.getYear());
     }
 
     @Override
@@ -383,9 +543,14 @@ public class ReliabilityServiceImpl implements ReliabilityService {
             Employee currentStaff,
             boolean isManagerView) {
 
-        YearMonth targetMonth = requestedMonth != null ? requestedMonth : YearMonth.from(VietnamTime.today());
+        YearMonth currentMonth = YearMonth.from(VietnamTime.today());
+        YearMonth targetMonth = requestedMonth != null ? requestedMonth : currentMonth;
+        if (targetMonth.isAfter(currentMonth)) {
+            targetMonth = currentMonth;
+        }
         LocalDateTime monthStart = targetMonth.atDay(1).atStartOfDay();
         LocalDateTime monthEndExclusive = targetMonth.plusMonths(1).atDay(1).atStartOfDay();
+        YearMonth historyStartMonth = targetMonth.minusMonths(HISTORY_MONTHS - 1);
 
         List<Employee> activeEmployees = employeeRepository.findByStore_IdAndStatus(store.getId(), EmployeeStatus.ACTIVE);
         Integer managerEmpId = store.getManager() != null ? store.getManager().getId() : null;
@@ -396,8 +561,14 @@ public class ReliabilityServiceImpl implements ReliabilityService {
             staffMembers = activeEmployees;
         }
 
-        List<ReliabilityScoreLog> monthlyLogs = reliabilityScoreLogRepository.findForStoreInRange(
-                store.getId(), monthStart, monthEndExclusive);
+        // Điểm chuyên cần tính riêng từng tháng: mỗi tháng khởi đầu 100đ + tổng biến động trong tháng đó.
+        List<ReliabilityScoreLog> historyLogs = reliabilityScoreLogRepository.findForStoreInRange(
+                store.getId(), historyStartMonth.atDay(1).atStartOfDay(), monthEndExclusive);
+        List<ReliabilityScoreLog> monthlyLogs = historyLogs.stream()
+                .filter(l -> l.getCreatedAt() != null
+                        && !l.getCreatedAt().isBefore(monthStart)
+                        && l.getCreatedAt().isBefore(monthEndExclusive))
+                .toList();
 
         Map<Integer, List<ReliabilityScoreLog>> logsByEmployee = new HashMap<>();
         for (ReliabilityScoreLog log : monthlyLogs) {
@@ -410,6 +581,26 @@ public class ReliabilityServiceImpl implements ReliabilityService {
         int totalCompletedSwapsMonth = 0;
         int totalLateCancelsMonth = 0;
 
+        // Số ca đã làm (đã check-out) và số lần vắng trong tháng, dùng để xét danh hiệu.
+        Map<Integer, Integer> shiftsWorkedByEmp = new HashMap<>();
+        Map<Integer, Integer> absencesByEmp = new HashMap<>();
+        if (attendanceRepository != null) {
+            List<Attendance> monthAttendances = attendanceRepository.findForMonthlyReport(
+                    store.getId(), targetMonth.atDay(1), targetMonth.atEndOfMonth());
+            if (monthAttendances != null) {
+                for (Attendance a : monthAttendances) {
+                    if (a.getEmployee() == null || a.getShift() == null) {
+                        continue;
+                    }
+                    if (a.getStatus() == AttendanceStatus.ABSENT) {
+                        absencesByEmp.merge(a.getEmployee().getId(), 1, Integer::sum);
+                    } else if (a.getCheckOutTime() != null && a.getStatus() != AttendanceStatus.NOT_PARTICIPATED) {
+                        shiftsWorkedByEmp.merge(a.getEmployee().getId(), 1, Integer::sum);
+                    }
+                }
+            }
+        }
+
         List<ReliabilityLeaderboardView.RankEntry> entries = new ArrayList<>();
         for (Employee emp : staffMembers) {
             List<ReliabilityScoreLog> empLogs = logsByEmployee.getOrDefault(emp.getId(), List.of());
@@ -421,6 +612,9 @@ public class ReliabilityServiceImpl implements ReliabilityService {
             int lateCancelCount = 0;
             int emergencyDeclineCount = 0;
             int punctualityCount = 0;
+            int abandonedCount = 0;
+            int manualBonusUsed = 0;
+            int manualPenaltyUsed = 0;
 
             for (ReliabilityScoreLog l : empLogs) {
                 int delta = l.getPointsDelta() != null ? l.getPointsDelta() : 0;
@@ -446,10 +640,16 @@ public class ReliabilityServiceImpl implements ReliabilityService {
                 } else if (ReliabilityActionType.LATE_ARRIVAL.getDbValue().equalsIgnoreCase(action)
                         || ReliabilityActionType.EARLY_LEAVE.getDbValue().equalsIgnoreCase(action)) {
                     punctualityCount++;
+                } else if (ReliabilityActionType.ABANDONED_ACCEPTED_SHIFT.getDbValue().equalsIgnoreCase(action)) {
+                    abandonedCount++;
+                } else if (ReliabilityActionType.MANAGER_BONUS.getDbValue().equalsIgnoreCase(action)) {
+                    manualBonusUsed += Math.max(0, delta);
+                } else if (ReliabilityActionType.MANAGER_PENALTY.getDbValue().equalsIgnoreCase(action)) {
+                    manualPenaltyUsed += Math.abs(Math.min(0, delta));
                 }
             }
 
-            int score = emp.getEffectiveReliabilityScore();
+            int score = Math.max(0, INITIAL_SCORE + netDelta);
             TierMeta tier = resolveTier(score);
 
             entries.add(ReliabilityLeaderboardView.RankEntry.builder()
@@ -468,6 +668,11 @@ public class ReliabilityServiceImpl implements ReliabilityService {
                     .lateCancelsCount(lateCancelCount)
                     .emergencyDeclinesCount(emergencyDeclineCount)
                     .punctualityViolationsCount(punctualityCount)
+                    .shiftsWorked(shiftsWorkedByEmp.getOrDefault(emp.getId(), 0))
+                    .absencesCount(absencesByEmp.getOrDefault(emp.getId(), 0))
+                    .abandonedCount(abandonedCount)
+                    .manualBonusUsed(manualBonusUsed)
+                    .manualPenaltyUsed(manualPenaltyUsed)
                     .tierCode(tier.code())
                     .tierLabel(tier.label())
                     .tierBadgeClass(tier.badgeClass())
@@ -476,23 +681,34 @@ public class ReliabilityServiceImpl implements ReliabilityService {
 
         entries.sort(Comparator
                 .comparingInt(ReliabilityLeaderboardView.RankEntry::getReliabilityScore).reversed()
-                .thenComparing(Comparator.comparingInt(ReliabilityLeaderboardView.RankEntry::getMonthlyNetDelta).reversed())
                 .thenComparing(Comparator.comparingInt(ReliabilityLeaderboardView.RankEntry::getRescueShiftsCount).reversed())
-                .thenComparing(Comparator.comparingInt(ReliabilityLeaderboardView.RankEntry::getCompletedSwapsCount).reversed())
+                .thenComparingInt(ReliabilityLeaderboardView.RankEntry::getPunctualityViolationsCount)
+                .thenComparing(Comparator.comparingInt(ReliabilityLeaderboardView.RankEntry::getShiftsWorked).reversed())
                 .thenComparing(ReliabilityLeaderboardView.RankEntry::getFullName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)));
 
+        List<ReliabilityLeaderboardView.RankEntry> awardProposals = new ArrayList<>();
         for (int i = 0; i < entries.size(); i++) {
             ReliabilityLeaderboardView.RankEntry entry = entries.get(i);
-            int rank = i + 1;
-            entry.setRank(rank);
-            boolean top3Qualifies = rank <= 3 && entry.getReliabilityScore() >= INITIAL_SCORE;
-            boolean prioritySchedule = top3Qualifies || entry.getReliabilityScore() >= 105;
+            entry.setRank(i + 1);
+            String ineligible = ineligibleReason(entry);
+            entry.setAwardEligible(ineligible == null);
+            entry.setIneligibleReason(ineligible);
+            if (ineligible == null && awardProposals.size() < 3) {
+                awardProposals.add(entry);
+            }
+        }
+        for (ReliabilityLeaderboardView.RankEntry entry : entries) {
+            int proposedRank = awardProposals.indexOf(entry) + 1;
+            boolean top3Qualifies = proposedRank > 0;
+            boolean prioritySchedule = top3Qualifies || entry.getReliabilityScore() >= MIN_SCORE_FOR_AWARD;
             entry.setKpiRewardEligible(top3Qualifies);
             entry.setPriorityScheduleEligible(prioritySchedule);
-            if (top3Qualifies && rank == 1) {
-                entry.setRewardBadgeLabel("Nhân viên xuất sắc tháng + Ưu tiên lịch tuần sau");
+            if (proposedRank == 1) {
+                entry.setRewardBadgeLabel("Đề xuất Nhân viên xuất sắc tháng + Ưu tiên lịch tuần sau");
             } else if (top3Qualifies) {
-                entry.setRewardBadgeLabel("Thưởng KPI Tháng + Ưu tiên lịch tuần sau");
+                entry.setRewardBadgeLabel("Đề xuất Top tháng + Ưu tiên lịch tuần sau");
+            } else if (entry.getIneligibleReason() != null && entry.getRank() <= 3) {
+                entry.setRewardBadgeLabel("Chưa đủ điều kiện xét: " + entry.getIneligibleReason());
             } else if (prioritySchedule) {
                 entry.setRewardBadgeLabel("Ưu tiên chọn lịch làm tuần sau");
             } else if (entry.getReliabilityScore() < 90) {
@@ -515,10 +731,22 @@ public class ReliabilityServiceImpl implements ReliabilityService {
                 ? buildCompletedSwapCandidates(store.getId())
                 : List.of();
 
-        List<ReliabilityLeaderboardView.ScoreLogItem> recentLogs = reliabilityScoreLogRepository
-                .findRecentForStore(store.getId(), PageRequest.of(0, 25))
-                .stream()
-                .map(this::toScoreLogItem)
+        // "Điểm sau" của từng biến động = 100đ + lũy kế trong tháng (không dùng giá trị cộng dồn cũ trong DB).
+        Map<ReliabilityScoreLog, Integer> monthlyScoreAfter = new IdentityHashMap<>();
+        Map<Integer, Integer> runningByEmployee = new HashMap<>();
+        for (int i = monthlyLogs.size() - 1; i >= 0; i--) {
+            ReliabilityScoreLog log = monthlyLogs.get(i);
+            if (log.getEmployee() == null) {
+                continue;
+            }
+            int delta = log.getPointsDelta() != null ? log.getPointsDelta() : 0;
+            int running = runningByEmployee.merge(log.getEmployee().getId(), delta, Integer::sum);
+            monthlyScoreAfter.put(log, Math.max(0, INITIAL_SCORE + running));
+        }
+
+        List<ReliabilityLeaderboardView.ScoreLogItem> recentLogs = monthlyLogs.stream()
+                .limit(50)
+                .map(l -> toScoreLogItem(l, monthlyScoreAfter.get(l)))
                 .toList();
 
         ReliabilityLeaderboardView.RankEntry mySummary = null;
@@ -532,7 +760,7 @@ public class ReliabilityServiceImpl implements ReliabilityService {
                     .filter(e -> Objects.equals(e.getEmployeeId(), currentStaff.getId()))
                     .findFirst()
                     .orElse(null);
-            int myScore = mySummary != null ? mySummary.getReliabilityScore() : currentStaff.getEffectiveReliabilityScore();
+            int myScore = mySummary != null ? mySummary.getReliabilityScore() : INITIAL_SCORE;
             if (myScore < 90) {
                 nextTierLabel = "Ổn định (90 đ)";
                 pointsToNextTier = 90 - myScore;
@@ -550,12 +778,50 @@ public class ReliabilityServiceImpl implements ReliabilityService {
                 pointsToNextTier = 0;
                 progressPercent = 100;
             }
-            myRecentLogs = reliabilityScoreLogRepository
-                    .findRecentForEmployee(currentStaff.getId(), PageRequest.of(0, 15))
-                    .stream()
-                    .map(this::toScoreLogItem)
+            myRecentLogs = monthlyLogs.stream()
+                    .filter(l -> l.getEmployee() != null && Objects.equals(l.getEmployee().getId(), currentStaff.getId()))
+                    .map(l -> toScoreLogItem(l, monthlyScoreAfter.get(l)))
                     .toList();
         }
+
+        List<ReliabilityLeaderboardView.MonthHistoryItem> monthlyHistory = buildMonthlyHistory(
+                historyLogs, staffMembers, historyStartMonth, targetMonth, currentStaff);
+
+        // Danh hiệu đã chốt (tháng đang xem + các tháng trong lịch sử)
+        List<String> monthKeys = new ArrayList<>();
+        for (YearMonth m = targetMonth; !m.isBefore(historyStartMonth); m = m.minusMonths(1)) {
+            monthKeys.add(m.toString());
+        }
+        List<MonthlyEmployeeAward> storedAwards = monthlyEmployeeAwardRepository != null
+                ? monthlyEmployeeAwardRepository.findForStoreAndMonths(store.getId(), monthKeys)
+                : List.of();
+        Map<String, String> winnerByMonth = new HashMap<>();
+        List<ReliabilityLeaderboardView.AwardItem> awards = new ArrayList<>();
+        for (MonthlyEmployeeAward a : storedAwards) {
+            if (a.getAwardRank() != null && a.getAwardRank() == 1 && a.getEmployee() != null) {
+                winnerByMonth.put(a.getAwardMonth(), a.getEmployee().getFullName());
+            }
+            if (targetMonth.toString().equals(a.getAwardMonth()) && a.getEmployee() != null) {
+                awards.add(ReliabilityLeaderboardView.AwardItem.builder()
+                        .rank(a.getAwardRank())
+                        .title(awardTitle(a.getAwardRank()))
+                        .employeeId(a.getEmployee().getId())
+                        .employeeName(a.getEmployee().getFullName())
+                        .monthScore(a.getMonthScore())
+                        .overrideReason(a.getOverrideReason())
+                        .decidedAt(a.getDecidedAt() != null ? a.getDecidedAt().format(DATE_TIME_FORMATTER) : null)
+                        .build());
+                entries.stream()
+                        .filter(e -> Objects.equals(e.getEmployeeId(), a.getEmployee().getId()))
+                        .forEach(e -> {
+                            e.setAwardRank(a.getAwardRank());
+                            e.setAwardTitle(awardTitle(a.getAwardRank()));
+                        });
+            }
+        }
+        awards.sort(Comparator.comparingInt(ReliabilityLeaderboardView.AwardItem::getRank));
+        monthlyHistory.forEach(h -> h.setAwardWinnerName(winnerByMonth.get(h.getMonthParam())));
+        boolean monthClosed = !awards.isEmpty();
 
         return ReliabilityLeaderboardView.builder()
                 .storeId(store.getId())
@@ -564,7 +830,8 @@ public class ReliabilityServiceImpl implements ReliabilityService {
                 .selectedMonth(targetMonth.toString())
                 .periodLabel("Tháng " + String.format("%02d/%d", targetMonth.getMonthValue(), targetMonth.getYear()))
                 .prevMonthParam(targetMonth.minusMonths(1).toString())
-                .nextMonthParam(targetMonth.plusMonths(1).toString())
+                .nextMonthParam(targetMonth.isBefore(currentMonth) ? targetMonth.plusMonths(1).toString() : null)
+                .currentMonth(targetMonth.equals(currentMonth))
                 .totalStaffCount(entries.size())
                 .averageReliabilityScore(String.format(Locale.US, "%.1f", avgScore))
                 .totalRescueShiftsMonth(totalRescueMonth)
@@ -581,7 +848,112 @@ public class ReliabilityServiceImpl implements ReliabilityService {
                 .openRescueShifts(openRescueShifts)
                 .completedSwapCandidates(swapCandidates)
                 .recentLogs(recentLogs)
+                .monthlyHistory(monthlyHistory)
+                .monthClosed(monthClosed)
+                .canCloseMonth(isManagerView && !monthClosed && targetMonth.isBefore(currentMonth))
+                .awardProposals(awardProposals)
+                .awards(awards)
+                .minShiftsForAward(MIN_SHIFTS_FOR_AWARD)
+                .minScoreForAward(MIN_SCORE_FOR_AWARD)
+                .manualAdjustCap(MANUAL_ADJUST_MONTHLY_CAP)
                 .build();
+    }
+
+    /** Lý do chưa đủ điều kiện xét danh hiệu tháng, null nếu đủ điều kiện. */
+    static String ineligibleReason(ReliabilityLeaderboardView.RankEntry e) {
+        List<String> reasons = new ArrayList<>();
+        if (e.getShiftsWorked() < MIN_SHIFTS_FOR_AWARD) {
+            reasons.add("mới làm " + e.getShiftsWorked() + "/" + MIN_SHIFTS_FOR_AWARD + " ca");
+        }
+        if (e.getAbsencesCount() > 0) {
+            reasons.add("vắng " + e.getAbsencesCount() + " ca");
+        }
+        if (e.getAbandonedCount() > 0) {
+            reasons.add("bỏ ca đã nhận");
+        }
+        if (e.getReliabilityScore() < MIN_SCORE_FOR_AWARD) {
+            reasons.add("dưới " + MIN_SCORE_FOR_AWARD + "đ");
+        }
+        return reasons.isEmpty() ? null : String.join(", ", reasons);
+    }
+
+    /**
+     * Tóm tắt điểm chuyên cần các tháng gần nhất (mới nhất trước): người dẫn đầu từng tháng
+     * và điểm/hạng của nhân viên đang xem.
+     */
+    private List<ReliabilityLeaderboardView.MonthHistoryItem> buildMonthlyHistory(
+            List<ReliabilityScoreLog> historyLogs,
+            List<Employee> staffMembers,
+            YearMonth fromMonth,
+            YearMonth toMonth,
+            Employee currentStaff) {
+
+        Map<YearMonth, Map<Integer, Integer>> deltaByMonth = new HashMap<>();
+        for (ReliabilityScoreLog log : historyLogs) {
+            if (log.getEmployee() == null || log.getCreatedAt() == null) {
+                continue;
+            }
+            int delta = log.getPointsDelta() != null ? log.getPointsDelta() : 0;
+            deltaByMonth.computeIfAbsent(YearMonth.from(log.getCreatedAt()), k -> new HashMap<>())
+                    .merge(log.getEmployee().getId(), delta, Integer::sum);
+        }
+
+        List<ReliabilityLeaderboardView.MonthHistoryItem> items = new ArrayList<>();
+        for (YearMonth m = toMonth; !m.isBefore(fromMonth); m = m.minusMonths(1)) {
+            Map<Integer, Integer> deltas = deltaByMonth.getOrDefault(m, Map.of());
+            List<Employee> ranked = staffMembers.stream()
+                    .sorted(Comparator
+                            .comparingInt((Employee e) -> deltas.getOrDefault(e.getId(), 0)).reversed()
+                            .thenComparing(Employee::getFullName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
+                    .toList();
+            Employee top = deltas.isEmpty() || ranked.isEmpty() ? null : ranked.get(0);
+
+            Integer myScore = null;
+            Integer myRank = null;
+            if (currentStaff != null) {
+                myScore = Math.max(0, INITIAL_SCORE + deltas.getOrDefault(currentStaff.getId(), 0));
+                for (int i = 0; i < ranked.size(); i++) {
+                    if (Objects.equals(ranked.get(i).getId(), currentStaff.getId())) {
+                        myRank = i + 1;
+                        break;
+                    }
+                }
+            }
+
+            items.add(ReliabilityLeaderboardView.MonthHistoryItem.builder()
+                    .monthParam(m.toString())
+                    .label(String.format("Tháng %02d/%d", m.getMonthValue(), m.getYear()))
+                    .selected(m.equals(toMonth))
+                    .hasActivity(!deltas.isEmpty())
+                    .topEmployeeName(top != null ? top.getFullName() : null)
+                    .topScore(top != null ? Math.max(0, INITIAL_SCORE + deltas.getOrDefault(top.getId(), 0)) : null)
+                    .myScore(myScore)
+                    .myRank(myRank)
+                    .totalStaff(ranked.size())
+                    .build());
+        }
+        return items;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Integer, Integer> getCurrentMonthScores(Integer storeId) {
+        Map<Integer, Integer> scores = new HashMap<>();
+        if (storeId == null) {
+            return scores;
+        }
+        YearMonth month = YearMonth.from(VietnamTime.today());
+        List<ReliabilityScoreLog> logs = reliabilityScoreLogRepository.findForStoreInRange(
+                storeId, month.atDay(1).atStartOfDay(), month.plusMonths(1).atDay(1).atStartOfDay());
+        for (ReliabilityScoreLog log : logs) {
+            if (log.getEmployee() == null) {
+                continue;
+            }
+            int delta = log.getPointsDelta() != null ? log.getPointsDelta() : 0;
+            scores.merge(log.getEmployee().getId(), delta, Integer::sum);
+        }
+        scores.replaceAll((id, delta) -> Math.max(0, INITIAL_SCORE + delta));
+        return scores;
     }
 
     private List<ReliabilityLeaderboardView.RescueShiftItem> buildOpenRescueShifts(
@@ -668,7 +1040,7 @@ public class ReliabilityServiceImpl implements ReliabilityService {
         return list;
     }
 
-    private ReliabilityLeaderboardView.ScoreLogItem toScoreLogItem(ReliabilityScoreLog log) {
+    private ReliabilityLeaderboardView.ScoreLogItem toScoreLogItem(ReliabilityScoreLog log, Integer monthlyScoreAfter) {
         ReliabilityActionType type = ReliabilityActionType.fromDbValue(log.getActionType());
         int delta = log.getPointsDelta() != null ? log.getPointsDelta() : 0;
         return ReliabilityLeaderboardView.ScoreLogItem.builder()
@@ -678,7 +1050,8 @@ public class ReliabilityServiceImpl implements ReliabilityService {
                 .actionType(log.getActionType())
                 .actionLabel(type.getLabel())
                 .pointsDelta(delta)
-                .scoreAfter(log.getScoreAfter() != null ? log.getScoreAfter() : INITIAL_SCORE)
+                .scoreAfter(monthlyScoreAfter != null ? monthlyScoreAfter
+                        : (log.getScoreAfter() != null ? log.getScoreAfter() : INITIAL_SCORE))
                 .reason(log.getReason())
                 .createdAtFormatted(log.getCreatedAt() != null ? log.getCreatedAt().format(DATE_TIME_FORMATTER) : "—")
                 .positive(delta > 0)
@@ -695,8 +1068,12 @@ public class ReliabilityServiceImpl implements ReliabilityService {
             Integer referenceId,
             LocalDateTime now) {
 
-        int currentScore = employee.getEffectiveReliabilityScore();
-        int newScore = Math.max(0, currentScore + pointsDelta);
+        // Điểm chuyên cần reset mỗi tháng: 100đ + tổng biến động của tháng hiện tại.
+        LocalDateTime at = now != null ? now : VietnamTime.now();
+        YearMonth month = YearMonth.from(at);
+        Integer monthDelta = employee.getId() == null ? null : reliabilityScoreLogRepository.sumDeltaForEmployeeInRange(
+                employee.getId(), month.atDay(1).atStartOfDay(), month.plusMonths(1).atDay(1).atStartOfDay());
+        int newScore = Math.max(0, INITIAL_SCORE + (monthDelta != null ? monthDelta : 0) + pointsDelta);
         employee.setReliabilityScore(newScore);
         employeeRepository.save(employee);
 

@@ -284,6 +284,10 @@ public class AttendanceServiceImpl implements AttendanceService {
                 attendanceRepository.saveAndFlush(absent);
             } catch (DataIntegrityViolationException ignored) {
                 // Ca này đã có bản ghi chấm công.
+                continue;
+            }
+            if (reliabilityService != null) {
+                reliabilityService.revokeRescueOnAbsence(absent);
             }
         }
     }

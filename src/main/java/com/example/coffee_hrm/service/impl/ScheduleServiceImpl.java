@@ -4,6 +4,7 @@ import com.example.coffee_hrm.common.enums.ApprovalStatus;
 import com.example.coffee_hrm.common.enums.AssignmentStatus;
 import com.example.coffee_hrm.common.enums.CertificationStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
+import com.example.coffee_hrm.common.enums.InvitationStatus;
 import com.example.coffee_hrm.common.enums.NotificationType;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.time.VietnamTime;
@@ -49,6 +50,7 @@ public class ScheduleServiceImpl implements ScheduleService {
     private final WorkAvailabilityRepository workAvailabilityRepository;
     private final NotificationService notificationService;
     private final ReliabilityService reliabilityService;
+    private final ShiftCoverInvitationRepository shiftCoverInvitationRepository;
     private static final String SHIFT_CHANGE_REF = "SHIFT_CHANGE";
     @Override
     @Transactional(readOnly = true)
@@ -245,9 +247,8 @@ public class ScheduleServiceImpl implements ScheduleService {
             changeRequest.setReason(changeRequest.getReason() + " [Đồng nghiệp từ chối hoán đổi]");
         }
         shiftChangeRequestRepository.save(changeRequest);
-        if (!agreed && reliabilityService != null) {
-            reliabilityService.recordEmergencyDeclineIfApplicable(currentEmployee, changeRequest);
-        }
+        // Lời nhờ đổi/chuyển ca giữa hai nhân viên là thỏa thuận tự nguyện:
+        // từ chối KHÔNG bị trừ điểm chuyên cần (chỉ lời mời hỗ trợ gấp của Quản lý mới tính hạn mức từ chối).
     }
 
     @Override
@@ -304,6 +305,31 @@ public class ScheduleServiceImpl implements ScheduleService {
         }
         changeRequest.setReason(updatedReason);
         shiftChangeRequestRepository.save(changeRequest);
+        settleInvitationsAfterCoverTaken(changeRequest, currentEmployee);
+    }
+
+    /**
+     * Ca đã có người nhận: lời mời của chính người nhận (nếu có) chuyển ACCEPTED,
+     * các lời mời đang chờ của người khác chuyển CANCELLED (không tính điểm).
+     */
+    private void settleInvitationsAfterCoverTaken(ShiftChangeRequest changeRequest, Employee taker) {
+        if (shiftCoverInvitationRepository == null || changeRequest.getId() == null) {
+            return;
+        }
+        LocalDateTime now = VietnamTime.now();
+        for (ShiftCoverInvitation invitation : shiftCoverInvitationRepository.findByRequest_IdAndStatus(
+                changeRequest.getId(), InvitationStatus.PENDING)) {
+            boolean mine = taker != null && invitation.getEmployee() != null
+                    && Objects.equals(invitation.getEmployee().getId(), taker.getId());
+            invitation.setStatus(mine ? InvitationStatus.ACCEPTED : InvitationStatus.CANCELLED);
+            invitation.setRespondedAt(now);
+            shiftCoverInvitationRepository.save(invitation);
+        }
+    }
+
+    /** Đơn đã được Quản lý xử lý (duyệt/từ chối): hủy mọi lời mời còn đang chờ. */
+    private void cancelPendingInvitations(ShiftChangeRequest changeRequest) {
+        settleInvitationsAfterCoverTaken(changeRequest, null);
     }
 
     @Override
@@ -323,11 +349,16 @@ public class ScheduleServiceImpl implements ScheduleService {
             changeRequest.setResolvedBy(managerUser);
             changeRequest.setResolvedDate(VietnamTime.now());
             shiftChangeRequestRepository.save(changeRequest);
+            cancelPendingInvitations(changeRequest);
             notifyShiftChangeResult(changeRequest, false);
             return;
         }
         ShiftAssignment assignment = changeRequest.getAssignment();
         Employee requester = changeRequest.getEmployee();
+        // Người nhận "tự nguyện" = đã tự đồng ý (xung phong, nhận lời mời, đồng ý lời nhờ chuyển ca)
+        // và Quản lý không thay bằng người khác. Đổi chéo là trao đổi ngang nên không tính +5.
+        Employee agreedTarget = Boolean.TRUE.equals(changeRequest.getIsTargetAgreed()) ? changeRequest.getTargetEmployee() : null;
+        boolean isSwap = changeRequest.getTargetAssignment() != null;
         if (assignment.getStatus() != AssignmentStatus.ASSIGNED) {
             throw new BusinessException("Ca được yêu cầu đổi không còn hiệu lực.");
         }
@@ -463,8 +494,12 @@ public class ScheduleServiceImpl implements ScheduleService {
         changeRequest.setResolvedBy(managerUser);
         changeRequest.setResolvedDate(VietnamTime.now());
         shiftChangeRequestRepository.save(changeRequest);
-        if (reliabilityService != null && changeRequest.getTargetEmployee() != null) {
-            reliabilityService.recordRescueShiftOnApproval(changeRequest, changeRequest.getTargetEmployee());
+        cancelPendingInvitations(changeRequest);
+        Employee finalTarget = changeRequest.getTargetEmployee();
+        boolean voluntaryCover = !isSwap && finalTarget != null && agreedTarget != null
+                && Objects.equals(agreedTarget.getId(), finalTarget.getId());
+        if (reliabilityService != null && voluntaryCover) {
+            reliabilityService.recordRescueShiftOnApproval(changeRequest, finalTarget);
         }
         notifyShiftChangeResult(changeRequest, true);
     }
@@ -516,11 +551,17 @@ public class ScheduleServiceImpl implements ScheduleService {
             }
             shiftRows.add(WeeklyScheduleView.ShiftRow.builder() .shiftId(shift.getId()) .shiftName(shift.getShiftName()) .startTime(shift.getStartTime()) .endTime(shift.getEndTime()) .formattedTime(shift.getStartTime().format(TIME_FORMATTER) + " – " + shift.getEndTime().format(TIME_FORMATTER)) .dayCells(cells) .build());
         }
+        // Điểm chuyên cần tính theo tháng hiện tại (reset 100đ đầu mỗi tháng).
+        Map<Integer, Integer> monthScores = reliabilityService != null
+                ? reliabilityService.getCurrentMonthScores(store.getId())
+                : Map.of();
+        java.util.function.ToIntFunction<Employee> monthScoreOf =
+                emp -> monthScores.getOrDefault(emp.getId(), ReliabilityService.INITIAL_SCORE);
         List<WeeklyScheduleView.EmployeeOption> employeeOptions = activeEmployees.stream()
-                .sorted(Comparator.comparingInt(Employee::getEffectiveReliabilityScore).reversed()
+                .sorted(Comparator.comparingInt(monthScoreOf).reversed()
                         .thenComparing(Employee::getFullName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
                 .map(emp -> {
-                    int score = emp.getEffectiveReliabilityScore();
+                    int score = monthScoreOf.applyAsInt(emp);
                     String tierLabel = ReliabilityServiceImpl.resolveTier(score).label();
                     return WeeklyScheduleView.EmployeeOption.builder()
                             .employeeId(emp.getId())
@@ -546,7 +587,7 @@ public class ScheduleServiceImpl implements ScheduleService {
                 .filter(e -> Objects.equals(e.getId(), currentEmpId))
                 .findFirst()
                 .orElse(null);
-        int currentStaffScore = currentStaffObj != null ? currentStaffObj.getEffectiveReliabilityScore() : 100;
+        int currentStaffScore = currentStaffObj != null ? monthScoreOf.applyAsInt(currentStaffObj) : ReliabilityService.INITIAL_SCORE;
         String currentStaffTier = ReliabilityServiceImpl.resolveTier(currentStaffScore).label();
         return WeeklyScheduleView.builder() .storeId(store.getId()) .storeName(store.getStoreName()) .storeAddress(store.getAddress()) .weekStartDate(monday) .weekEndDate(sunday) .prevWeekDate(monday.minusWeeks(1)) .nextWeekDate(monday.plusWeeks(1)) .days(dayHeaders) .shiftRows(shiftRows) .storeEmployees(employeeOptions) .colleagueShifts(colleagueShifts) .pendingShiftChanges(changeItems) .incomingRequests(incomingItems) .openRescueRequests(openRescueItems) .currentStaffReliabilityScore(currentStaffScore) .currentStaffTierLabel(currentStaffTier) .currentStaffPrioritySchedule(currentStaffScore >= 105) .totalAssignments(totalCount) .publishedAssignments(publishedCount) .draftAssignments(draftCount) .fullyPublished(totalCount > 0 && draftCount == 0) .build();
     }

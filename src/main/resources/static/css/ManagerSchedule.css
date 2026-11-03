@@ -188,3 +188,27 @@ a{color:inherit;text-decoration:none;}
 .badge-transfer{background:#EDE7F6;color:#512DA8;}
 .badge-manager{background:#FFF3E0;color:#E65100;}
 
+
+/* Lời mời hỗ trợ ca gấp */
+.cover-status { margin-top: 8px; padding: 8px 10px; border: 1px dashed var(--line, #E5D8C8); border-radius: 8px; background: #FFFCF7; }
+.cover-status-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-soft, #7A6A5C); margin-bottom: 4px; }
+.cover-status-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12.5px; padding: 2px 0; }
+.cover-status-name { font-weight: 600; color: var(--espresso, #26170F); }
+.cover-status-meta { color: var(--ink-soft, #7A6A5C); font-size: 12px; }
+.cover-pill { padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+.cover-pending { background: #FEF3C7; color: #92400E; }
+.cover-accepted { background: #DCFCE7; color: #166534; }
+.cover-declined { background: #FEE2E2; color: #991B1B; }
+.cover-expired { background: #E5E7EB; color: #374151; }
+.cover-cancelled { background: #F3F4F6; color: #6B7280; }
+.cover-invite { display: inline-block; position: relative; margin-right: 4px; }
+.cover-invite > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+.cover-invite > summary::-webkit-details-marker { display: none; }
+.cover-invite-form { position: absolute; right: 0; z-index: 20; width: 320px; margin-top: 6px; padding: 12px; background: #FFFCF7; border: 1px solid var(--line, #E5D8C8); border-radius: 12px; box-shadow: 0 10px 28px rgba(38, 23, 15, .14); text-align: left; }
+.cover-invite-help { font-size: 12px; color: var(--ink-soft, #7A6A5C); margin: 0 0 8px; line-height: 1.45; }
+.cover-invite-empty { font-size: 12.5px; color: #991B1B; margin: 0; }
+.cover-candidate { display: flex; align-items: center; gap: 8px; padding: 6px 4px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+.cover-candidate:hover { background: var(--paper, #F6F1EA); }
+.cover-candidate.is-disabled { opacity: .55; cursor: not-allowed; }
+.cover-candidate-name { flex: 1; font-weight: 600; color: var(--espresso, #26170F); }
+.cover-candidate-meta { font-size: 12px; color: var(--ink-soft, #7A6A5C); }

@@ -51,6 +51,88 @@
         </div>
     </section>
 
+    <!-- Lời mời hỗ trợ ca gấp từ Quản lý -->
+    <section class="panel incoming-requests-panel cover-invite-panel"
+             th:if="${coverInvitations != null and !#lists.isEmpty(coverInvitations)}">
+        <div class="panel-header">
+            <div style="display:flex;align-items:center;gap:12px;">
+                <div class="cover-invite-icon">
+                    <i data-lucide="bell-ring" style="width:20px;height:20px;"></i>
+                </div>
+                <div>
+                    <h2 style="margin:0;">Lời mời hỗ trợ ca từ Quản lý</h2>
+                    <p style="margin:2px 0 0 0;font-size:13px;color:var(--ink-soft);">
+                        Ai đồng ý trước sẽ nhận ca. Ca gấp (&lt;24h): nhận ca được <strong>+5 điểm</strong>;
+                        từ chối hoặc để hết hạn thì 2 lần đầu mỗi tháng được miễn trừ, từ lần 3 bị <strong>-3 điểm</strong>.
+                    </p>
+                </div>
+            </div>
+            <span class="badge-count" th:text="${#lists.size(coverInvitations)} + ' lời mời'">1 lời mời</span>
+        </div>
+
+        <div class="incoming-list">
+            <div class="incoming-card" th:each="inv : ${coverInvitations}">
+                <div class="incoming-card-header">
+                    <div class="incoming-sender">
+                        <strong th:text="'Thay ' + ${inv.requesterName}">Thay Nguyễn Văn A</strong>
+                        <span class="badge-type" th:if="${inv.urgent}"
+                              style="background:#FEE2E2;color:#991B1B;font-weight:700;display:inline-flex;align-items:center;gap:4px;">
+                            <i data-lucide="flame" style="width:13px;height:13px;"></i> Ca gấp • Nhận +5đ
+                        </span>
+                    </div>
+                    <span class="cover-deadline" th:text="'Hạn phản hồi ' + ${inv.expiresAtLabel}">Hạn phản hồi 15:30 02/11</span>
+                </div>
+                <div class="incoming-card-body">
+                    <div class="incoming-detail-row">
+                        <span class="detail-label">Ca cần người:</span>
+                        <span class="detail-value">
+                            <strong th:text="${inv.shiftName}">Ca Chiều</strong>
+                            (<span th:text="${inv.timeRange}">12:00 – 17:00</span>),
+                            ngày <strong th:text="${#temporals.format(inv.workDate, 'dd/MM/yyyy')}">02/11/2026</strong>
+                        </span>
+                    </div>
+                    <div class="incoming-detail-row" th:if="${inv.urgent}">
+                        <span class="detail-label">Lượt từ chối:</span>
+                        <span class="detail-value" th:classappend="${inv.nextDeclinePenalized} ? ' cover-warn' : ''"
+                              th:text="${inv.nextDeclinePenalized}
+                                    ? 'Bạn đã dùng hết ' + ${inv.freeDeclines} + ' lượt miễn trừ tháng này — từ chối lần này sẽ bị -3đ'
+                                    : 'Đã dùng ' + ${inv.declinesUsed} + '/' + ${inv.freeDeclines} + ' lượt miễn trừ trong tháng'">
+                            Đã dùng 0/2 lượt miễn trừ
+                        </span>
+                    </div>
+                </div>
+                <div class="incoming-card-actions cover-actions">
+                    <form th:action="@{/schedule/staff/invitations/{id}/accept(id=${inv.invitationId})}" method="post" style="display:inline;">
+                        <input type="hidden" name="origin" value="shift-change" th:if="${shiftChangePage}">
+                        <input type="hidden" name="currentWeek" th:value="${schedule.weekStartDate}">
+                        <button type="submit" class="btn-agree"
+                                data-coffee-confirm="Bạn đồng ý nhận ca này? Đơn sẽ được chuyển lên Quản lý duyệt."
+                                data-coffee-title="Nhận ca hỗ trợ"
+                                data-coffee-ok="Nhận ca">
+                            <i data-lucide="check" style="width:14px;height:14px;vertical-align:middle;margin-right:2px;"></i> Đồng ý nhận ca
+                        </button>
+                    </form>
+                    <details class="cover-decline">
+                        <summary class="btn-decline">
+                            <i data-lucide="x" style="width:14px;height:14px;vertical-align:middle;margin-right:2px;"></i> Từ chối
+                        </summary>
+                        <form class="cover-decline-form" th:action="@{/schedule/staff/invitations/{id}/decline(id=${inv.invitationId})}" method="post">
+                            <input type="hidden" name="origin" value="shift-change" th:if="${shiftChangePage}">
+                            <input type="hidden" name="currentWeek" th:value="${schedule.weekStartDate}">
+                            <label class="cover-decline-label">Lý do từ chối *</label>
+                            <label class="cover-reason"><input type="radio" name="reason" value="PERSONAL" required> Bận việc cá nhân</label>
+                            <label class="cover-reason"><input type="radio" name="reason" value="STUDY"> Lịch học / thi</label>
+                            <label class="cover-reason"><input type="radio" name="reason" value="HEALTH"> Sức khỏe</label>
+                            <label class="cover-reason"><input type="radio" name="reason" value="OTHER"> Lý do khác</label>
+                            <input type="text" name="note" maxlength="255" class="cover-note" placeholder="Ghi chú (bắt buộc nếu chọn Lý do khác)">
+                            <button type="submit" class="btn-decline" style="margin-top:8px;">Xác nhận từ chối</button>
+                        </form>
+                    </details>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- Open Rescue Shifts ("Hỗ trợ ca gấp") Section -->
     <section class="panel incoming-requests-panel"
              style="border-left:4px solid #D97706;background:linear-gradient(180deg, #FFFBEB 0%, #FFFFFF 100%);"
@@ -211,7 +293,7 @@
                 <div>
                     <h2 style="margin:0;">Lời mời đổi ca từ đồng nghiệp</h2>
                     <p style="margin:2px 0 0 0;font-size:13px;color:var(--ink-soft);">
-                        Đồng nghiệp đang gửi yêu cầu đổi ca đến bạn. Hãy xác nhận để đơn được chuyển lên Quản lý duyệt.
+                        Đồng nghiệp đang gửi yêu cầu đổi ca đến bạn. Hãy xác nhận để đơn được chuyển lên Quản lý duyệt. Từ chối lời nhờ của đồng nghiệp <strong>không bị trừ điểm</strong>.
                     </p>
                 </div>
             </div>
@@ -227,7 +309,7 @@
                               th:classappend="${inReq.changeType == 'SWAP' ? 'badge-swap' : 'badge-transfer'}"
                               th:text="${inReq.changeTypeLabel}">Đổi chéo ca</span>
                         <span class="badge-type"
-                              th:if="${inReq.urgentWithin24h}"
+                              th:if="${inReq.urgentWithin24h and inReq.changeType != 'SWAP'}"
                               style="background:#FEE2E2;color:#991B1B;font-weight:700;display:inline-flex;align-items:center;gap:4px;">
                             <i data-lucide="flame" style="width:13px;height:13px;"></i> Ca khẩn cấp (&lt;24h) • Nhận ca +5đ chuyên cần
                         </span>
