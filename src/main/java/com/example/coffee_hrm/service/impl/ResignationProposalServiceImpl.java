@@ -14,11 +14,13 @@ import com.example.coffee_hrm.dto.response.ResignationEmployeeOption;
 import com.example.coffee_hrm.dto.response.ResignationItemResponse;
 import com.example.coffee_hrm.dto.response.ResignationProposalResponse;
 import com.example.coffee_hrm.entity.Employee;
+import com.example.coffee_hrm.entity.EmploymentContract;
 import com.example.coffee_hrm.entity.ResignationProposal;
 import com.example.coffee_hrm.entity.ResignationProposalItem;
 import com.example.coffee_hrm.entity.Store;
 import com.example.coffee_hrm.entity.User;
 import com.example.coffee_hrm.repository.EmployeeRepository;
+import com.example.coffee_hrm.repository.EmploymentContractRepository;
 import com.example.coffee_hrm.repository.ResignationProposalItemRepository;
 import com.example.coffee_hrm.repository.ResignationProposalRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
@@ -27,6 +29,7 @@ import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.AccountMailService;
 import com.example.coffee_hrm.service.NotificationService;
 import com.example.coffee_hrm.service.ResignationProposalService;
+import com.example.coffee_hrm.service.support.ContractLifecycle;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -65,6 +68,7 @@ public class ResignationProposalServiceImpl implements ResignationProposalServic
     private final ResignationProposalRepository proposalRepository;
     private final ResignationProposalItemRepository itemRepository;
     private final EmployeeRepository employeeRepository;
+    private final EmploymentContractRepository contractRepository;
     private final UserRepository userRepository;
     private final StoreRepository storeRepository;
     private final NotificationService notificationService;
@@ -409,6 +413,7 @@ public class ResignationProposalServiceImpl implements ResignationProposalServic
             store.setManager(null);
         }
         employeeRepository.save(employee);
+        closeContracts(employee, item.getApprovedTerminationDate(), today);
         disableStaffAccount(employee);
         item.setAppliedAt(VietnamTime.now());
         if (item.getEmployee() != null) {
@@ -416,6 +421,16 @@ public class ResignationProposalServiceImpl implements ResignationProposalServic
             item.getEmployee().setTerminationDate(employee.getTerminationDate());
         }
         return true;
+    }
+
+    private void closeContracts(Employee employee, LocalDate effectiveDate, LocalDate today) {
+        if (employee == null || employee.getId() == null || contractRepository == null) {
+            return;
+        }
+        List<EmploymentContract> contracts = contractRepository.findByEmployeeId(employee.getId());
+        if (ContractLifecycle.applyEffectiveTermination(contracts, effectiveDate, today) > 0) {
+            contractRepository.saveAll(contracts);
+        }
     }
 
     private void disableStaffAccount(Employee employee) {

@@ -15,6 +15,7 @@ import com.example.coffee_hrm.dto.response.ManagedEmployeeDetail;
 import com.example.coffee_hrm.dto.response.ManagedEmployeeDirectory;
 import com.example.coffee_hrm.entity.Attendance;
 import com.example.coffee_hrm.entity.Employee;
+import com.example.coffee_hrm.entity.EmploymentContract;
 import com.example.coffee_hrm.entity.Role;
 import com.example.coffee_hrm.entity.Shift;
 import com.example.coffee_hrm.entity.ShiftAssignment;
@@ -24,6 +25,7 @@ import com.example.coffee_hrm.entity.TrainingClassEnrollment;
 import com.example.coffee_hrm.entity.User;
 import com.example.coffee_hrm.repository.AttendanceRepository;
 import com.example.coffee_hrm.repository.EmployeeRepository;
+import com.example.coffee_hrm.repository.EmploymentContractRepository;
 import com.example.coffee_hrm.repository.EmployeeSkillTrainingFact;
 import com.example.coffee_hrm.repository.RoleRepository;
 import com.example.coffee_hrm.repository.ShiftAssignmentRepository;
@@ -32,6 +34,7 @@ import com.example.coffee_hrm.repository.TrainingClassEnrollmentRepository;
 import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.EmployeeService;
+import com.example.coffee_hrm.service.support.ContractLifecycle;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
@@ -88,6 +91,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final ShiftAssignmentRepository shiftAssignmentRepository;
     private final AttendanceRepository attendanceRepository;
     private final TrainingClassEnrollmentRepository trainingClassEnrollmentRepository;
+    private final EmploymentContractRepository employmentContractRepository;
 
     @Override
     public List<EmployeeResponse> getAllEmployees(AuthenticatedUser actor) {
@@ -317,6 +321,8 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new BusinessException(REHIRE_THROUGH_RECRUITMENT);
         }
 
+        boolean endingEmployment = request.getStatus() == EmployeeStatus.TERMINATED
+                && employee.getStatus() != EmployeeStatus.TERMINATED;
         if (request.getStatus() == EmployeeStatus.TERMINATED) {
             LocalDate terminationDate = request.getTerminationDate();
 
@@ -367,6 +373,9 @@ public class EmployeeServiceImpl implements EmployeeService {
                 && account.getRole().getRoleName() != RoleName.MANAGER) {
             account.setIsActive(false);
         }
+        if (endingEmployment) {
+            closeContracts(employee.getId(), request.getTerminationDate());
+        }
 
         if (targetRole == RoleName.MANAGER
                 && !targetStore.getId().equals(
@@ -377,6 +386,16 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
 
         return toResponse(employee, account, targetStore, true);
+    }
+
+    private void closeContracts(Integer employeeId, LocalDate effectiveDate) {
+        if (employeeId == null || employmentContractRepository == null) {
+            return;
+        }
+        List<EmploymentContract> contracts = employmentContractRepository.findByEmployeeId(employeeId);
+        if (ContractLifecycle.applyEffectiveTermination(contracts, effectiveDate, VietnamTime.today()) > 0) {
+            employmentContractRepository.saveAll(contracts);
+        }
     }
 
     @Override

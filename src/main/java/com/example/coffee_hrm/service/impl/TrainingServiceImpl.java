@@ -1,7 +1,6 @@
 package com.example.coffee_hrm.service.impl;
 
 import com.example.coffee_hrm.common.enums.CertificateKind;
-import com.example.coffee_hrm.common.enums.ContractValidityStatus;
 import com.example.coffee_hrm.common.enums.CertificationStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.NotificationType;
@@ -1571,9 +1570,8 @@ public class TrainingServiceImpl implements TrainingService {
         if (contract.getStartDate() == null) {
             return false;
         }
-        ContractValidityStatus status = ContractValidityRules.resolve(
-                contract.getStartDate(), contract.getEndDate(), contract.getTerminatedDate(), today, null);
-        return status == ContractValidityStatus.DA_HET_HAN || status == ContractValidityStatus.DA_CHAM_DUT;
+        return ContractValidityRules.resolve(
+                contract.getStartDate(), contract.getEndDate(), contract.getTerminatedDate(), today).isClosed();
     }
 
     private List<Employee> excludeManagerAccounts(List<Employee> employees) {

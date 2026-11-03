@@ -18,6 +18,7 @@ import com.example.coffee_hrm.service.ReliabilityService;
 import com.example.coffee_hrm.service.ScheduleService;
 import com.example.coffee_hrm.service.support.ApprovedLeaveCoverage;
 import com.example.coffee_hrm.service.support.AvailabilityCoverage;
+import com.example.coffee_hrm.service.support.ContractShiftQuota;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +44,7 @@ public class ScheduleServiceImpl implements ScheduleService {
     private final LeaveRequestRepository leaveRequestRepository;
     private final ApprovedLeaveCoverage approvedLeaveCoverage;
     private final EmployeeRepository employeeRepository;
+    private final EmploymentContractRepository employmentContractRepository;
     private final UserRepository userRepository;
     private final WorkAvailabilityRepository workAvailabilityRepository;
     private final NotificationService notificationService;
@@ -102,6 +104,7 @@ public class ScheduleServiceImpl implements ScheduleService {
         if (employee.getStatus() != EmployeeStatus.ACTIVE) {
             throw new BusinessException("Chỉ có thể phân ca cho nhân viên đang hoạt động (Active).");
         }
+        requireShiftWithinContract(employee.getId(), request.getWorkDate());
         requireCertifiedForSharedSchedule(employee);
         if (!isShiftStillUpcoming(request.getWorkDate(), shift.getStartTime())) {
             throw new BusinessException("Không thể phân ca cho thời gian đã qua.");
@@ -666,6 +669,17 @@ public class ScheduleServiceImpl implements ScheduleService {
             throw new BusinessException("Tài khoản quản lý chưa được gắn hồ sơ nhân viên.");
         }
         return storeRepository.findByManager_Id(user.getEmployeeId()) .orElseThrow(() -> new BusinessException("Bạn chưa được phân công quản lý cửa hàng nào."));
+    }
+
+    private void requireShiftWithinContract(Integer employeeId, LocalDate workDate) {
+        if (employmentContractRepository == null || employeeId == null) {
+            return;
+        }
+        String blocked = ContractShiftQuota.shiftAfterTermination(
+                employmentContractRepository.findByEmployeeId(employeeId), workDate);
+        if (blocked != null) {
+            throw new BusinessException(blocked);
+        }
     }
 
     private void rejectIfEmploymentEnded(Employee employee) {

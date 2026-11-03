@@ -232,7 +232,7 @@
         <div class="store-panel-top">
             <div>
                 <h2 id="employee-contract-title">Hợp đồng</h2>
-                <p>Hợp đồng đã lưu không bị sửa hoặc xóa. Tạo hợp đồng mới giữ nguyên hợp đồng cũ và file đã ký.</p>
+                <p>Hợp đồng đã lưu không bị sửa hoặc xóa. Gia hạn chỉ khi tạo hợp đồng mới đã được hai bên ký; hợp đồng cũ vẫn được giữ. Hợp đồng đã chấm dứt trước thời hạn không gia hạn được.</p>
             </div>
             <a class="store-btn store-btn--primary" th:if="${canCreateContract}"
                th:href="@{/manager/contract/create(employeeId=${detail.employee.id})}">Tạo hợp đồng</a>
@@ -243,7 +243,7 @@
 
     <section class="store-create-card employee-related" th:if="${tab == 'history'}" aria-labelledby="employee-history-title">
         <h2 id="employee-history-title">Lịch sử</h2>
-        <p>Gồm tạo hồ sơ, cửa hàng hiện tại, chứng chỉ, tạo và gia hạn hợp đồng, hết hạn, chấm dứt, nghỉ việc và đào tạo. Hệ thống chưa lưu từng lần điều chuyển cửa hàng trong quá khứ.</p>
+        <p>Gồm tạo hồ sơ, cửa hàng hiện tại, chứng chỉ, tạo và gia hạn hợp đồng, chấm dứt, nghỉ việc và đào tạo. Hệ thống chưa lưu từng lần điều chuyển cửa hàng trong quá khứ.</p>
         <p class="empty" th:if="${history == null or #lists.isEmpty(history)}">Chưa có sự kiện nào.</p>
         <ol class="employee-history" th:if="${history != null and !#lists.isEmpty(history)}">
             <li th:each="event : ${history}">

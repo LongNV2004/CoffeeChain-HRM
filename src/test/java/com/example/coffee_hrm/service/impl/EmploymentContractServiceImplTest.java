@@ -78,7 +78,7 @@ class EmploymentContractServiceImplTest {
         when(transactionManager.getTransaction(any())).thenReturn(mock(TransactionStatus.class));
         service = new EmploymentContractServiceImpl(
                 contractRepository, employeeRepository, storeRepository, userRepository, fileStore,
-                new ContractOcrService(employeeRepository, storeRepository), transactionManager, "");
+                new ContractOcrService(employeeRepository, storeRepository), transactionManager);
         Employee managerEmployee = Employee.builder().id(10).fullName("Quản lý").status(EmployeeStatus.ACTIVE).build();
         store = Store.builder().id(1).storeName("Cửa hàng A").manager(managerEmployee).build();
         otherStore = Store.builder().id(2).storeName("Cửa hàng B").build();
@@ -123,14 +123,14 @@ class EmploymentContractServiceImplTest {
     }
 
     @Test
-    void futureStartDateIsNotYetEffective() {
+    void futureStartDateStaysInForceUntilTheRenewalWindow() {
         allowEmployee();
         CreateEmploymentContractRequest upcoming = request(VietnamTime.today().plusMonths(1), new BigDecimal("9000000"));
         upcoming.setStartDate(VietnamTime.today().plusDays(10));
 
         EmploymentContractResponse response = service.create(manager, upcoming, pdf("sap-hieu-luc.pdf"));
 
-        assertEquals(ContractValidityStatus.CHUA_HIEU_LUC, response.getValidityStatus());
+        assertEquals(ContractValidityStatus.DANG_HIEU_LUC, response.getValidityStatus());
     }
 
     @Test
@@ -263,6 +263,29 @@ class EmploymentContractServiceImplTest {
                 () -> service.create(manager, outsiderRequest, pdf("ngoai.pdf")));
         assertEquals("Nhân viên không thuộc cửa hàng bạn quản lý.", error.getMessage());
         verify(contractRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void earlyTerminatedContractCannotBeRenewedUntilTheEmployeeIsRehired() {
+        allowEmployee();
+        employee.setTerminationDate(VietnamTime.today().minusDays(3));
+        EmploymentContract closedEarly = contract(employee, VietnamTime.today().minusMonths(2),
+                VietnamTime.today().plusMonths(2), null);
+        closedEarly.setId(4);
+        closedEarly.setTerminatedDate(VietnamTime.today().minusDays(3));
+        when(contractRepository.findByEmployeeId(30)).thenReturn(List.of(closedEarly));
+
+        BusinessException blocked = assertThrows(BusinessException.class,
+                () -> service.create(manager, request(VietnamTime.today().plusMonths(1), new BigDecimal("1000")),
+                        pdf("gia-han-som.pdf")));
+        assertEquals("Không thể gia hạn hợp đồng đã chấm dứt trước thời hạn.", blocked.getMessage());
+
+        employee.setStatus(EmployeeStatus.ACTIVE);
+        employee.setTerminationDate(null);
+        EmploymentContractResponse created = service.create(
+                manager, request(VietnamTime.today().plusMonths(1), new BigDecimal("1000")), pdf("tuyen-lai.pdf"));
+        assertEquals(7, created.getId());
+        assertEquals(ContractValidityStatus.DANG_HIEU_LUC, created.getValidityStatus());
     }
 
     @Test

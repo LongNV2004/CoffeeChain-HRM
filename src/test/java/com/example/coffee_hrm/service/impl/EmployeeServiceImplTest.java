@@ -79,6 +79,8 @@ class EmployeeServiceImplTest {
     private AttendanceRepository attendanceRepository;
     @Mock
     private TrainingClassEnrollmentRepository trainingClassEnrollmentRepository;
+    @Mock
+    private com.example.coffee_hrm.repository.EmploymentContractRepository employmentContractRepository;
 
     @InjectMocks
     private EmployeeServiceImpl employeeService;

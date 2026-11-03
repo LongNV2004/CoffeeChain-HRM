@@ -229,7 +229,7 @@
     <!-- Màn hình 3: Lịch sử -->
     <section class="panel" id="history" aria-labelledby="history-title" th:if="${tab == 'history'}">
         <h2 id="history-title">Lịch sử</h2>
-        <p class="profile-note">Gồm ngày vào làm, cửa hàng hiện tại, hợp đồng, gia hạn, hết hạn và nghỉ việc. Chỉ hiển thị dữ liệu của tài khoản đang đăng nhập.</p>
+        <p class="profile-note">Gồm ngày vào làm, cửa hàng hiện tại, hợp đồng, gia hạn, chấm dứt và nghỉ việc. Chỉ hiển thị dữ liệu của tài khoản đang đăng nhập.</p>
         <p class="profile-empty" th:if="${history == null or #lists.isEmpty(history)}">Chưa có sự kiện nào.</p>
         <ol class="employee-history" th:if="${history != null and !#lists.isEmpty(history)}">
             <li th:each="event : ${history}">

@@ -1,11 +1,13 @@
 package com.example.coffee_hrm.common.enums;
 
+/**
+ * Đúng bốn trạng thái hợp đồng lao động. Không thêm trạng thái khác.
+ */
 public enum ContractValidityStatus {
 
-    CHUA_HIEU_LUC("Chưa hiệu lực"),
     DANG_HIEU_LUC("Đang hiệu lực"),
-    SAP_HET_HAN("Sắp hết hạn"),
-    DA_HET_HAN("Đã hết hạn"),
+    CHO_GIA_HAN("Chờ gia hạn"),
+    DA_CHAM_DUT_TRUOC_THOI_HAN("Đã chấm dứt trước thời hạn"),
     DA_CHAM_DUT("Đã chấm dứt");
 
     private final String label;
@@ -16,5 +18,14 @@ public enum ContractValidityStatus {
 
     public String getLabel() {
         return label;
+    }
+
+    /** Hợp đồng còn cho phép làm việc: đang hiệu lực hoặc đang chờ gia hạn. */
+    public boolean isInForce() {
+        return this == DANG_HIEU_LUC || this == CHO_GIA_HAN;
+    }
+
+    public boolean isClosed() {
+        return this == DA_CHAM_DUT || this == DA_CHAM_DUT_TRUOC_THOI_HAN;
     }
 }

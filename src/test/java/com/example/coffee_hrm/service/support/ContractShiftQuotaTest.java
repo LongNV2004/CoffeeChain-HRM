@@ -81,8 +81,20 @@ class ContractShiftQuotaTest {
         future.setStartDate(WEEK.plusWeeks(2));
         future.setEndDate(WEEK.plusMonths(2));
 
-        assertEquals(ContractShiftQuota.NO_CONTRACT, ContractShiftQuota.describe(List.of(expired), WEEK).blockMessage());
+        assertEquals(ContractShiftQuota.AFTER_TERMINATION, ContractShiftQuota.describe(List.of(expired), WEEK).blockMessage());
         assertEquals(ContractShiftQuota.NO_CONTRACT, ContractShiftQuota.describe(List.of(future), WEEK).blockMessage());
+    }
+
+    @Test
+    void terminationInsideTheWeekIsNotAFullContractWeek() {
+        EmploymentContract ending = contract(7);
+        ending.setTerminatedDate(WEEK.plusDays(3));
+
+        assertEquals(ContractShiftQuota.PARTIAL_WEEK,
+                ContractShiftQuota.describe(List.of(ending), WEEK).blockMessage());
+        assertEquals(ContractShiftQuota.AFTER_TERMINATION,
+                ContractShiftQuota.shiftAfterTermination(List.of(ending), WEEK.plusDays(3)));
+        assertNull(ContractShiftQuota.shiftAfterTermination(List.of(ending), WEEK.plusDays(2)));
     }
 
     @Test

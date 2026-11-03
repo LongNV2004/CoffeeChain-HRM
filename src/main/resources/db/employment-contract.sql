@@ -1,5 +1,6 @@
 -- Hợp đồng lao động. Script bổ sung, không xóa dữ liệu hiện có. Chạy khi ddl-auto=none.
--- Không chạy DROP TABLE. Trạng thái hiệu lực không lưu cột riêng: tính từ ngày hiệu lực và ngày chấm dứt.
+-- Không chạy DROP TABLE. Trạng thái hiệu lực không lưu cột riêng.
+-- Bốn trạng thái tính từ ngày: Đang hiệu lực, Chờ gia hạn (7 ngày cuối), Đã chấm dứt trước thời hạn, Đã chấm dứt.
 -- Việc chặn hợp đồng trùng thời gian đang hiệu lực được kiểm tra trong ứng dụng, không thêm ràng buộc loại trừ trên bảng.
 SET QUOTED_IDENTIFIER ON;
 GO

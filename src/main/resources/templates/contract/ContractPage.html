@@ -122,7 +122,7 @@
                     <td th:text="${contract.weeklyShiftCount != null ? contract.weeklyShiftCount + ' ca/tuần' : 'Chưa quy định'}">7 ca/tuần</td>
                     <td>
                         <span class="badge"
-                              th:classappend="${contract.validityStatus.name() == 'DANG_HIEU_LUC'} ? ' badge-ok' : (${contract.validityStatus.name() == 'CHUA_HIEU_LUC' or contract.validityStatus.name() == 'SAP_HET_HAN'} ? ' badge-wait' : ' badge-off')"
+                              th:classappend="${contract.validityStatus.name() == 'DANG_HIEU_LUC'} ? ' badge-ok' : (${contract.validityStatus.name() == 'CHO_GIA_HAN'} ? ' badge-wait' : ' badge-off')"
                               th:text="${contract.validityStatusLabel}">Đang hiệu lực</span>
                     </td>
                     <td>

@@ -57,6 +57,8 @@
             <dd th:text="${contract.internalNote != null ? contract.internalNote : '—'}">—</dd>
             <dt>Trạng thái</dt>
             <dd><span class="badge" th:text="${contract.validityStatusLabel}">Đang hiệu lực</span></dd>
+            <dt>Ngày chấm dứt có hiệu lực</dt>
+            <dd th:text="${contract.terminatedDate != null ? #temporals.format(contract.terminatedDate, 'dd/MM/yyyy') : 'Chưa chấm dứt'}">Chưa chấm dứt</dd>
             <dt>Người tạo</dt><dd th:text="${contract.createdByName != null ? contract.createdByName : '—'}">Quản lý</dd>
             <dt>Thời điểm tạo</dt>
             <dd th:text="${contract.createdAt != null ? #temporals.format(contract.createdAt, 'dd/MM/yyyy HH:mm') : '—'}">01/10/2026</dd>

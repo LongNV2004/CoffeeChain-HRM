@@ -47,14 +47,14 @@
             <div>
                 <span>Hợp đồng còn hiệu lực</span>
                 <strong th:text="${effectiveContractCount != null ? effectiveContractCount : 0}">0</strong>
-                <small>Gồm cả hợp đồng sắp hết hạn</small>
+                <small>Gồm cả hợp đồng chờ gia hạn</small>
             </div>
         </article>
         <article class="store-stat">
             <div>
-                <span>Hợp đồng sắp hết hạn</span>
+                <span>Hợp đồng chờ gia hạn</span>
                 <strong th:text="${expiringContractCount != null ? expiringContractCount : 0}">0</strong>
-                <small>Trong vòng 30 ngày</small>
+                <small>Trong 7 ngày trước ngày hết hạn</small>
             </div>
         </article>
     </section>
@@ -101,9 +101,8 @@
                     <option value="ALL">Tất cả hợp đồng</option>
                     <option value="NONE">Chưa có hợp đồng</option>
                     <option value="DANG_HIEU_LUC">Đang hiệu lực</option>
-                    <option value="SAP_HET_HAN">Sắp hết hạn</option>
-                    <option value="CHUA_HIEU_LUC">Chưa hiệu lực</option>
-                    <option value="DA_HET_HAN">Đã hết hạn</option>
+                    <option value="CHO_GIA_HAN">Chờ gia hạn</option>
+                    <option value="DA_CHAM_DUT_TRUOC_THOI_HAN">Đã chấm dứt trước thời hạn</option>
                     <option value="DA_CHAM_DUT">Đã chấm dứt</option>
                 </select>
 
@@ -176,9 +175,8 @@
                     <span th:if="${employee.contractStatusKey == null or employee.contractStatusKey == 'NONE'}" class="muted"
                           th:text="${employee.contractStatusLabel != null ? employee.contractStatusLabel : 'Chưa có hợp đồng'}">Chưa có hợp đồng</span>
                     <span th:if="${employee.contractStatusKey == 'DANG_HIEU_LUC'}" class="badge badge-ok" th:text="${employee.contractStatusLabel}">Đang hiệu lực</span>
-                    <span th:if="${employee.contractStatusKey == 'SAP_HET_HAN'}" class="badge badge-wait" th:text="${employee.contractStatusLabel}">Sắp hết hạn</span>
-                    <span th:if="${employee.contractStatusKey == 'CHUA_HIEU_LUC'}" class="badge" th:text="${employee.contractStatusLabel}">Chưa hiệu lực</span>
-                    <span th:if="${employee.contractStatusKey == 'DA_HET_HAN' or employee.contractStatusKey == 'DA_CHAM_DUT'}" class="badge badge-off" th:text="${employee.contractStatusLabel}">Đã hết hạn</span>
+                    <span th:if="${employee.contractStatusKey == 'CHO_GIA_HAN'}" class="badge badge-wait" th:text="${employee.contractStatusLabel}">Chờ gia hạn</span>
+                    <span th:if="${employee.contractStatusKey == 'DA_CHAM_DUT_TRUOC_THOI_HAN' or employee.contractStatusKey == 'DA_CHAM_DUT'}" class="badge badge-off" th:text="${employee.contractStatusLabel}">Đã chấm dứt</span>
                 </td>
                 <td>
                     <a th:if="${selectedStore != null}"

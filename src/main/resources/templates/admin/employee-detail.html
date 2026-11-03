@@ -191,7 +191,7 @@
 
     <section class="store-create-card employee-related" th:if="${tab == 'history'}" aria-labelledby="admin-history-title">
         <h2 id="admin-history-title">Lịch sử</h2>
-        <p>Gồm tạo hồ sơ, cửa hàng hiện tại, chứng chỉ, hợp đồng, gia hạn, hết hạn và nghỉ việc. Hệ thống chưa lưu từng lần điều chuyển cửa hàng trong quá khứ.</p>
+        <p>Gồm tạo hồ sơ, cửa hàng hiện tại, chứng chỉ, hợp đồng, gia hạn, chấm dứt và nghỉ việc. Hệ thống chưa lưu từng lần điều chuyển cửa hàng trong quá khứ.</p>
         <p class="empty" th:if="${history == null or #lists.isEmpty(history)}">Chưa có sự kiện nào.</p>
         <ol class="employee-history" th:if="${history != null and !#lists.isEmpty(history)}">
             <li th:each="event : ${history}">

@@ -45,6 +45,8 @@ class ScheduleServiceImplTest {
     @Mock
     private EmployeeRepository employeeRepository;
     @Mock
+    private EmploymentContractRepository employmentContractRepository;
+    @Mock
     private UserRepository userRepository;
     @Mock
     private WorkAvailabilityRepository workAvailabilityRepository;

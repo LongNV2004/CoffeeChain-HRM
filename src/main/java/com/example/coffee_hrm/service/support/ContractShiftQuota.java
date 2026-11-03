@@ -2,6 +2,7 @@ package com.example.coffee_hrm.service.support;
 
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.entity.EmploymentContract;
+import com.example.coffee_hrm.service.impl.ContractValidityRules;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -27,6 +28,8 @@ public final class ContractShiftQuota {
             "Hợp đồng không bao trùm trọn tuần đăng ký. Hệ thống chưa có quy tắc tính số ca cho tuần không trọn vẹn, nên chưa thể gửi đăng ký. Vui lòng liên hệ Manager.";
     public static final String AMBIGUOUS =
             "Tuần đăng ký đang nằm trong nhiều hợp đồng có số ca khác nhau. Vui lòng liên hệ Manager.";
+    public static final String AFTER_TERMINATION =
+            "Không thể đăng ký ca làm việc sau ngày chấm dứt có hiệu lực của hợp đồng.";
 
     private ContractShiftQuota() {
     }
@@ -45,7 +48,13 @@ public final class ContractShiftQuota {
         LocalDate weekEnd = weekStart.plusDays(6);
         EmploymentContract contract = covering(contracts, weekStart, weekEnd);
         if (contract == null) {
-            return new WeekQuota(null, cutsWeek(contracts, weekStart, weekEnd) ? PARTIAL_WEEK : NO_CONTRACT);
+            if (cutsWeek(contracts, weekStart, weekEnd)) {
+                return new WeekQuota(null, PARTIAL_WEEK);
+            }
+            if (endedBefore(contracts, weekStart)) {
+                return new WeekQuota(null, AFTER_TERMINATION);
+            }
+            return new WeekQuota(null, NO_CONTRACT);
         }
         if (contract.getWeeklyShiftCount() == null || contract.getWeeklyShiftCount() < 1) {
             return new WeekQuota(null, NO_QUOTA);
@@ -98,6 +107,32 @@ public final class ContractShiftQuota {
         return "Đã đăng ký đủ " + required + "/" + required + " ca.";
     }
 
+    /**
+     * Chặn một ngày làm sau khi mọi hợp đồng đã hết hiệu lực.
+     * Không có hợp đồng thì không chặn ở đây, vì đăng ký theo tuần đã có thông báo riêng.
+     */
+    public static String shiftAfterTermination(List<EmploymentContract> contracts, LocalDate workDate) {
+        if (contracts == null || contracts.isEmpty() || workDate == null) {
+            return null;
+        }
+        boolean sawContract = false;
+        boolean afterEnd = false;
+        for (EmploymentContract contract : contracts) {
+            if (contract == null || contract.getStartDate() == null) {
+                continue;
+            }
+            sawContract = true;
+            if (ContractValidityRules.coversWorkDay(contract, workDate)) {
+                return null;
+            }
+            LocalDate last = ContractValidityRules.lastWorkDay(contract.getEndDate(), contract.getTerminatedDate());
+            if (last != null && workDate.isAfter(last) && !contract.getStartDate().isAfter(workDate)) {
+                afterEnd = true;
+            }
+        }
+        return sawContract && afterEnd ? AFTER_TERMINATION : null;
+    }
+
     private static EmploymentContract covering(List<EmploymentContract> contracts, LocalDate start, LocalDate end) {
         EmploymentContract found = null;
         if (contracts == null) {
@@ -119,10 +154,8 @@ public final class ContractShiftQuota {
         if (contract == null || contract.getStartDate() == null || contract.getStartDate().isAfter(start)) {
             return false;
         }
-        if (contract.getEndDate() != null && contract.getEndDate().isBefore(end)) {
-            return false;
-        }
-        return contract.getTerminatedDate() == null || contract.getTerminatedDate().isAfter(start);
+        LocalDate last = ContractValidityRules.lastWorkDay(contract.getEndDate(), contract.getTerminatedDate());
+        return last == null || !last.isBefore(end);
     }
 
     private static boolean cutsWeek(List<EmploymentContract> contracts, LocalDate weekStart, LocalDate weekEnd) {
@@ -133,13 +166,27 @@ public final class ContractShiftQuota {
             if (contract == null || contract.getStartDate() == null) {
                 continue;
             }
-            if (contract.getTerminatedDate() != null && !contract.getTerminatedDate().isAfter(weekStart)) {
-                continue;
-            }
-            LocalDate contractEnd = contract.getEndDate() == null ? LocalDate.MAX : contract.getEndDate();
+            LocalDate last = ContractValidityRules.lastWorkDay(contract.getEndDate(), contract.getTerminatedDate());
+            LocalDate contractEnd = last == null ? LocalDate.MAX : last;
             boolean overlaps = !contract.getStartDate().isAfter(weekEnd) && !contractEnd.isBefore(weekStart);
             boolean full = !contract.getStartDate().isAfter(weekStart) && !contractEnd.isBefore(weekEnd);
             if (overlaps && !full) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean endedBefore(List<EmploymentContract> contracts, LocalDate weekStart) {
+        if (contracts == null) {
+            return false;
+        }
+        for (EmploymentContract contract : contracts) {
+            if (contract == null || contract.getStartDate() == null || contract.getStartDate().isAfter(weekStart)) {
+                continue;
+            }
+            LocalDate last = ContractValidityRules.lastWorkDay(contract.getEndDate(), contract.getTerminatedDate());
+            if (last != null && last.isBefore(weekStart)) {
                 return true;
             }
         }

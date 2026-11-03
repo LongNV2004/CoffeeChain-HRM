@@ -25,7 +25,7 @@
                 <td th:text="${contract.endDate != null} ? ${#temporals.format(contract.endDate, 'dd/MM/yyyy')} : 'Chưa cập nhật'">31/12/2026</td>
                 <td>
                     <span class="badge"
-                          th:classappend="${contract.validityStatus != null and contract.validityStatus.name() == 'DANG_HIEU_LUC'} ? ' badge-ok' : (${contract.validityStatus != null and contract.validityStatus.name() == 'SAP_HET_HAN'} ? ' badge-wait' : (${contract.validityStatus != null and (contract.validityStatus.name() == 'DA_HET_HAN' or contract.validityStatus.name() == 'DA_CHAM_DUT')} ? ' badge-off' : ''))"
+                          th:classappend="${contract.validityStatus != null and contract.validityStatus.name() == 'DANG_HIEU_LUC'} ? ' badge-ok' : (${contract.validityStatus != null and contract.validityStatus.name() == 'CHO_GIA_HAN'} ? ' badge-wait' : (${contract.validityStatus != null and contract.validityStatus.name().startsWith('DA_CHAM_DUT')} ? ' badge-off' : ''))"
                           th:text="${contract.validityStatusLabel != null ? contract.validityStatusLabel : 'Chưa xác định'}">Đang hiệu lực</span>
                 </td>
                 <td>

@@ -26,9 +26,9 @@ import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.EmploymentContractService;
 import com.example.coffee_hrm.service.ocr.ContractOcrService;
+import com.example.coffee_hrm.service.support.ContractLifecycle;
 import com.example.coffee_hrm.service.support.ContractShiftQuota;
 import com.example.coffee_hrm.service.impl.ContractFileStore.StoredContractFile;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -60,7 +60,6 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
     private final UserRepository userRepository;
     private final ContractFileStore fileStore;
     private final ContractOcrService contractOcrService;
-    private final Integer expiringWithinDays;
     private final TransactionTemplate newContractTransaction;
 
     public EmploymentContractServiceImpl(EmploymentContractRepository contractRepository,
@@ -69,15 +68,13 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
                                          UserRepository userRepository,
                                          ContractFileStore fileStore,
                                          ContractOcrService contractOcrService,
-                                         PlatformTransactionManager transactionManager,
-                                         @Value("${coffee-hrm.contract.expiring-within-days:}") String expiringWithinDays) {
+                                         PlatformTransactionManager transactionManager) {
         this.contractRepository = contractRepository;
         this.employeeRepository = employeeRepository;
         this.storeRepository = storeRepository;
         this.userRepository = userRepository;
         this.fileStore = fileStore;
         this.contractOcrService = contractOcrService;
-        this.expiringWithinDays = parseExpiringWithinDays(expiringWithinDays);
         this.newContractTransaction = new TransactionTemplate(transactionManager);
         this.newContractTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
@@ -231,7 +228,9 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
         if (!CitizenIds.isValid(employee.getCitizenId())) {
             throw new BusinessException(CitizenIds.MISSING_FOR_CONTRACT);
         }
-        requireNoUnresolvedOverlap(employee.getId(), startDate, endDate);
+        List<EmploymentContract> existingContracts = contractRepository.findByEmployeeId(employee.getId());
+        requireNoUnresolvedOverlap(existingContracts, startDate, endDate);
+        ContractLifecycle.requireRenewable(existingContracts, employee, VietnamTime.today());
         ContractOcrService.Acceptance acceptance = contractOcrService.requireAccepted(
                 file.originalName(), file.content(), employee);
         User creator = actor.getUserId() == null ? null : userRepository.findById(actor.getUserId()).orElse(null);
@@ -303,24 +302,20 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
         return contract;
     }
 
-    private void requireNoUnresolvedOverlap(Integer employeeId, LocalDate startDate, LocalDate endDate) {
+    private void requireNoUnresolvedOverlap(List<EmploymentContract> existing, LocalDate startDate, LocalDate endDate) {
         LocalDate today = VietnamTime.today();
-        for (EmploymentContract existing : contractRepository.findByEmployeeId(employeeId)) {
-            if (isClosed(existing, today)) {
+        if (existing == null) {
+            return;
+        }
+        for (EmploymentContract contract : existing) {
+            if (contract.getStartDate() == null || ContractValidityRules.resolve(contract, today).isClosed()) {
                 continue;
             }
-            if (overlaps(startDate, endDate, existing.getStartDate(), existing.getEndDate())) {
+            if (overlaps(startDate, endDate, contract.getStartDate(), contract.getEndDate())) {
                 throw new BusinessException(
                         "Nhân viên đang có hợp đồng hiệu lực trùng thời gian. Hãy xử lý hợp đồng hiện tại trước khi tạo hợp đồng mới.");
             }
         }
-    }
-
-    private static boolean isClosed(EmploymentContract contract, LocalDate today) {
-        if (contract.getTerminatedDate() != null && !contract.getTerminatedDate().isAfter(today)) {
-            return true;
-        }
-        return contract.getEndDate() != null && contract.getEndDate().isBefore(today);
     }
 
     private static boolean overlaps(LocalDate start, LocalDate end, LocalDate otherStart, LocalDate otherEnd) {
@@ -350,12 +345,7 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
     private EmploymentContractResponse toResponse(EmploymentContract contract, boolean revealCitizenId) {
         Employee employee = contract.getEmployee();
         Store store = employee == null ? null : employee.getStore();
-        ContractValidityStatus validity = ContractValidityRules.resolve(
-                contract.getStartDate(),
-                contract.getEndDate(),
-                contract.getTerminatedDate(),
-                VietnamTime.today(),
-                expiringWithinDays);
+        ContractValidityStatus validity = ContractValidityRules.resolve(contract, VietnamTime.today());
         ContractSigningStatus signing = contract.getSigningStatus();
         ContractPaymentMethod payment = contract.getPaymentMethod();
         ContractPayPeriod period = contract.getPayPeriod();
@@ -546,20 +536,5 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
             return true;
         }
         return contract.getEmployeeId() != null && String.valueOf(contract.getEmployeeId()).contains(keyword);
-    }
-
-    private static Integer parseExpiringWithinDays(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return null;
-        }
-        try {
-            int value = Integer.parseInt(raw.trim());
-            if (value < 1) {
-                throw new IllegalStateException("coffee-hrm.contract.expiring-within-days phải là số nguyên dương.");
-            }
-            return value;
-        } catch (NumberFormatException ex) {
-            throw new IllegalStateException("coffee-hrm.contract.expiring-within-days phải là số nguyên dương.", ex);
-        }
     }
 }

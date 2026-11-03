@@ -12,12 +12,14 @@ import com.example.coffee_hrm.dto.request.ResignationItemRequest;
 import com.example.coffee_hrm.dto.response.ResignationDecisionResult;
 import com.example.coffee_hrm.dto.response.ResignationProposalResponse;
 import com.example.coffee_hrm.entity.Employee;
+import com.example.coffee_hrm.entity.EmploymentContract;
 import com.example.coffee_hrm.entity.ResignationProposal;
 import com.example.coffee_hrm.entity.ResignationProposalItem;
 import com.example.coffee_hrm.entity.Role;
 import com.example.coffee_hrm.entity.Store;
 import com.example.coffee_hrm.entity.User;
 import com.example.coffee_hrm.repository.EmployeeRepository;
+import com.example.coffee_hrm.repository.EmploymentContractRepository;
 import com.example.coffee_hrm.repository.ResignationProposalItemRepository;
 import com.example.coffee_hrm.repository.ResignationProposalRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
@@ -60,6 +62,8 @@ class ResignationProposalServiceImplTest {
     @Mock
     private EmployeeRepository employeeRepository;
     @Mock
+    private EmploymentContractRepository contractRepository;
+    @Mock
     private UserRepository userRepository;
     @Mock
     private StoreRepository storeRepository;
@@ -86,6 +90,7 @@ class ResignationProposalServiceImplTest {
                 proposalRepository,
                 itemRepository,
                 employeeRepository,
+                contractRepository,
                 userRepository,
                 storeRepository,
                 notificationService,
@@ -138,6 +143,7 @@ class ResignationProposalServiceImplTest {
                 eq("RESIGNATION_PROPOSAL"),
                 eq(7));
         verify(userRepository, never()).save(any());
+        verify(contractRepository, never()).findByEmployeeId(any());
     }
 
     @Test
@@ -237,6 +243,13 @@ class ResignationProposalServiceImplTest {
         when(userRepository.findByEmployee_Id(9)).thenReturn(Optional.of(managerUser));
         when(accountMailService.sendResignationDecision(eq(an.getEmail()), eq("An Nguyễn"), eq("Store A"), any()))
                 .thenReturn(true);
+        EmploymentContract openContract = EmploymentContract.builder()
+                .id(3)
+                .employee(an)
+                .startDate(VietnamTime.today().minusMonths(2))
+                .endDate(VietnamTime.today().plusMonths(4))
+                .build();
+        when(contractRepository.findByEmployeeId(11)).thenReturn(List.of(openContract));
 
         ResignationDecisionResult result = service.approveItem(admin, 7, 101);
 
@@ -245,10 +258,12 @@ class ResignationProposalServiceImplTest {
         assertEquals(ResignationProposalStatus.PARTIALLY_PROCESSED, fixture.proposal().getStatus());
         assertEquals(EmployeeStatus.TERMINATED, an.getStatus());
         assertEquals(VietnamTime.today(), an.getTerminationDate());
+        assertEquals(VietnamTime.today(), openContract.getTerminatedDate());
         assertFalse(an.getUser().getIsActive());
         assertTrue(result.isTerminationApplied());
         assertTrue(result.isEmailSent());
         assertTrue(fixture.first().getDecisionNoticeSentAt() != null);
+        verify(contractRepository).saveAll(List.of(openContract));
         verify(accountMailService).sendResignationDecision(eq(an.getEmail()), eq("An Nguyễn"), eq("Store A"), any());
         verify(notificationService).notifyUsers(
                 eq(List.of(managerUser)),

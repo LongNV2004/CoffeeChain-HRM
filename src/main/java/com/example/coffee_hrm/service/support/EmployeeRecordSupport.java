@@ -1,7 +1,9 @@
 package com.example.coffee_hrm.service.support;
 
 import com.example.coffee_hrm.common.enums.ContractValidityStatus;
+import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.response.EmployeeHistoryEvent;
+import com.example.coffee_hrm.service.impl.ContractValidityRules;
 import com.example.coffee_hrm.dto.response.EmployeeResponse;
 import com.example.coffee_hrm.dto.response.EmploymentContractResponse;
 import com.example.coffee_hrm.dto.response.ManagedEmployeeDetail;
@@ -50,11 +52,10 @@ public final class EmployeeRecordSupport {
                 if (contract.getEmployeeId() == null || !employeeIds.contains(contract.getEmployeeId())) {
                     continue;
                 }
-                if (contract.getValidityStatus() == ContractValidityStatus.DANG_HIEU_LUC
-                        || contract.getValidityStatus() == ContractValidityStatus.SAP_HET_HAN) {
+                if (contract.getValidityStatus() != null && contract.getValidityStatus().isInForce()) {
                     effective++;
                 }
-                if (contract.getValidityStatus() == ContractValidityStatus.SAP_HET_HAN) {
+                if (contract.getValidityStatus() == ContractValidityStatus.CHO_GIA_HAN) {
                     expiring++;
                 }
                 if (contract.getValidityStatus() == null) {
@@ -142,26 +143,18 @@ public final class EmployeeRecordSupport {
                         .thenComparing(EmploymentContractResponse::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder()))
                         .thenComparing(EmploymentContractResponse::getId, Comparator.nullsLast(Comparator.naturalOrder())))
                 .toList();
+        LocalDate today = VietnamTime.today();
         for (int index = 0; index < ordered.size(); index++) {
             EmploymentContractResponse contract = ordered.get(index);
-            boolean renewed = index > 0;
+            boolean renewed = index > 0
+                    && ordered.get(index - 1).getValidityStatus() != ContractValidityStatus.DA_CHAM_DUT_TRUOC_THOI_HAN;
             LocalDate created = contract.getCreatedAt() == null
                     ? contract.getStartDate()
                     : contract.getCreatedAt().toLocalDate();
             String code = contract.getContractCode() == null ? "" : " " + contract.getContractCode();
             String title = renewed ? "Gia hạn hợp đồng" + code : "Tạo hợp đồng" + code;
             events.add(new EmployeeHistoryEvent(created, title, contractDetail(contract, renewed)));
-            if (contract.getTerminatedDate() != null) {
-                events.add(new EmployeeHistoryEvent(
-                        contract.getTerminatedDate(),
-                        "Chấm dứt hợp đồng" + code,
-                        "Hợp đồng cũ và file đã ký vẫn được lưu."));
-            } else if (contract.getValidityStatus() == ContractValidityStatus.DA_HET_HAN && contract.getEndDate() != null) {
-                events.add(new EmployeeHistoryEvent(
-                        contract.getEndDate(),
-                        "Hợp đồng hết hạn" + code,
-                        "Ngày kết thúc là ngày cuối cùng hợp đồng còn hiệu lực."));
-            }
+            addStatusTransitions(events, contract, code, today);
         }
         if (trainings != null) {
             for (ManagedEmployeeDetail.TrainingLine course : trainings) {
@@ -195,20 +188,53 @@ public final class EmployeeRecordSupport {
         return right;
     }
 
+    private static void addStatusTransitions(List<EmployeeHistoryEvent> events,
+                                             EmploymentContractResponse contract,
+                                             String code,
+                                             LocalDate today) {
+        LocalDate end = contract.getEndDate();
+        LocalDate terminated = contract.getTerminatedDate();
+        LocalDate start = contract.getStartDate();
+        if (end != null && start != null) {
+            LocalDate windowStart = end.minusDays(ContractValidityRules.RENEWAL_WINDOW_DAYS);
+            boolean terminatedBeforeWindow = terminated != null && !terminated.isAfter(windowStart);
+            boolean reachedWindow = !windowStart.isAfter(today) && !start.isAfter(windowStart);
+            if (!terminatedBeforeWindow && reachedWindow) {
+                events.add(new EmployeeHistoryEvent(
+                        windowStart,
+                        "Chuyển sang Chờ gia hạn" + code,
+                        "Hợp đồng còn hiệu lực và vào 7 ngày cuối trước ngày hết hạn."));
+            }
+        }
+        if (terminated != null && !terminated.isAfter(today)) {
+            boolean early = end != null && terminated.isBefore(end);
+            events.add(new EmployeeHistoryEvent(
+                    terminated,
+                    early ? "Chuyển sang Đã chấm dứt trước thời hạn" + code : "Chuyển sang Đã chấm dứt" + code,
+                    early
+                            ? "Chấm dứt có hiệu lực trước ngày hết hạn. Hợp đồng, chấm công và bảng lương cũ được giữ."
+                            : "Chấm dứt không thuộc trường hợp trước thời hạn. Hợp đồng cũ và file đã ký vẫn được lưu."));
+            return;
+        }
+        if (end != null && end.isBefore(today)) {
+            events.add(new EmployeeHistoryEvent(
+                    end.plusDays(1),
+                    "Chuyển sang Đã chấm dứt" + code,
+                    "Hết thời hạn và không tiếp tục quan hệ lao động. Hợp đồng cũ vẫn được lưu."));
+        }
+    }
+
     private static int rank(ContractValidityStatus status) {
-        if (status == ContractValidityStatus.SAP_HET_HAN) {
+        if (status == ContractValidityStatus.CHO_GIA_HAN) {
             return 0;
         }
         if (status == ContractValidityStatus.DANG_HIEU_LUC) {
             return 1;
         }
-        if (status == ContractValidityStatus.CHUA_HIEU_LUC) {
+        if (status == ContractValidityStatus.DA_CHAM_DUT_TRUOC_THOI_HAN) {
             return 2;
         }
-        if (status == ContractValidityStatus.DA_HET_HAN) {
-            return 3;
-        }
-        return 4;
+        return 3;
     }
 
     private static String contractDetail(EmploymentContractResponse contract, boolean renewed) {
