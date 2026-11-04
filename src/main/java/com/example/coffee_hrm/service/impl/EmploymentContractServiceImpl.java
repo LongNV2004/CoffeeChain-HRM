@@ -24,6 +24,7 @@ import com.example.coffee_hrm.repository.EmploymentContractRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
+import com.example.coffee_hrm.service.ContractRenewalReminder;
 import com.example.coffee_hrm.service.EmploymentContractService;
 import com.example.coffee_hrm.service.ocr.ContractOcrService;
 import com.example.coffee_hrm.service.ocr.FilledContractPdf;
@@ -63,6 +64,7 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
     private final UserRepository userRepository;
     private final ContractFileStore fileStore;
     private final ContractOcrService contractOcrService;
+    private final ContractRenewalReminder contractRenewalReminder;
     private final TransactionTemplate newContractTransaction;
 
     public EmploymentContractServiceImpl(EmploymentContractRepository contractRepository,
@@ -71,6 +73,7 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
                                          UserRepository userRepository,
                                          ContractFileStore fileStore,
                                          ContractOcrService contractOcrService,
+                                         ContractRenewalReminder contractRenewalReminder,
                                          PlatformTransactionManager transactionManager) {
         this.contractRepository = contractRepository;
         this.employeeRepository = employeeRepository;
@@ -78,6 +81,7 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
         this.userRepository = userRepository;
         this.fileStore = fileStore;
         this.contractOcrService = contractOcrService;
+        this.contractRenewalReminder = contractRenewalReminder;
         this.newContractTransaction = new TransactionTemplate(transactionManager);
         this.newContractTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
@@ -279,6 +283,7 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
             fileStore.delete(stored.storedName());
             throw new BusinessException("Không tạo được hợp đồng vì số hợp đồng bị trùng. Hãy thử lại.");
         }
+        contractRenewalReminder.remindIfDue(saved.getId());
         return toResponse(saved, true);
     }
 

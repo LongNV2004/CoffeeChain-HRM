@@ -25,6 +25,7 @@ import com.example.coffee_hrm.repository.EmploymentContractRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
+import com.example.coffee_hrm.service.ContractRenewalReminder;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -83,7 +84,8 @@ class EmploymentContractServiceImplTest {
         when(transactionManager.getTransaction(any())).thenReturn(mock(TransactionStatus.class));
         service = new EmploymentContractServiceImpl(
                 contractRepository, employeeRepository, storeRepository, userRepository, fileStore,
-                new ContractOcrService(employeeRepository, storeRepository), transactionManager);
+                new ContractOcrService(employeeRepository, storeRepository),
+                mock(ContractRenewalReminder.class), transactionManager);
         Employee managerEmployee = Employee.builder().id(10).fullName("Quản lý").status(EmployeeStatus.ACTIVE).build();
         store = Store.builder().id(1).storeName("Cửa hàng A").manager(managerEmployee).build();
         otherStore = Store.builder().id(2).storeName("Cửa hàng B").build();
