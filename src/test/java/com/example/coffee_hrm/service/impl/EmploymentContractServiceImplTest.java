@@ -9,6 +9,7 @@ import com.example.coffee_hrm.common.security.CitizenIds;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.ContractFilePayload;
 import com.example.coffee_hrm.dto.request.CreateEmploymentContractRequest;
+import com.example.coffee_hrm.dto.response.ContractDownload;
 import com.example.coffee_hrm.dto.response.EmploymentContractListView;
 import com.example.coffee_hrm.dto.response.EmploymentContractResponse;
 import com.example.coffee_hrm.entity.Employee;
@@ -19,10 +20,14 @@ import com.example.coffee_hrm.entity.User;
 import com.example.coffee_hrm.repository.EmployeeRepository;
 import com.example.coffee_hrm.service.ocr.ContractOcrService;
 import com.example.coffee_hrm.service.ocr.ContractSamples;
+import com.example.coffee_hrm.service.ocr.FilledContractPdf;
 import com.example.coffee_hrm.repository.EmploymentContractRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -417,6 +422,80 @@ class EmploymentContractServiceImplTest {
 
         assertArrayEquals(before, Files.readAllBytes(file));
         assertEquals("079203000123", created.getCitizenId());
+    }
+
+    @Test
+    void downloadServesTheFilledContractOnceAndRejectsAMissingFile() throws Exception {
+        allowEmployee();
+        byte[] blank = Files.readAllBytes(Path.of("src/test/resources/ocr/blank-labor-contract.pdf"));
+        ContractFileStore.StoredContractFile stored = fileStore.store(new ContractFilePayload("Mau.pdf", blank));
+        EmploymentContract contract = contract(employee, LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31),
+                stored.storedName());
+        contract.setId(7);
+        contract.setContractCode("HD202601-0001");
+        contract.setSalary(new BigDecimal("15000"));
+        contract.setWeeklyShiftCount(5);
+        contract.setOriginalFileName("Mau.pdf");
+        contract.setFileContentType("application/pdf");
+        employee.setFullName("Nguyễn Văn A");
+        store.setAddress("12 Nguyễn Huệ");
+        store.setManager(Employee.builder().id(10).fullName("Quản lý").build());
+        when(contractRepository.findDetailById(7)).thenReturn(Optional.of(contract));
+
+        ContractDownload first = service.download(manager, 7);
+        ContractDownload second = service.download(manager, 7);
+
+        assertEquals("HopDong_30_Nguyễn_Văn_A.pdf", first.fileName());
+        assertEquals("application/pdf", first.contentType());
+        assertArrayEquals(first.content(), second.content());
+        assertEquals(2, storedFiles());
+        try (PDDocument document = Loader.loadPDF(first.content())) {
+            String text = new PDFTextStripper().getText(document);
+            assertTrue(text.contains("Nguyễn Văn A"));
+            assertTrue(text.contains("079203000123"));
+            assertTrue(text.contains("HD202601-0001"));
+            assertTrue(text.contains("15.000"));
+        }
+        assertFalse(FilledContractPdf.isBlankTemplate(first.content(), employee.getCitizenId()));
+
+        EmploymentContract missing = contract(employee, LocalDate.of(2026, 1, 1), null, "c" + "ab".repeat(16) + ".pdf");
+        missing.setId(11);
+        missing.setFileContentType("application/pdf");
+        when(contractRepository.findDetailById(11)).thenReturn(Optional.of(missing));
+        BusinessException error = assertThrows(BusinessException.class, () -> service.download(admin, 11));
+        assertEquals("Không tìm thấy file hợp đồng.", error.getMessage());
+    }
+
+    @Test
+    void downloadKeepsASignedFileAndBlocksAnotherStore() throws Exception {
+        allowEmployee();
+        byte[] signed = ContractSamples.signedContract("Nhan vien", "079203000123");
+        ContractFileStore.StoredContractFile stored = fileStore.store(new ContractFilePayload("hop-dong.pdf", signed));
+        EmploymentContract own = contract(employee, LocalDate.of(2026, 1, 1), null, stored.storedName());
+        own.setId(12);
+        own.setOriginalFileName("hop-dong.pdf");
+        own.setFileContentType("application/pdf");
+        when(contractRepository.findDetailById(12)).thenReturn(Optional.of(own));
+
+        ContractDownload download = service.download(staff, 12);
+
+        assertEquals("HopDong_30_Nhân_viên.pdf", download.fileName());
+        assertArrayEquals(signed, download.content());
+        assertEquals(1, storedFiles());
+
+        Employee outsider = Employee.builder().id(40).fullName("Khác").store(otherStore).build();
+        EmploymentContract foreign = contract(outsider, LocalDate.of(2026, 1, 1), null, stored.storedName());
+        foreign.setId(9);
+        foreign.setOriginalFileName("hop-dong.pdf");
+        foreign.setFileContentType("application/pdf");
+        when(contractRepository.findDetailById(9)).thenReturn(Optional.of(foreign));
+
+        BusinessException denied = assertThrows(BusinessException.class, () -> service.download(manager, 9));
+        assertEquals("Bạn không có quyền xem hợp đồng này.", denied.getMessage());
+
+        ContractDownload adminDownload = service.download(admin, 9);
+        assertEquals("HopDong_40_Khác.pdf", adminDownload.fileName());
+        assertArrayEquals(signed, adminDownload.content());
     }
 
     private void allowEmployee() {

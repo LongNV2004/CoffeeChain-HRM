@@ -26,6 +26,7 @@ import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.EmploymentContractService;
 import com.example.coffee_hrm.service.ocr.ContractOcrService;
+import com.example.coffee_hrm.service.ocr.FilledContractPdf;
 import com.example.coffee_hrm.service.support.ContractLifecycle;
 import com.example.coffee_hrm.service.support.ContractShiftQuota;
 import com.example.coffee_hrm.service.impl.ContractFileStore.StoredContractFile;
@@ -37,6 +38,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
@@ -158,16 +161,22 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
     }
 
     @Override
+    @Transactional
     public ContractDownload download(AuthenticatedUser actor, Integer contractId) {
         EmploymentContract contract = loadAuthorized(actor, contractId);
         if (contract.getSignedFilePath() == null || contract.getSignedFilePath().isBlank()) {
             throw new BusinessException("Hợp đồng chưa có file để tải.");
         }
+        byte[] content = fileStore.read(contract.getSignedFilePath());
+        if (isPdf(contract, content)) {
+            content = materializeFilledPdf(contract, content);
+            return new ContractDownload(downloadFileName(contract.getEmployee()), "application/pdf", content);
+        }
         String fileName = contract.getOriginalFileName() == null ? "hop-dong" : contract.getOriginalFileName();
         String contentType = contract.getFileContentType() == null
                 ? "application/octet-stream"
                 : contract.getFileContentType();
-        return new ContractDownload(fileName, contentType, fileStore.read(contract.getSignedFilePath()));
+        return new ContractDownload(fileName, contentType, content);
     }
 
     @Override
@@ -440,6 +449,101 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
             return user.getEmployee().getFullName();
         }
         return user.getUsername();
+    }
+
+    private byte[] materializeFilledPdf(EmploymentContract contract, byte[] content) {
+        Employee employee = contract.getEmployee();
+        String citizenId = employee == null ? null : employee.getCitizenId();
+        if (!FilledContractPdf.isBlankTemplate(content, citizenId)) {
+            return content;
+        }
+        byte[] filled = FilledContractPdf.apply(content, filledData(contract));
+        if (filled == content || FilledContractPdf.isBlankTemplate(filled, citizenId)) {
+            throw new BusinessException("Không ghi được thông tin vào file hợp đồng.");
+        }
+        String fileName = downloadFileName(employee);
+        StoredContractFile stored = fileStore.store(new ContractFilePayload(fileName, filled));
+        contract.setSignedFilePath(stored.storedName());
+        contract.setOriginalFileName(stored.originalName());
+        contract.setFileContentType(stored.contentType());
+        contract.setFileSizeBytes(stored.size());
+        contractRepository.save(contract);
+        return filled;
+    }
+
+    private FilledContractPdf.Data filledData(EmploymentContract contract) {
+        Employee employee = contract.getEmployee();
+        Store store = employee == null ? null : employee.getStore();
+        Employee manager = store == null ? null : store.getManager();
+        LocalDate signedOn = contract.getCreatedAt() == null
+                ? contract.getStartDate()
+                : contract.getCreatedAt().toLocalDate();
+        String workplace = store == null ? "" : joinPlace(store.getStoreName(), store.getAddress());
+        return new FilledContractPdf.Data(
+                contract.getContractCode(),
+                signedOn,
+                store == null ? "" : store.getStoreName(),
+                store == null ? "" : store.getAddress(),
+                manager == null ? "" : manager.getFullName(),
+                manager == null ? "" : "Quản lý cửa hàng",
+                store == null || store.getId() == null ? "" : store.getId().toString(),
+                manager == null || manager.getId() == null ? "" : manager.getId().toString(),
+                employee == null ? "" : employee.getFullName(),
+                employee == null || employee.getId() == null ? "" : employee.getId().toString(),
+                employee == null ? "" : employee.getCitizenId(),
+                employee == null ? "" : employee.getPhone(),
+                employee == null ? "" : employee.getAddress(),
+                employee == null ? "" : employee.getEmail(),
+                positionLabel(employee),
+                store == null ? "" : store.getStoreName(),
+                workplace,
+                contract.getStartDate(),
+                contract.getEndDate(),
+                money(contract.getSalary()),
+                contract.getWeeklyShiftCount() == null ? "" : contract.getWeeklyShiftCount().toString());
+    }
+
+    private static String joinPlace(String name, String address) {
+        if (name == null || name.isBlank()) {
+            return address == null ? "" : address;
+        }
+        if (address == null || address.isBlank()) {
+            return name;
+        }
+        return name + ", " + address;
+    }
+
+    private static String money(BigDecimal salary) {
+        if (salary == null) {
+            return "";
+        }
+        DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.US);
+        symbols.setGroupingSeparator('.');
+        symbols.setDecimalSeparator(',');
+        return new DecimalFormat("#,##0.##", symbols).format(salary);
+    }
+
+    static String downloadFileName(Employee employee) {
+        String code = employee == null || employee.getId() == null ? "0" : employee.getId().toString();
+        String name = employee == null || employee.getFullName() == null ? "" : employee.getFullName().trim();
+        String safe = name.replaceAll("[^\\p{L}\\p{N}]+", "_").replaceAll("^_+|_+$", "");
+        if (safe.isBlank()) {
+            safe = "NhanVien";
+        }
+        if (safe.length() > 80) {
+            safe = safe.substring(0, 80).replaceAll("_+$", "");
+        }
+        return "HopDong_" + code + "_" + safe + ".pdf";
+    }
+
+    private static boolean isPdf(EmploymentContract contract, byte[] content) {
+        String type = contract.getFileContentType() == null ? "" : contract.getFileContentType().toLowerCase(Locale.ROOT);
+        String name = contract.getOriginalFileName() == null ? "" : contract.getOriginalFileName().toLowerCase(Locale.ROOT);
+        if (type.contains("pdf") || name.endsWith(".pdf")) {
+            return true;
+        }
+        return content != null && content.length >= 5
+                && content[0] == '%' && content[1] == 'P' && content[2] == 'D' && content[3] == 'F';
     }
 
     private static LocalDate requireStartDate(CreateEmploymentContractRequest request) {

@@ -31,8 +31,8 @@
                 <td>
                     <span th:if="${!contract.hasFile}" class="muted">Chưa có file</span>
                     <span class="employee-file-actions" th:if="${contract.hasFile}">
-                        <a th:href="@{'/' + ${fileRole} + '/contract/' + ${contract.id} + '/file'(inline=true)}" target="_blank" rel="noopener">Xem</a>
-                        <a th:href="@{'/' + ${fileRole} + '/contract/' + ${contract.id} + '/file'}">Tải</a>
+                        <a th:href="@{|/${fileRole}/contract/${contract.id}/file?inline=true|}" target="_blank" rel="noopener">Xem</a>
+                        <a th:href="@{|/${fileRole}/contract/${contract.id}/file|}">Tải</a>
                     </span>
                 </td>
             </tr>
