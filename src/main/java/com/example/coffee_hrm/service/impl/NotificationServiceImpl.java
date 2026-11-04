@@ -7,6 +7,7 @@ import com.example.coffee_hrm.dto.response.NotificationResponse;
 import com.example.coffee_hrm.entity.MonthlyAttendanceReport;
 import com.example.coffee_hrm.entity.Notification;
 import com.example.coffee_hrm.entity.User;
+import com.example.coffee_hrm.repository.EmploymentContractRepository;
 import com.example.coffee_hrm.repository.MonthlyAttendanceReportRepository;
 import com.example.coffee_hrm.repository.NotificationRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
@@ -24,6 +25,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final MonthlyAttendanceReportRepository attendanceReportRepository;
+    private final EmploymentContractRepository contractRepository;
 
     @Override
     @Transactional
@@ -83,6 +85,16 @@ public class NotificationServiceImpl implements NotificationService {
     public void markAllAsRead(AuthenticatedUser user) {
         requireUser(user);
         notificationRepository.markAllReadByRecipientId(user.getUserId());
+    }
+
+    private String contractPage(Integer contractId) {
+        if (contractId == null) {
+            return "/manager/employees";
+        }
+        return contractRepository.findDetailById(contractId)
+                .filter(contract -> contract.getEmployee() != null && contract.getEmployee().getId() != null)
+                .map(contract -> "/manager/employees/" + contract.getEmployee().getId() + "?tab=contract")
+                .orElse("/manager/employees");
     }
 
     private String managerReportUrl(Integer reportId) {
@@ -169,6 +181,9 @@ public class NotificationServiceImpl implements NotificationService {
                 case MANAGER -> "/manager/leaves";
                 case STAFF -> "/staff/leave";
             };
+            case "EMPLOYMENT_CONTRACT" -> user.getRoleName() == RoleName.MANAGER
+                    ? contractPage(notification.getReferenceId())
+                    : null;
             case "ATTENDANCE_REPORT" -> switch (user.getRoleName()) {
                 case ADMIN -> notification.getReferenceId() == null
                         ? "/attendance/admin/reports"

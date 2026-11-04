@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -70,4 +71,25 @@ public interface EmploymentContractRepository extends JpaRepository<EmploymentCo
             WHERE c.contractCode LIKE CONCAT(:prefix, '%')
             """)
     List<String> findCodesByPrefix(@Param("prefix") String prefix);
+
+    @Query("""
+            SELECT c.id
+            FROM EmploymentContract c
+            WHERE c.endDate IS NOT NULL
+              AND c.startDate <= :today
+              AND c.endDate >= :today
+              AND c.endDate <= :windowEnd
+              AND (c.terminatedDate IS NULL OR c.terminatedDate > :today)
+            """)
+    List<Integer> findRenewalWindowIds(@Param("today") LocalDate today, @Param("windowEnd") LocalDate windowEnd);
+
+    @Query("""
+            SELECT c
+            FROM EmploymentContract c
+            JOIN FETCH c.employee e
+            JOIN FETCH e.store s
+            LEFT JOIN FETCH s.manager
+            WHERE c.id = :id
+            """)
+    Optional<EmploymentContract> findReminderTarget(@Param("id") Integer id);
 }

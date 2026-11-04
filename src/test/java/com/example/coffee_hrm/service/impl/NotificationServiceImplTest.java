@@ -7,6 +7,7 @@ import com.example.coffee_hrm.entity.MonthlyAttendanceReport;
 import com.example.coffee_hrm.entity.Notification;
 import com.example.coffee_hrm.entity.Role;
 import com.example.coffee_hrm.entity.User;
+import com.example.coffee_hrm.repository.EmploymentContractRepository;
 import com.example.coffee_hrm.repository.MonthlyAttendanceReportRepository;
 import com.example.coffee_hrm.repository.NotificationRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
@@ -35,6 +36,8 @@ class NotificationServiceImplTest {
     private NotificationRepository notificationRepository;
     @Mock
     private MonthlyAttendanceReportRepository attendanceReportRepository;
+    @Mock
+    private EmploymentContractRepository contractRepository;
 
     @InjectMocks
     private NotificationServiceImpl notificationService;
