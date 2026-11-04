@@ -25,6 +25,7 @@ import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.PayrollService;
+import com.example.coffee_hrm.service.impl.ContractValidityRules;
 import com.example.coffee_hrm.service.support.PayrollCalculator;
 import com.example.coffee_hrm.service.support.PayrollEmployeeDraft;
 import lombok.RequiredArgsConstructor;
@@ -616,30 +617,17 @@ public class PayrollServiceImpl implements PayrollService {
         if (contracts == null || employeeId == null || day == null) {
             return null;
         }
-        List<BigDecimal> found = new ArrayList<>();
+        List<EmploymentContract> owned = new ArrayList<>();
         for (EmploymentContract contract : contracts) {
-            if (contract.getEmployee() == null || !employeeId.equals(contract.getEmployee().getId())) {
-                continue;
+            if (contract.getEmployee() != null && employeeId.equals(contract.getEmployee().getId())) {
+                owned.add(contract);
             }
-            if (!covers(contract, day) || contract.getSalary() == null || contract.getSalary().signum() <= 0) {
-                continue;
-            }
-            found.add(contract.getSalary());
         }
-        if (found.size() != 1) {
+        EmploymentContract applicable = ContractValidityRules.applicable(owned, day);
+        if (applicable == null || applicable.getSalary() == null || applicable.getSalary().signum() <= 0) {
             return null;
         }
-        return found.getFirst();
-    }
-
-    private boolean covers(EmploymentContract contract, LocalDate day) {
-        if (contract.getStartDate() == null || contract.getStartDate().isAfter(day)) {
-            return false;
-        }
-        if (contract.getEndDate() != null && contract.getEndDate().isBefore(day)) {
-            return false;
-        }
-        return contract.getTerminatedDate() == null || contract.getTerminatedDate().isAfter(day);
+        return applicable.getSalary();
     }
 
     private Store managerStore(AuthenticatedUser user) {

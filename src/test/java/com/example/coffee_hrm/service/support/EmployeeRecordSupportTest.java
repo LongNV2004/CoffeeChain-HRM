@@ -58,7 +58,7 @@ class EmployeeRecordSupportTest {
         assertTrue(events.stream().anyMatch(event -> event.title().startsWith("Gia hạn hợp đồng")));
         assertTrue(events.stream().anyMatch(event -> "Cửa hàng hiện tại".equals(event.title())
                 && event.detail().contains("Cầu Giấy")));
-        assertTrue(events.stream().anyMatch(event -> event.title().contains("Đã chấm dứt")));
+        assertTrue(events.stream().anyMatch(event -> event.title().contains("Đã hết hạn")));
         assertTrue(events.stream().anyMatch(event -> event.title().contains("Chờ gia hạn")));
     }
 

@@ -99,6 +99,9 @@
                     <option value="NONE">Chưa có hợp đồng</option>
                     <option value="DANG_HIEU_LUC">Đang hiệu lực</option>
                     <option value="CHO_GIA_HAN">Chờ gia hạn</option>
+                    <option value="DA_GIA_HAN">Đã gia hạn</option>
+                    <option value="CHO_HIEU_LUC">Chờ hiệu lực</option>
+                    <option value="DA_HET_HAN">Đã hết hạn</option>
                     <option value="DA_CHAM_DUT_TRUOC_THOI_HAN">Đã chấm dứt trước thời hạn</option>
                     <option value="DA_CHAM_DUT">Đã chấm dứt</option>
                 </select>
@@ -167,8 +170,8 @@
                         <span th:if="${employee.contractStatusKey == null or employee.contractStatusKey == 'NONE'}" class="muted"
                               th:text="${employee.contractStatusLabel != null ? employee.contractStatusLabel : 'Chưa có hợp đồng'}">Chưa có hợp đồng</span>
                         <span th:if="${employee.contractStatusKey == 'DANG_HIEU_LUC'}" class="badge badge-ok" th:text="${employee.contractStatusLabel}">Đang hiệu lực</span>
-                        <span th:if="${employee.contractStatusKey == 'CHO_GIA_HAN'}" class="badge badge-wait" th:text="${employee.contractStatusLabel}">Chờ gia hạn</span>
-                        <span th:if="${employee.contractStatusKey == 'DA_CHAM_DUT_TRUOC_THOI_HAN' or employee.contractStatusKey == 'DA_CHAM_DUT'}" class="badge badge-off" th:text="${employee.contractStatusLabel}">Đã chấm dứt</span>
+                        <span th:if="${employee.contractStatusKey == 'CHO_GIA_HAN' or employee.contractStatusKey == 'DA_GIA_HAN' or employee.contractStatusKey == 'CHO_HIEU_LUC'}" class="badge badge-wait" th:text="${employee.contractStatusLabel}">Chờ gia hạn</span>
+                        <span th:if="${employee.contractStatusKey == 'DA_CHAM_DUT_TRUOC_THOI_HAN' or employee.contractStatusKey == 'DA_CHAM_DUT' or employee.contractStatusKey == 'DA_HET_HAN'}" class="badge badge-off" th:text="${employee.contractStatusLabel}">Đã chấm dứt</span>
                     </td>
                     <td>
                         <a class="store-action store-action--view"

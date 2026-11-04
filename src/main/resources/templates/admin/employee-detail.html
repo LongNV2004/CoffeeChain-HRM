@@ -186,7 +186,7 @@
     <section class="store-create-card employee-related" th:if="${tab == 'contract'}" aria-labelledby="admin-contract-title">
         <h2 id="admin-contract-title">Hợp đồng</h2>
         <p>Admin xem hợp đồng của nhân viên. Tạo hợp đồng và tải file đã ký thuộc Manager của cửa hàng. Hợp đồng cũ và file đã ký được giữ nguyên.</p>
-        <div th:replace="~{fragments/employee-contracts :: table(${contracts}, 'admin')}"></div>
+        <div th:replace="~{fragments/employee-contracts :: table(${contracts}, 'admin', false)}"></div>
     </section>
 
     <section class="store-create-card employee-related" th:if="${tab == 'history'}" aria-labelledby="admin-history-title">

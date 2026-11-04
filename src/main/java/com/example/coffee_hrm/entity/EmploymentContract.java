@@ -32,7 +32,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@ToString(exclude = {"employee", "createdBy"})
+@ToString(exclude = {"employee", "createdBy", "previousContract", "renewedBy"})
 public class EmploymentContract {
 
     @Id
@@ -92,6 +92,30 @@ public class EmploymentContract {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "CreatedByUserId")
     private User createdBy;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "PreviousContractId")
+    private EmploymentContract previousContract;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "RenewedByUserId")
+    private User renewedBy;
+
+    @Column(name = "RenewedAt")
+    private LocalDateTime renewedAt;
+
+    @Column(name = "ActivatedAt")
+    private LocalDateTime activatedAt;
+
+    /** Mốc job đã ghi nhận hợp đồng nguồn đã gia hạn chuyển sang Đã hết hạn. Không cắt ngày làm. */
+    @Column(name = "SupersededDate")
+    private LocalDate supersededDate;
+
+    @Column(name = "RenewalDeclinedAt")
+    private LocalDateTime renewalDeclinedAt;
+
+    @Column(name = "RenewalDeclineReason", length = 500)
+    private String renewalDeclineReason;
 
     @Column(name = "SigningStatus", nullable = false, length = 20)
     @Builder.Default

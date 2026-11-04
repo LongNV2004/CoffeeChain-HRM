@@ -52,7 +52,7 @@ public final class EmployeeRecordSupport {
                 if (contract.getEmployeeId() == null || !employeeIds.contains(contract.getEmployeeId())) {
                     continue;
                 }
-                if (contract.getValidityStatus() != null && contract.getValidityStatus().isInForce()) {
+                if (countsAsEffective(contract)) {
                     effective++;
                 }
                 if (contract.getValidityStatus() == ContractValidityStatus.CHO_GIA_HAN) {
@@ -219,9 +219,31 @@ public final class EmployeeRecordSupport {
         if (end != null && end.isBefore(today)) {
             events.add(new EmployeeHistoryEvent(
                     end.plusDays(1),
-                    "Chuyển sang Đã chấm dứt" + code,
-                    "Hết thời hạn và không tiếp tục quan hệ lao động. Hợp đồng cũ vẫn được lưu."));
+                    "Chuyển sang Đã hết hạn" + code,
+                    "Hết thời hạn. Hợp đồng cũ và file đã ký vẫn được lưu."));
         }
+    }
+
+    private static boolean countsAsEffective(EmploymentContractResponse contract) {
+        ContractValidityStatus status = contract.getValidityStatus();
+        if (status != null && status.isInForce()) {
+            return true;
+        }
+        if (status != ContractValidityStatus.DA_GIA_HAN
+                && status != ContractValidityStatus.DA_CHAM_DUT_TRUOC_THOI_HAN) {
+            return false;
+        }
+        LocalDate today = VietnamTime.today();
+        LocalDate start = contract.getStartDate();
+        LocalDate end = contract.getEndDate();
+        LocalDate terminated = contract.getTerminatedDate();
+        if (start == null || start.isAfter(today)) {
+            return false;
+        }
+        if (end != null && end.isBefore(today)) {
+            return false;
+        }
+        return terminated == null || terminated.isAfter(today);
     }
 
     private static int rank(ContractValidityStatus status) {
@@ -231,10 +253,19 @@ public final class EmployeeRecordSupport {
         if (status == ContractValidityStatus.DANG_HIEU_LUC) {
             return 1;
         }
-        if (status == ContractValidityStatus.DA_CHAM_DUT_TRUOC_THOI_HAN) {
+        if (status == ContractValidityStatus.DA_GIA_HAN) {
             return 2;
         }
-        return 3;
+        if (status == ContractValidityStatus.CHO_HIEU_LUC) {
+            return 3;
+        }
+        if (status == ContractValidityStatus.DA_CHAM_DUT_TRUOC_THOI_HAN) {
+            return 4;
+        }
+        if (status == ContractValidityStatus.DA_HET_HAN) {
+            return 5;
+        }
+        return 6;
     }
 
     private static String contractDetail(EmploymentContractResponse contract, boolean renewed) {

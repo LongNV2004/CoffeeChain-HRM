@@ -88,7 +88,8 @@ public class ContractRenewalReminder {
         if (contract == null || contract.getId() == null) {
             return false;
         }
-        if (ContractValidityRules.resolve(contract, today) != ContractValidityStatus.CHO_GIA_HAN) {
+        boolean renewed = contractRepository.existsByPreviousContract_Id(contract.getId());
+        if (ContractValidityRules.resolve(contract, today, renewed) != ContractValidityStatus.CHO_GIA_HAN) {
             return false;
         }
         if (notificationRepository.existsByTypeAndReferenceTypeAndReferenceId(

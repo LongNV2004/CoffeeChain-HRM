@@ -125,7 +125,7 @@ public final class ContractShiftQuota {
             if (ContractValidityRules.coversWorkDay(contract, workDate)) {
                 return null;
             }
-            LocalDate last = ContractValidityRules.lastWorkDay(contract.getEndDate(), contract.getTerminatedDate());
+            LocalDate last = ContractValidityRules.lastWorkDay(contract);
             if (last != null && workDate.isAfter(last) && !contract.getStartDate().isAfter(workDate)) {
                 afterEnd = true;
             }
@@ -142,10 +142,22 @@ public final class ContractShiftQuota {
             if (!fullyCovers(contract, start, end)) {
                 continue;
             }
-            if (found != null && !Objects.equals(found.getWeeklyShiftCount(), contract.getWeeklyShiftCount())) {
+            if (found == null) {
+                found = contract;
+                continue;
+            }
+            if (contract.getStartDate() != null && found.getStartDate() != null
+                    && contract.getStartDate().isEqual(found.getStartDate())
+                    && !Objects.equals(found.getWeeklyShiftCount(), contract.getWeeklyShiftCount())) {
                 throw new BusinessException(AMBIGUOUS);
             }
-            found = contract;
+            if (contract.getStartDate() != null
+                    && (found.getStartDate() == null || contract.getStartDate().isAfter(found.getStartDate())
+                    || (contract.getStartDate().isEqual(found.getStartDate())
+                    && contract.getId() != null
+                    && (found.getId() == null || contract.getId() > found.getId())))) {
+                found = contract;
+            }
         }
         return found;
     }
@@ -154,7 +166,7 @@ public final class ContractShiftQuota {
         if (contract == null || contract.getStartDate() == null || contract.getStartDate().isAfter(start)) {
             return false;
         }
-        LocalDate last = ContractValidityRules.lastWorkDay(contract.getEndDate(), contract.getTerminatedDate());
+        LocalDate last = ContractValidityRules.lastWorkDay(contract);
         return last == null || !last.isBefore(end);
     }
 
@@ -166,7 +178,7 @@ public final class ContractShiftQuota {
             if (contract == null || contract.getStartDate() == null) {
                 continue;
             }
-            LocalDate last = ContractValidityRules.lastWorkDay(contract.getEndDate(), contract.getTerminatedDate());
+            LocalDate last = ContractValidityRules.lastWorkDay(contract);
             LocalDate contractEnd = last == null ? LocalDate.MAX : last;
             boolean overlaps = !contract.getStartDate().isAfter(weekEnd) && !contractEnd.isBefore(weekStart);
             boolean full = !contract.getStartDate().isAfter(weekStart) && !contractEnd.isBefore(weekEnd);
@@ -185,7 +197,7 @@ public final class ContractShiftQuota {
             if (contract == null || contract.getStartDate() == null || contract.getStartDate().isAfter(weekStart)) {
                 continue;
             }
-            LocalDate last = ContractValidityRules.lastWorkDay(contract.getEndDate(), contract.getTerminatedDate());
+            LocalDate last = ContractValidityRules.lastWorkDay(contract);
             if (last != null && last.isBefore(weekStart)) {
                 return true;
             }

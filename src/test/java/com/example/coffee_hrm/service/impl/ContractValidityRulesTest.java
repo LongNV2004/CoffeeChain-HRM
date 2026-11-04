@@ -2,6 +2,7 @@ package com.example.coffee_hrm.service.impl;
 
 import com.example.coffee_hrm.common.enums.ContractValidityStatus;
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.entity.EmploymentContract;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -38,9 +39,45 @@ class ContractValidityRulesTest {
     }
 
     @Test
-    void dayAfterEndDateIsTerminated() {
-        assertEquals(ContractValidityStatus.DA_CHAM_DUT,
+    void dayAfterEndDateIsExpired() {
+        assertEquals(ContractValidityStatus.DA_HET_HAN,
                 ContractValidityRules.resolve(today.minusDays(40), today.minusDays(1), null, today));
+    }
+
+    @Test
+    void renewalStatusesFollowEachContractDate() {
+        assertEquals(ContractValidityStatus.CHO_HIEU_LUC,
+                ContractValidityRules.resolve(today.plusDays(3), today.plusDays(40), null, today, 8, false));
+        assertEquals(ContractValidityStatus.DANG_HIEU_LUC,
+                ContractValidityRules.resolve(today, today.plusDays(40), null, today, 8, false));
+        assertEquals(ContractValidityStatus.DA_GIA_HAN,
+                ContractValidityRules.resolve(today.minusDays(20), today.plusDays(10), null, today, null, true));
+        assertEquals(ContractValidityStatus.DA_HET_HAN,
+                ContractValidityRules.resolve(today.minusDays(40), today.minusDays(1), null, today, null, true));
+        EmploymentContract source = EmploymentContract.builder()
+                .id(1)
+                .startDate(today.minusDays(20))
+                .endDate(today.plusDays(10))
+                .salary(new java.math.BigDecimal("10000"))
+                .build();
+        EmploymentContract renewal = EmploymentContract.builder()
+                .id(2)
+                .previousContract(source)
+                .startDate(today.plusDays(3))
+                .endDate(today.plusDays(40))
+                .salary(new java.math.BigDecimal("25000"))
+                .build();
+        assertEquals(source, ContractValidityRules.applicable(java.util.List.of(source, renewal), today));
+        assertEquals(renewal, ContractValidityRules.applicable(java.util.List.of(source, renewal), today.plusDays(3)));
+        source.setRenewalDeclinedAt(java.time.LocalDateTime.now());
+        assertEquals(ContractValidityStatus.DA_CHAM_DUT_TRUOC_THOI_HAN,
+                ContractValidityRules.resolve(source, today));
+        source.setEndDate(today.minusDays(1));
+        assertEquals(ContractValidityStatus.DA_CHAM_DUT, ContractValidityRules.resolve(source, today));
+        assertTrue(ContractValidityRules.coversWorkDay(
+                EmploymentContract.builder().startDate(today.minusDays(20)).endDate(today.plusDays(10))
+                        .renewalDeclinedAt(java.time.LocalDateTime.now()).build(),
+                today));
     }
 
     @Test

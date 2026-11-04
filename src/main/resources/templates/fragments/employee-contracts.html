@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="vi" xmlns:th="http://www.thymeleaf.org">
 <body>
-<div th:fragment="table(contracts, fileRole)">
+<div th:fragment="table(contracts, fileRole, manage)">
     <p class="empty" th:if="${contracts == null or #lists.isEmpty(contracts)}">Chưa có hợp đồng.</p>
     <div class="store-table-scroll" th:if="${contracts != null and !#lists.isEmpty(contracts)}">
-        <table class="store-table employee-contract-table">
+        <table class="store-table employee-contract-table" th:classappend="${manage} ? ' employee-contract-table--actions'">
             <thead>
             <tr>
                 <th>Mã hợp đồng</th>
@@ -14,6 +14,7 @@
                 <th>Ngày kết thúc</th>
                 <th>Trạng thái</th>
                 <th>File đã ký</th>
+                <th th:if="${manage}">Thao tác</th>
             </tr>
             </thead>
             <tbody>
@@ -25,7 +26,7 @@
                 <td th:text="${contract.endDate != null} ? ${#temporals.format(contract.endDate, 'dd/MM/yyyy')} : 'Chưa cập nhật'">31/12/2026</td>
                 <td>
                     <span class="badge"
-                          th:classappend="${contract.validityStatus != null and contract.validityStatus.name() == 'DANG_HIEU_LUC'} ? ' badge-ok' : (${contract.validityStatus != null and contract.validityStatus.name() == 'CHO_GIA_HAN'} ? ' badge-wait' : (${contract.validityStatus != null and contract.validityStatus.name().startsWith('DA_CHAM_DUT')} ? ' badge-off' : ''))"
+                          th:classappend="${contract.validityStatus != null and contract.validityStatus.name() == 'DANG_HIEU_LUC'} ? ' badge-ok' : (${contract.validityStatus != null and (contract.validityStatus.name() == 'CHO_GIA_HAN' or contract.validityStatus.name() == 'DA_GIA_HAN' or contract.validityStatus.name() == 'CHO_HIEU_LUC')} ? ' badge-wait' : (${contract.validityStatus != null and (contract.validityStatus.name().startsWith('DA_CHAM_DUT') or contract.validityStatus.name() == 'DA_HET_HAN')} ? ' badge-off' : ''))"
                           th:text="${contract.validityStatusLabel != null ? contract.validityStatusLabel : 'Chưa xác định'}">Đang hiệu lực</span>
                 </td>
                 <td>
@@ -34,6 +35,19 @@
                         <a th:href="@{|/${fileRole}/contract/${contract.id}/file?inline=true|}" target="_blank" rel="noopener">Xem</a>
                         <a th:href="@{|/${fileRole}/contract/${contract.id}/file|}">Tải</a>
                     </span>
+                </td>
+                <td th:if="${manage}">
+                    <div class="contract-row-actions"
+                         th:if="${contract.validityStatus != null and (contract.validityStatus.name() == 'CHO_GIA_HAN' or contract.validityStatus.name() == 'DANG_HIEU_LUC')}">
+                        <a class="contract-action contract-action--renew"
+                           th:href="@{/manager/contract/create(employeeId=${contract.employeeId},contractId=${contract.id},renewal=1)}">Gia hạn</a>
+                        <button type="button" class="contract-action contract-action--stop"
+                                th:if="${contract.validityStatus.name() == 'CHO_GIA_HAN'}"
+                                th:attr="data-contract-id=${contract.id},data-employee-id=${contract.employeeId},data-employee-name=${contract.employeeName != null ? contract.employeeName : 'Chưa cập nhật'},
+                                         data-contract-code=${contract.contractCode != null ? contract.contractCode : 'Chưa cập nhật'},
+                                         data-start=${contract.startDate != null ? #temporals.format(contract.startDate, 'dd/MM/yyyy') : 'Chưa cập nhật'},
+                                         data-end=${contract.endDate != null ? #temporals.format(contract.endDate, 'dd/MM/yyyy') : 'Chưa cập nhật'}">Ngừng gia hạn</button>
+                    </div>
                 </td>
             </tr>
             </tbody>

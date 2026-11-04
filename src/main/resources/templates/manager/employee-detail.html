@@ -234,11 +234,12 @@
                 <h2 id="employee-contract-title">Hợp đồng</h2>
                 <p>Hợp đồng đã lưu không bị sửa hoặc xóa. Gia hạn chỉ khi tạo hợp đồng mới đã được hai bên ký; hợp đồng cũ vẫn được giữ. Hợp đồng đã chấm dứt trước thời hạn không gia hạn được.</p>
             </div>
-            <a class="store-btn store-btn--primary" th:if="${canCreateContract}"
+            <a class="store-btn store-btn--primary"
+               th:if="${canCreateContract and (contracts == null or #lists.isEmpty(contracts))}"
                th:href="@{/manager/contract/create(employeeId=${detail.employee.id})}">Tạo hợp đồng</a>
         </div>
         <p th:unless="${canCreateContract}">Nhân viên này không đủ điều kiện để tạo hợp đồng mới.</p>
-        <div th:replace="~{fragments/employee-contracts :: table(${contracts}, 'manager')}"></div>
+        <div th:replace="~{fragments/employee-contracts :: table(${contracts}, 'manager', true)}"></div>
     </section>
 
     <section class="store-create-card employee-related" th:if="${tab == 'history'}" aria-labelledby="employee-history-title">
@@ -254,5 +255,125 @@
         </ol>
     </section>
 </main>
+
+<div class="store-overlay" id="stopRenewalBackdrop" hidden></div>
+<section class="store-modal" id="stopRenewalDialog" role="dialog" aria-modal="true"
+         aria-labelledby="stopRenewalTitle" hidden>
+    <div class="store-dialog-head">
+        <div>
+            <h2 id="stopRenewalTitle">Ngừng gia hạn hợp đồng</h2>
+            <p>Xác nhận trước khi ngừng gia hạn hợp đồng này.</p>
+        </div>
+        <button class="store-dialog-close" type="button" data-close-stop-renewal aria-label="Đóng">×</button>
+    </div>
+    <div class="store-modal-body">
+        <dl class="stop-renewal-facts">
+            <div>
+                <dt>Nhân viên</dt>
+                <dd id="stopRenewalEmployee">Nhân viên</dd>
+            </div>
+            <div>
+                <dt>Mã hợp đồng</dt>
+                <dd id="stopRenewalCode">HD</dd>
+            </div>
+            <div>
+                <dt>Ngày bắt đầu</dt>
+                <dd id="stopRenewalStart">01/01/2026</dd>
+            </div>
+            <div>
+                <dt>Ngày kết thúc</dt>
+                <dd id="stopRenewalEnd">31/12/2026</dd>
+            </div>
+        </dl>
+        <label class="stop-renewal-field" for="stopRenewalReason">
+            Lý do ngừng gia hạn
+            <select id="stopRenewalReason" required>
+                <option value="">Chọn lý do</option>
+                <option value="employee">Nhân viên không muốn gia hạn</option>
+                <option value="store">Cửa hàng không gia hạn</option>
+                <option value="position">Hết nhu cầu vị trí</option>
+                <option value="other">Lý do khác</option>
+            </select>
+        </label>
+        <p class="stop-renewal-error" id="stopRenewalReasonError" hidden>Vui lòng chọn lý do ngừng gia hạn.</p>
+        <label class="stop-renewal-field" for="stopRenewalNote">
+            Ghi chú
+            <textarea id="stopRenewalNote" rows="3" maxlength="500" placeholder="Không bắt buộc"></textarea>
+        </label>
+        <form id="stopRenewalForm" method="post" th:action="@{/manager/contract/stop-renewal}">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <input type="hidden" name="contractId" id="stopRenewalContractId">
+            <input type="hidden" name="employeeId" id="stopRenewalEmployeeId">
+            <input type="hidden" name="reason" id="stopRenewalReasonField">
+            <input type="hidden" name="note" id="stopRenewalNoteField">
+        </form>
+        <div class="form-actions">
+            <button type="button" class="store-btn store-btn--secondary" data-close-stop-renewal>Hủy</button>
+            <button type="button" class="store-btn store-btn--primary" id="stopRenewalConfirm">Xác nhận ngừng gia hạn</button>
+        </div>
+    </div>
+</section>
+<script>
+(function () {
+    var dialog = document.getElementById("stopRenewalDialog");
+    var backdrop = document.getElementById("stopRenewalBackdrop");
+    if (!dialog || !backdrop) return;
+    var employee = document.getElementById("stopRenewalEmployee");
+    var code = document.getElementById("stopRenewalCode");
+    var start = document.getElementById("stopRenewalStart");
+    var end = document.getElementById("stopRenewalEnd");
+    var reason = document.getElementById("stopRenewalReason");
+    var note = document.getElementById("stopRenewalNote");
+    var reasonError = document.getElementById("stopRenewalReasonError");
+
+    function openDialog(button) {
+        dialog.setAttribute("data-contract-id", button.getAttribute("data-contract-id") || "");
+        dialog.setAttribute("data-employee-id", button.getAttribute("data-employee-id") || "");
+        employee.textContent = button.getAttribute("data-employee-name") || "Chưa cập nhật";
+        code.textContent = button.getAttribute("data-contract-code") || "Chưa cập nhật";
+        start.textContent = button.getAttribute("data-start") || "Chưa cập nhật";
+        end.textContent = button.getAttribute("data-end") || "Chưa cập nhật";
+        reason.value = "";
+        note.value = "";
+        reasonError.hidden = true;
+        backdrop.hidden = false;
+        dialog.hidden = false;
+        document.body.classList.add("store-dialog-open");
+        reason.focus();
+    }
+
+    function closeDialog() {
+        dialog.hidden = true;
+        backdrop.hidden = true;
+        document.body.classList.remove("store-dialog-open");
+    }
+
+    document.querySelectorAll(".contract-action--stop").forEach(function (button) {
+        button.addEventListener("click", function () { openDialog(button); });
+    });
+    dialog.querySelectorAll("[data-close-stop-renewal]").forEach(function (button) {
+        button.addEventListener("click", closeDialog);
+    });
+    backdrop.addEventListener("click", closeDialog);
+    document.getElementById("stopRenewalConfirm").addEventListener("click", function () {
+        if (!reason.value) {
+            reasonError.hidden = false;
+            reason.focus();
+            return;
+        }
+        document.getElementById("stopRenewalContractId").value = dialog.getAttribute("data-contract-id") || "";
+        document.getElementById("stopRenewalEmployeeId").value = dialog.getAttribute("data-employee-id") || "";
+        document.getElementById("stopRenewalReasonField").value = reason.value;
+        document.getElementById("stopRenewalNoteField").value = note.value;
+        document.getElementById("stopRenewalForm").submit();
+    });
+    reason.addEventListener("change", function () {
+        if (reason.value) reasonError.hidden = true;
+    });
+    document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && !dialog.hidden) closeDialog();
+    });
+})();
+</script>
 </body>
 </html>

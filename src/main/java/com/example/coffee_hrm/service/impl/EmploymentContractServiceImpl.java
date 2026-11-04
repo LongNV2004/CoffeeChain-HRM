@@ -44,8 +44,10 @@ import java.text.DecimalFormatSymbols;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 @Service
 @Transactional(readOnly = true)
@@ -88,7 +90,7 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
 
     @Override
     public List<EmploymentContractResponse> list(AuthenticatedUser actor) {
-        return scoped(actor).stream().map(contract -> toResponse(contract, false)).toList();
+        return responses(scoped(actor), false);
     }
 
     @Override
@@ -111,9 +113,7 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
         } else if (employeeRepository.findByIdWithStore(employeeId).isEmpty()) {
             throw new BusinessException("Không tìm thấy nhân viên.");
         }
-        return contractRepository.findByEmployeeId(employeeId).stream()
-                .map(contract -> toResponse(contract, false))
-                .toList();
+        return responses(contractRepository.findByEmployeeId(employeeId), false);
     }
 
     @Override
@@ -161,7 +161,7 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
 
     @Override
     public EmploymentContractResponse detail(AuthenticatedUser actor, Integer contractId) {
-        return toResponse(loadAuthorized(actor, contractId), true);
+        return toResponse(loadAuthorized(actor, contractId), true, pendingRenewalSources());
     }
 
     @Override
@@ -284,7 +284,7 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
             throw new BusinessException("Không tạo được hợp đồng vì số hợp đồng bị trùng. Hãy thử lại.");
         }
         contractRenewalReminder.remindIfDue(saved.getId());
-        return toResponse(saved, true);
+        return toResponse(saved, true, pendingRenewalSources());
     }
 
     private List<EmploymentContract> scoped(AuthenticatedUser actor) {
@@ -322,10 +322,15 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
             return;
         }
         for (EmploymentContract contract : existing) {
-            if (contract.getStartDate() == null || ContractValidityRules.resolve(contract, today).isClosed()) {
+            if (contract.getStartDate() == null) {
                 continue;
             }
-            if (overlaps(startDate, endDate, contract.getStartDate(), contract.getEndDate())) {
+            LocalDate lastWorkDay = ContractValidityRules.lastWorkDay(contract);
+            boolean stillCoversToday = lastWorkDay == null || !lastWorkDay.isBefore(today);
+            if (ContractValidityRules.resolve(contract, today).isClosed() && !stillCoversToday) {
+                continue;
+            }
+            if (overlaps(startDate, endDate, contract.getStartDate(), lastWorkDay)) {
                 throw new BusinessException(
                         "Nhân viên đang có hợp đồng hiệu lực trùng thời gian. Hãy xử lý hợp đồng hiện tại trước khi tạo hợp đồng mới.");
             }
@@ -356,10 +361,24 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
         return prefix + String.format("%04d", max + 1);
     }
 
-    private EmploymentContractResponse toResponse(EmploymentContract contract, boolean revealCitizenId) {
+    private List<EmploymentContractResponse> responses(List<EmploymentContract> contracts, boolean revealCitizenId) {
+        Set<Integer> pendingRenewals = pendingRenewalSources();
+        return contracts.stream()
+                .map(contract -> toResponse(contract, revealCitizenId, pendingRenewals))
+                .toList();
+    }
+
+    private Set<Integer> pendingRenewalSources() {
+        return new HashSet<>(contractRepository.findRenewedSourceIds());
+    }
+
+    private EmploymentContractResponse toResponse(EmploymentContract contract,
+                                                  boolean revealCitizenId,
+                                                  Set<Integer> pendingRenewals) {
         Employee employee = contract.getEmployee();
         Store store = employee == null ? null : employee.getStore();
-        ContractValidityStatus validity = ContractValidityRules.resolve(contract, VietnamTime.today());
+        boolean renewalPending = contract.getId() != null && pendingRenewals.contains(contract.getId());
+        ContractValidityStatus validity = ContractValidityRules.display(contract, VietnamTime.today(), renewalPending);
         ContractSigningStatus signing = contract.getSigningStatus();
         ContractPaymentMethod payment = contract.getPaymentMethod();
         ContractPayPeriod period = contract.getPayPeriod();

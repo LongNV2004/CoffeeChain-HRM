@@ -7,6 +7,7 @@ import com.example.coffee_hrm.dto.response.ContractDownload;
 import com.example.coffee_hrm.dto.response.ContractOcrView;
 import com.example.coffee_hrm.dto.response.EmploymentContractResponse;
 import com.example.coffee_hrm.security.AuthenticatedUser;
+import com.example.coffee_hrm.service.ContractRenewalService;
 import com.example.coffee_hrm.service.EmploymentContractService;
 import com.example.coffee_hrm.service.ocr.ContractOcrService;
 import jakarta.validation.Valid;
@@ -42,6 +43,7 @@ import java.util.List;
 public class ContractPageController {
 
     private final EmploymentContractService contractService;
+    private final ContractRenewalService contractRenewalService;
     private final ContractOcrService contractOcrService;
 
     @GetMapping("/admin/contract")
@@ -137,12 +139,39 @@ public class ContractPageController {
         }
     }
 
+    @PostMapping("/manager/contract/stop-renewal")
+    @PreAuthorize("hasRole('MANAGER')")
+    public String stopRenewal(@AuthenticationPrincipal AuthenticatedUser actor,
+                              @RequestParam(value = "contractId", required = false) Integer contractId,
+                              @RequestParam(value = "employeeId", required = false) Integer employeeId,
+                              @RequestParam(value = "reason", required = false) String reason,
+                              @RequestParam(value = "note", required = false) String note,
+                              RedirectAttributes redirectAttributes) {
+        String back = employeeId == null
+                ? "redirect:/manager/employees"
+                : "redirect:/manager/employees/" + employeeId + "?tab=contract";
+        try {
+            EmploymentContractResponse updated = contractRenewalService.stopRenewal(actor, contractId, reason, note);
+            redirectAttributes.addFlashAttribute("successMessage",
+                    "Đã ngừng gia hạn hợp đồng " + updated.getContractCode() + ".");
+            if (updated.getEmployeeId() != null) {
+                return "redirect:/manager/employees/" + updated.getEmployeeId() + "?tab=contract";
+            }
+            return back;
+        } catch (BusinessException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
+            return back;
+        }
+    }
+
     @PostMapping("/manager/contract/create")
     @PreAuthorize("hasRole('MANAGER')")
     public String create(@AuthenticationPrincipal AuthenticatedUser actor,
                          @Valid @ModelAttribute("form") CreateEmploymentContractRequest form,
                          BindingResult binding,
                          @RequestParam(value = "contractFile", required = false) MultipartFile contractFile,
+                         @RequestParam(value = "renewal", required = false) String renewal,
+                         @RequestParam(value = "contractId", required = false) Integer contractId,
                          Model model,
                          RedirectAttributes redirectAttributes) {
         rejectCrossField(form, binding);
@@ -154,9 +183,12 @@ public class ContractPageController {
             return renderCreate(actor, model);
         }
         try {
-            EmploymentContractResponse created = contractService.create(
-                    actor, form, new ContractFilePayload(contractFile.getOriginalFilename(), contractFile.getBytes()));
-            redirectAttributes.addFlashAttribute("successMessage", "Đã tạo hợp đồng " + created.getContractCode() + ".");
+            ContractFilePayload payload = new ContractFilePayload(contractFile.getOriginalFilename(), contractFile.getBytes());
+            EmploymentContractResponse created = renewal == null
+                    ? contractService.create(actor, form, payload)
+                    : contractRenewalService.renew(actor, contractId, form, payload);
+            redirectAttributes.addFlashAttribute("successMessage",
+                    (renewal == null ? "Đã tạo hợp đồng " : "Đã gia hạn hợp đồng ") + created.getContractCode() + ".");
             Integer target = created.getEmployeeId();
             if (target == null) {
                 return "redirect:/manager/employees";

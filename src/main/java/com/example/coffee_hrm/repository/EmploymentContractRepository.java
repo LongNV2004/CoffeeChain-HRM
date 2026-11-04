@@ -1,7 +1,9 @@
 package com.example.coffee_hrm.repository;
 
 import com.example.coffee_hrm.entity.EmploymentContract;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -92,4 +94,49 @@ public interface EmploymentContractRepository extends JpaRepository<EmploymentCo
             WHERE c.id = :id
             """)
     Optional<EmploymentContract> findReminderTarget(@Param("id") Integer id);
+
+    boolean existsByPreviousContract_Id(Integer previousContractId);
+
+    @Query("""
+            SELECT c.previousContract.id
+            FROM EmploymentContract c
+            WHERE c.previousContract IS NOT NULL
+            """)
+    List<Integer> findRenewedSourceIds();
+
+    @Query("""
+            SELECT c.id
+            FROM EmploymentContract c
+            WHERE c.supersededDate IS NULL
+              AND c.endDate < :today
+              AND EXISTS (
+                  SELECT 1 FROM EmploymentContract renewal
+                  WHERE renewal.previousContract = c
+              )
+            """)
+    List<Integer> findRenewedSourcesPastEnd(@Param("today") LocalDate today);
+
+    @Query("""
+            SELECT c.id
+            FROM EmploymentContract c
+            JOIN c.employee e
+            WHERE c.renewalDeclinedAt IS NOT NULL
+              AND c.endDate < :today
+              AND e.status = com.example.coffee_hrm.common.enums.EmployeeStatus.ACTIVE
+            """)
+    List<Integer> findDeclinedIdsPastEnd(@Param("today") LocalDate today);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM EmploymentContract c WHERE c.id = :id")
+    Optional<EmploymentContract> lockById(@Param("id") Integer id);
+
+    @Query("""
+            SELECT c.id
+            FROM EmploymentContract c
+            WHERE c.previousContract IS NOT NULL
+              AND c.activatedAt IS NULL
+              AND c.startDate <= :today
+            ORDER BY c.startDate ASC, c.id ASC
+            """)
+    List<Integer> findDueActivationIds(@Param("today") LocalDate today);
 }

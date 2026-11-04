@@ -47,4 +47,11 @@ public interface ResignationProposalItemRepository extends JpaRepository<Resigna
             ORDER BY i.id ASC
             """)
     List<Integer> findDueIds(@Param("approved") ResignationItemStatus approved, @Param("today") LocalDate today);
+
+    @Query("""
+            SELECT COUNT(i) FROM ResignationProposalItem i
+            WHERE i.employee.id = :employeeId
+              AND i.status = com.example.coffee_hrm.common.enums.ResignationItemStatus.PENDING
+            """)
+    long countPendingByEmployeeId(@Param("employeeId") Integer employeeId);
 }

@@ -101,7 +101,8 @@
         retry.hidden = true;
         create.disabled = true;
         setStatus("running", "Đang trích xuất thông tin", "OCR đang đọc nội dung hợp đồng và kiểm tra chữ ký.");
-        fetch(form.getAttribute("action").replace(/\/create$/, "/ocr"), {
+        var action = form.getAttribute("action").split("?")[0];
+        fetch(action.replace(/\/create$/, "/ocr"), {
             method: "POST",
             body: body,
             headers: { "Accept": "application/json" }
