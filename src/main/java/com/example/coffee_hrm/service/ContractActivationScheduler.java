@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 public class ContractActivationScheduler {
 
     private final ContractRenewalService contractRenewalService;
+    private final PendingEmployeeActivation pendingEmployeeActivation;
 
     @Scheduled(cron = "0 5 0 * * *", zone = "Asia/Ho_Chi_Minh")
     public void activateAfterMidnight() {
@@ -21,9 +22,10 @@ public class ContractActivationScheduler {
         int activated = contractRenewalService.activateDue(today);
         int expired = contractRenewalService.recordExpiredRenewals(today);
         int locked = contractRenewalService.lockDeclinedAccounts(today);
-        if (activated > 0 || expired > 0 || locked > 0) {
-            log.info("Kích hoạt hợp đồng: {} sang Đang hiệu lực, {} sang Đã hết hạn, {} tài khoản bị khóa.",
-                    activated, expired, locked);
+        int promoted = pendingEmployeeActivation.promoteReady(today);
+        if (activated > 0 || expired > 0 || locked > 0 || promoted > 0) {
+            log.info("Kích hoạt hợp đồng: {} sang Đang hiệu lực, {} sang Đã hết hạn, {} tài khoản bị khóa, {} nhân viên sang Đang làm việc.",
+                    activated, expired, locked, promoted);
         }
     }
 

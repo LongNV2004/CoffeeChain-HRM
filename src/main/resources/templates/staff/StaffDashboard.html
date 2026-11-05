@@ -13,7 +13,8 @@
 <header th:replace="~{fragments/navbar :: staff('dashboard')}"></header>
 
 <main class="wrap dash-main staff-home">
-    <p class="stf-unassigned" th:if="${param.limited != null or staffEmploymentEnded}">Tài khoản đã nghỉ việc chỉ được xem thông tin và lịch sử.</p>
+    <p class="stf-unassigned" th:if="${staffPendingContract}">Bạn đang chờ hoàn thiện hợp đồng. Có thể xem hồ sơ, cửa hàng và hợp đồng. Chưa đăng ký ca, chấm công, đào tạo hoặc các nghiệp vụ cần hợp đồng đang hiệu lực.</p>
+    <p class="stf-unassigned" th:if="${staffEmploymentEnded}">Tài khoản đã nghỉ việc chỉ được xem thông tin và lịch sử.</p>
 
     <header class="stf-page-head">
         <div>

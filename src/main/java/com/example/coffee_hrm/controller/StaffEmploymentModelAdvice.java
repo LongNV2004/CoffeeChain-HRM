@@ -34,4 +34,21 @@ public class StaffEmploymentModelAdvice {
         User user = userRepository.findByIdWithRole(principal.getUserId()).orElse(null);
         return StaffEmploymentGuard.assess(user) == StaffEmploymentGuard.Block.EMPLOYMENT_ENDED;
     }
+
+    @ModelAttribute("staffPendingContract")
+    public boolean staffPendingContract() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof AuthenticatedUser principal)) {
+            return false;
+        }
+        if (principal.getRoleName() != RoleName.STAFF) {
+            return false;
+        }
+        UserRepository userRepository = userRepositories.getIfAvailable();
+        if (userRepository == null) {
+            return false;
+        }
+        User user = userRepository.findByIdWithRole(principal.getUserId()).orElse(null);
+        return StaffEmploymentGuard.assess(user) == StaffEmploymentGuard.Block.PENDING_CONTRACT;
+    }
 }

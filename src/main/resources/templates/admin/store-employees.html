@@ -92,6 +92,7 @@
 
                 <select id="employeeStatusFilter" aria-label="Lọc theo trạng thái nhân sự">
                     <option value="ALL">Tất cả trạng thái nhân viên</option>
+                    <option value="PENDING_CONTRACT">Chờ hoàn thiện hợp đồng</option>
                     <option value="ACTIVE">Đang làm việc</option>
                     <option value="ON_LEAVE">Đang nghỉ phép</option>
                     <option value="TERMINATED">Đã nghỉ việc</option>
@@ -169,6 +170,7 @@
                     <span th:unless="${employee.hasCertificate}" class="muted">Chưa có</span>
                 </td>
                 <td>
+                    <span th:if="${employee.status != null and employee.status.name() == 'PENDING_CONTRACT'}" class="badge badge-wait">Chờ hoàn thiện hợp đồng</span>
                     <span th:if="${employee.status != null and employee.status.name() == 'ACTIVE'}" class="badge badge-ok">Đang làm việc</span>
                     <span th:if="${employee.status != null and employee.status.name() == 'ON_LEAVE'}" class="badge badge-wait">Đang nghỉ phép</span>
                     <span th:if="${employee.status != null and employee.status.name() == 'TERMINATED'}" class="badge badge-off">Đã nghỉ việc</span>

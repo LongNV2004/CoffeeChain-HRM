@@ -591,6 +591,9 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
     }
 
     private void assertEmployment(AuthenticatedUser user, Employee employee, boolean writing) {
+        if (employee.getStatus() == EmployeeStatus.PENDING_CONTRACT) {
+            throw new BusinessException(com.example.coffee_hrm.security.StaffEmploymentGuard.PENDING_CONTRACT_MESSAGE);
+        }
         if (employee.getStatus() == EmployeeStatus.TERMINATED) {
             if (writing) {
                 throw new BusinessException("Nhân viên đã nghỉ việc, không thể gửi đơn nghỉ phép.");

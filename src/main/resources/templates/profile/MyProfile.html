@@ -132,7 +132,7 @@
                         <dd>
                             <span th:if="${profile.employeeStatus != null}"
                                   class="badge"
-                                  th:classappend="${profile.employeeStatus.name() == 'ACTIVE'} ? ' badge-ok' : (${profile.employeeStatus.name() == 'ON_LEAVE'} ? ' badge-wait' : ' badge-off')"
+                                  th:classappend="${profile.employeeStatus.name() == 'ACTIVE'} ? ' badge-ok' : (${profile.employeeStatus.name() == 'ON_LEAVE' or profile.employeeStatus.name() == 'PENDING_CONTRACT'} ? ' badge-wait' : ' badge-off')"
                                   th:text="${profile.employeeStatusLabel}">Đang làm việc</span>
                             <span th:if="${profile.employeeStatus == null}">Chưa cập nhật</span>
                         </dd>

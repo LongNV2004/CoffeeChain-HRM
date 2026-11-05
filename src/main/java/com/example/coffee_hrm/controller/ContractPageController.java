@@ -9,6 +9,7 @@ import com.example.coffee_hrm.dto.response.EmploymentContractResponse;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.ContractRenewalService;
 import com.example.coffee_hrm.service.EmploymentContractService;
+import com.example.coffee_hrm.service.impl.ContractValidityRules;
 import com.example.coffee_hrm.service.ocr.ContractOcrService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -279,6 +280,10 @@ public class ContractPageController {
     private static void rejectCrossField(CreateEmploymentContractRequest form, BindingResult binding) {
         if (form.getEndDate() != null && form.getStartDate() != null && form.getEndDate().isBefore(form.getStartDate())) {
             binding.rejectValue("endDate", "endDate", "Ngày kết thúc không được trước ngày bắt đầu hiệu lực.");
+        }
+        if (form.getEndDate() != null && form.getStartDate() != null
+                && form.getEndDate().isAfter(form.getStartDate().plusMonths(ContractValidityRules.FIXED_TERM_MAX_MONTHS))) {
+            binding.rejectValue("endDate", "endDate", "Hợp đồng xác định thời hạn không được dài quá 36 tháng.");
         }
         if (form.getSalary() != null && form.getSalary().compareTo(BigDecimal.ZERO) <= 0) {
             binding.rejectValue("salary", "salary", "Mức lương phải lớn hơn 0.");

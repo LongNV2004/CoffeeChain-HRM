@@ -34,6 +34,21 @@ class StaffEmploymentGuardTest {
     }
 
     @Test
+    void pendingContractStaffCanSignInButCannotUseOperationalPages() {
+        assertEquals(StaffEmploymentGuard.Block.PENDING_CONTRACT,
+                StaffEmploymentGuard.assess(account(RoleName.STAFF, EmployeeStatus.PENDING_CONTRACT, true)));
+        assertTrue(StaffEmploymentGuard.allowsWhenPendingContract("/dashboard/staff", "GET"));
+        assertTrue(StaffEmploymentGuard.allowsWhenPendingContract("/profile", "GET"));
+        assertTrue(StaffEmploymentGuard.allowsWhenPendingContract("/staff/contract/4/file", "GET"));
+        assertTrue(StaffEmploymentGuard.allowsWhenPendingContract("/profile/password", "POST"));
+        assertFalse(StaffEmploymentGuard.allowsWhenPendingContract("/availability", "GET"));
+        assertFalse(StaffEmploymentGuard.allowsWhenPendingContract("/attendance/staff/check-in", "POST"));
+        assertFalse(StaffEmploymentGuard.allowsWhenPendingContract("/training/staff", "GET"));
+        assertFalse(StaffEmploymentGuard.allowsWhenPendingContract("/staff/leave", "POST"));
+        assertFalse(StaffEmploymentGuard.allowsWhenPendingContract("/staff/salary", "GET"));
+    }
+
+    @Test
     void formerStaffMayReadHistoryAndChangePasswordButNotWork() {
         assertTrue(StaffEmploymentGuard.allowsWhenEmploymentEnded("/dashboard/staff", "GET"));
         assertTrue(StaffEmploymentGuard.allowsWhenEmploymentEnded("/profile", "GET"));

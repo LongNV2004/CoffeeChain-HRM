@@ -284,7 +284,7 @@ public class TrainingServiceImpl implements TrainingService {
         Set<Integer> managers = managerEmployeeIds();
         Set<Integer> admins = new HashSet<>(userRepository.findEmployeeIdsByRoleName(RoleName.ADMIN));
         Set<Integer> staff = new HashSet<>(userRepository.findEmployeeIdsByRoleName(RoleName.STAFF));
-        Set<Integer> endedContracts = employeeIdsWithEndedContract(employees);
+        Set<Integer> withoutInForceContract = employeeIdsWithoutInForceContract(employees);
         List<Employee> candidates = employees.stream()
                 .filter(employee -> admins.contains(employee.getId())
                         || (employee.getStore() != null
@@ -292,7 +292,7 @@ public class TrainingServiceImpl implements TrainingService {
                         && (managers.contains(employee.getId()) || staff.contains(employee.getId()))))
                 .filter(employee -> employee.getId() == null
                         || !staff.contains(employee.getId())
-                        || !endedContracts.contains(employee.getId()))
+                        || !withoutInForceContract.contains(employee.getId()))
                 .toList();
         Map<Integer, Set<Integer>> passedSkills = passedSkillIdsByEmployee(candidates);
         Map<Integer, List<EmployeeOpenSkill>> openSkills = openSkillsByEmployee(candidates, null);
@@ -1462,6 +1462,7 @@ public class TrainingServiceImpl implements TrainingService {
         Set<Integer> classSkillIds = skillIdsOf(trainingClass);
         Map<Integer, List<EmployeeOpenSkill>> openSkills = openSkillsByEmployeeIds(ids, trainingClass.getId());
         Set<Integer> managerIds = managerEmployeeIds();
+        Map<Integer, List<EmploymentContract>> contractsByEmployee = contractsByEmployee(ids);
         List<User> recipients = new ArrayList<>();
         for (Integer employeeId : ids) {
             if (managerIds.contains(employeeId)) {
@@ -1478,9 +1479,10 @@ public class TrainingServiceImpl implements TrainingService {
             if (employee.getStatus() != EmployeeStatus.ACTIVE) {
                 throw new BusinessException("Chỉ được thêm nhân viên đang làm việc tại cửa hàng.");
             }
-            if (employeeIdsWithEndedContract(List.of(employee)).contains(employee.getId())) {
-                throw new BusinessException("Nhân viên " + employee.getFullName()
-                        + " đã hết hạn hợp đồng, không thể thêm vào lớp đào tạo.");
+            String contractBlock = trainingContractBlock(
+                    employee, contractsByEmployee.getOrDefault(employee.getId(), List.of()));
+            if (contractBlock != null) {
+                throw new BusinessException(contractBlock);
             }
             if (trainingClass.getId() != null
                     && trainingClassEnrollmentRepository.existsByTrainingClass_IdAndEmployee_Id(
@@ -1529,49 +1531,98 @@ public class TrainingServiceImpl implements TrainingService {
         if (employees == null || employees.isEmpty()) {
             return List.of();
         }
-        Set<Integer> ended = employeeIdsWithEndedContract(employees);
-        if (ended.isEmpty()) {
+        Set<Integer> blocked = employeeIdsWithoutInForceContract(employees);
+        if (blocked.isEmpty()) {
             return employees;
         }
         return employees.stream()
-                .filter(employee -> employee.getId() == null || !ended.contains(employee.getId()))
+                .filter(employee -> employee.getId() == null || !blocked.contains(employee.getId()))
                 .toList();
     }
 
-    private Set<Integer> employeeIdsWithEndedContract(Collection<Employee> employees) {
+    private Set<Integer> employeeIdsWithoutInForceContract(Collection<Employee> employees) {
         List<Integer> ids = employees == null
                 ? List.of()
                 : employees.stream().map(Employee::getId).filter(Objects::nonNull).distinct().toList();
         if (ids.isEmpty()) {
             return Set.of();
         }
-        List<EmploymentContract> contracts = employmentContractRepository.findByEmployeeIds(ids);
-        if (contracts == null || contracts.isEmpty()) {
-            return Set.of();
-        }
+        Map<Integer, List<EmploymentContract>> byEmployee = contractsByEmployee(ids);
         LocalDate today = VietnamTime.today();
+        Set<Integer> blocked = new HashSet<>();
+        for (Integer id : ids) {
+            if (!hasInForceContract(byEmployee.getOrDefault(id, List.of()), today)) {
+                blocked.add(id);
+            }
+        }
+        return blocked;
+    }
+
+    private Map<Integer, List<EmploymentContract>> contractsByEmployee(Collection<Integer> employeeIds) {
+        List<Integer> ids = employeeIds == null
+                ? List.of()
+                : employeeIds.stream().filter(Objects::nonNull).distinct().toList();
         Map<Integer, List<EmploymentContract>> byEmployee = new HashMap<>();
+        if (ids.isEmpty()) {
+            return byEmployee;
+        }
+        List<EmploymentContract> contracts = employmentContractRepository.findByEmployeeIds(ids);
+        if (contracts == null) {
+            return byEmployee;
+        }
         for (EmploymentContract contract : contracts) {
             if (contract.getEmployee() == null || contract.getEmployee().getId() == null) {
                 continue;
             }
             byEmployee.computeIfAbsent(contract.getEmployee().getId(), ignored -> new ArrayList<>()).add(contract);
         }
-        Set<Integer> ended = new HashSet<>();
-        for (Map.Entry<Integer, List<EmploymentContract>> entry : byEmployee.entrySet()) {
-            if (entry.getValue().stream().allMatch(contract -> contractHasEnded(contract, today))) {
-                ended.add(entry.getKey());
+        return byEmployee;
+    }
+
+    private String trainingContractBlock(Employee employee, List<EmploymentContract> contracts) {
+        LocalDate today = VietnamTime.today();
+        if (hasInForceContract(contracts, today)) {
+            return null;
+        }
+        String name = employee.getFullName() == null || employee.getFullName().isBlank()
+                ? "này"
+                : employee.getFullName();
+        if (contracts == null || contracts.isEmpty()) {
+            return "Nhân viên " + name + " chưa có hợp đồng, không thể thêm vào lớp đào tạo.";
+        }
+        if (contracts.stream().allMatch(contract -> contractHasEnded(contract, today))) {
+            return "Nhân viên " + name + " đã hết hạn hợp đồng, không thể thêm vào lớp đào tạo.";
+        }
+        return "Nhân viên " + name + " chưa có hợp đồng đang hiệu lực, không thể thêm vào lớp đào tạo.";
+    }
+
+    private boolean hasInForceContract(List<EmploymentContract> contracts, LocalDate today) {
+        if (contracts == null || contracts.isEmpty() || today == null) {
+            return false;
+        }
+        Set<Integer> renewedSourceIds = new HashSet<>();
+        for (EmploymentContract contract : contracts) {
+            if (contract.getPreviousContract() != null && contract.getPreviousContract().getId() != null) {
+                renewedSourceIds.add(contract.getPreviousContract().getId());
             }
         }
-        return ended;
+        for (EmploymentContract contract : contracts) {
+            if (contract.getStartDate() == null || contract.getStartDate().isAfter(today)) {
+                continue;
+            }
+            boolean renewed = contract.getId() != null && renewedSourceIds.contains(contract.getId());
+            if (ContractValidityRules.resolve(contract, today, renewed).isInForce()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean contractHasEnded(EmploymentContract contract, LocalDate today) {
-        if (contract.getStartDate() == null) {
+        if (contract.getStartDate() == null || contract.getStartDate().isAfter(today)) {
             return false;
         }
-        return ContractValidityRules.resolve(
-                contract.getStartDate(), contract.getEndDate(), contract.getTerminatedDate(), today).isClosed();
+        return ContractValidityRules.resolve(contract, today, false).isClosed();
     }
 
     private List<Employee> excludeManagerAccounts(List<Employee> employees) {

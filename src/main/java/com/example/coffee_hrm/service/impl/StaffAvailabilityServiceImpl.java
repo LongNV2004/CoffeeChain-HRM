@@ -142,6 +142,9 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
             if (current != null && current.getStatus() == EmployeeStatus.TERMINATED) {
                 return com.example.coffee_hrm.security.StaffEmploymentGuard.DENIED_MESSAGE;
             }
+            if (current != null && current.getStatus() == EmployeeStatus.PENDING_CONTRACT) {
+                return com.example.coffee_hrm.security.StaffEmploymentGuard.PENDING_CONTRACT_MESSAGE;
+            }
         }
         Employee employee = requireStaffEmployee(staff);
         if (!isCertified(employee)) {
@@ -1118,6 +1121,9 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
     }
 
     private void validateActiveStaffStore(Employee employee) {
+        if (employee.getStatus() == EmployeeStatus.PENDING_CONTRACT) {
+            throw new BusinessException(com.example.coffee_hrm.security.StaffEmploymentGuard.PENDING_CONTRACT_MESSAGE);
+        }
         if (employee.getStatus() != EmployeeStatus.ACTIVE) {
             throw new BusinessException("Tài khoản nhân viên không còn hoạt động.");
         }

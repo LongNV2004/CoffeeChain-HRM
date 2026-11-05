@@ -3,6 +3,7 @@ package com.example.coffee_hrm.service.impl;
 import com.example.coffee_hrm.common.enums.ContractPayPeriod;
 import com.example.coffee_hrm.common.enums.ContractPaymentMethod;
 import com.example.coffee_hrm.common.enums.ContractSigningStatus;
+import com.example.coffee_hrm.common.enums.ContractTermType;
 import com.example.coffee_hrm.common.enums.ContractValidityStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
@@ -26,6 +27,7 @@ import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.ContractRenewalReminder;
 import com.example.coffee_hrm.service.EmploymentContractService;
+import com.example.coffee_hrm.service.PendingEmployeeActivation;
 import com.example.coffee_hrm.service.ocr.ContractOcrService;
 import com.example.coffee_hrm.service.ocr.FilledContractPdf;
 import com.example.coffee_hrm.service.support.ContractLifecycle;
@@ -216,9 +218,13 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
             throw new BusinessException("Vui lòng tải lên file hợp đồng đã ký.");
         }
         LocalDate startDate = requireStartDate(request);
-        LocalDate endDate = requireEndDate(request);
-        if (endDate.isBefore(startDate)) {
+        LocalDate endDate = request == null ? null : request.getEndDate();
+        ContractTermType contractTerm = ContractTermType.fromEndDate(endDate);
+        if (endDate != null && endDate.isBefore(startDate)) {
             throw new BusinessException("Ngày kết thúc không được trước ngày bắt đầu hiệu lực.");
+        }
+        if (contractTerm == ContractTermType.XAC_DINH_THOI_HAN) {
+            ContractValidityRules.requireFixedTermLength(startDate, endDate);
         }
         BigDecimal salary = requireSalary(request.getSalary(), "Mức lương");
         Integer weeklyShiftCount = requireWeeklyShiftCount(request == null ? null : request.getWeeklyShiftCount());
@@ -256,6 +262,7 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
                         .employee(employee)
                         .startDate(startDate)
                         .endDate(endDate)
+                        .contractTerm(contractTerm)
                         .salary(salary)
                         .weeklyShiftCount(weeklyShiftCount)
                         .internalNote(note)
@@ -284,6 +291,8 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
             throw new BusinessException("Không tạo được hợp đồng vì số hợp đồng bị trùng. Hãy thử lại.");
         }
         contractRenewalReminder.remindIfDue(saved.getId());
+        PendingEmployeeActivation.afterContractSaved(
+                employeeRepository, contractRepository, employee.getId(), VietnamTime.today());
         return toResponse(saved, true, pendingRenewalSources());
     }
 
@@ -395,6 +404,8 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
                 .signedDate(contract.getSignedDate())
                 .startDate(contract.getStartDate())
                 .endDate(contract.getEndDate())
+                .contractTerm(termOf(contract))
+                .contractTermLabel(termOf(contract).getLabel())
                 .jobTitle(contract.getJobTitle())
                 .workLocation(contract.getWorkLocation())
                 .weeklyShiftCount(contract.getWeeklyShiftCount())
@@ -577,11 +588,11 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
         return request.getStartDate();
     }
 
-    private static LocalDate requireEndDate(CreateEmploymentContractRequest request) {
-        if (request == null || request.getEndDate() == null) {
-            throw new BusinessException("Vui lòng nhập ngày kết thúc.");
+    private static ContractTermType termOf(EmploymentContract contract) {
+        if (contract.getContractTerm() != null) {
+            return contract.getContractTerm();
         }
-        return request.getEndDate();
+        return ContractTermType.fromEndDate(contract.getEndDate());
     }
 
     private static String optionalNote(String value) {

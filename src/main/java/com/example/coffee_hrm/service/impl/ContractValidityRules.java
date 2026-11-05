@@ -21,8 +21,19 @@ import java.util.List;
 public final class ContractValidityRules {
 
     public static final int RENEWAL_WINDOW_DAYS = 7;
+    /** Bộ luật Lao động: hợp đồng xác định thời hạn không quá 36 tháng. */
+    public static final int FIXED_TERM_MAX_MONTHS = 36;
 
     private ContractValidityRules() {
+    }
+
+    public static void requireFixedTermLength(LocalDate startDate, LocalDate endDate) {
+        if (startDate == null || endDate == null) {
+            throw new BusinessException("Hợp đồng xác định thời hạn phải có ngày bắt đầu và ngày kết thúc.");
+        }
+        if (endDate.isAfter(startDate.plusMonths(FIXED_TERM_MAX_MONTHS))) {
+            throw new BusinessException("Hợp đồng xác định thời hạn không được dài quá 36 tháng.");
+        }
     }
 
     public static ContractValidityStatus resolve(LocalDate startDate,

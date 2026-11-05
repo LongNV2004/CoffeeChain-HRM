@@ -54,6 +54,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -67,6 +69,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -108,6 +111,23 @@ class TrainingServiceImplTest {
     void setUp() {
         manager = AuthenticatedUser.from(user(2, RoleName.MANAGER, 20));
         admin = AuthenticatedUser.from(user(1, RoleName.ADMIN, null));
+        LocalDate today = VietnamTime.today();
+        lenient().when(employmentContractRepository.findByEmployeeIds(any())).thenAnswer(invocation -> {
+            Collection<?> ids = invocation.getArgument(0);
+            List<EmploymentContract> contracts = new ArrayList<>();
+            if (ids == null) {
+                return contracts;
+            }
+            for (Object id : ids) {
+                if (id instanceof Integer employeeId) {
+                    contracts.add(contract(
+                            employee(employeeId, "Nhân viên", null, EmployeeStatus.ACTIVE),
+                            today.minusMonths(1),
+                            today.plusMonths(1)));
+                }
+            }
+            return contracts;
+        });
     }
 
     @Test
@@ -976,7 +996,7 @@ class TrainingServiceImplTest {
 
         var employees = trainingService.listClassCandidates(admin);
 
-        assertEquals(List.of(30, 32, 33), employees.stream().map(item -> item.getEmployeeId()).toList());
+        assertEquals(List.of(30, 32), employees.stream().map(item -> item.getEmployeeId()).toList());
     }
 
     @Test
@@ -995,6 +1015,24 @@ class TrainingServiceImplTest {
                 10, AddTrainingClassStudentsRequest.builder().employeeIds(List.of(31)).build(), manager));
 
         assertEquals("Nhân viên Hết hợp đồng đã hết hạn hợp đồng, không thể thêm vào lớp đào tạo.", ex.getMessage());
+        verify(trainingClassEnrollmentRepository, never()).save(any());
+    }
+
+    @Test
+    void adminCannotEnrollStaffWhoHasNoContract() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        TrainingClass trainingClass = approvedClass(store, VietnamTime.today().plusDays(1));
+        Employee pending = employee(34, "Chờ hợp đồng", store, EmployeeStatus.ACTIVE);
+        when(storeRepository.findByManager_Id(20)).thenReturn(Optional.of(store));
+        when(trainingClassRepository.findByIdWithDetails(10)).thenReturn(Optional.of(trainingClass));
+        when(trainingClassEnrollmentRepository.countByTrainingClass_Id(10)).thenReturn(0L);
+        when(employeeRepository.findByIdWithStore(34)).thenReturn(Optional.of(pending));
+        when(employmentContractRepository.findByEmployeeIds(any())).thenReturn(List.of());
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> trainingService.addStudentsToClass(
+                10, AddTrainingClassStudentsRequest.builder().employeeIds(List.of(34)).build(), manager));
+
+        assertEquals("Nhân viên Chờ hợp đồng chưa có hợp đồng, không thể thêm vào lớp đào tạo.", ex.getMessage());
         verify(trainingClassEnrollmentRepository, never()).save(any());
     }
 

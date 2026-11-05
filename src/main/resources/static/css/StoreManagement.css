@@ -838,8 +838,8 @@ body:has(.coffee-sidebar) .store-create-form input.is-invalid:focus {
 .employee-file-actions { display: inline-flex; gap: 10px; }
 .employee-file-actions a { font-weight: 600; }
 .employee-person a { color: var(--store-brown); font-weight: 700; text-decoration: none; }
-.employee-contract-table { width: 100%; min-width: 760px; }
-.employee-contract-table--actions { min-width: 980px; }
+.employee-contract-table { width: 100%; min-width: 860px; }
+.employee-contract-table--actions { min-width: 1080px; }
 .contract-row-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .contract-action {
     display: inline-flex;

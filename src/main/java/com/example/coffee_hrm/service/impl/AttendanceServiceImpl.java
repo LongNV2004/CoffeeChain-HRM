@@ -1020,6 +1020,9 @@ public class AttendanceServiceImpl implements AttendanceService {
         if (employee != null && employee.getStatus() == EmployeeStatus.TERMINATED) {
             throw new BusinessException(com.example.coffee_hrm.security.StaffEmploymentGuard.DENIED_MESSAGE);
         }
+        if (employee != null && employee.getStatus() == EmployeeStatus.PENDING_CONTRACT) {
+            throw new BusinessException(com.example.coffee_hrm.security.StaffEmploymentGuard.PENDING_CONTRACT_MESSAGE);
+        }
     }
 
     private Store resolveManagedStore(AuthenticatedUser user) {

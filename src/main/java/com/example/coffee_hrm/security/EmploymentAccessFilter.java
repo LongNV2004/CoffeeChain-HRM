@@ -52,7 +52,16 @@ public class EmploymentAccessFilter extends OncePerRequestFilter {
                 filterChain.doFilter(request, response);
                 return;
             }
-            denyFormerStaff(request, response);
+            denyFormerStaff(request, response, StaffEmploymentGuard.DENIED_MESSAGE, "/dashboard/staff?limited=1");
+            return;
+        }
+        if (block == StaffEmploymentGuard.Block.PENDING_CONTRACT) {
+            if (StaffEmploymentGuard.allowsWhenPendingContract(pathOf(request), request.getMethod())) {
+                filterChain.doFilter(request, response);
+                return;
+            }
+            denyFormerStaff(request, response, StaffEmploymentGuard.PENDING_CONTRACT_MESSAGE,
+                    "/dashboard/staff?limited=contract");
             return;
         }
 
@@ -84,7 +93,8 @@ public class EmploymentAccessFilter extends OncePerRequestFilter {
         response.addCookie(cookie);
     }
 
-    private void denyFormerStaff(HttpServletRequest request, HttpServletResponse response) throws IOException {
+    private void denyFormerStaff(HttpServletRequest request, HttpServletResponse response,
+                                 String message, String redirect) throws IOException {
         String accept = request.getHeader("Accept");
         boolean json = (accept != null && accept.contains("application/json"))
                 || "XMLHttpRequest".equals(request.getHeader("X-Requested-With"));
@@ -92,10 +102,10 @@ public class EmploymentAccessFilter extends OncePerRequestFilter {
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             response.setCharacterEncoding("UTF-8");
             response.setContentType("application/json");
-            response.getWriter().write("{\"message\":\"" + StaffEmploymentGuard.DENIED_MESSAGE + "\"}");
+            response.getWriter().write("{\"message\":\"" + message + "\"}");
             return;
         }
-        response.sendRedirect(request.getContextPath() + "/dashboard/staff?limited=1");
+        response.sendRedirect(request.getContextPath() + redirect);
     }
 
     private boolean isPublic(String path) {

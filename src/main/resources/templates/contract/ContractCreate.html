@@ -96,10 +96,15 @@
                     <span class="cc-flag" id="startDate-flag" hidden></span>
                     <span class="cc-error" th:if="${#fields.hasErrors('startDate')}" th:errors="*{startDate}"></span>
                 </label>
+                <label for="contractType">
+                    Loại hợp đồng
+                    <input id="contractType" type="text" readonly tabindex="-1" placeholder="Chưa xác định">
+                </label>
                 <label for="endDate">
                     Ngày kết thúc hợp đồng
-                    <input id="endDate" name="endDate" type="date" required
-                           th:value="${form.endDate != null ? #temporals.format(form.endDate, 'yyyy-MM-dd') : ''}">
+                    <input id="endDate" name="endDate" type="date"
+                           th:value="${form.endDate != null ? #temporals.format(form.endDate, 'yyyy-MM-dd') : ''}"
+                           placeholder="Để trống nếu không xác định thời hạn">
                     <span class="cc-flag" id="endDate-flag" hidden></span>
                     <span class="cc-error" id="end-client-error" hidden></span>
                     <span class="cc-error" th:if="${#fields.hasErrors('endDate')}" th:errors="*{endDate}"></span>

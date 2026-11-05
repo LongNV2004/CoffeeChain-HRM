@@ -188,8 +188,11 @@ class RecruitmentRequestServiceImplTest {
 
     @Test
     void checkActiveEmployeeContactRejectsEmailAndPhoneUsedByAnActiveEmployee() {
-        when(employeeRepository.existsByEmailIgnoreCaseAndStatusIn("an@shop.vn", List.of(EmployeeStatus.ACTIVE)))
+        when(employeeRepository.existsByEmailIgnoreCaseAndStatusIn(
+                "an@shop.vn", List.of(EmployeeStatus.PENDING_CONTRACT, EmployeeStatus.ACTIVE, EmployeeStatus.ON_LEAVE)))
                 .thenReturn(true);
+        when(employeeRepository.countByNormalizedPhoneAndStatus("0901234567", EmployeeStatus.PENDING_CONTRACT.getDbValue()))
+                .thenReturn(0);
         when(employeeRepository.countByNormalizedPhoneAndStatus("0901234567", EmployeeStatus.ACTIVE.getDbValue()))
                 .thenReturn(1);
 
@@ -202,9 +205,14 @@ class RecruitmentRequestServiceImplTest {
 
     @Test
     void checkActiveEmployeeContactAllowsContactThatNoActiveEmployeeUses() {
-        when(employeeRepository.existsByEmailIgnoreCaseAndStatusIn("moi@shop.vn", List.of(EmployeeStatus.ACTIVE)))
+        when(employeeRepository.existsByEmailIgnoreCaseAndStatusIn(
+                "moi@shop.vn", List.of(EmployeeStatus.PENDING_CONTRACT, EmployeeStatus.ACTIVE, EmployeeStatus.ON_LEAVE)))
                 .thenReturn(false);
+        when(employeeRepository.countByNormalizedPhoneAndStatus("0909999999", EmployeeStatus.PENDING_CONTRACT.getDbValue()))
+                .thenReturn(0);
         when(employeeRepository.countByNormalizedPhoneAndStatus("0909999999", EmployeeStatus.ACTIVE.getDbValue()))
+                .thenReturn(0);
+        when(employeeRepository.countByNormalizedPhoneAndStatus("0909999999", EmployeeStatus.ON_LEAVE.getDbValue()))
                 .thenReturn(0);
 
         RecruitmentContactCheckResponse result = service.checkActiveEmployeeContact(
@@ -318,7 +326,7 @@ class RecruitmentRequestServiceImplTest {
         when(storeRepository.findByManager_Id(9)).thenReturn(Optional.of(store));
         when(employeeRepository.findById(9)).thenReturn(Optional.of(managerEmployee));
         when(employeeRepository.existsByEmailIgnoreCaseAndStatusIn(
-                "an@shop.vn", List.of(EmployeeStatus.ACTIVE, EmployeeStatus.ON_LEAVE))).thenReturn(true);
+                "an@shop.vn", List.of(EmployeeStatus.PENDING_CONTRACT, EmployeeStatus.ACTIVE, EmployeeStatus.ON_LEAVE))).thenReturn(true);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.create(manager, proposal(candidate())));
 
@@ -410,7 +418,7 @@ class RecruitmentRequestServiceImplTest {
         User account = userCaptor.getValue();
         assertEquals(CertificationStatus.NOTCERTIFIED, employee.getCertificationStatus());
         assertFalse(employee.getHasCertificate());
-        assertEquals(EmployeeStatus.ACTIVE, employee.getStatus());
+        assertEquals(EmployeeStatus.PENDING_CONTRACT, employee.getStatus());
         assertEquals("079203000123", employee.getCitizenId());
         assertEquals(store, employee.getStore());
         assertEquals(RoleName.STAFF, account.getRole().getRoleName());
@@ -689,7 +697,7 @@ class RecruitmentRequestServiceImplTest {
         CandidateApprovalResult result = service.approveCandidate(admin, 7, 11);
 
         assertTrue(result.reactivatedExistingAccount());
-        assertEquals(EmployeeStatus.ACTIVE, former.getStatus());
+        assertEquals(EmployeeStatus.PENDING_CONTRACT, former.getStatus());
         assertNull(former.getTerminationDate());
         assertEquals(originalHireDate, former.getHireDate());
         assertEquals("079203000123", former.getCitizenId());
@@ -732,7 +740,7 @@ class RecruitmentRequestServiceImplTest {
         assertEquals("an@shop.vn", former.getUser().getUsername());
         assertEquals("bcrypt:" + mailedPassword.getValue(), former.getUser().getPasswordHash());
         assertTrue(former.getUser().getIsActive());
-        assertEquals(EmployeeStatus.ACTIVE, former.getStatus());
+        assertEquals(EmployeeStatus.PENDING_CONTRACT, former.getStatus());
         assertNull(former.getTerminationDate());
     }
 

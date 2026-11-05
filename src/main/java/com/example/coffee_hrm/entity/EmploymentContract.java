@@ -3,7 +3,10 @@ package com.example.coffee_hrm.entity;
 import com.example.coffee_hrm.common.enums.ContractPayPeriod;
 import com.example.coffee_hrm.common.enums.ContractPaymentMethod;
 import com.example.coffee_hrm.common.enums.ContractSigningStatus;
+import com.example.coffee_hrm.common.enums.ContractTermType;
 import jakarta.persistence.Column;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -52,6 +55,10 @@ public class EmploymentContract {
 
     @Column(name = "EndDate")
     private LocalDate endDate;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "ContractTerm", length = 40)
+    private ContractTermType contractTerm;
 
     @Column(name = "Salary", nullable = false, precision = 18, scale = 2)
     private BigDecimal salary;

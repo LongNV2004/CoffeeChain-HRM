@@ -3,6 +3,7 @@ package com.example.coffee_hrm.dto.response;
 import com.example.coffee_hrm.common.enums.ContractPayPeriod;
 import com.example.coffee_hrm.common.enums.ContractPaymentMethod;
 import com.example.coffee_hrm.common.enums.ContractSigningStatus;
+import com.example.coffee_hrm.common.enums.ContractTermType;
 import com.example.coffee_hrm.common.enums.ContractValidityStatus;
 import lombok.Builder;
 import lombok.Getter;
@@ -28,6 +29,8 @@ public class EmploymentContractResponse {
     private final LocalDate signedDate;
     private final LocalDate startDate;
     private final LocalDate endDate;
+    private final ContractTermType contractTerm;
+    private final String contractTermLabel;
     private final String jobTitle;
     private final String workLocation;
     private final Integer weeklyShiftCount;

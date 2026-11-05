@@ -101,7 +101,11 @@ public final class FilledContractPdf {
             paint(document, font, line(lines, 0, "bo phan"), List.of(clean(data.department())));
             paint(document, font, line(lines, 0, "dia diem lam viec"), List.of(clean(data.workplace())));
             paintDate(document, font, line(lines, 0, "ngay bat dau"), data.startDate());
-            paintDate(document, font, line(lines, 0, "ngay ket thuc"), data.endDate());
+            if (data.endDate() == null) {
+                paint(document, font, line(lines, 0, "ngay ket thuc"), List.of("Không xác định thời hạn"));
+            } else {
+                paintDate(document, font, line(lines, 0, "ngay ket thuc"), data.endDate());
+            }
             paint(document, font, line(lines, 0, "muc luong"), List.of(clean(data.salary())));
             paint(document, font, line(lines, 0, "so ca lam viec"), List.of(clean(data.weeklyShifts())));
             paintSignatures(document, font, lines, data);

@@ -47,6 +47,8 @@
             <dt>Số hợp đồng</dt><dd th:text="${contract.contractCode}">HD</dd>
             <dt>Ngày hiệu lực</dt>
             <dd th:text="${#temporals.format(contract.startDate, 'dd/MM/yyyy')}">01/10/2026</dd>
+            <dt>Loại hợp đồng</dt>
+            <dd th:text="${contract.contractTermLabel != null ? contract.contractTermLabel : 'Chưa xác định'}">Xác định thời hạn</dd>
             <dt>Ngày kết thúc</dt>
             <dd th:text="${contract.endDate == null ? 'Không xác định thời hạn' : #temporals.format(contract.endDate, 'dd/MM/yyyy')}">Không xác định thời hạn</dd>
             <dt>Mức lương (đồng/giờ)</dt>

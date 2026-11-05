@@ -184,10 +184,24 @@ public class ContractOcrService {
                 field(parsed, "employeeCode", "Mã nhân viên trên hợp đồng", parsed.employeeCode(), parsed.employeeCode()),
                 field(parsed, "startDate", "Ngày bắt đầu", iso(parsed.startDate()), display(parsed.startDate())),
                 field(parsed, "endDate", "Ngày kết thúc", iso(parsed.endDate()), display(parsed.endDate())),
+                contractTypeField(parsed),
                 field(parsed, "salary", "Mức lương (đồng/giờ)", salary(parsed.salary()), salary(parsed.salary())),
                 field(parsed, "weeklyShiftCount", "Số ca/tuần",
                         parsed.weeklyShiftCount() == null ? null : parsed.weeklyShiftCount().toString(),
                         parsed.weeklyShiftCount() == null ? null : parsed.weeklyShiftCount() + " ca/tuần"));
+    }
+
+    private static ContractOcrView.Field contractTypeField(ContractFieldParser.Parsed parsed) {
+        String label = com.example.coffee_hrm.common.enums.ContractTermType.fromEndDate(parsed.endDate()).getLabel();
+        return ContractOcrView.Field.builder()
+                .key("contractType")
+                .label("Loại hợp đồng")
+                .value(label)
+                .display(label)
+                .recognized(true)
+                .confidence("OK")
+                .source("OCR")
+                .build();
     }
 
     private static ContractOcrView.Field field(ContractFieldParser.Parsed parsed, String key, String label,

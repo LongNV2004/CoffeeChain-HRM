@@ -9,11 +9,14 @@ public final class StaffEmploymentGuard {
 
     public static final String DENIED_MESSAGE =
             "Tài khoản đã nghỉ việc chỉ được xem thông tin và lịch sử. Không thể thực hiện thao tác này.";
+    public static final String PENDING_CONTRACT_MESSAGE =
+            "Bạn đang chờ hoàn thiện hợp đồng nên chưa dùng được chức năng này.";
 
     public enum Block {
         NONE,
         INACTIVE,
-        EMPLOYMENT_ENDED
+        EMPLOYMENT_ENDED,
+        PENDING_CONTRACT
     }
 
     private StaffEmploymentGuard() {
@@ -30,10 +33,11 @@ public final class StaffEmploymentGuard {
         }
         RoleName role = user.getRole().getRoleName();
         Employee employee = user.getEmployee();
-        if (role == RoleName.STAFF
-                && employee != null
-                && employee.getStatus() == EmployeeStatus.TERMINATED) {
+        if (role == RoleName.STAFF && employee != null && employee.getStatus() == EmployeeStatus.TERMINATED) {
             return Block.EMPLOYMENT_ENDED;
+        }
+        if (role == RoleName.STAFF && employee != null && employee.getStatus() == EmployeeStatus.PENDING_CONTRACT) {
+            return Block.PENDING_CONTRACT;
         }
         if (!Boolean.TRUE.equals(user.getIsActive())) {
             return Block.INACTIVE;
@@ -49,6 +53,20 @@ public final class StaffEmploymentGuard {
         return role != RoleName.ADMIN && role != RoleName.MANAGER;
     }
 
+    public static boolean allowsWhenPendingContract(String path, String method) {
+        if (path == null || path.isBlank()) {
+            return true;
+        }
+        boolean read = method == null || "GET".equalsIgnoreCase(method) || "HEAD".equalsIgnoreCase(method);
+        if (isPublic(path) || "/logout".equals(path) || "/login".equals(path)) {
+            return true;
+        }
+        if (read && isPendingReadable(path)) {
+            return true;
+        }
+        return "POST".equalsIgnoreCase(method) && isPendingWrite(path);
+    }
+
     public static boolean allowsWhenEmploymentEnded(String path, String method) {
         if (path == null || path.isBlank()) {
             return true;
@@ -61,6 +79,26 @@ public final class StaffEmploymentGuard {
             return true;
         }
         return "POST".equalsIgnoreCase(method) && isAllowedWrite(path);
+    }
+
+    private static boolean isPendingReadable(String path) {
+        return "/dashboard/staff".equals(path)
+                || "/profile".equals(path)
+                || "/profile/contract".equals(path)
+                || "/profile/contracts".equals(path)
+                || "/profile/history".equals(path)
+                || "/staff/contract".equals(path)
+                || path.matches("/staff/contract/\\d+")
+                || path.matches("/staff/contract/\\d+/file")
+                || "/notifications".equals(path)
+                || "/notifications/feed".equals(path);
+    }
+
+    private static boolean isPendingWrite(String path) {
+        return "/profile/password".equals(path)
+                || "/logout".equals(path)
+                || path.matches("/notifications/\\d+/read")
+                || "/notifications/read-all".equals(path);
     }
 
     private static boolean isReadable(String path) {

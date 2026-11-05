@@ -1,6 +1,7 @@
 package com.example.coffee_hrm.service.impl;
 
 import com.example.coffee_hrm.common.enums.ContractSigningStatus;
+import com.example.coffee_hrm.common.enums.ContractTermType;
 import com.example.coffee_hrm.common.enums.ContractValidityStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
@@ -177,10 +178,10 @@ class EmploymentContractServiceImplTest {
 
         CreateEmploymentContractRequest missingEnd = request(LocalDate.of(2026, 12, 31), new BigDecimal("1000.50"));
         missingEnd.setEndDate(null);
-        BusinessException missing = assertThrows(BusinessException.class,
-                () -> service.create(manager, missingEnd, pdf("thieu-ngay.pdf")));
-        assertEquals("Vui lòng nhập ngày kết thúc.", missing.getMessage());
-        verify(contractRepository, never()).saveAndFlush(any(EmploymentContract.class));
+        EmploymentContractResponse indefinite = service.create(manager, missingEnd, pdf("khong-xac-dinh.pdf"));
+        assertEquals(ContractTermType.KHONG_XAC_DINH_THOI_HAN, indefinite.getContractTerm());
+        assertNull(indefinite.getEndDate());
+        assertEquals(ContractValidityStatus.DANG_HIEU_LUC, indefinite.getValidityStatus());
     }
 
     @Test

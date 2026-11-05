@@ -254,6 +254,7 @@ public class StoreServiceImpl implements StoreService {
             return "—";
         }
         return switch (status) {
+            case PENDING_CONTRACT -> "Chờ hoàn thiện hợp đồng";
             case ACTIVE -> "Đang làm việc";
             case ON_LEAVE -> "Đang nghỉ phép";
             case TERMINATED -> "Đã nghỉ việc";

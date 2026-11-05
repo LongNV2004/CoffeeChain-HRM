@@ -83,7 +83,8 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
     private static final String RECRUITMENT_REF = "RECRUITMENT_REQUEST";
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
     private static final Pattern PERSON_NAME_PATTERN = Pattern.compile("^[\\p{L}]+(?:\\s+[\\p{L}]+)*$");
-    private static final List<EmployeeStatus> WORKING_STATUSES = List.of(EmployeeStatus.ACTIVE, EmployeeStatus.ON_LEAVE);
+    private static final List<EmployeeStatus> WORKING_STATUSES = List.of(
+            EmployeeStatus.PENDING_CONTRACT, EmployeeStatus.ACTIVE, EmployeeStatus.ON_LEAVE);
 
     private final RecruitmentRequestRepository recruitmentRequestRepository;
     private final RecruitmentCandidateRepository recruitmentCandidateRepository;
@@ -264,7 +265,7 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
                         .email(candidate.getEmail())
                         .address(candidate.getAddress())
                         .store(locked.request().getStore())
-                        .status(EmployeeStatus.ACTIVE)
+                        .status(EmployeeStatus.PENDING_CONTRACT)
                         .certificationStatus(CertificationStatus.NOTCERTIFIED)
                         .hasCertificate(false)
                         .hireDate(VietnamTime.today())
@@ -596,7 +597,7 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
         employee.setPhone(candidate.getPhone());
         employee.setAddress(candidate.getAddress());
         syncCitizenId(employee, candidate.getCitizenId());
-        employee.setStatus(EmployeeStatus.ACTIVE);
+        employee.setStatus(EmployeeStatus.PENDING_CONTRACT);
         employee.setTerminationDate(null);
         employee.setStore(store);
     }
@@ -693,7 +694,7 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
             return null;
         }
         String normalized = email.trim().toLowerCase(Locale.ROOT);
-        if (!employeeRepository.existsByEmailIgnoreCaseAndStatusIn(normalized, List.of(EmployeeStatus.ACTIVE))) {
+        if (!employeeRepository.existsByEmailIgnoreCaseAndStatusIn(normalized, WORKING_STATUSES)) {
             return null;
         }
         return EMAIL_ACTIVE_EMPLOYEE + " (" + normalized + ")";
@@ -707,7 +708,9 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
         if (!normalized.matches("^[0-9]{9,15}$")) {
             return null;
         }
-        if (employeeRepository.countByNormalizedPhoneAndStatus(normalized, EmployeeStatus.ACTIVE.getDbValue()) == 0) {
+        boolean used = WORKING_STATUSES.stream().anyMatch(status ->
+                employeeRepository.countByNormalizedPhoneAndStatus(normalized, status.getDbValue()) > 0);
+        if (!used) {
             return null;
         }
         return PHONE_ACTIVE_EMPLOYEE + " (" + normalized + ")";
@@ -717,8 +720,8 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
         boolean sameFormerPhone = rehire != null && rehire.getPhone() != null
                 && phone.equals(rehire.getPhone().replaceAll("[\\s.\\-]", ""));
         if (sameFormerPhone) {
-            if (employeeRepository.countByNormalizedPhoneAndStatus(phone, EmployeeStatus.ACTIVE.getDbValue()) > 0
-                    || employeeRepository.countByNormalizedPhoneAndStatus(phone, EmployeeStatus.ON_LEAVE.getDbValue()) > 0) {
+            if (WORKING_STATUSES.stream().anyMatch(status ->
+                    employeeRepository.countByNormalizedPhoneAndStatus(phone, status.getDbValue()) > 0)) {
                 throw new BusinessException(PHONE_ACTIVE_EMPLOYEE + " (" + phone + ")");
             }
         } else if (employeeRepository.countByNormalizedPhone(phone) > 0) {

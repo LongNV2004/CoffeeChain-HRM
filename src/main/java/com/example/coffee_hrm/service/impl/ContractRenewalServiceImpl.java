@@ -1,6 +1,7 @@
 package com.example.coffee_hrm.service.impl;
 
 import com.example.coffee_hrm.common.enums.ContractSigningStatus;
+import com.example.coffee_hrm.common.enums.ContractTermType;
 import com.example.coffee_hrm.common.enums.ContractValidityStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.NotificationType;
@@ -22,6 +23,7 @@ import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.ContractRenewalService;
 import com.example.coffee_hrm.service.NotificationService;
+import com.example.coffee_hrm.service.PendingEmployeeActivation;
 import com.example.coffee_hrm.service.impl.ContractFileStore.StoredContractFile;
 import com.example.coffee_hrm.service.ocr.ContractOcrService;
 import lombok.extern.slf4j.Slf4j;
@@ -118,6 +120,9 @@ public class ContractRenewalServiceImpl implements ContractRenewalService {
         if (resignationItemRepository.countPendingByEmployeeId(employee.getId()) > 0) {
             throw new BusinessException("Nhân viên đang có yêu cầu chấm dứt hợp đồng chờ Admin phê duyệt.");
         }
+        if (source.getEndDate() == null || source.getContractTerm() == ContractTermType.KHONG_XAC_DINH_THOI_HAN) {
+            throw new BusinessException("Hợp đồng không xác định thời hạn không được gia hạn.");
+        }
         if (source.getRenewalDeclinedAt() != null) {
             throw new BusinessException("Không thể gia hạn hợp đồng đã ngừng gia hạn.");
         }
@@ -134,6 +139,10 @@ public class ContractRenewalServiceImpl implements ContractRenewalService {
             EmploymentContract saved = insertRenewal(
                     source, employee, actorUser, startDate, endDate, salary, weeklyShiftCount, note, stored, acceptance, actor, today);
             notifyRenewed(saved, employee, actorUser);
+            if (!startDate.isAfter(today)) {
+                PendingEmployeeActivation.afterContractSaved(
+                        employeeRepository, contractRepository, employee.getId(), today);
+            }
             return EmploymentContractResponse.builder()
                     .id(saved.getId())
                     .contractCode(saved.getContractCode())
@@ -273,6 +282,10 @@ public class ContractRenewalServiceImpl implements ContractRenewalService {
         renewal.setActivatedAt(VietnamTime.now());
         contractRepository.save(renewal);
         log.info("Hợp đồng {} chuyển từ Chờ hiệu lực sang Đang hiệu lực.", renewal.getContractCode());
+        if (renewal.getEmployee() != null) {
+            PendingEmployeeActivation.afterContractSaved(
+                    employeeRepository, contractRepository, renewal.getEmployee().getId(), today);
+        }
         return true;
     }
 
@@ -345,6 +358,7 @@ public class ContractRenewalServiceImpl implements ContractRenewalService {
                         .previousContract(source)
                         .startDate(startDate)
                         .endDate(endDate)
+                        .contractTerm(ContractTermType.XAC_DINH_THOI_HAN)
                         .salary(salary)
                         .weeklyShiftCount(weeklyShiftCount)
                         .internalNote(note)
@@ -477,6 +491,7 @@ public class ContractRenewalServiceImpl implements ContractRenewalService {
         if (!request.getEndDate().isAfter(startDate)) {
             throw new BusinessException("Ngày kết thúc phải sau ngày bắt đầu.");
         }
+        ContractValidityRules.requireFixedTermLength(startDate, request.getEndDate());
         return request.getEndDate();
     }
 

@@ -141,6 +141,7 @@
                 <div>
                     <dt>Trạng thái</dt>
                     <dd>
+                        <span th:if="${employee.status != null and employee.status.name() == 'PENDING_CONTRACT'}" class="badge badge-wait">Chờ hoàn thiện hợp đồng</span>
                         <span th:if="${employee.status != null and employee.status.name() == 'ACTIVE'}" class="badge badge-ok">Đang làm việc</span>
                         <span th:if="${employee.status != null and employee.status.name() == 'ON_LEAVE'}" class="badge badge-wait">Đang nghỉ phép</span>
                         <span th:if="${employee.status != null and employee.status.name() == 'TERMINATED'}" class="badge badge-off">Đã nghỉ việc</span>

@@ -22,7 +22,6 @@ public class CreateEmploymentContractRequest {
     @NotNull(message = "Vui lòng nhập ngày bắt đầu hiệu lực.")
     private LocalDate startDate;
 
-    @NotNull(message = "Vui lòng nhập ngày kết thúc.")
     private LocalDate endDate;
 
     @NotNull(message = "Vui lòng nhập số ca làm việc quy định.")

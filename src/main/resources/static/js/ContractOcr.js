@@ -60,6 +60,7 @@
         input.addEventListener("input", function () {
             input.dataset.userEdited = "1";
             input.classList.remove("is-recognized", "is-review");
+            if (key === "endDate") syncTerm();
         });
     });
     var start = document.getElementById("startDate");
@@ -177,6 +178,8 @@
                 mark("citizen", confidence);
             } else if (field.key === "fullName") {
                 ocr.name = field.recognized ? field.display || field.value || "" : "";
+            } else if (field.key === "contractType") {
+                syncTerm(field.display || field.value || "");
             } else if (known[field.key]) {
                 var input = document.getElementById(field.key);
                 if (!input) return;
@@ -209,6 +212,31 @@
         });
         document.getElementById("citizenDisplay").value = "";
         mark("citizen", "");
+        var type = document.getElementById("contractType");
+        if (type) type.value = "";
+        var end = document.getElementById("endDate");
+        if (end) end.required = isRenewal();
+    }
+
+    function isRenewal() {
+        return (form.getAttribute("action") || "").indexOf("renewal=") >= 0;
+    }
+
+    function syncTerm(recognizedLabel) {
+        var end = document.getElementById("endDate");
+        var type = document.getElementById("contractType");
+        if (!end || !type) return;
+        if (isRenewal() || end.value) {
+            type.value = "Xác định thời hạn";
+            end.required = true;
+            return;
+        }
+        if (recognizedLabel) {
+            type.value = recognizedLabel;
+        } else if (ocr.done) {
+            type.value = "Không xác định thời hạn";
+        }
+        end.required = false;
     }
 
     function paintSign(who, sign) {
@@ -293,6 +321,19 @@
         var endInput = document.getElementById("endDate");
         var error = document.getElementById("end-client-error");
         if (!startInput || !endInput) return true;
+        if (isRenewal() && !endInput.value) {
+            endInput.setCustomValidity("Hợp đồng xác định thời hạn phải có ngày kết thúc.");
+            if (error) {
+                error.hidden = false;
+                error.textContent = "Hợp đồng xác định thời hạn phải có ngày kết thúc.";
+            }
+            return false;
+        }
+        if (!endInput.value) {
+            endInput.setCustomValidity("");
+            if (error) error.hidden = true;
+            return true;
+        }
         if (endInput.value && startInput.value && endInput.value < startInput.value) {
             endInput.setCustomValidity("Ngày kết thúc không được trước ngày bắt đầu hiệu lực.");
             if (error) {

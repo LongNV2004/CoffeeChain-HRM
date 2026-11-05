@@ -23,6 +23,15 @@ class ContractValidityRulesTest {
     }
 
     @Test
+    void fixedTermCannotExceedThirtySixMonthsAndOpenEndedDoesNotWaitForRenewal() {
+        assertThrows(BusinessException.class, () -> ContractValidityRules.requireFixedTermLength(
+                today, today.plusMonths(36).plusDays(1)));
+        ContractValidityRules.requireFixedTermLength(today, today.plusMonths(36));
+        assertEquals(ContractValidityStatus.DANG_HIEU_LUC,
+                ContractValidityRules.resolve(today.minusDays(10), null, null, today));
+    }
+
+    @Test
     void openEndedContractStaysActiveAfterStart() {
         assertEquals(ContractValidityStatus.DANG_HIEU_LUC,
                 ContractValidityRules.resolve(today.minusDays(10), null, null, today));
