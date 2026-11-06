@@ -35,7 +35,8 @@ public class ContractOcrService {
     }
 
     public ContractOcrView inspect(AuthenticatedUser actor, String fileName, byte[] content) {
-        if (actor == null || actor.getRoleName() != RoleName.MANAGER) {
+        if (actor == null
+                || (actor.getRoleName() != RoleName.MANAGER && actor.getRoleName() != RoleName.ADMIN)) {
             throw new BusinessException("Bạn không có quyền tạo hợp đồng.");
         }
         Prepared prepared = prepare(fileName, content);
@@ -104,6 +105,18 @@ public class ContractOcrService {
 
     private Employee match(AuthenticatedUser actor, ContractFieldParser.Parsed parsed) {
         if (parsed == null || !parsed.contract() || parsed.citizenId() == null || parsed.fullName() == null) {
+            return null;
+        }
+        if (actor.getRoleName() == RoleName.ADMIN) {
+            for (Employee employee : employeeRepository.findByRoleWithStore(RoleName.MANAGER)) {
+                if (employee.getStatus() == com.example.coffee_hrm.common.enums.EmployeeStatus.TERMINATED) {
+                    continue;
+                }
+                if (parsed.citizenId().equals(CitizenIds.normalize(employee.getCitizenId()))
+                        && ContractTexts.sameName(parsed.fullName(), employee.getFullName())) {
+                    return employee;
+                }
+            }
             return null;
         }
         if (actor.getEmployeeId() == null) {

@@ -191,7 +191,7 @@
                               th:text="'(' + ${pendingRecruitments} + ')'">(1)</span>
                     </a>
                     <a th:href="@{/admin/resignation}" th:classappend="${active == 'resignation'} ? ' is-active'">
-                        Duyệt đề xuất nghỉ việc
+                        Duyệt đề xuất chấm dứt hợp đồng
                         <span class="coffee-menu-count" th:if="${pendingResignations != null and pendingResignations > 0}"
                               th:text="'(' + ${pendingResignations} + ')'">(1)</span>
                     </a>
@@ -216,7 +216,7 @@
 
         <!-- MANAGER -->
         <div th:if="${role == 'manager'}" class="coffee-menu-section">
-            <a class="coffee-menu-item" th:href="@{/dashboard/manager}"
+            <a class="coffee-menu-item" th:unless="${managerContractLimited}" th:href="@{/dashboard/manager}"
                th:classappend="${active == 'dashboard'} ? ' is-active'" title="Tổng quan">
                 <svg class="coffee-icon"><use href="#coffee-i-panel"/></svg>
                 <span class="coffee-side-label">Tổng quan cửa hàng</span>
@@ -226,6 +226,7 @@
                 <svg class="coffee-icon"><use href="#coffee-i-user"/></svg>
                 <span class="coffee-side-label">Hồ sơ cá nhân</span>
             </a>
+            <th:block th:unless="${managerContractLimited}">
             <div class="coffee-menu-group"
                  th:classappend="${active == 'schedule' or active == 'availability' or active == 'slot-limits' or active == 'overtime'} ? ' is-open'">
                 <button class="coffee-menu-item coffee-group-toggle" type="button"
@@ -269,7 +270,7 @@
                 <div class="coffee-group-children">
                     <a th:href="@{/manager/employees}" th:classappend="${active == 'employees'} ? ' is-active'">Quản lý hồ sơ nhân sự</a>
                     <a th:href="@{/manager/recruitment}" th:classappend="${active == 'recruitment'} ? ' is-active'">Đề xuất tuyển nhân sự</a>
-                    <a th:href="@{/manager/resignation}" th:classappend="${active == 'resignation'} ? ' is-active'">Đề xuất nghỉ việc nhân sự</a>
+                    <a th:href="@{/manager/resignation}" th:classappend="${active == 'resignation'} ? ' is-active'">Đề xuất chấm dứt hợp đồng</a>
                 </div>
             </div>
             <a class="coffee-menu-item" th:href="@{/training}"
@@ -297,6 +298,7 @@
                 <svg class="coffee-icon"><use href="#coffee-i-chart"/></svg>
                 <span class="coffee-side-label">Báo cáo Store</span>
             </a>
+            </th:block>
         </div>
 
         <div th:if="${role == 'staff'}" class="coffee-menu-section">
@@ -410,7 +412,7 @@
             <span th:case="'store-create'">Tạo cửa hàng</span>
             <span th:case="'employees'">Nhân sự</span>
             <span th:case="'recruitment'">Tuyển dụng</span>
-            <span th:case="'resignation'">Đề xuất nghỉ việc</span>
+            <span th:case="'resignation'">Đề xuất chấm dứt hợp đồng</span>
             <span th:case="'training'">Đào tạo</span>
             <span th:case="'attendance'">Chấm công</span>
             <span th:case="'attendance-day'">Theo dõi chấm công</span>

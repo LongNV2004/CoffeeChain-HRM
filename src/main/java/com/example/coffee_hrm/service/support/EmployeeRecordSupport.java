@@ -147,7 +147,7 @@ public final class EmployeeRecordSupport {
         for (int index = 0; index < ordered.size(); index++) {
             EmploymentContractResponse contract = ordered.get(index);
             boolean renewed = index > 0
-                    && ordered.get(index - 1).getValidityStatus() != ContractValidityStatus.DA_CHAM_DUT_TRUOC_THOI_HAN;
+                    && ordered.get(index - 1).getValidityStatus() != ContractValidityStatus.KHONG_GIA_HAN;
             LocalDate created = contract.getCreatedAt() == null
                     ? contract.getStartDate()
                     : contract.getCreatedAt().toLocalDate();
@@ -207,13 +207,10 @@ public final class EmployeeRecordSupport {
             }
         }
         if (terminated != null && !terminated.isAfter(today)) {
-            boolean early = end != null && terminated.isBefore(end);
             events.add(new EmployeeHistoryEvent(
                     terminated,
-                    early ? "Chuyển sang Đã chấm dứt trước thời hạn" + code : "Chuyển sang Đã chấm dứt" + code,
-                    early
-                            ? "Chấm dứt có hiệu lực trước ngày hết hạn. Hợp đồng, chấm công và bảng lương cũ được giữ."
-                            : "Chấm dứt không thuộc trường hợp trước thời hạn. Hợp đồng cũ và file đã ký vẫn được lưu."));
+                    "Chuyển sang Đã chấm dứt" + code,
+                    "Admin đã phê duyệt chấm dứt hợp đồng. Hồ sơ, chấm công và bảng lương cũ được giữ."));
             return;
         }
         if (end != null && end.isBefore(today)) {
@@ -230,7 +227,7 @@ public final class EmployeeRecordSupport {
             return true;
         }
         if (status != ContractValidityStatus.DA_GIA_HAN
-                && status != ContractValidityStatus.DA_CHAM_DUT_TRUOC_THOI_HAN) {
+                && status != ContractValidityStatus.KHONG_GIA_HAN) {
             return false;
         }
         LocalDate today = VietnamTime.today();
@@ -259,7 +256,7 @@ public final class EmployeeRecordSupport {
         if (status == ContractValidityStatus.CHO_HIEU_LUC) {
             return 3;
         }
-        if (status == ContractValidityStatus.DA_CHAM_DUT_TRUOC_THOI_HAN) {
+        if (status == ContractValidityStatus.KHONG_GIA_HAN) {
             return 4;
         }
         if (status == ContractValidityStatus.DA_HET_HAN) {

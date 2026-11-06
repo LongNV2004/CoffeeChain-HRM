@@ -11,6 +11,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import com.example.coffee_hrm.repository.EmploymentContractRepository;
 import com.example.coffee_hrm.repository.UserRepository;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.web.SecurityFilterChain;
@@ -45,8 +46,10 @@ public class SecurityConfig {
     }
 
     @Bean
-    public EmploymentAccessFilter employmentAccessFilter(ObjectProvider<UserRepository> userRepositories) {
-        return new EmploymentAccessFilter(userRepositories);
+    public EmploymentAccessFilter employmentAccessFilter(
+            ObjectProvider<UserRepository> userRepositories,
+            ObjectProvider<EmploymentContractRepository> contractRepositories) {
+        return new EmploymentAccessFilter(userRepositories, contractRepositories);
     }
 
     @Bean

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="vi" xmlns:th="http://www.thymeleaf.org" th:with="renewal=${param.renewal != null}">
+<html lang="vi" xmlns:th="http://www.thymeleaf.org" th:with="renewal=${allowRenewal and param.renewal != null}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,17 +10,18 @@
     <link rel="stylesheet" th:href="@{/css/contract-create.css}">
 </head>
 <body>
-<header th:replace="~{fragments/navbar :: manager('contract')}"></header>
+<header th:replace="${navRole == 'admin'} ? ~{fragments/navbar :: admin('employees')} : ~{fragments/navbar :: manager('contract')}"></header>
 <main class="wrap dash-main cc-page">
     <h1 th:text="${renewal} ? 'Gia hạn hợp đồng lao động' : 'Tạo hợp đồng lao động'">Tạo hợp đồng lao động</h1>
-    <p class="cc-lead" th:text="${renewal} ? 'Tải hợp đồng mới để hệ thống tự động trích xuất thông tin gia hạn.' : 'Tải hợp đồng có sẵn để hệ thống tự động trích xuất thông tin.'">Tải hợp đồng có sẵn để hệ thống tự động trích xuất thông tin.</p>
+    <p class="cc-lead" th:if="${navRole == 'admin'}">Tạo hợp đồng cho Manager. Danh sách chỉ gồm tài khoản Manager và cửa hàng tương ứng.</p>
+    <p class="cc-lead" th:unless="${navRole == 'admin'}" th:text="${renewal} ? 'Tải hợp đồng mới để hệ thống tự động trích xuất thông tin gia hạn.' : 'Tải hợp đồng có sẵn để hệ thống tự động trích xuất thông tin.'">Tải hợp đồng có sẵn để hệ thống tự động trích xuất thông tin.</p>
 
     <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}"></p>
     <p class="cc-note" th:if="${!formReady}">Bạn chưa thể tạo hợp đồng với quyền hiện tại.</p>
 
     <form th:if="${formReady}" id="contract-form" class="cc-form" method="post"
           enctype="multipart/form-data"
-          th:action="${renewal} ? @{/manager/contract/create(renewal=1,contractId=${param.contractId})} : @{/manager/contract/create}"
+          th:action="${renewal} ? @{/manager/contract/create(renewal=1,contractId=${param.contractId})} : @{${contractAction}}"
           th:object="${form}">
         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
         <input type="hidden" name="contractId" th:if="${renewal}" th:value="${param.contractId}">
@@ -72,7 +73,7 @@
                     <select id="employeeId" th:field="*{employeeId}" required>
                         <option value="">Chọn nhân viên</option>
                         <option th:each="employee : ${employees}" th:value="${employee.id}"
-                                th:text="|${employee.id} — ${employee.fullName}|"
+                                th:text="|${employee.id} — ${employee.fullName} — ${employee.positionLabel}${employee.storeName != null ? ' · ' + employee.storeName : ''}|"
                                 th:attr="data-name=${employee.fullName},data-citizen=${employee.citizenId != null ? employee.citizenId : ''}"></option>
                     </select>
                     <span class="cc-error" th:if="${#fields.hasErrors('employeeId')}" th:errors="*{employeeId}"></span>

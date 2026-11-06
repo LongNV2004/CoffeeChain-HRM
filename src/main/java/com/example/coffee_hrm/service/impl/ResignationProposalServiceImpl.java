@@ -53,12 +53,14 @@ public class ResignationProposalServiceImpl implements ResignationProposalServic
     static final String DUPLICATE_EMPLOYEE = "Mỗi nhân viên chỉ được xuất hiện một lần trong đề xuất.";
     static final String OUTSIDE_STORE = "Nhân viên không thuộc cửa hàng của bạn.";
     static final String ALREADY_LEFT = "Nhân viên đã nghỉ việc, không thể đưa vào đề xuất.";
-    static final String OPEN_PROPOSAL = "Nhân viên đang nằm trong một đề xuất nghỉ việc chưa kết thúc.";
+    static final String OPEN_PROPOSAL = "Nhân viên đang nằm trong một đề xuất chấm dứt hợp đồng chưa kết thúc.";
+    static final String NO_CURRENT_CONTRACT =
+            "Nhân viên không có hợp đồng hiện tại để chấm dứt. Hợp đồng đã hết hạn hoặc đã chấm dứt không đề xuất được.";
     static final String BEFORE_HIRE = "Ngày nghỉ việc không được trước ngày vào làm.";
     static final String REASON_REQUIRED = "Vui lòng nhập lý do từ chối.";
-    static final String ITEM_REASON_REQUIRED = "Vui lòng nhập lý do đề xuất nghỉ việc cho từng nhân sự.";
+    static final String ITEM_REASON_REQUIRED = "Vui lòng nhập lý do chấm dứt hợp đồng cho từng nhân sự.";
     static final String ALREADY_PROCESSED = "Nhân sự này đã được xử lý. Không xử lý lại.";
-    static final String NOT_STAFF = "Chỉ được đề xuất nghỉ việc cho nhân viên Staff đang làm tại cửa hàng.";
+    static final String NOT_STAFF = "Chỉ được đề xuất chấm dứt hợp đồng cho nhân viên Staff đang làm tại cửa hàng.";
     static final String SELF_PROPOSAL = "Không thể tự đề xuất nghỉ việc cho Manager đang quản lý cửa hàng.";
     static final String EMPTY_LIST = "Vui lòng thêm ít nhất một nhân sự vào danh sách.";
     static final String NO_PENDING = "Không còn nhân sự đang chờ duyệt.";
@@ -117,18 +119,18 @@ public class ResignationProposalServiceImpl implements ResignationProposalServic
         }
 
         String managerName = displayName(manager);
-        String message = "Manager " + managerName + " đã gửi đề xuất nghỉ việc \"" + saved.getTitle()
+        String message = "Manager " + managerName + " đã gửi đề xuất chấm dứt hợp đồng \"" + saved.getTitle()
                 + "\" (mã " + saved.getId() + ", " + saved.getItems().size() + " nhân sự) cho cửa hàng "
                 + store.getStoreName() + ".";
         List<User> admins = userRepository.findActiveByRoleName(RoleName.ADMIN);
         notificationService.notifyUsers(
                 admins,
-                "Đề xuất nghỉ việc mới",
+                "Đề xuất chấm dứt hợp đồng mới",
                 message,
                 NotificationType.RESIGNATION_PROPOSAL_CREATED,
                 REFERENCE,
                 saved.getId());
-        boolean emailSent = sendToUsers(admins, "CoffeeHRM - Đề xuất nghỉ việc mới", message);
+        boolean emailSent = sendToUsers(admins, "CoffeeHRM - Đề xuất chấm dứt hợp đồng mới", message);
         log.info("Manager {} đã gửi đề xuất nghỉ việc {} với {} nhân sự",
                 manager.getId(), saved.getId(), saved.getItems().size());
         return ResignationDecisionResult.builder()
@@ -460,6 +462,10 @@ public class ResignationProposalServiceImpl implements ResignationProposalServic
         if (employee.getStatus() == EmployeeStatus.TERMINATED) {
             throw new BusinessException("Nhân viên đã nghỉ việc. Hãy từ chối dòng này nếu không còn cần duyệt.");
         }
+        if (com.example.coffee_hrm.service.impl.ContractValidityRules.openContract(
+                contractRepository.findByEmployeeId(employee.getId()), VietnamTime.today()) == null) {
+            throw new BusinessException(NO_CURRENT_CONTRACT);
+        }
         RoleName role = roleOf(employee);
         if (role == RoleName.ADMIN || role == RoleName.MANAGER) {
             throw new BusinessException(NOT_STAFF);
@@ -520,7 +526,11 @@ public class ResignationProposalServiceImpl implements ResignationProposalServic
             if (employee.getHireDate() != null && today.isBefore(employee.getHireDate())) {
                 throw new BusinessException(BEFORE_HIRE);
             }
-            String reason = normalizeRequired(request.getReason(), 500, ITEM_REASON_REQUIRED, "Lý do đề xuất nghỉ việc");
+            String reason = normalizeRequired(request.getReason(), 500, ITEM_REASON_REQUIRED, "Lý do chấm dứt hợp đồng");
+            if (com.example.coffee_hrm.service.impl.ContractValidityRules.openContract(
+                    contractRepository.findByEmployeeId(employee.getId()), today) == null) {
+                throw new BusinessException(NO_CURRENT_CONTRACT + " (" + displayName(employee) + ")");
+            }
             String note = normalizeOptional(request.getNote(), 500, "Ghi chú riêng");
             prepared.add(new PreparedItem(employee, positionLabel(employee), today, reason, note));
         }
@@ -560,13 +570,13 @@ public class ResignationProposalServiceImpl implements ResignationProposalServic
     private void notifyManagerInApp(ResignationProposal proposal, ResignationProposalItem item, boolean approved) {
         String employeeName = displayName(item.getEmployee());
         String result = approved
-                ? "đã được duyệt. Nhân sự nghỉ việc và tài khoản đăng nhập đã bị vô hiệu hóa."
+                ? "đã được phê duyệt. Hợp đồng chuyển sang Đã chấm dứt, nhân sự đã nghỉ việc và tài khoản đăng nhập đã bị khóa."
                 : "đã bị từ chối. Lý do: " + item.getRejectReason() + ". Nhân sự vẫn làm việc và tài khoản vẫn hoạt động.";
-        String message = "Nhân sự " + employeeName + " trong đề xuất nghỉ việc \"" + proposal.getTitle()
+        String message = "Nhân sự " + employeeName + " trong đề xuất chấm dứt hợp đồng \"" + proposal.getTitle()
                 + "\" (mã " + proposal.getId() + ") " + result;
         notificationService.notifyUsers(
                 managerRecipients(proposal),
-                approved ? "Đề xuất nghỉ việc đã được duyệt" : "Đề xuất nghỉ việc bị từ chối",
+                approved ? "Đề xuất chấm dứt hợp đồng đã được phê duyệt" : "Đề xuất chấm dứt hợp đồng bị từ chối",
                 message,
                 approved ? NotificationType.RESIGNATION_PROPOSAL_APPROVED : NotificationType.RESIGNATION_PROPOSAL_REJECTED,
                 REFERENCE,
@@ -832,13 +842,13 @@ public class ResignationProposalServiceImpl implements ResignationProposalServic
 
     private void requireManager(AuthenticatedUser actor) {
         if (actor == null || actor.getRoleName() != RoleName.MANAGER || actor.getEmployeeId() == null) {
-            throw new BusinessException("Chỉ Manager mới được thao tác đề xuất nghỉ việc của cửa hàng mình.");
+            throw new BusinessException("Chỉ Manager mới được thao tác đề xuất chấm dứt hợp đồng của cửa hàng mình.");
         }
     }
 
     private void requireAdmin(AuthenticatedUser actor) {
         if (actor == null || actor.getRoleName() != RoleName.ADMIN) {
-            throw new BusinessException("Chỉ Admin mới được duyệt hoặc từ chối đề xuất nghỉ việc.");
+            throw new BusinessException("Chỉ Admin mới được duyệt hoặc từ chối đề xuất chấm dứt hợp đồng.");
         }
     }
 

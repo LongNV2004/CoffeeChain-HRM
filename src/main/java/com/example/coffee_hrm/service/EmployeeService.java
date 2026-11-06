@@ -35,6 +35,11 @@ public interface EmployeeService {
     EmployeeResponse changeEmployeeRole(AuthenticatedUser actor, Integer storeId, Integer employeeId, String role);
 
     /**
+     * Admin chấm dứt ngay hợp đồng hiện tại của quản lý cửa hàng, không qua đề xuất.
+     */
+    EmployeeResponse terminateManagerContract(AuthenticatedUser actor, Integer storeId, Integer employeeId, String reason);
+
+    /**
      * Nhân sự của đúng cửa hàng Manager đang quản lý.
      * Cửa hàng lấy từ hồ sơ Manager, không nhận mã cửa hàng từ request.
      */

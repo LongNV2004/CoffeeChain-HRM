@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tạo đề xuất nghỉ việc — CoffeeHRM</title>
+    <title>Tạo đề xuất chấm dứt hợp đồng — CoffeeHRM</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
@@ -13,7 +13,7 @@
 <main class="wrap dash-main recruit-page">
     <section class="welcome">
         <div class="eyebrow">Cửa hàng — Manager</div>
-        <h1>Tạo đề xuất nghỉ việc</h1>
+        <h1>Tạo đề xuất chấm dứt hợp đồng</h1>
         <p>Thêm một hoặc nhiều nhân sự của cửa hàng bạn đang quản lý. Mỗi người có lý do riêng. Gửi một lần cho Admin.</p>
     </section>
 
@@ -27,7 +27,7 @@
           th:object="${form}"
           method="post"
           data-coffee-confirm="Gửi toàn bộ danh sách nhân sự cho Admin xem xét? Sau khi gửi, bạn không sửa hoặc xóa đề xuất này."
-          data-coffee-title="Gửi đề xuất nghỉ việc"
+          data-coffee-title="Gửi đề xuất chấm dứt hợp đồng"
           data-coffee-ok="Gửi đề xuất">
         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
         <div id="item-fields"></div>
@@ -76,7 +76,7 @@
                     <input id="draft-citizen" type="text" readonly value="Chọn nhân viên để hiện CCCD">
                 </label>
                 <label class="recruit-span" for="draft-reason">
-                    <span class="field-label">Lý do đề xuất nghỉ việc <span class="req">*</span></span>
+                    <span class="field-label">Lý do chấm dứt hợp đồng <span class="req">*</span></span>
                     <textarea id="draft-reason" maxlength="500" rows="2" placeholder="Lý do riêng của nhân sự này"></textarea>
                 </label>
                 <label class="recruit-span" for="draft-note">
@@ -305,10 +305,10 @@
             return "Nhân viên này đã có trong danh sách.";
         }
         if (!reasonInput.value.trim()) {
-            return "Vui lòng nhập lý do đề xuất nghỉ việc.";
+            return "Vui lòng nhập lý do chấm dứt hợp đồng.";
         }
         if (reasonInput.value.trim().length > 500) {
-            return "Lý do đề xuất nghỉ việc tối đa 500 ký tự.";
+            return "Lý do chấm dứt hợp đồng tối đa 500 ký tự.";
         }
         if (noteInput.value.trim().length > 500) {
             return "Ghi chú riêng tối đa 500 ký tự.";

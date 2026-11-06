@@ -20,7 +20,7 @@ import java.util.regex.Pattern;
 public class AccountMailServiceImpl implements AccountMailService {
 
     static final String REJECTION_SUBJECT = "Thông báo kết quả tuyển dụng – CoffeeHRM";
-    static final String RESIGNATION_DECISION_SUBJECT = "Thông báo quyết định nghỉ việc – CoffeeHRM";
+    static final String RESIGNATION_DECISION_SUBJECT = "Thông báo chấm dứt hợp đồng – CoffeeHRM";
     static final String MANAGER_SUBJECT = "Thông tin tài khoản quản lý CoffeeHRM.";
     private static final DateTimeFormatter DECISION_TIME = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
     private static final String MANAGER_MAIL_FAILURE = "Không gửi được email thông tin tài khoản quản lý.";
@@ -156,7 +156,7 @@ public class AccountMailServiceImpl implements AccountMailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
             helper.setFrom(from);
             helper.setTo(recipient);
-            helper.setSubject(subject == null || subject.isBlank() ? "CoffeeHRM - Đề xuất nghỉ việc" : subject.trim());
+            helper.setSubject(subject == null || subject.isBlank() ? "CoffeeHRM - Đề xuất chấm dứt hợp đồng" : subject.trim());
             helper.setText(buildResignationBody(recipientName, body));
             mailSender.send(message);
             log.info("Đã gửi email đề xuất nghỉ việc tới {}", recipient);
@@ -208,11 +208,11 @@ public class AccountMailServiceImpl implements AccountMailService {
         return """
                 Kính gửi %s,
 
-                Đề xuất nghỉ việc của bạn tại cửa hàng %s đã được Admin phê duyệt.
+                Đề xuất chấm dứt hợp đồng của bạn tại cửa hàng %s đã được Admin phê duyệt.
 
                 Thời điểm ghi nhận quyết định: %s.
 
-                Theo quyết định này, trạng thái làm việc của bạn được cập nhật thành đã nghỉ việc và tài khoản đăng nhập CoffeeHRM được vô hiệu hóa. Hồ sơ nhân sự cùng dữ liệu lịch sử vẫn được lưu trên hệ thống.
+                Hợp đồng được chấm dứt ngay, trạng thái làm việc chuyển thành đã nghỉ việc và tài khoản đăng nhập CoffeeHRM bị khóa. Hồ sơ nhân sự, hợp đồng, chấm công, bảng lương và dữ liệu lịch sử vẫn được lưu trên hệ thống.
 
                 Cảm ơn bạn đã đồng hành cùng CoffeeHRM. Nếu cần hỗ trợ thêm, vui lòng liên hệ Manager cửa hàng hoặc bộ phận quản lý.
 

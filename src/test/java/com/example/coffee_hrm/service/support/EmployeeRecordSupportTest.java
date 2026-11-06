@@ -68,8 +68,8 @@ class EmployeeRecordSupportTest {
                 .id(1)
                 .employeeId(5)
                 .contractCode("HD-1")
-                .validityStatus(ContractValidityStatus.DA_CHAM_DUT_TRUOC_THOI_HAN)
-                .validityStatusLabel("Đã chấm dứt trước thời hạn")
+                .validityStatus(ContractValidityStatus.KHONG_GIA_HAN)
+                .validityStatusLabel("Không gia hạn")
                 .startDate(LocalDate.of(2025, 1, 1))
                 .endDate(LocalDate.of(2025, 12, 31))
                 .terminatedDate(LocalDate.of(2025, 6, 1))
@@ -81,7 +81,7 @@ class EmployeeRecordSupportTest {
                 null, LocalDate.of(2026, 3, 1), null, "Cầu Giấy", null, false, List.of(), List.of(first, second));
 
         assertTrue(events.stream().noneMatch(event -> event.title().startsWith("Gia hạn hợp đồng")));
-        assertTrue(events.stream().anyMatch(event -> event.title().contains("Đã chấm dứt trước thời hạn")));
+        assertTrue(events.stream().anyMatch(event -> event.title().contains("Đã chấm dứt")));
     }
 
     private static EmploymentContractResponse contract(int id, int employeeId, ContractValidityStatus status,

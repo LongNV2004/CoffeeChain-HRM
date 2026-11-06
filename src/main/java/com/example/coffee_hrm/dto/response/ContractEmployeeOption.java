@@ -12,6 +12,7 @@ public class ContractEmployeeOption {
     private final Integer id;
     private final String fullName;
     private final String citizenId;
+    private final Integer storeId;
     private final String storeName;
     private final String positionLabel;
     private final LocalDate hireDate;

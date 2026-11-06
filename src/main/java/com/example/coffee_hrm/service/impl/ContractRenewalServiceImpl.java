@@ -124,7 +124,7 @@ public class ContractRenewalServiceImpl implements ContractRenewalService {
             throw new BusinessException("Hợp đồng không xác định thời hạn không được gia hạn.");
         }
         if (source.getRenewalDeclinedAt() != null) {
-            throw new BusinessException("Không thể gia hạn hợp đồng đã ngừng gia hạn.");
+            throw new BusinessException("Không thể gia hạn hợp đồng đã xác nhận không gia hạn.");
         }
         if (contractRepository.existsByPreviousContract_Id(source.getId())) {
             throw new BusinessException("Hợp đồng này đã được gia hạn.");
@@ -141,7 +141,7 @@ public class ContractRenewalServiceImpl implements ContractRenewalService {
             notifyRenewed(saved, employee, actorUser);
             if (!startDate.isAfter(today)) {
                 PendingEmployeeActivation.afterContractSaved(
-                        employeeRepository, contractRepository, employee.getId(), today);
+                        employeeRepository, contractRepository, userRepository, employee.getId(), today);
             }
             return EmploymentContractResponse.builder()
                     .id(saved.getId())
@@ -176,40 +176,43 @@ public class ContractRenewalServiceImpl implements ContractRenewalService {
     @Override
     @Transactional
     public EmploymentContractResponse stopRenewal(AuthenticatedUser actor, Integer contractId, String reason, String note) {
-        if (actor == null || actor.getRoleName() != RoleName.MANAGER) {
-            throw new BusinessException("Bạn không có quyền ngừng gia hạn hợp đồng.");
+        if (actor == null
+                || (actor.getRoleName() != RoleName.MANAGER && actor.getRoleName() != RoleName.ADMIN)) {
+            throw new BusinessException("Bạn không có quyền xác nhận không gia hạn hợp đồng.");
         }
         if (contractId == null) {
-            throw new BusinessException("Không tìm thấy hợp đồng cần ngừng gia hạn.");
+            throw new BusinessException("Không tìm thấy hợp đồng cần xác nhận không gia hạn.");
         }
         String decision = requireDeclineReason(reason, note);
         EmploymentContract source = contractRepository.lockById(contractId)
-                .orElseThrow(() -> new BusinessException("Không tìm thấy hợp đồng cần ngừng gia hạn."));
+                .orElseThrow(() -> new BusinessException("Không tìm thấy hợp đồng cần xác nhận không gia hạn."));
         Employee employee = source.getEmployee();
         if (employee == null || employee.getStore() == null) {
             throw new BusinessException("Nhân viên chưa thuộc cửa hàng.");
         }
-        Store managed = requireManagedStore(actor);
-        if (!managed.getId().equals(employee.getStore().getId())) {
-            throw new BusinessException("Nhân viên không thuộc cửa hàng bạn quản lý.");
+        if (actor.getRoleName() == RoleName.MANAGER) {
+            Store managed = requireManagedStore(actor);
+            if (!managed.getId().equals(employee.getStore().getId())) {
+                throw new BusinessException("Nhân viên không thuộc cửa hàng bạn quản lý.");
+            }
         }
-        if (employee.getStatus() != EmployeeStatus.ACTIVE) {
-            throw new BusinessException("Chỉ ngừng gia hạn hợp đồng của nhân viên đang làm việc.");
+        if (employee.getStatus() != EmployeeStatus.ACTIVE && employee.getStatus() != EmployeeStatus.ON_LEAVE) {
+            throw new BusinessException("Chỉ xác nhận không gia hạn khi nhân viên vẫn đang làm việc.");
         }
         if (source.getRenewalDeclinedAt() != null) {
-            throw new BusinessException("Hợp đồng này đã được ngừng gia hạn.");
+            throw new BusinessException("Hợp đồng này đã được xác nhận không gia hạn.");
         }
         if (contractRepository.existsByPreviousContract_Id(source.getId())) {
             throw new BusinessException("Hợp đồng này đã được gia hạn.");
         }
         LocalDate today = VietnamTime.today();
         if (ContractValidityRules.resolve(source, today) != ContractValidityStatus.CHO_GIA_HAN) {
-            throw new BusinessException("Chỉ ngừng gia hạn khi hợp đồng đang ở trạng thái Chờ gia hạn.");
+            throw new BusinessException("Chỉ xác nhận không gia hạn khi hợp đồng đang ở trạng thái Chờ gia hạn.");
         }
         source.setRenewalDeclinedAt(VietnamTime.now());
         source.setRenewalDeclineReason(decision);
         contractRepository.save(source);
-        log.info("Hợp đồng {} chuyển sang Đã chấm dứt trước thời hạn. Nhân viên vẫn làm đến {}.",
+        log.info("Hợp đồng {} chuyển sang Không gia hạn. Nhân viên vẫn làm đến {}.",
                 source.getContractCode(), source.getEndDate());
         return EmploymentContractResponse.builder()
                 .id(source.getId())
@@ -250,7 +253,7 @@ public class ContractRenewalServiceImpl implements ContractRenewalService {
                     locked++;
                 }
             } catch (RuntimeException ex) {
-                log.error("Không khóa được tài khoản cho hợp đồng đã ngừng gia hạn {}.", id, ex);
+                log.error("Không khóa được tài khoản cho hợp đồng đã xác nhận không gia hạn {}.", id, ex);
             }
         }
         return locked;
@@ -270,7 +273,8 @@ public class ContractRenewalServiceImpl implements ContractRenewalService {
         }
         ContractValidityStatus sourceStatus = ContractValidityRules.resolve(source, today);
         if (sourceStatus == ContractValidityStatus.DA_CHAM_DUT
-                || sourceStatus == ContractValidityStatus.DA_CHAM_DUT_TRUOC_THOI_HAN) {
+                || sourceStatus == ContractValidityStatus.KHONG_GIA_HAN
+                || sourceStatus == ContractValidityStatus.DA_HET_HAN) {
             log.error("Không kích hoạt hợp đồng {} vì hợp đồng nguồn đã chấm dứt.", contractId);
             return false;
         }
@@ -284,7 +288,7 @@ public class ContractRenewalServiceImpl implements ContractRenewalService {
         log.info("Hợp đồng {} chuyển từ Chờ hiệu lực sang Đang hiệu lực.", renewal.getContractCode());
         if (renewal.getEmployee() != null) {
             PendingEmployeeActivation.afterContractSaved(
-                    employeeRepository, contractRepository, renewal.getEmployee().getId(), today);
+                    employeeRepository, contractRepository, userRepository, renewal.getEmployee().getId(), today);
         }
         return true;
     }
@@ -311,7 +315,9 @@ public class ContractRenewalServiceImpl implements ContractRenewalService {
             return false;
         }
         Employee employee = contract.getEmployee();
-        if (employee == null || employee.getId() == null || employee.getStatus() != EmployeeStatus.ACTIVE) {
+        if (employee == null || employee.getId() == null
+                || (employee.getStatus() != EmployeeStatus.ACTIVE
+                && employee.getStatus() != EmployeeStatus.ON_LEAVE)) {
             return false;
         }
         for (EmploymentContract other : contractRepository.findByEmployeeId(employee.getId())) {
@@ -328,13 +334,14 @@ public class ContractRenewalServiceImpl implements ContractRenewalService {
         employee.setTerminationDate(contract.getEndDate().plusDays(1));
         employeeRepository.save(employee);
         userRepository.findByEmployee_Id(employee.getId()).ifPresent(account -> {
-            if (account.getRole() != null && account.getRole().getRoleName() == RoleName.STAFF
+            RoleName role = account.getRole() == null ? null : account.getRole().getRoleName();
+            if ((role == RoleName.STAFF || role == RoleName.MANAGER)
                     && !Boolean.FALSE.equals(account.getIsActive())) {
                 account.setIsActive(false);
                 userRepository.save(account);
             }
         });
-        log.info("Hợp đồng {} chuyển từ Đã chấm dứt trước thời hạn sang Đã chấm dứt. Đã khóa tài khoản nhân viên {}.",
+        log.info("Hợp đồng {} chuyển từ Không gia hạn sang Đã chấm dứt. Đã khóa tài khoản nhân viên {}.",
                 contract.getContractCode(), employee.getId());
         return true;
     }
@@ -511,19 +518,19 @@ public class ContractRenewalServiceImpl implements ContractRenewalService {
 
     private static String requireDeclineReason(String reason, String note) {
         if (reason == null || reason.isBlank()) {
-            throw new BusinessException("Vui lòng chọn lý do ngừng gia hạn.");
+            throw new BusinessException("Vui lòng chọn lý do không gia hạn.");
         }
         String label = switch (reason.trim()) {
             case "employee" -> "Nhân viên không muốn gia hạn";
             case "store" -> "Cửa hàng không gia hạn";
             case "position" -> "Hết nhu cầu vị trí";
             case "other" -> "Lý do khác";
-            default -> throw new BusinessException("Lý do ngừng gia hạn không hợp lệ.");
+            default -> throw new BusinessException("Lý do không gia hạn không hợp lệ.");
         };
         String extra = note == null ? "" : note.trim();
         String decision = extra.isEmpty() ? label : label + ". " + extra;
         if (decision.length() > 500) {
-            throw new BusinessException("Lý do ngừng gia hạn không được quá 500 ký tự.");
+            throw new BusinessException("Lý do không gia hạn không được quá 500 ký tự.");
         }
         return decision;
     }

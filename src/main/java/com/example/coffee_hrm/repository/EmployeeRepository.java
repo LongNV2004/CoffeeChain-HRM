@@ -193,6 +193,17 @@ public interface EmployeeRepository extends JpaRepository<Employee, Integer> {
             """)
     List<Employee> findByStoreIdWithAccount(@Param("storeId") Integer storeId);
 
+    @Query("""
+            SELECT e
+            FROM Employee e
+            JOIN FETCH e.user u
+            JOIN FETCH u.role r
+            JOIN FETCH e.store s
+            WHERE r.roleName = :role
+            ORDER BY s.storeName ASC, e.fullName ASC, e.id ASC
+            """)
+    List<Employee> findByRoleWithStore(@Param("role") RoleName role);
+
     /**
      * Nhân viên Staff đang làm việc tại đúng một cửa hàng.
      * Không tính Manager, Admin, nhân viên nghỉ phép, đã nghỉ việc, hoặc cửa hàng khác.

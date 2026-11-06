@@ -33,14 +33,14 @@ public final class StaffEmploymentGuard {
         }
         RoleName role = user.getRole().getRoleName();
         Employee employee = user.getEmployee();
+        if (!Boolean.TRUE.equals(user.getIsActive())) {
+            return Block.INACTIVE;
+        }
         if (role == RoleName.STAFF && employee != null && employee.getStatus() == EmployeeStatus.TERMINATED) {
             return Block.EMPLOYMENT_ENDED;
         }
         if (role == RoleName.STAFF && employee != null && employee.getStatus() == EmployeeStatus.PENDING_CONTRACT) {
             return Block.PENDING_CONTRACT;
-        }
-        if (!Boolean.TRUE.equals(user.getIsActive())) {
-            return Block.INACTIVE;
         }
         return Block.NONE;
     }

@@ -42,8 +42,9 @@ public class AuthServiceImpl implements AuthService {
         User user = resolveAccount(request.getUsername());
 
         StaffEmploymentGuard.Block block = StaffEmploymentGuard.assess(user);
-        if (block == StaffEmploymentGuard.Block.INACTIVE) {
-            throw new DisabledException("Tài khoản đã bị vô hiệu hóa.");
+        if (block == StaffEmploymentGuard.Block.INACTIVE
+                || block == StaffEmploymentGuard.Block.EMPLOYMENT_ENDED) {
+            throw new DisabledException("Tài khoản đã bị khóa vì đã nghỉ việc hoặc không còn hiệu lực.");
         }
 
         if (!matchesPassword(request.getPassword(), user)) {

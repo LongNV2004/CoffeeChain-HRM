@@ -138,7 +138,7 @@ class EmploymentContractServiceImplTest {
 
         EmploymentContractResponse response = service.create(manager, upcoming, pdf("sap-hieu-luc.pdf"));
 
-        assertEquals(ContractValidityStatus.DANG_HIEU_LUC, response.getValidityStatus());
+        assertEquals(ContractValidityStatus.CHO_HIEU_LUC, response.getValidityStatus());
     }
 
     @Test
@@ -286,7 +286,7 @@ class EmploymentContractServiceImplTest {
         BusinessException blocked = assertThrows(BusinessException.class,
                 () -> service.create(manager, request(VietnamTime.today().plusMonths(1), new BigDecimal("1000")),
                         pdf("gia-han-som.pdf")));
-        assertEquals("Không thể gia hạn hợp đồng đã chấm dứt trước thời hạn.", blocked.getMessage());
+        assertEquals("Không thể gia hạn hợp đồng đã chấm dứt.", blocked.getMessage());
 
         employee.setStatus(EmployeeStatus.ACTIVE);
         employee.setTerminationDate(null);
@@ -325,15 +325,42 @@ class EmploymentContractServiceImplTest {
     }
 
     @Test
-    void staffAndAdminCannotCreate() {
+    void staffCannotCreateAndAdminOnlyCreatesForManagers() {
         BusinessException staffError = assertThrows(BusinessException.class,
                 () -> service.create(staff, request(null, new BigDecimal("1000")), pdf("staff.pdf")));
         assertEquals("Bạn không có quyền tạo hợp đồng.", staffError.getMessage());
 
+        when(employeeRepository.findByIdWithStore(30)).thenReturn(Optional.of(employee));
+        when(userRepository.findByEmployee_Id(30)).thenReturn(Optional.of(User.builder()
+                .role(Role.builder().roleName(RoleName.STAFF).build())
+                .employee(employee)
+                .build()));
         BusinessException adminError = assertThrows(BusinessException.class,
                 () -> service.create(admin, request(null, new BigDecimal("1000")), pdf("admin.pdf")));
-        assertEquals("Bạn không có quyền tạo hợp đồng.", adminError.getMessage());
+        assertEquals("Chỉ được tạo hợp đồng cho Manager.", adminError.getMessage());
         verify(contractRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void adminCreatesContractForManagerAndManagerCannotCreateOneForAManager() {
+        allowEmployee();
+        when(userRepository.findByEmployee_Id(30)).thenReturn(Optional.of(User.builder()
+                .id(9)
+                .role(Role.builder().roleName(RoleName.MANAGER).build())
+                .employee(employee)
+                .isActive(true)
+                .build()));
+        when(userRepository.findById(1)).thenReturn(Optional.empty());
+
+        EmploymentContractResponse created = service.create(
+                admin, request(null, new BigDecimal("1000")), pdf("manager.pdf"));
+
+        assertEquals(7, created.getId());
+        assertEquals(30, created.getEmployeeId());
+
+        BusinessException denied = assertThrows(BusinessException.class,
+                () -> service.create(manager, request(null, new BigDecimal("1000")), pdf("tu-tao.pdf")));
+        assertEquals("Không thể tạo hợp đồng cho tài khoản Manager.", denied.getMessage());
     }
 
     @Test

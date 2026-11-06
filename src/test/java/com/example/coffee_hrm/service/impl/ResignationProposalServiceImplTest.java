@@ -137,13 +137,12 @@ class ResignationProposalServiceImplTest {
         assertTrue(result.isEmailSent());
         verify(notificationService).notifyUsers(
                 eq(List.of(adminUser)),
-                eq("Đề xuất nghỉ việc mới"),
+                eq("Đề xuất chấm dứt hợp đồng mới"),
                 org.mockito.ArgumentMatchers.contains("mã 7"),
                 eq(NotificationType.RESIGNATION_PROPOSAL_CREATED),
                 eq("RESIGNATION_PROPOSAL"),
                 eq(7));
         verify(userRepository, never()).save(any());
-        verify(contractRepository, never()).findByEmployeeId(any());
     }
 
     @Test
@@ -267,7 +266,7 @@ class ResignationProposalServiceImplTest {
         verify(accountMailService).sendResignationDecision(eq(an.getEmail()), eq("An Nguyễn"), eq("Store A"), any());
         verify(notificationService).notifyUsers(
                 eq(List.of(managerUser)),
-                eq("Đề xuất nghỉ việc đã được duyệt"),
+                eq("Đề xuất chấm dứt hợp đồng đã được phê duyệt"),
                 org.mockito.ArgumentMatchers.contains("An Nguyễn"),
                 eq(NotificationType.RESIGNATION_PROPOSAL_APPROVED),
                 eq("RESIGNATION_PROPOSAL"),
@@ -434,8 +433,8 @@ class ResignationProposalServiceImplTest {
         BusinessException staffDenied = assertThrows(BusinessException.class,
                 () -> service.create(staffActor, proposal(line(binh, VietnamTime.today().plusDays(1), "Lý do", null))));
 
-        assertEquals("Chỉ Admin mới được duyệt hoặc từ chối đề xuất nghỉ việc.", managerDenied.getMessage());
-        assertEquals("Chỉ Manager mới được thao tác đề xuất nghỉ việc của cửa hàng mình.", staffDenied.getMessage());
+        assertEquals("Chỉ Admin mới được duyệt hoặc từ chối đề xuất chấm dứt hợp đồng.", managerDenied.getMessage());
+        assertEquals("Chỉ Manager mới được thao tác đề xuất chấm dứt hợp đồng của cửa hàng mình.", staffDenied.getMessage());
         verify(proposalRepository, never()).lockById(any());
     }
 
@@ -458,6 +457,19 @@ class ResignationProposalServiceImplTest {
         when(itemRepository.findOpenEmployeeIds(anyList(), eq(ResignationItemStatus.PENDING), eq(ResignationItemStatus.APPROVED)))
                 .thenReturn(List.of());
         when(userRepository.findActiveByRoleName(RoleName.ADMIN)).thenReturn(List.of(adminUser));
+        when(contractRepository.findByEmployeeId(any())).thenAnswer(invocation -> {
+            Integer employeeId = invocation.getArgument(0);
+            Employee owner = employees.stream()
+                    .filter(employee -> employeeId.equals(employee.getId()))
+                    .findFirst()
+                    .orElse(null);
+            return List.of(EmploymentContract.builder()
+                    .id(employeeId)
+                    .employee(owner)
+                    .startDate(VietnamTime.today().minusMonths(1))
+                    .endDate(VietnamTime.today().plusMonths(6))
+                    .build());
+        });
         when(proposalRepository.save(any())).thenAnswer(invocation -> {
             ResignationProposal proposal = invocation.getArgument(0);
             proposal.setId(7);
@@ -469,6 +481,12 @@ class ResignationProposalServiceImplTest {
         ProposalFixture fixture = openProposal();
         when(proposalRepository.lockById(7)).thenReturn(Optional.of(fixture.proposal()));
         when(itemRepository.lockByProposalId(7)).thenReturn(List.of(fixture.first(), fixture.second()));
+        org.mockito.Mockito.lenient().when(contractRepository.findByEmployeeId(any())).thenAnswer(invocation -> List.of(EmploymentContract.builder()
+                .id(3)
+                .employee(an)
+                .startDate(VietnamTime.today().minusMonths(2))
+                .endDate(VietnamTime.today().plusMonths(4))
+                .build()));
         return fixture;
     }
 

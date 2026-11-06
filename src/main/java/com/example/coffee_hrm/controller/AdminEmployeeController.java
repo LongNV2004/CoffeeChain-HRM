@@ -2,6 +2,8 @@ package com.example.coffee_hrm.controller;
 
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.common.enums.ContractValidityStatus;
+import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.dto.response.EmployeeResponse;
 import com.example.coffee_hrm.dto.response.EmploymentContractResponse;
 import com.example.coffee_hrm.security.AuthenticatedUser;
@@ -113,6 +115,7 @@ public class AdminEmployeeController {
         }
         List<EmploymentContractResponse> contracts = contractsOf(user, employeeId);
         model.addAttribute("contracts", contracts);
+        model.addAttribute("terminableContract", terminableContract(employee, contracts));
         model.addAttribute("history", EmployeeRecordSupport.history(employee, List.of(), contracts));
         model.addAttribute("tab", "contract".equals(tab) || "history".equals(tab) ? tab : "profile");
         return EMPLOYEE_DETAIL_VIEW;
@@ -152,6 +155,57 @@ public class AdminEmployeeController {
         }
         return "redirect:/admin/stores/" + storeId + "/employees/" + employeeId;
     }
+
+    @PostMapping("/stores/{storeId}/employees/{employeeId}/terminate-contract")
+    public String terminateManagerContract(@PathVariable Integer storeId,
+                                           @PathVariable Integer employeeId,
+                                           @RequestParam(required = false) String reason,
+                                           @AuthenticationPrincipal AuthenticatedUser user,
+                                           RedirectAttributes redirectAttributes) {
+        try {
+            EmployeeResponse updated = employeeService.terminateManagerContract(user, storeId, employeeId, reason);
+            redirectAttributes.addFlashAttribute("successMessage",
+                    "Đã chấm dứt hợp đồng của " + updated.getFullName()
+                            + ". Hồ sơ chuyển sang đã nghỉ việc và tài khoản không đăng nhập được nữa.");
+        } catch (BusinessException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
+        }
+        return "redirect:/admin/stores/" + storeId + "/employees/" + employeeId;
+    }
+
+    private static EmploymentContractResponse terminableContract(EmployeeResponse employee,
+                                                                 List<EmploymentContractResponse> contracts) {
+        if (employee == null || employee.getRoleName() != RoleName.MANAGER
+                || employee.getStatus() == EmployeeStatus.TERMINATED || contracts == null) {
+            return null;
+        }
+        EmploymentContractResponse working = null;
+        EmploymentContractResponse waiting = null;
+        for (EmploymentContractResponse contract : contracts) {
+            ContractValidityStatus status = contract.getValidityStatus();
+            if (status == null) {
+                continue;
+            }
+            if (status.allowsWork()) {
+                working = laterContract(working, contract);
+            } else if (status == ContractValidityStatus.CHO_HIEU_LUC) {
+                waiting = laterContract(waiting, contract);
+            }
+        }
+        return working != null ? working : waiting;
+    }
+
+    private static EmploymentContractResponse laterContract(EmploymentContractResponse current,
+                                                            EmploymentContractResponse candidate) {
+        if (current == null || candidate.getStartDate() == null) {
+            return current == null ? candidate : current;
+        }
+        if (current.getStartDate() == null || candidate.getStartDate().isAfter(current.getStartDate())) {
+            return candidate;
+        }
+        return current;
+    }
+
     @PostMapping("/stores/{storeId}/employees/create")
     @ResponseBody
     public EmployeeResponse createEmployee(

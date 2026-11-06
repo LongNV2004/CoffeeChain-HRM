@@ -21,6 +21,8 @@
 <p class="profile-toast profile-toast-err" th:if="${errorMessage}" data-profile-toast role="alert" th:text="${errorMessage}">Không đổi được mật khẩu.</p>
 
 <main class="wrap dash-main profile-page" th:if="${profile != null}">
+    <p class="stf-unassigned" th:if="${managerContractLimitedMessage != null}" role="status"
+       th:text="${managerContractLimitedMessage}">Tài khoản đang chờ hoàn thiện hợp đồng.</p>
     <section class="profile-hero">
         <div class="profile-avatar" aria-hidden="true">
             <img th:if="${profile.avatarUrl != null and !#strings.isEmpty(profile.avatarUrl)}"

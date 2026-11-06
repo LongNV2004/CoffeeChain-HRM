@@ -187,23 +187,23 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
 
     @Override
     public List<ContractEmployeeOption> listEmployees(AuthenticatedUser actor) {
+        if (actor != null && actor.getRoleName() == RoleName.ADMIN) {
+            return employeeRepository.findByRoleWithStore(RoleName.MANAGER).stream()
+                    .filter(employee -> employee.getStatus() != EmployeeStatus.TERMINATED)
+                    .map(this::toEmployeeOption)
+                    .toList();
+        }
         if (actor == null || actor.getRoleName() != RoleName.MANAGER) {
             throw new BusinessException("Bạn không có quyền tạo hợp đồng.");
         }
         Store store = requireManagedStore(actor);
         return employeeRepository.findByStoreIdWithAccount(store.getId()).stream()
                 .filter(employee -> employee.getStatus() != EmployeeStatus.TERMINATED)
+                .filter(employee -> roleOf(employee) != RoleName.MANAGER)
                 .filter(employee -> actor.getEmployeeId() == null || !actor.getEmployeeId().equals(employee.getId()))
                 .sorted(Comparator.comparing(Employee::getFullName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
                         .thenComparing(Employee::getId))
-                .map(employee -> ContractEmployeeOption.builder()
-                        .id(employee.getId())
-                        .fullName(employee.getFullName())
-                        .citizenId(employee.getCitizenId())
-                        .storeName(store.getStoreName())
-                        .positionLabel(positionLabel(employee))
-                        .hireDate(employee.getHireDate())
-                        .build())
+                .map(this::toEmployeeOption)
                 .toList();
     }
 
@@ -211,7 +211,8 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
     @Transactional
     public EmploymentContractResponse create(AuthenticatedUser actor, CreateEmploymentContractRequest request,
                                               ContractFilePayload file) {
-        if (actor == null || actor.getRoleName() != RoleName.MANAGER) {
+        if (actor == null
+                || (actor.getRoleName() != RoleName.MANAGER && actor.getRoleName() != RoleName.ADMIN)) {
             throw new BusinessException("Bạn không có quyền tạo hợp đồng.");
         }
         if (file == null || file.content() == null || file.content().length == 0) {
@@ -231,8 +232,20 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
         String note = optionalNote(request.getInternalNote());
         Employee employee = employeeRepository.findByIdWithStore(request.getEmployeeId())
                 .orElseThrow(() -> new BusinessException("Không tìm thấy nhân viên."));
-        if (actor.getEmployeeId() != null && actor.getEmployeeId().equals(employee.getId())) {
+        if (actor.getRoleName() == RoleName.MANAGER
+                && actor.getEmployeeId() != null
+                && actor.getEmployeeId().equals(employee.getId())) {
             throw new BusinessException("Không thể tạo hợp đồng cho chính bạn.");
+        }
+        RoleName targetRole = userRepository.findByEmployee_Id(employee.getId())
+                .map(User::getRole)
+                .map(role -> role.getRoleName())
+                .orElse(null);
+        if (actor.getRoleName() == RoleName.ADMIN && targetRole != RoleName.MANAGER) {
+            throw new BusinessException("Chỉ được tạo hợp đồng cho Manager.");
+        }
+        if (actor.getRoleName() == RoleName.MANAGER && targetRole == RoleName.MANAGER) {
+            throw new BusinessException("Không thể tạo hợp đồng cho tài khoản Manager.");
         }
         if (employee.getStatus() == EmployeeStatus.TERMINATED) {
             throw new BusinessException("Nhân viên đã nghỉ việc, không thể tạo hợp đồng mới.");
@@ -240,9 +253,11 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
         if (employee.getStore() == null) {
             throw new BusinessException("Nhân viên chưa thuộc cửa hàng.");
         }
-        Store managed = requireManagedStore(actor);
-        if (!managed.getId().equals(employee.getStore().getId())) {
-            throw new BusinessException("Nhân viên không thuộc cửa hàng bạn quản lý.");
+        if (actor.getRoleName() == RoleName.MANAGER) {
+            Store managed = requireManagedStore(actor);
+            if (!managed.getId().equals(employee.getStore().getId())) {
+                throw new BusinessException("Nhân viên không thuộc cửa hàng bạn quản lý.");
+            }
         }
         if (!CitizenIds.isValid(employee.getCitizenId())) {
             throw new BusinessException(CitizenIds.MISSING_FOR_CONTRACT);
@@ -292,7 +307,7 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
         }
         contractRenewalReminder.remindIfDue(saved.getId());
         PendingEmployeeActivation.afterContractSaved(
-                employeeRepository, contractRepository, employee.getId(), VietnamTime.today());
+                employeeRepository, contractRepository, userRepository, employee.getId(), VietnamTime.today());
         return toResponse(saved, true, pendingRenewalSources());
     }
 
@@ -462,6 +477,26 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
         if (store == null || managed.getId() == null || !managed.getId().equals(store.getId())) {
             throw new BusinessException("Bạn không có quyền xem hợp đồng này.");
         }
+    }
+
+    private ContractEmployeeOption toEmployeeOption(Employee employee) {
+        Store store = employee.getStore();
+        return ContractEmployeeOption.builder()
+                .id(employee.getId())
+                .fullName(employee.getFullName())
+                .citizenId(employee.getCitizenId())
+                .storeId(store == null ? null : store.getId())
+                .storeName(store == null ? null : store.getStoreName())
+                .positionLabel(positionLabel(employee))
+                .hireDate(employee.getHireDate())
+                .build();
+    }
+
+    private static RoleName roleOf(Employee employee) {
+        if (employee == null || employee.getUser() == null || employee.getUser().getRole() == null) {
+            return null;
+        }
+        return employee.getUser().getRole().getRoleName();
     }
 
     private static String positionLabel(Employee employee) {

@@ -8,6 +8,7 @@ import com.example.coffee_hrm.common.enums.TrainingClassStatus;
 import com.example.coffee_hrm.common.enums.TrainingResult;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.security.CitizenIds;
+import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.CreateEmployeeRequest;
 import com.example.coffee_hrm.dto.request.UpdateEmployeeRequest;
 import com.example.coffee_hrm.dto.response.EmployeeResponse;
@@ -15,6 +16,7 @@ import com.example.coffee_hrm.dto.response.ManagedEmployeeDetail;
 import com.example.coffee_hrm.dto.response.ManagedEmployeeDirectory;
 import com.example.coffee_hrm.entity.Attendance;
 import com.example.coffee_hrm.entity.Employee;
+import com.example.coffee_hrm.entity.EmploymentContract;
 import com.example.coffee_hrm.entity.Role;
 import com.example.coffee_hrm.entity.Shift;
 import com.example.coffee_hrm.entity.ShiftAssignment;
@@ -31,6 +33,7 @@ import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.repository.TrainingClassEnrollmentRepository;
 import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
+import com.example.coffee_hrm.service.AccountMailService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,6 +43,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -81,6 +85,8 @@ class EmployeeServiceImplTest {
     private TrainingClassEnrollmentRepository trainingClassEnrollmentRepository;
     @Mock
     private com.example.coffee_hrm.repository.EmploymentContractRepository employmentContractRepository;
+    @Mock
+    private AccountMailService accountMailService;
 
     @InjectMocks
     private EmployeeServiceImpl employeeService;
@@ -650,6 +656,46 @@ class EmployeeServiceImplTest {
         assertEquals("079203000999", staffEmployee.getCitizenId());
         assertEquals("079203000999", updated.getCitizenId());
         assertEquals("Employee 10", staffEmployee.getFullName());
+    }
+
+    @Test
+    void adminTerminatesTheCurrentManagerContractImmediately() {
+        Employee manager = employee(5, storeA, EmployeeStatus.ACTIVE);
+        User managerUser = User.builder().id(20).username("manager").passwordHash("x").role(managerRole)
+                .employee(manager).isActive(true).build();
+        storeA.setManager(manager);
+        EmploymentContract contract = EmploymentContract.builder()
+                .id(8)
+                .contractCode("HD-8")
+                .employee(manager)
+                .startDate(VietnamTime.today().minusMonths(1))
+                .endDate(VietnamTime.today().plusMonths(6))
+                .salary(new BigDecimal("10000"))
+                .build();
+        when(employeeRepository.lockById(5)).thenReturn(Optional.of(manager));
+        when(userRepository.findByEmployee_Id(5)).thenReturn(Optional.of(managerUser));
+        when(employmentContractRepository.findByEmployeeId(5)).thenReturn(List.of(contract));
+        when(storeRepository.findAllByManager_Id(5)).thenReturn(List.of(storeA));
+        when(accountMailService.sendResignationDecision(any(), any(), any(), any())).thenReturn(true);
+
+        employeeService.terminateManagerContract(admin, 1, 5, "Không tiếp tục đảm nhiệm");
+
+        assertEquals(EmployeeStatus.TERMINATED, manager.getStatus());
+        assertEquals(VietnamTime.today(), manager.getTerminationDate());
+        assertEquals(VietnamTime.today(), contract.getTerminatedDate());
+        assertFalse(managerUser.getIsActive());
+        assertNull(storeA.getManager());
+        assertTrue(contract.getInternalNote().contains("Không tiếp tục đảm nhiệm"));
+        verify(employmentContractRepository).saveAll(List.of(contract));
+        verify(accountMailService).sendResignationDecision(eq("e5@x.vn"), eq("Employee 5"), eq("Store A"), any());
+    }
+
+    @Test
+    void adminCannotImmediatelyTerminateAStaffContract() {
+        when(employeeRepository.lockById(10)).thenReturn(Optional.of(staffEmployee));
+        assertMessage("Chỉ chấm dứt ngay hợp đồng của quản lý cửa hàng.",
+                () -> employeeService.terminateManagerContract(admin, 1, 10, "Lý do"));
+        verify(employmentContractRepository, never()).saveAll(any());
     }
 
     private CreateEmployeeRequest createRequest(String citizenId) {

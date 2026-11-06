@@ -9,14 +9,13 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
- * Trạng thái hiệu lực tính từ ngày, không lưu thành cột.
- * Ngày kết thúc là ngày cuối cùng hợp đồng còn hiệu lực.
- * Ngày chấm dứt là ngày hợp đồng không còn hiệu lực: ca làm từ ngày này trở đi không được đăng ký.
- * Chờ gia hạn chỉ trong 7 ngày cuối, tính cả ngày hết hạn, khi hợp đồng đã bắt đầu và chưa chấm dứt.
- * Hợp đồng tạo mới chưa tới ngày bắt đầu vẫn là Đang hiệu lực.
- * Hợp đồng nguồn vừa được gia hạn là Đã gia hạn cho đến hết ngày kết thúc của chính nó, rồi sang Đã hết hạn.
- * Hợp đồng gia hạn chưa tới ngày bắt đầu là Chờ hiệu lực. Đúng ngày bắt đầu thì sang Đang hiệu lực.
- * Ngưng gia hạn là Đã chấm dứt trước thời hạn cho đến hết ngày kết thúc, rồi sang Đã chấm dứt.
+ * Trạng thái hiệu lực tính từ ngày, dùng chung cho Manager và Staff.
+ * Ngày kết thúc là ngày cuối cùng còn được làm. Ngày chấm dứt do Admin phê duyệt thì hợp đồng sang Đã chấm dứt ngay.
+ * Hợp đồng chưa tới ngày bắt đầu là Chờ hiệu lực, kể cả hợp đồng đầu tiên.
+ * Hợp đồng không xác định thời hạn chỉ có Chờ hiệu lực, Đang hiệu lực và Đã chấm dứt.
+ * Chờ gia hạn chỉ trong 7 ngày cuối của hợp đồng xác định thời hạn.
+ * Đã gia hạn giữ đến hết ngày kết thúc của bản cũ rồi sang Đã hết hạn.
+ * Không gia hạn giữ đến hết ngày kết thúc rồi sang Đã chấm dứt.
  */
 public final class ContractValidityRules {
 
@@ -56,25 +55,25 @@ public final class ContractValidityRules {
             throw new BusinessException("Thiếu ngày bắt đầu hiệu lực hoặc ngày hiện tại.");
         }
         if (terminatedDate != null && !terminatedDate.isAfter(today)) {
-            if (endDate != null && terminatedDate.isBefore(endDate)) {
-                return ContractValidityStatus.DA_CHAM_DUT_TRUOC_THOI_HAN;
-            }
             return ContractValidityStatus.DA_CHAM_DUT;
         }
-        if (endDate != null && endDate.isBefore(today)) {
+        if (endDate == null) {
+            return startDate.isAfter(today)
+                    ? ContractValidityStatus.CHO_HIEU_LUC
+                    : ContractValidityStatus.DANG_HIEU_LUC;
+        }
+        if (endDate.isBefore(today)) {
             return ContractValidityStatus.DA_HET_HAN;
         }
-        if (previousContractId != null && startDate.isAfter(today)) {
+        if (startDate.isAfter(today)) {
             return ContractValidityStatus.CHO_HIEU_LUC;
         }
         if (hasDirectRenewal) {
             return ContractValidityStatus.DA_GIA_HAN;
         }
-        if (!startDate.isAfter(today) && endDate != null) {
-            long daysRemaining = ChronoUnit.DAYS.between(today, endDate);
-            if (daysRemaining <= RENEWAL_WINDOW_DAYS) {
-                return ContractValidityStatus.CHO_GIA_HAN;
-            }
+        long daysRemaining = ChronoUnit.DAYS.between(today, endDate);
+        if (daysRemaining <= RENEWAL_WINDOW_DAYS) {
+            return ContractValidityStatus.CHO_GIA_HAN;
         }
         return ContractValidityStatus.DANG_HIEU_LUC;
     }
@@ -95,15 +94,90 @@ public final class ContractValidityRules {
         if (contract == null) {
             throw new BusinessException("Không tìm thấy hợp đồng.");
         }
-        if (contract.getRenewalDeclinedAt() != null) {
-            if (contract.getEndDate() != null && contract.getEndDate().isBefore(today)) {
+        if (contract.getTerminatedDate() != null && !contract.getTerminatedDate().isAfter(today)) {
+            return ContractValidityStatus.DA_CHAM_DUT;
+        }
+        if (contract.getRenewalDeclinedAt() != null && contract.getEndDate() != null) {
+            if (contract.getEndDate().isBefore(today)) {
                 return ContractValidityStatus.DA_CHAM_DUT;
             }
-            return ContractValidityStatus.DA_CHAM_DUT_TRUOC_THOI_HAN;
+            return ContractValidityStatus.KHONG_GIA_HAN;
         }
         Integer previousId = contract.getPreviousContract() == null ? null : contract.getPreviousContract().getId();
         return resolve(contract.getStartDate(), contract.getEndDate(), contract.getTerminatedDate(), today,
                 previousId, hasDirectRenewal);
+    }
+
+    public enum WorkAccess {
+        /** Có hợp đồng còn cho làm việc trong ngày. */
+        WORKING,
+        /** Chưa có hợp đồng hoặc chỉ có hợp đồng chờ hiệu lực. */
+        WAITING,
+        /** Mọi hợp đồng đã hết hạn hoặc đã chấm dứt, không có bản tiếp nối đang mở. */
+        ENDED
+    }
+
+    public static boolean hasDirectRenewal(List<EmploymentContract> contracts, Integer contractId) {
+        if (contractId == null || contracts == null) {
+            return false;
+        }
+        for (EmploymentContract contract : contracts) {
+            EmploymentContract previous = contract == null ? null : contract.getPreviousContract();
+            if (previous != null && contractId.equals(previous.getId())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Quyền làm việc trong ngày, dùng chung cho Manager và Staff. */
+    public static WorkAccess workAccess(List<EmploymentContract> contracts, LocalDate today) {
+        if (contracts == null || contracts.isEmpty() || today == null) {
+            return WorkAccess.WAITING;
+        }
+        EmploymentContract current = applicable(contracts, today);
+        if (current != null) {
+            ContractValidityStatus status = resolve(current, today, hasDirectRenewal(contracts, current.getId()));
+            if (status.allowsWork()) {
+                return WorkAccess.WORKING;
+            }
+        }
+        for (EmploymentContract contract : contracts) {
+            if (contract != null && resolve(contract, today, hasDirectRenewal(contracts, contract.getId()))
+                    == ContractValidityStatus.CHO_HIEU_LUC) {
+                return WorkAccess.WAITING;
+            }
+        }
+        return WorkAccess.ENDED;
+    }
+
+    /**
+     * Hợp đồng hiện tại được phép đề xuất chấm dứt: bản còn cho làm việc, hoặc bản chờ hiệu lực nếu chưa có bản đang làm.
+     */
+    public static EmploymentContract openContract(List<EmploymentContract> contracts, LocalDate today) {
+        if (contracts == null || today == null) {
+            return null;
+        }
+        EmploymentContract current = applicable(contracts, today);
+        if (current != null) {
+            ContractValidityStatus status = resolve(current, today, hasDirectRenewal(contracts, current.getId()));
+            if (status.allowsWork()) {
+                return current;
+            }
+        }
+        EmploymentContract future = null;
+        for (EmploymentContract contract : contracts) {
+            if (contract == null) {
+                continue;
+            }
+            if (resolve(contract, today, hasDirectRenewal(contracts, contract.getId())) != ContractValidityStatus.CHO_HIEU_LUC) {
+                continue;
+            }
+            if (future == null || startsLater(contract, future)) {
+                future = contract;
+            }
+        }
+        return future;
     }
 
     /** Hợp đồng áp dụng cho một ngày làm: bản bắt đầu muộn hơn được ưu tiên khi hai bản cùng bao ngày đó. */

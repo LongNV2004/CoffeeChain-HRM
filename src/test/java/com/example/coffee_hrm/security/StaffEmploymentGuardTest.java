@@ -24,6 +24,8 @@ class StaffEmploymentGuardTest {
     @Test
     void onlyTerminatedStaffIsRestrictedAndRehiringRestoresAccess() {
         assertEquals(StaffEmploymentGuard.Block.EMPLOYMENT_ENDED,
+                StaffEmploymentGuard.assess(account(RoleName.STAFF, EmployeeStatus.TERMINATED, true)));
+        assertEquals(StaffEmploymentGuard.Block.INACTIVE,
                 StaffEmploymentGuard.assess(account(RoleName.STAFF, EmployeeStatus.TERMINATED, false)));
         assertEquals(StaffEmploymentGuard.Block.NONE,
                 StaffEmploymentGuard.assess(account(RoleName.STAFF, EmployeeStatus.ACTIVE, true)));

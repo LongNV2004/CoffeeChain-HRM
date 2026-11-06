@@ -17,7 +17,7 @@ import java.util.List;
 public final class ContractLifecycle {
 
     public static final String CANNOT_RENEW_EARLY_TERMINATION =
-            "Không thể gia hạn hợp đồng đã chấm dứt trước thời hạn.";
+            "Không thể gia hạn hợp đồng đã chấm dứt.";
 
     private ContractLifecycle() {
     }
@@ -61,7 +61,7 @@ public final class ContractLifecycle {
         if (latest == null || latest.getStartDate() == null || today == null) {
             return;
         }
-        if (ContractValidityRules.resolve(latest, today) != ContractValidityStatus.DA_CHAM_DUT_TRUOC_THOI_HAN) {
+        if (ContractValidityRules.resolve(latest, today) != ContractValidityStatus.DA_CHAM_DUT) {
             return;
         }
         boolean rehired = employee != null

@@ -5,6 +5,8 @@ import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.entity.Employee;
 import com.example.coffee_hrm.entity.Role;
 import com.example.coffee_hrm.entity.User;
+import com.example.coffee_hrm.entity.EmploymentContract;
+import com.example.coffee_hrm.repository.EmploymentContractRepository;
 import com.example.coffee_hrm.repository.UserRepository;
 import org.springframework.beans.factory.ObjectProvider;
 import jakarta.servlet.FilterChain;
@@ -34,6 +36,8 @@ class EmploymentAccessFilterTest {
     @Mock
     private UserRepository userRepository;
     @Mock
+    private EmploymentContractRepository contractRepository;
+    @Mock
     private FilterChain chain;
 
     @AfterEach
@@ -42,25 +46,17 @@ class EmploymentAccessFilterTest {
     }
 
     @Test
-    void terminatedStaffCanReadTheDashboardButNotRegisterAShift() throws Exception {
+    void lockedTerminatedStaffIsSentToLogin() throws Exception {
         User staff = account(RoleName.STAFF, EmployeeStatus.TERMINATED, false);
         when(userRepository.findByIdWithRole(11)).thenReturn(Optional.of(staff));
         authenticate(staff);
         MockHttpServletRequest dashboard = new MockHttpServletRequest("GET", "/dashboard/staff");
         MockHttpServletResponse dashboardResponse = new MockHttpServletResponse();
 
-        new EmploymentAccessFilter(provider()).doFilter(dashboard, dashboardResponse, chain);
+        new EmploymentAccessFilter(provider(), contracts()).doFilter(dashboard, dashboardResponse, chain);
 
-        assertNull(dashboardResponse.getRedirectedUrl());
-        verify(chain).doFilter(dashboard, dashboardResponse);
-
-        authenticate(staff);
-        MockHttpServletRequest register = new MockHttpServletRequest("GET", "/availability");
-        MockHttpServletResponse registerResponse = new MockHttpServletResponse();
-        new EmploymentAccessFilter(provider()).doFilter(register, registerResponse, chain);
-
-        assertEquals("/dashboard/staff?limited=1", registerResponse.getRedirectedUrl());
-        verify(chain, never()).doFilter(register, registerResponse);
+        assertEquals("/login?loginError=true&errorCode=inactive", dashboardResponse.getRedirectedUrl());
+        verify(chain, never()).doFilter(dashboard, dashboardResponse);
     }
 
     @Test
@@ -72,7 +68,7 @@ class EmploymentAccessFilterTest {
         request.addHeader("Accept", "application/json");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        new EmploymentAccessFilter(provider()).doFilter(request, response, chain);
+        new EmploymentAccessFilter(provider(), contracts()).doFilter(request, response, chain);
 
         assertEquals(403, response.getStatus());
         verify(chain, never()).doFilter(request, response);
@@ -86,17 +82,107 @@ class EmploymentAccessFilterTest {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/dashboard/admin");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        new EmploymentAccessFilter(provider()).doFilter(request, response, chain);
+        new EmploymentAccessFilter(provider(), contracts()).doFilter(request, response, chain);
 
         assertNull(response.getRedirectedUrl());
         assertTrue(SecurityContextHolder.getContext().getAuthentication().isAuthenticated());
         verify(chain).doFilter(request, response);
     }
 
+    @Test
+    void managerWithoutAContractCanEditProfileButNotOpenTheStore() throws Exception {
+        User manager = account(RoleName.MANAGER, EmployeeStatus.ACTIVE, true);
+        when(userRepository.findByIdWithRole(11)).thenReturn(Optional.of(manager));
+        when(contractRepository.findByEmployeeId(11)).thenReturn(java.util.List.of());
+        EmploymentAccessFilter filter = new EmploymentAccessFilter(provider(), contractsReturningRepository());
+
+        authenticate(manager);
+        MockHttpServletRequest profile = new MockHttpServletRequest("POST", "/profile");
+        MockHttpServletResponse profileResponse = new MockHttpServletResponse();
+        filter.doFilter(profile, profileResponse, chain);
+        assertNull(profileResponse.getRedirectedUrl());
+        verify(chain).doFilter(profile, profileResponse);
+
+        authenticate(manager);
+        MockHttpServletRequest dashboard = new MockHttpServletRequest("GET", "/dashboard/manager");
+        MockHttpServletResponse dashboardResponse = new MockHttpServletResponse();
+        filter.doFilter(dashboard, dashboardResponse, chain);
+        assertEquals("/profile?limited=contract", dashboardResponse.getRedirectedUrl());
+
+        authenticate(manager);
+        MockHttpServletRequest employees = new MockHttpServletRequest("GET", "/manager/employees");
+        MockHttpServletResponse employeesResponse = new MockHttpServletResponse();
+        filter.doFilter(employees, employeesResponse, chain);
+        assertEquals("/profile?limited=contract", employeesResponse.getRedirectedUrl());
+    }
+
+    @Test
+    void managerWithContractInForceKeepsTheDashboard() throws Exception {
+        User manager = account(RoleName.MANAGER, EmployeeStatus.ACTIVE, true);
+        when(userRepository.findByIdWithRole(11)).thenReturn(Optional.of(manager));
+        EmploymentContract own = EmploymentContract.builder()
+                .id(4)
+                .employee(manager.getEmployee())
+                .startDate(java.time.LocalDate.now().minusDays(3))
+                .endDate(java.time.LocalDate.now().plusMonths(6))
+                .build();
+        when(contractRepository.findByEmployeeId(11)).thenReturn(java.util.List.of(own));
+        EmploymentAccessFilter filter = new EmploymentAccessFilter(provider(), contractsReturningRepository());
+
+        authenticate(manager);
+        MockHttpServletRequest dashboard = new MockHttpServletRequest("GET", "/dashboard/manager");
+        MockHttpServletResponse dashboardResponse = new MockHttpServletResponse();
+        filter.doFilter(dashboard, dashboardResponse, chain);
+        assertNull(dashboardResponse.getRedirectedUrl());
+        verify(chain).doFilter(dashboard, dashboardResponse);
+    }
+
+    @Test
+    void limitedManagerCanDownloadOnlyTheirOwnContractFile() throws Exception {
+        User manager = account(RoleName.MANAGER, EmployeeStatus.ACTIVE, true);
+        when(userRepository.findByIdWithRole(11)).thenReturn(Optional.of(manager));
+        when(contractRepository.findByEmployeeId(11)).thenReturn(java.util.List.of());
+        EmploymentContract own = EmploymentContract.builder()
+                .id(4)
+                .employee(manager.getEmployee())
+                .build();
+        when(contractRepository.findDetailById(4)).thenReturn(Optional.of(own));
+        when(contractRepository.findDetailById(9)).thenReturn(Optional.of(EmploymentContract.builder()
+                .id(9)
+                .employee(Employee.builder().id(30).fullName("Nhân viên").build())
+                .build()));
+        EmploymentAccessFilter filter = new EmploymentAccessFilter(provider(), contractsReturningRepository());
+
+        authenticate(manager);
+        MockHttpServletRequest ownFile = new MockHttpServletRequest("GET", "/manager/contract/4/file");
+        MockHttpServletResponse ownResponse = new MockHttpServletResponse();
+        filter.doFilter(ownFile, ownResponse, chain);
+        assertNull(ownResponse.getRedirectedUrl());
+
+        authenticate(manager);
+        MockHttpServletRequest otherFile = new MockHttpServletRequest("GET", "/manager/contract/9/file");
+        MockHttpServletResponse otherResponse = new MockHttpServletResponse();
+        filter.doFilter(otherFile, otherResponse, chain);
+        assertEquals("/profile?limited=contract", otherResponse.getRedirectedUrl());
+    }
+
     private ObjectProvider<UserRepository> provider() {
         @SuppressWarnings("unchecked")
         ObjectProvider<UserRepository> provider = org.mockito.Mockito.mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(userRepository);
+        return provider;
+    }
+
+    private ObjectProvider<EmploymentContractRepository> contracts() {
+        @SuppressWarnings("unchecked")
+        ObjectProvider<EmploymentContractRepository> provider = org.mockito.Mockito.mock(ObjectProvider.class);
+        return provider;
+    }
+
+    private ObjectProvider<EmploymentContractRepository> contractsReturningRepository() {
+        @SuppressWarnings("unchecked")
+        ObjectProvider<EmploymentContractRepository> provider = org.mockito.Mockito.mock(ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(contractRepository);
         return provider;
     }
 

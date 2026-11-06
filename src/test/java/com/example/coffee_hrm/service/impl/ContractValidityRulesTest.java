@@ -18,7 +18,7 @@ class ContractValidityRulesTest {
 
     @Test
     void createdContractBeforeStartStaysInForce() {
-        assertEquals(ContractValidityStatus.DANG_HIEU_LUC,
+        assertEquals(ContractValidityStatus.CHO_HIEU_LUC,
                 ContractValidityRules.resolve(today.plusDays(1), today.plusDays(40), null, today));
     }
 
@@ -79,7 +79,7 @@ class ContractValidityRulesTest {
         assertEquals(source, ContractValidityRules.applicable(java.util.List.of(source, renewal), today));
         assertEquals(renewal, ContractValidityRules.applicable(java.util.List.of(source, renewal), today.plusDays(3)));
         source.setRenewalDeclinedAt(java.time.LocalDateTime.now());
-        assertEquals(ContractValidityStatus.DA_CHAM_DUT_TRUOC_THOI_HAN,
+        assertEquals(ContractValidityStatus.KHONG_GIA_HAN,
                 ContractValidityRules.resolve(source, today));
         source.setEndDate(today.minusDays(1));
         assertEquals(ContractValidityStatus.DA_CHAM_DUT, ContractValidityRules.resolve(source, today));
@@ -91,7 +91,7 @@ class ContractValidityRulesTest {
 
     @Test
     void earlyTerminationIsDistinctFromEndingOnTheOriginalDate() {
-        assertEquals(ContractValidityStatus.DA_CHAM_DUT_TRUOC_THOI_HAN,
+        assertEquals(ContractValidityStatus.DA_CHAM_DUT,
                 ContractValidityRules.resolve(today.minusDays(10), today.plusDays(100), today, today));
         assertEquals(ContractValidityStatus.DA_CHAM_DUT,
                 ContractValidityRules.resolve(today.minusDays(30), today, today, today));

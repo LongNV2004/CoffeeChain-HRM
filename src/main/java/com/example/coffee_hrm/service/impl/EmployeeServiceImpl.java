@@ -33,6 +33,7 @@ import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.repository.TrainingClassEnrollmentRepository;
 import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
+import com.example.coffee_hrm.service.AccountMailService;
 import com.example.coffee_hrm.service.EmployeeService;
 import com.example.coffee_hrm.service.support.ContractLifecycle;
 import lombok.RequiredArgsConstructor;
@@ -92,6 +93,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final AttendanceRepository attendanceRepository;
     private final TrainingClassEnrollmentRepository trainingClassEnrollmentRepository;
     private final EmploymentContractRepository employmentContractRepository;
+    private final AccountMailService accountMailService;
 
     @Override
     public List<EmployeeResponse> getAllEmployees(AuthenticatedUser actor) {
@@ -451,6 +453,76 @@ public class EmployeeServiceImpl implements EmployeeService {
             demoteToStaff(employee, user);
         }
         return toResponse(employee, user, store);
+    }
+
+    @Override
+    @Transactional
+    public EmployeeResponse terminateManagerContract(AuthenticatedUser actor,
+                                                     Integer storeId,
+                                                     Integer employeeId,
+                                                     String reason) {
+        requireAdmin(actor);
+        String decision = requireTerminationReason(reason);
+        Employee employee = employeeRepository.lockById(employeeId)
+                .orElseThrow(() -> new BusinessException(EMPLOYEE_NOT_FOUND));
+        Store store = storeRepository.findByIdForUpdate(storeId)
+                .orElseThrow(() -> new BusinessException(STORE_NOT_FOUND));
+        if (employee.getStore() == null || !store.getId().equals(employee.getStore().getId())) {
+            throw new BusinessException(EMPLOYEE_NOT_IN_STORE);
+        }
+        User account = userRepository.findByEmployee_Id(employeeId).orElse(null);
+        RoleName role = account == null || account.getRole() == null ? null : account.getRole().getRoleName();
+        if (role != RoleName.MANAGER) {
+            throw new BusinessException("Chỉ chấm dứt ngay hợp đồng của quản lý cửa hàng.");
+        }
+        if (employee.getStatus() == EmployeeStatus.TERMINATED) {
+            throw new BusinessException("Quản lý đã nghỉ việc.");
+        }
+        LocalDate today = VietnamTime.today();
+        List<EmploymentContract> contracts = employmentContractRepository.findByEmployeeId(employeeId);
+        EmploymentContract current = ContractValidityRules.openContract(contracts, today);
+        if (current == null) {
+            throw new BusinessException(
+                    "Không có hợp đồng hiện tại để chấm dứt. Hợp đồng đã hết hạn hoặc đã chấm dứt không chấm dứt lại được.");
+        }
+        if (ContractLifecycle.applyEffectiveTermination(contracts, today, today) == 0) {
+            throw new BusinessException("Không chấm dứt được hợp đồng hiện tại.");
+        }
+        rememberTermination(current, actor, decision);
+        employmentContractRepository.saveAll(contracts);
+        employee.setStatus(EmployeeStatus.TERMINATED);
+        if (employee.getTerminationDate() == null) {
+            employee.setTerminationDate(today);
+        }
+        employeeRepository.save(employee);
+        storeRepository.findAllByManager_Id(employee.getId()).forEach(managed -> managed.setManager(null));
+        if (account != null && !Boolean.FALSE.equals(account.getIsActive())) {
+            account.setIsActive(false);
+            userRepository.save(account);
+        }
+        accountMailService.sendResignationDecision(
+                employee.getEmail(), employee.getFullName(), store.getStoreName(), VietnamTime.now());
+        return toResponse(employee, account, store, true);
+    }
+
+    private static String requireTerminationReason(String reason) {
+        if (reason == null || reason.isBlank()) {
+            throw new BusinessException("Vui lòng nhập lý do chấm dứt hợp đồng.");
+        }
+        String trimmed = reason.trim();
+        if (trimmed.length() > 500) {
+            throw new BusinessException("Lý do chấm dứt hợp đồng không được quá 500 ký tự.");
+        }
+        return trimmed;
+    }
+
+    private static void rememberTermination(EmploymentContract contract, AuthenticatedUser actor, String reason) {
+        String who = actor.getDisplayName() == null || actor.getDisplayName().isBlank()
+                ? "Admin" : actor.getDisplayName().trim();
+        String line = "Chấm dứt ngay bởi " + who + ". Lý do: " + reason;
+        String existing = contract.getInternalNote();
+        String combined = existing == null || existing.isBlank() ? line : existing.trim() + " | " + line;
+        contract.setInternalNote(combined.length() <= 500 ? combined : combined.substring(0, 500));
     }
 
     private void promoteToManager(Employee employee, User user, Store store) {

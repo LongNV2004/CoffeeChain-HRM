@@ -28,7 +28,7 @@
                 <td th:text="${contract.contractTermLabel != null} ? ${contract.contractTermLabel} : 'Chưa xác định'">Xác định thời hạn</td>
                 <td>
                     <span class="badge"
-                          th:classappend="${contract.validityStatus != null and contract.validityStatus.name() == 'DANG_HIEU_LUC'} ? ' badge-ok' : (${contract.validityStatus != null and (contract.validityStatus.name() == 'CHO_GIA_HAN' or contract.validityStatus.name() == 'DA_GIA_HAN' or contract.validityStatus.name() == 'CHO_HIEU_LUC')} ? ' badge-wait' : (${contract.validityStatus != null and (contract.validityStatus.name().startsWith('DA_CHAM_DUT') or contract.validityStatus.name() == 'DA_HET_HAN')} ? ' badge-off' : ''))"
+                          th:classappend="${contract.validityStatus != null and contract.validityStatus.name() == 'DANG_HIEU_LUC'} ? ' badge-ok' : (${contract.validityStatus != null and (contract.validityStatus.name() == 'CHO_GIA_HAN' or contract.validityStatus.name() == 'DA_GIA_HAN' or contract.validityStatus.name() == 'CHO_HIEU_LUC' or contract.validityStatus.name() == 'KHONG_GIA_HAN')} ? ' badge-wait' : (${contract.validityStatus != null and (contract.validityStatus.name() == 'DA_CHAM_DUT' or contract.validityStatus.name() == 'DA_HET_HAN')} ? ' badge-off' : ''))"
                           th:text="${contract.validityStatusLabel != null ? contract.validityStatusLabel : 'Chưa xác định'}">Đang hiệu lực</span>
                 </td>
                 <td>
@@ -40,15 +40,15 @@
                 </td>
                 <td th:if="${manage}">
                     <div class="contract-row-actions"
-                         th:if="${(contract.contractTerm == null or contract.contractTerm.name() != 'KHONG_XAC_DINH_THOI_HAN') and contract.validityStatus != null and (contract.validityStatus.name() == 'CHO_GIA_HAN' or contract.validityStatus.name() == 'DANG_HIEU_LUC')}">
+                         th:if="${(contract.contractTerm == null or contract.contractTerm.name() != 'KHONG_XAC_DINH_THOI_HAN') and contract.validityStatus != null and contract.validityStatus.name() == 'CHO_GIA_HAN'}">
                         <a class="contract-action contract-action--renew"
+                           th:if="${fileRole == 'manager'}"
                            th:href="@{/manager/contract/create(employeeId=${contract.employeeId},contractId=${contract.id},renewal=1)}">Gia hạn</a>
                         <button type="button" class="contract-action contract-action--stop"
-                                th:if="${contract.validityStatus.name() == 'CHO_GIA_HAN'}"
                                 th:attr="data-contract-id=${contract.id},data-employee-id=${contract.employeeId},data-employee-name=${contract.employeeName != null ? contract.employeeName : 'Chưa cập nhật'},
                                          data-contract-code=${contract.contractCode != null ? contract.contractCode : 'Chưa cập nhật'},
                                          data-start=${contract.startDate != null ? #temporals.format(contract.startDate, 'dd/MM/yyyy') : 'Chưa cập nhật'},
-                                         data-end=${contract.endDate != null ? #temporals.format(contract.endDate, 'dd/MM/yyyy') : 'Chưa cập nhật'}">Ngừng gia hạn</button>
+                                         data-end=${contract.endDate != null ? #temporals.format(contract.endDate, 'dd/MM/yyyy') : 'Chưa cập nhật'}">Không gia hạn</button>
                     </div>
                 </td>
             </tr>

@@ -58,21 +58,25 @@ class AuthServiceImplTest {
     }
 
     @Test
-    void terminatedStaffCanLoginWithTheCorrectPassword() {
+    void terminatedStaffCannotLogin() {
         User staff = account(RoleName.STAFF, EmployeeStatus.TERMINATED, true, "secret");
         when(userRepository.findByUsername("an@shop.vn")).thenReturn(Optional.of(staff));
-        when(userRepository.save(staff)).thenReturn(staff);
 
-        assertEquals(11, service.authenticate(login("an@shop.vn", "secret"), request(), response()).getUserId());
+        DisabledException ex = assertThrows(DisabledException.class,
+                () -> service.authenticate(login("an@shop.vn", "secret"), request(), response()));
+
+        assertTrue(ex.getMessage().contains("đã nghỉ việc"));
     }
 
     @Test
-    void inactiveTerminatedStaffCanStillLogin() {
+    void inactiveTerminatedStaffCannotLogin() {
         User staff = account(RoleName.STAFF, EmployeeStatus.TERMINATED, false, "secret");
         when(userRepository.findByUsername("an@shop.vn")).thenReturn(Optional.of(staff));
-        when(userRepository.save(staff)).thenReturn(staff);
 
-        assertEquals(RoleName.STAFF, service.authenticate(login("an@shop.vn", "secret"), request(), response()).getRoleName());
+        DisabledException ex = assertThrows(DisabledException.class,
+                () -> service.authenticate(login("an@shop.vn", "secret"), request(), response()));
+
+        assertTrue(ex.getMessage().contains("đã nghỉ việc"));
     }
 
     @Test
@@ -83,7 +87,7 @@ class AuthServiceImplTest {
         DisabledException ex = assertThrows(DisabledException.class,
                 () -> service.authenticate(login("an@shop.vn", "secret"), request(), response()));
 
-        assertTrue(ex.getMessage().contains("vô hiệu hóa"));
+        assertTrue(ex.getMessage().contains("đã nghỉ việc"));
     }
 
     @Test
@@ -109,14 +113,14 @@ class AuthServiceImplTest {
     }
 
     @Test
-    void terminatedStaffFoundByEmailCanLogin() {
+    void terminatedStaffFoundByEmailCannotLogin() {
         User staff = account(RoleName.STAFF, EmployeeStatus.TERMINATED, false, "secret");
         staff.setUsername("an.nguyen");
         when(userRepository.findByUsername("an@shop.vn")).thenReturn(Optional.empty());
         when(userRepository.findByEmployeeEmail("an@shop.vn")).thenReturn(java.util.List.of(staff));
-        when(userRepository.save(staff)).thenReturn(staff);
 
-        assertEquals(11, service.authenticate(login("an@shop.vn", "secret"), request(), response()).getUserId());
+        assertThrows(DisabledException.class,
+                () -> service.authenticate(login("an@shop.vn", "secret"), request(), response()));
     }
 
     @Test

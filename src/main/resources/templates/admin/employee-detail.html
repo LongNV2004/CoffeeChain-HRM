@@ -178,6 +178,24 @@
                     <button class="store-btn store-btn--primary" type="submit">Thay đổi chức vụ</button>
                 </div>
             </form>
+            <form th:if="${employee.roleName != null and employee.roleName.name() == 'MANAGER' and terminableContract != null}"
+                  class="stack-form" method="post"
+                  th:action="@{/admin/stores/{storeId}/employees/{employeeId}/terminate-contract(storeId=${store.id}, employeeId=${employee.id})}"
+                  data-coffee-confirm="Chấm dứt hợp đồng của quản lý này ngay? Hợp đồng chuyển sang Đã chấm dứt, quản lý nghỉ việc và không đăng nhập được nữa. Hồ sơ và dữ liệu cũ được giữ.">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <h3>Chấm dứt hợp đồng</h3>
+                <p>Hợp đồng hiện tại:
+                    <strong th:text="${terminableContract.contractCode}">HD</strong>
+                    · <span th:text="${terminableContract.validityStatusLabel}">Đang hiệu lực</span>
+                </p>
+                <p>Admin chấm dứt ngay, không cần đề xuất và không cần duyệt.</p>
+                <label>Lý do chấm dứt
+                    <textarea name="reason" rows="3" maxlength="500" required placeholder="Nhập lý do chấm dứt hợp đồng"></textarea>
+                </label>
+                <div class="form-actions store-create-actions">
+                    <button class="store-btn store-btn--primary" type="submit">Chấm dứt hợp đồng ngay</button>
+                </div>
+            </form>
             <div class="form-actions store-create-actions">
                 <a class="store-btn store-btn--secondary" th:href="@{/admin/stores/{id}/employees(id=${store.id})}">Quay lại danh sách nhân viên</a>
             </div>
@@ -185,9 +203,17 @@
     </div>
 
     <section class="store-create-card employee-related" th:if="${tab == 'contract'}" aria-labelledby="admin-contract-title">
-        <h2 id="admin-contract-title">Hợp đồng</h2>
-        <p>Admin xem hợp đồng của nhân viên. Tạo hợp đồng và tải file đã ký thuộc Manager của cửa hàng. Hợp đồng cũ và file đã ký được giữ nguyên.</p>
-        <div th:replace="~{fragments/employee-contracts :: table(${contracts}, 'admin', false)}"></div>
+        <div class="store-panel-top">
+            <div>
+                <h2 id="admin-contract-title">Hợp đồng</h2>
+                <p th:if="${employee.roleName != null and employee.roleName.name() == 'MANAGER'}">Admin tạo hợp đồng lao động cho Manager này. Hợp đồng đã lưu không bị sửa hoặc xóa. Manager xem và tải hợp đồng của chính mình trong hồ sơ cá nhân.</p>
+                <p th:unless="${employee.roleName != null and employee.roleName.name() == 'MANAGER'}">Admin xem hợp đồng của nhân viên. Tạo hợp đồng cho Staff thuộc Manager của cửa hàng. Hợp đồng cũ và file đã ký được giữ nguyên.</p>
+            </div>
+            <a class="store-btn store-btn--primary"
+               th:if="${employee.roleName != null and employee.roleName.name() == 'MANAGER' and employee.status != null and employee.status.name() != 'TERMINATED' and (contracts == null or #lists.isEmpty(contracts))}"
+               th:href="@{/admin/contract/create(employeeId=${employee.id})}">Tạo hợp đồng</a>
+        </div>
+        <div th:replace="~{fragments/employee-contracts :: table(${contracts}, 'admin', true)}"></div>
     </section>
 
     <section class="store-create-card employee-related" th:if="${tab == 'history'}" aria-labelledby="admin-history-title">
@@ -203,6 +229,7 @@
         </ol>
     </section>
 </main>
+<div th:replace="~{manager/employee-detail :: stopRenewal(@{/admin/contract/stop-renewal})}"></div>
 <script th:src="@{/js/AdminDashboard.js}"></script>
 </body>
 </html>

@@ -24,7 +24,7 @@ public class ContractActivationScheduler {
         int locked = contractRenewalService.lockDeclinedAccounts(today);
         int promoted = pendingEmployeeActivation.promoteReady(today);
         if (activated > 0 || expired > 0 || locked > 0 || promoted > 0) {
-            log.info("Kích hoạt hợp đồng: {} sang Đang hiệu lực, {} sang Đã hết hạn, {} tài khoản bị khóa, {} nhân viên sang Đang làm việc.",
+            log.info("Kích hoạt hợp đồng: {} sang Đang hiệu lực, {} sang Đã hết hạn, {} tài khoản bị khóa, {} hồ sơ được đồng bộ theo hợp đồng.",
                     activated, expired, locked, promoted);
         }
     }

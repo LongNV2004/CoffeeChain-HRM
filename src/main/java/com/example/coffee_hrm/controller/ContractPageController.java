@@ -4,6 +4,7 @@ import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.dto.request.ContractFilePayload;
 import com.example.coffee_hrm.dto.request.CreateEmploymentContractRequest;
 import com.example.coffee_hrm.dto.response.ContractDownload;
+import com.example.coffee_hrm.dto.response.ContractEmployeeOption;
 import com.example.coffee_hrm.dto.response.ContractOcrView;
 import com.example.coffee_hrm.dto.response.EmploymentContractResponse;
 import com.example.coffee_hrm.security.AuthenticatedUser;
@@ -115,12 +116,25 @@ public class ContractPageController {
     public String createForm(@AuthenticationPrincipal AuthenticatedUser actor,
                              @RequestParam(required = false) Integer employeeId,
                              Model model) {
-        if (!model.containsAttribute("form")) {
-            CreateEmploymentContractRequest form = new CreateEmploymentContractRequest();
-            form.setEmployeeId(employeeId);
-            model.addAttribute("form", form);
-        }
+        prepareCreateForm(employeeId, model);
         return renderCreate(actor, model);
+    }
+
+    @GetMapping("/admin/contract/create")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String adminCreateForm(@AuthenticationPrincipal AuthenticatedUser actor,
+                                  @RequestParam(required = false) Integer employeeId,
+                                  Model model) {
+        prepareCreateForm(employeeId, model);
+        return renderCreate(actor, model);
+    }
+
+    @PostMapping(value = "/admin/contract/ocr", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('ADMIN')")
+    @ResponseBody
+    public ContractOcrView adminOcr(@AuthenticationPrincipal AuthenticatedUser actor,
+                                    @RequestParam(value = "contractFile", required = false) MultipartFile contractFile) {
+        return readOcr(actor, contractFile);
     }
 
     @PostMapping(value = "/manager/contract/ocr", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -128,16 +142,18 @@ public class ContractPageController {
     @ResponseBody
     public ContractOcrView ocr(@AuthenticationPrincipal AuthenticatedUser actor,
                                @RequestParam(value = "contractFile", required = false) MultipartFile contractFile) {
-        try {
-            if (contractFile == null || contractFile.isEmpty()) {
-                return failedOcr("Vui lòng chọn file hợp đồng.");
-            }
-            return contractOcrService.inspect(actor, contractFile.getOriginalFilename(), contractFile.getBytes());
-        } catch (BusinessException ex) {
-            return failedOcr(ex.getMessage());
-        } catch (IOException ex) {
-            return failedOcr("Không đọc được file hợp đồng.");
-        }
+        return readOcr(actor, contractFile);
+    }
+
+    @PostMapping("/admin/contract/stop-renewal")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String adminStopRenewal(@AuthenticationPrincipal AuthenticatedUser actor,
+                                   @RequestParam(value = "contractId", required = false) Integer contractId,
+                                   @RequestParam(value = "employeeId", required = false) Integer employeeId,
+                                   @RequestParam(value = "reason", required = false) String reason,
+                                   @RequestParam(value = "note", required = false) String note,
+                                   RedirectAttributes redirectAttributes) {
+        return stopRenewal(actor, contractId, employeeId, reason, note, redirectAttributes);
     }
 
     @PostMapping("/manager/contract/stop-renewal")
@@ -148,14 +164,17 @@ public class ContractPageController {
                               @RequestParam(value = "reason", required = false) String reason,
                               @RequestParam(value = "note", required = false) String note,
                               RedirectAttributes redirectAttributes) {
-        String back = employeeId == null
+        boolean admin = actor != null && actor.getRoleName() == com.example.coffee_hrm.common.enums.RoleName.ADMIN;
+        String back = admin
+                ? "redirect:/admin/employees"
+                : employeeId == null
                 ? "redirect:/manager/employees"
                 : "redirect:/manager/employees/" + employeeId + "?tab=contract";
         try {
             EmploymentContractResponse updated = contractRenewalService.stopRenewal(actor, contractId, reason, note);
             redirectAttributes.addFlashAttribute("successMessage",
-                    "Đã ngừng gia hạn hợp đồng " + updated.getContractCode() + ".");
-            if (updated.getEmployeeId() != null) {
+                    "Đã xác nhận không gia hạn hợp đồng " + updated.getContractCode() + ".");
+            if (!admin && updated.getEmployeeId() != null) {
                 return "redirect:/manager/employees/" + updated.getEmployeeId() + "?tab=contract";
             }
             return back;
@@ -163,6 +182,17 @@ public class ContractPageController {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
             return back;
         }
+    }
+
+    @PostMapping("/admin/contract/create")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String adminCreate(@AuthenticationPrincipal AuthenticatedUser actor,
+                              @Valid @ModelAttribute("form") CreateEmploymentContractRequest form,
+                              BindingResult binding,
+                              @RequestParam(value = "contractFile", required = false) MultipartFile contractFile,
+                              Model model,
+                              RedirectAttributes redirectAttributes) {
+        return saveContract(actor, form, binding, contractFile, null, null, model, redirectAttributes);
     }
 
     @PostMapping("/manager/contract/create")
@@ -175,6 +205,18 @@ public class ContractPageController {
                          @RequestParam(value = "contractId", required = false) Integer contractId,
                          Model model,
                          RedirectAttributes redirectAttributes) {
+        return saveContract(actor, form, binding, contractFile, renewal, contractId, model, redirectAttributes);
+    }
+
+    private String saveContract(AuthenticatedUser actor,
+                                 CreateEmploymentContractRequest form,
+                                 BindingResult binding,
+                                 MultipartFile contractFile,
+                                 String renewal,
+                                 Integer contractId,
+                                 Model model,
+                                 RedirectAttributes redirectAttributes) {
+        boolean renewing = renewal != null && actor != null && actor.getRoleName() == com.example.coffee_hrm.common.enums.RoleName.MANAGER;
         rejectCrossField(form, binding);
         if (contractFile == null || contractFile.isEmpty()) {
             binding.reject("contractFile", "Vui lòng tải lên file hợp đồng đã ký.");
@@ -185,22 +227,39 @@ public class ContractPageController {
         }
         try {
             ContractFilePayload payload = new ContractFilePayload(contractFile.getOriginalFilename(), contractFile.getBytes());
-            EmploymentContractResponse created = renewal == null
-                    ? contractService.create(actor, form, payload)
-                    : contractRenewalService.renew(actor, contractId, form, payload);
+            EmploymentContractResponse created = renewing
+                    ? contractRenewalService.renew(actor, contractId, form, payload)
+                    : contractService.create(actor, form, payload);
             redirectAttributes.addFlashAttribute("successMessage",
-                    (renewal == null ? "Đã tạo hợp đồng " : "Đã gia hạn hợp đồng ") + created.getContractCode() + ".");
-            Integer target = created.getEmployeeId();
-            if (target == null) {
-                return "redirect:/manager/employees";
-            }
-            return "redirect:/manager/employees/" + target + "?tab=contract";
+                    (renewing ? "Đã gia hạn hợp đồng " : "Đã tạo hợp đồng ") + created.getContractCode() + ".");
+            return "redirect:" + createdContractPath(actor, created);
         } catch (BusinessException ex) {
             attachFieldError(ex, binding, model);
             return renderCreate(actor, model);
         } catch (IOException ex) {
             model.addAttribute("errorMessage", "Không đọc được file hợp đồng. Hãy chọn lại file.");
             return renderCreate(actor, model);
+        }
+    }
+
+    private ContractOcrView readOcr(AuthenticatedUser actor, MultipartFile contractFile) {
+        try {
+            if (contractFile == null || contractFile.isEmpty()) {
+                return failedOcr("Vui lòng chọn file hợp đồng.");
+            }
+            return contractOcrService.inspect(actor, contractFile.getOriginalFilename(), contractFile.getBytes());
+        } catch (BusinessException ex) {
+            return failedOcr(ex.getMessage());
+        } catch (IOException ex) {
+            return failedOcr("Không đọc được file hợp đồng.");
+        }
+    }
+
+    private static void prepareCreateForm(Integer employeeId, Model model) {
+        if (!model.containsAttribute("form")) {
+            CreateEmploymentContractRequest form = new CreateEmploymentContractRequest();
+            form.setEmployeeId(employeeId);
+            model.addAttribute("form", form);
         }
     }
 
@@ -242,19 +301,22 @@ public class ContractPageController {
     }
 
     private String renderCreate(AuthenticatedUser actor, Model model) {
-        model.addAttribute("navRole", "manager");
-        model.addAttribute("eyebrow", "Cửa hàng — Quản lý");
-        model.addAttribute("listPath", createCancelPath(model));
+        boolean admin = actor != null && actor.getRoleName() == com.example.coffee_hrm.common.enums.RoleName.ADMIN;
+        model.addAttribute("navRole", admin ? "admin" : "manager");
+        model.addAttribute("allowRenewal", !admin);
+        model.addAttribute("contractAction", admin ? "/admin/contract/create" : "/manager/contract/create");
+        List<ContractEmployeeOption> employees = List.of();
         try {
-            model.addAttribute("employees", contractService.listEmployees(actor));
+            employees = contractService.listEmployees(actor);
             model.addAttribute("formReady", true);
         } catch (BusinessException ex) {
-            model.addAttribute("employees", List.of());
             model.addAttribute("formReady", false);
             if (!model.containsAttribute("errorMessage")) {
                 model.addAttribute("errorMessage", ex.getMessage());
             }
         }
+        model.addAttribute("employees", employees);
+        model.addAttribute("listPath", createCancelPath(actor, model, employees));
         return "contract/ContractCreate";
     }
 
@@ -327,12 +389,42 @@ public class ContractPageController {
         return "/admin/employees";
     }
 
-    private static String createCancelPath(Model model) {
-        Object form = model.getAttribute("form");
-        if (form instanceof CreateEmploymentContractRequest request && request.getEmployeeId() != null) {
-            return "/manager/employees/" + request.getEmployeeId() + "?tab=contract";
+    private static String createdContractPath(AuthenticatedUser actor, EmploymentContractResponse created) {
+        if (created == null || created.getEmployeeId() == null) {
+            return actor != null && actor.getRoleName() == com.example.coffee_hrm.common.enums.RoleName.ADMIN
+                    ? "/admin/employees"
+                    : "/manager/employees";
         }
-        return "/manager/employees";
+        if (actor != null && actor.getRoleName() == com.example.coffee_hrm.common.enums.RoleName.ADMIN) {
+            if (created.getStoreId() != null) {
+                return "/admin/stores/" + created.getStoreId() + "/employees/" + created.getEmployeeId() + "?tab=contract";
+            }
+            return "/admin/employees";
+        }
+        return "/manager/employees/" + created.getEmployeeId() + "?tab=contract";
+    }
+
+    private static String createCancelPath(AuthenticatedUser actor,
+                                           Model model,
+                                           List<ContractEmployeeOption> employees) {
+        Object form = model.getAttribute("form");
+        Integer employeeId = form instanceof CreateEmploymentContractRequest request ? request.getEmployeeId() : null;
+        boolean admin = actor != null && actor.getRoleName() == com.example.coffee_hrm.common.enums.RoleName.ADMIN;
+        if (!admin) {
+            return employeeId == null ? "/manager/employees" : "/manager/employees/" + employeeId + "?tab=contract";
+        }
+        if (employeeId == null || employees == null) {
+            return "/admin/employees";
+        }
+        Integer storeId = employees.stream()
+                .filter(employee -> employeeId.equals(employee.getId()))
+                .map(ContractEmployeeOption::getStoreId)
+                .findFirst()
+                .orElse(null);
+        if (storeId == null) {
+            return "/admin/employees";
+        }
+        return "/admin/stores/" + storeId + "/employees/" + employeeId + "?tab=contract";
     }
 
     private static void attachFieldError(BusinessException ex, BindingResult binding, Model model) {

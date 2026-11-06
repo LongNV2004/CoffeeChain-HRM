@@ -1611,7 +1611,7 @@ public class TrainingServiceImpl implements TrainingService {
                 continue;
             }
             boolean renewed = contract.getId() != null && renewedSourceIds.contains(contract.getId());
-            if (ContractValidityRules.resolve(contract, today, renewed).isInForce()) {
+            if (ContractValidityRules.resolve(contract, today, renewed).allowsWork()) {
                 return true;
             }
         }

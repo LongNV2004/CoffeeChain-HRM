@@ -243,12 +243,12 @@ class ContractRenewalServiceImplTest {
         assertNotNull(source.getRenewalDeclinedAt());
         assertEquals(new BigDecimal("10000"), source.getSalary());
         assertEquals("c" + "ab".repeat(16) + ".pdf", source.getSignedFilePath());
-        assertEquals(ContractValidityStatus.DA_CHAM_DUT_TRUOC_THOI_HAN, ContractValidityRules.resolve(source, today));
+        assertEquals(ContractValidityStatus.KHONG_GIA_HAN, ContractValidityRules.resolve(source, today));
         assertTrue(ContractValidityRules.coversWorkDay(source, today));
         source.setEndDate(today.minusDays(1));
         assertEquals(ContractValidityStatus.DA_CHAM_DUT, ContractValidityRules.resolve(source, today));
         assertTrue(assertThrows(BusinessException.class, () -> service.renew(manager, 8, request(today, today.plusMonths(1)), pdf()))
-                .getMessage().contains("ngừng gia hạn"));
+                .getMessage().contains("không gia hạn"));
     }
 
     private EmploymentContract captureSaved(LocalDate start) {
