@@ -40,10 +40,13 @@
                 </td>
                 <td th:if="${manage}">
                     <div class="contract-row-actions"
-                         th:if="${(contract.contractTerm == null or contract.contractTerm.name() != 'KHONG_XAC_DINH_THOI_HAN') and contract.validityStatus != null and contract.validityStatus.name() == 'CHO_GIA_HAN'}">
+                         th:if="${(contract.contractTerm == null or contract.contractTerm.name() != 'KHONG_XAC_DINH_THOI_HAN') and contract.validityStatus != null and (contract.validityStatus.name() == 'DANG_HIEU_LUC' or contract.validityStatus.name() == 'CHO_GIA_HAN')}">
                         <a class="contract-action contract-action--renew"
                            th:if="${fileRole == 'manager'}"
                            th:href="@{/manager/contract/create(employeeId=${contract.employeeId},contractId=${contract.id},renewal=1)}">Gia hạn</a>
+                        <a class="contract-action contract-action--renew"
+                           th:if="${fileRole == 'admin'}"
+                           th:href="@{/admin/contract/create(employeeId=${contract.employeeId},contractId=${contract.id},renewal=1)}">Gia hạn</a>
                         <button type="button" class="contract-action contract-action--stop"
                                 th:attr="data-contract-id=${contract.id},data-employee-id=${contract.employeeId},data-employee-name=${contract.employeeName != null ? contract.employeeName : 'Chưa cập nhật'},
                                          data-contract-code=${contract.contractCode != null ? contract.contractCode : 'Chưa cập nhật'},

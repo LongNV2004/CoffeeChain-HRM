@@ -206,14 +206,14 @@
         <div class="store-panel-top">
             <div>
                 <h2 id="admin-contract-title">Hợp đồng</h2>
-                <p th:if="${employee.roleName != null and employee.roleName.name() == 'MANAGER'}">Admin tạo hợp đồng lao động cho Manager này. Hợp đồng đã lưu không bị sửa hoặc xóa. Manager xem và tải hợp đồng của chính mình trong hồ sơ cá nhân.</p>
+                <p th:if="${employee.roleName != null and employee.roleName.name() == 'MANAGER'}">Admin tạo, gia hạn hoặc không gia hạn hợp đồng của Manager này. Hợp đồng đã lưu không bị sửa hoặc xóa. Manager chỉ xem và tải hợp đồng của chính mình trong hồ sơ cá nhân.</p>
                 <p th:unless="${employee.roleName != null and employee.roleName.name() == 'MANAGER'}">Admin xem hợp đồng của nhân viên. Tạo hợp đồng cho Staff thuộc Manager của cửa hàng. Hợp đồng cũ và file đã ký được giữ nguyên.</p>
             </div>
             <a class="store-btn store-btn--primary"
                th:if="${employee.roleName != null and employee.roleName.name() == 'MANAGER' and employee.status != null and employee.status.name() != 'TERMINATED' and (contracts == null or #lists.isEmpty(contracts))}"
                th:href="@{/admin/contract/create(employeeId=${employee.id})}">Tạo hợp đồng</a>
         </div>
-        <div th:replace="~{fragments/employee-contracts :: table(${contracts}, 'admin', true)}"></div>
+        <div th:replace="~{fragments/employee-contracts :: table(${contracts}, 'admin', ${employee.roleName != null and employee.roleName.name() == 'MANAGER'})}"></div>
     </section>
 
     <section class="store-create-card employee-related" th:if="${tab == 'history'}" aria-labelledby="admin-history-title">

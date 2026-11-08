@@ -29,9 +29,9 @@ public enum ContractValidityStatus {
         return this == DANG_HIEU_LUC || this == CHO_GIA_HAN;
     }
 
-    /** Chỉ hợp đồng chờ gia hạn mới được gia hạn hoặc xác nhận không gia hạn. */
+    /** Hợp đồng xác định thời hạn đang hiệu lực hoặc chờ gia hạn mới được gia hạn hoặc không gia hạn. */
     public boolean isRenewable() {
-        return this == CHO_GIA_HAN;
+        return this == DANG_HIEU_LUC || this == CHO_GIA_HAN;
     }
 
     /**

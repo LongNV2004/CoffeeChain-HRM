@@ -43,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -246,9 +247,85 @@ class ContractRenewalServiceImplTest {
         assertEquals(ContractValidityStatus.KHONG_GIA_HAN, ContractValidityRules.resolve(source, today));
         assertTrue(ContractValidityRules.coversWorkDay(source, today));
         source.setEndDate(today.minusDays(1));
-        assertEquals(ContractValidityStatus.DA_CHAM_DUT, ContractValidityRules.resolve(source, today));
+        assertEquals(ContractValidityStatus.DA_HET_HAN, ContractValidityRules.resolve(source, today));
         assertTrue(assertThrows(BusinessException.class, () -> service.renew(manager, 8, request(today, today.plusMonths(1)), pdf()))
                 .getMessage().contains("không gia hạn"));
+    }
+
+    @Test
+    void inForceContractCanBeRenewedBeforeTheRenewalWindow() {
+        source.setEndDate(today.plusMonths(3));
+        assertEquals(ContractValidityStatus.DANG_HIEU_LUC, ContractValidityRules.resolve(source, today));
+
+        EmploymentContractResponse response = service.renew(manager, 8, request(today.plusDays(1), today.plusMonths(7)), pdf());
+
+        assertEquals(21, response.getId());
+        assertEquals(ContractValidityStatus.DA_GIA_HAN, ContractValidityRules.resolve(source, today, true));
+    }
+
+    @Test
+    void managerCannotRenewOwnOrManagerContracts() {
+        Employee managerEmployee = manager.getEmployeeId() == null ? null
+                : Employee.builder().id(10).fullName("Quản lý").status(EmployeeStatus.ACTIVE)
+                .store(source.getEmployee().getStore()).build();
+        EmploymentContract managerContract = EmploymentContract.builder().id(9).contractCode("HD-QL")
+                .employee(managerEmployee)
+                .startDate(today.minusMonths(1))
+                .endDate(today.plusDays(5))
+                .salary(new BigDecimal("10000"))
+                .build();
+        when(contracts.lockById(9)).thenReturn(Optional.of(managerContract));
+        when(users.findByEmployee_Id(10)).thenReturn(Optional.of(User.builder().id(2).username("manager")
+                .passwordHash("hash").role(Role.builder().roleName(RoleName.MANAGER).build())
+                .employee(managerEmployee).isActive(true).build()));
+
+        CreateEmploymentContractRequest ownRequest = request(today, today.plusMonths(1));
+        ownRequest.setEmployeeId(10);
+        assertTrue(assertThrows(BusinessException.class,
+                () -> service.renew(manager, 9, ownRequest, pdf()))
+                .getMessage().contains("chính bạn"));
+        assertTrue(assertThrows(BusinessException.class,
+                () -> service.stopRenewal(manager, 9, "store", null))
+                .getMessage().contains("chính bạn"));
+    }
+
+    @Test
+    void adminRenewsManagerContractAndManagerCannotRenewStaffOutsideStore() {
+        Employee managerEmployee = Employee.builder().id(50).fullName("Manager B").status(EmployeeStatus.ACTIVE)
+                .citizenId("079203000999").store(source.getEmployee().getStore()).build();
+        EmploymentContract managerContract = EmploymentContract.builder().id(11).contractCode("HD-M")
+                .employee(managerEmployee)
+                .startDate(today.minusMonths(1))
+                .endDate(today.plusDays(5))
+                .salary(new BigDecimal("12000"))
+                .build();
+        AuthenticatedUser admin = AuthenticatedUser.from(User.builder().id(1).username("admin").passwordHash("hash")
+                .role(Role.builder().roleName(RoleName.ADMIN).build()).isActive(true).build());
+        when(contracts.lockById(11)).thenReturn(Optional.of(managerContract));
+        when(contracts.findByEmployeeId(50)).thenReturn(List.of(managerContract));
+        when(users.findByEmployee_Id(50)).thenReturn(Optional.of(User.builder().id(50).username("mb")
+                .passwordHash("hash").role(Role.builder().roleName(RoleName.MANAGER).build())
+                .employee(managerEmployee).isActive(true).build()));
+        when(ocr.requireAccepted(any(), any(), eq(managerEmployee)))
+                .thenReturn(new ContractOcrService.Acceptance("hash", "DAT"));
+
+        CreateEmploymentContractRequest renewRequest = request(today.plusDays(2), today.plusMonths(8));
+        renewRequest.setEmployeeId(50);
+        EmploymentContractResponse renewed = service.renew(admin, 11, renewRequest, pdf());
+        assertEquals(21, renewed.getId());
+
+        assertTrue(assertThrows(BusinessException.class,
+                () -> service.renew(admin, 8, request(today, today.plusMonths(1)), pdf()))
+                .getMessage().contains("Manager"));
+
+        AuthenticatedUser outsider = AuthenticatedUser.from(User.builder().id(99).username("other").passwordHash("hash")
+                .role(Role.builder().roleName(RoleName.MANAGER).build())
+                .employee(Employee.builder().id(99).fullName("QL khác").status(EmployeeStatus.ACTIVE)
+                        .store(Store.builder().id(2).storeName("Cửa hàng B").build()).build())
+                .isActive(true).build());
+        assertTrue(assertThrows(BusinessException.class,
+                () -> service.renew(outsider, 8, request(today, today.plusMonths(1)), pdf()))
+                .getMessage().contains("cửa hàng"));
     }
 
     private EmploymentContract captureSaved(LocalDate start) {

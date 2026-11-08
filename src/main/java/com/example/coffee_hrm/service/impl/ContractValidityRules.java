@@ -15,7 +15,7 @@ import java.util.List;
  * Hợp đồng không xác định thời hạn chỉ có Chờ hiệu lực, Đang hiệu lực và Đã chấm dứt.
  * Chờ gia hạn chỉ trong 7 ngày cuối của hợp đồng xác định thời hạn.
  * Đã gia hạn giữ đến hết ngày kết thúc của bản cũ rồi sang Đã hết hạn.
- * Không gia hạn giữ đến hết ngày kết thúc rồi sang Đã chấm dứt.
+ * Không gia hạn giữ đến hết ngày kết thúc rồi sang Đã hết hạn.
  */
 public final class ContractValidityRules {
 
@@ -99,7 +99,7 @@ public final class ContractValidityRules {
         }
         if (contract.getRenewalDeclinedAt() != null && contract.getEndDate() != null) {
             if (contract.getEndDate().isBefore(today)) {
-                return ContractValidityStatus.DA_CHAM_DUT;
+                return ContractValidityStatus.DA_HET_HAN;
             }
             return ContractValidityStatus.KHONG_GIA_HAN;
         }

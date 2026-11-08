@@ -113,9 +113,9 @@
                             <span class="field-error" th:if="${#fields.hasErrors('address')}" th:errors="*{address}">Lỗi</span>
                         </dd>
                     </div>
-                    <div th:if="${profile.dateOfBirth != null}">
+                    <div>
                         <dt>Ngày sinh</dt>
-                        <dd th:text="${#temporals.format(profile.dateOfBirth, 'dd/MM/yyyy')}">02/05/2000</dd>
+                        <dd th:text="${profile.dateOfBirth != null} ? ${#temporals.format(profile.dateOfBirth, 'dd/MM/yyyy')} : 'Chưa cập nhật'">02/05/2000</dd>
                     </div>
                     <div th:if="${profile.genderLabel != null and !#strings.isEmpty(profile.genderLabel)}">
                         <dt>Giới tính</dt>

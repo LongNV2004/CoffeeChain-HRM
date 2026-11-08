@@ -52,7 +52,7 @@
             <dt>Ngày kết thúc</dt>
             <dd th:text="${contract.endDate == null ? 'Không xác định thời hạn' : #temporals.format(contract.endDate, 'dd/MM/yyyy')}">Không xác định thời hạn</dd>
             <dt>Mức lương (đồng/giờ)</dt>
-            <dd th:text="${#numbers.formatDecimal(contract.salary, 1, 'POINT', 2, 'COMMA') + ' đồng/giờ'}">0 đồng/giờ</dd>
+            <dd th:text="${#numbers.formatDecimal(contract.salary, 1, 'POINT', 0, 'COMMA') + ' đồng/giờ'}">0 đồng/giờ</dd>
             <dt>Số ca làm việc quy định</dt>
             <dd th:text="${contract.weeklyShiftCount != null ? contract.weeklyShiftCount + ' ca/tuần' : 'Chưa quy định'}">7 ca/tuần</dd>
             <dt>Ghi chú</dt>

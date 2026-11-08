@@ -82,7 +82,7 @@ class ContractValidityRulesTest {
         assertEquals(ContractValidityStatus.KHONG_GIA_HAN,
                 ContractValidityRules.resolve(source, today));
         source.setEndDate(today.minusDays(1));
-        assertEquals(ContractValidityStatus.DA_CHAM_DUT, ContractValidityRules.resolve(source, today));
+        assertEquals(ContractValidityStatus.DA_HET_HAN, ContractValidityRules.resolve(source, today));
         assertTrue(ContractValidityRules.coversWorkDay(
                 EmploymentContract.builder().startDate(today.minusDays(20)).endDate(today.plusDays(10))
                         .renewalDeclinedAt(java.time.LocalDateTime.now()).build(),

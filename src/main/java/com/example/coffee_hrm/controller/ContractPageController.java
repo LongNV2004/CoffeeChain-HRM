@@ -216,7 +216,9 @@ public class ContractPageController {
                                  Integer contractId,
                                  Model model,
                                  RedirectAttributes redirectAttributes) {
-        boolean renewing = renewal != null && actor != null && actor.getRoleName() == com.example.coffee_hrm.common.enums.RoleName.MANAGER;
+        boolean renewing = renewal != null && actor != null
+                && (actor.getRoleName() == com.example.coffee_hrm.common.enums.RoleName.MANAGER
+                || actor.getRoleName() == com.example.coffee_hrm.common.enums.RoleName.ADMIN);
         rejectCrossField(form, binding);
         if (contractFile == null || contractFile.isEmpty()) {
             binding.reject("contractFile", "Vui lòng tải lên file hợp đồng đã ký.");
@@ -303,7 +305,7 @@ public class ContractPageController {
     private String renderCreate(AuthenticatedUser actor, Model model) {
         boolean admin = actor != null && actor.getRoleName() == com.example.coffee_hrm.common.enums.RoleName.ADMIN;
         model.addAttribute("navRole", admin ? "admin" : "manager");
-        model.addAttribute("allowRenewal", !admin);
+        model.addAttribute("allowRenewal", true);
         model.addAttribute("contractAction", admin ? "/admin/contract/create" : "/manager/contract/create");
         List<ContractEmployeeOption> employees = List.of();
         try {

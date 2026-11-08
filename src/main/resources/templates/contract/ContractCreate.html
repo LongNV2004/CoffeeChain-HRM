@@ -13,7 +13,8 @@
 <header th:replace="${navRole == 'admin'} ? ~{fragments/navbar :: admin('employees')} : ~{fragments/navbar :: manager('contract')}"></header>
 <main class="wrap dash-main cc-page">
     <h1 th:text="${renewal} ? 'Gia hạn hợp đồng lao động' : 'Tạo hợp đồng lao động'">Tạo hợp đồng lao động</h1>
-    <p class="cc-lead" th:if="${navRole == 'admin'}">Tạo hợp đồng cho Manager. Danh sách chỉ gồm tài khoản Manager và cửa hàng tương ứng.</p>
+    <p class="cc-lead" th:if="${navRole == 'admin' and renewal}">Gia hạn hợp đồng của Manager. Hợp đồng cũ được giữ nguyên và chuyển sang Đã gia hạn.</p>
+    <p class="cc-lead" th:if="${navRole == 'admin' and !renewal}">Tạo hợp đồng cho Manager. Danh sách chỉ gồm tài khoản Manager và cửa hàng tương ứng.</p>
     <p class="cc-lead" th:unless="${navRole == 'admin'}" th:text="${renewal} ? 'Tải hợp đồng mới để hệ thống tự động trích xuất thông tin gia hạn.' : 'Tải hợp đồng có sẵn để hệ thống tự động trích xuất thông tin.'">Tải hợp đồng có sẵn để hệ thống tự động trích xuất thông tin.</p>
 
     <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}"></p>
@@ -21,7 +22,7 @@
 
     <form th:if="${formReady}" id="contract-form" class="cc-form" method="post"
           enctype="multipart/form-data"
-          th:action="${renewal} ? @{/manager/contract/create(renewal=1,contractId=${param.contractId})} : @{${contractAction}}"
+          th:action="${renewal} ? @{${contractAction}(renewal=1,contractId=${param.contractId})} : @{${contractAction}}"
           th:object="${form}">
         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
         <input type="hidden" name="contractId" th:if="${renewal}" th:value="${param.contractId}">
@@ -86,7 +87,7 @@
                 </label>
                 <label for="salary">
                     Mức lương (đồng/giờ)
-                    <input id="salary" type="number" th:field="*{salary}" min="0.01" step="0.01" inputmode="decimal" required placeholder="Chưa trích xuất được">
+                    <input id="salary" type="number" th:field="*{salary}" min="1" step="1" inputmode="numeric" required placeholder="Chưa trích xuất được">
                     <span class="cc-flag" id="salary-flag" hidden></span>
                     <span class="cc-error" th:if="${#fields.hasErrors('salary')}" th:errors="*{salary}"></span>
                 </label>

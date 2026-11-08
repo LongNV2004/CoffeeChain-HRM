@@ -13,6 +13,7 @@ import com.example.coffee_hrm.dto.request.CreateEmploymentContractRequest;
 import com.example.coffee_hrm.dto.response.EmploymentContractResponse;
 import com.example.coffee_hrm.entity.Employee;
 import com.example.coffee_hrm.entity.EmploymentContract;
+import com.example.coffee_hrm.entity.Role;
 import com.example.coffee_hrm.entity.Store;
 import com.example.coffee_hrm.entity.User;
 import com.example.coffee_hrm.repository.EmployeeRepository;
@@ -84,7 +85,8 @@ public class ContractRenewalServiceImpl implements ContractRenewalService {
                                             Integer sourceContractId,
                                             CreateEmploymentContractRequest request,
                                             ContractFilePayload file) {
-        if (actor == null || actor.getRoleName() != RoleName.MANAGER) {
+        if (actor == null
+                || (actor.getRoleName() != RoleName.MANAGER && actor.getRoleName() != RoleName.ADMIN)) {
             throw new BusinessException("Bạn không có quyền gia hạn hợp đồng.");
         }
         if (sourceContractId == null) {
@@ -107,15 +109,9 @@ public class ContractRenewalServiceImpl implements ContractRenewalService {
         if (request.getEmployeeId() != null && !request.getEmployeeId().equals(employee.getId())) {
             throw new BusinessException("Nhân viên không khớp hợp đồng cần gia hạn.");
         }
-        Store managed = requireManagedStore(actor);
-        if (!managed.getId().equals(employee.getStore().getId())) {
-            throw new BusinessException("Nhân viên không thuộc cửa hàng bạn quản lý.");
-        }
-        if (actor.getEmployeeId() != null && actor.getEmployeeId().equals(employee.getId())) {
-            throw new BusinessException("Không thể gia hạn hợp đồng cho chính bạn.");
-        }
-        if (employee.getStatus() != EmployeeStatus.ACTIVE) {
-            throw new BusinessException("Chỉ gia hạn hợp đồng cho nhân viên đang làm việc.");
+        requireRenewalActor(actor, employee);
+        if (employee.getStatus() != EmployeeStatus.ACTIVE && employee.getStatus() != EmployeeStatus.ON_LEAVE) {
+            throw new BusinessException("Chỉ gia hạn hợp đồng khi nhân viên vẫn đang làm việc.");
         }
         if (resignationItemRepository.countPendingByEmployeeId(employee.getId()) > 0) {
             throw new BusinessException("Nhân viên đang có yêu cầu chấm dứt hợp đồng chờ Admin phê duyệt.");
@@ -190,14 +186,12 @@ public class ContractRenewalServiceImpl implements ContractRenewalService {
         if (employee == null || employee.getStore() == null) {
             throw new BusinessException("Nhân viên chưa thuộc cửa hàng.");
         }
-        if (actor.getRoleName() == RoleName.MANAGER) {
-            Store managed = requireManagedStore(actor);
-            if (!managed.getId().equals(employee.getStore().getId())) {
-                throw new BusinessException("Nhân viên không thuộc cửa hàng bạn quản lý.");
-            }
-        }
+        requireRenewalActor(actor, employee);
         if (employee.getStatus() != EmployeeStatus.ACTIVE && employee.getStatus() != EmployeeStatus.ON_LEAVE) {
             throw new BusinessException("Chỉ xác nhận không gia hạn khi nhân viên vẫn đang làm việc.");
+        }
+        if (source.getEndDate() == null || source.getContractTerm() == ContractTermType.KHONG_XAC_DINH_THOI_HAN) {
+            throw new BusinessException("Hợp đồng không xác định thời hạn không áp dụng không gia hạn.");
         }
         if (source.getRenewalDeclinedAt() != null) {
             throw new BusinessException("Hợp đồng này đã được xác nhận không gia hạn.");
@@ -206,8 +200,8 @@ public class ContractRenewalServiceImpl implements ContractRenewalService {
             throw new BusinessException("Hợp đồng này đã được gia hạn.");
         }
         LocalDate today = VietnamTime.today();
-        if (ContractValidityRules.resolve(source, today) != ContractValidityStatus.CHO_GIA_HAN) {
-            throw new BusinessException("Chỉ xác nhận không gia hạn khi hợp đồng đang ở trạng thái Chờ gia hạn.");
+        if (!ContractValidityRules.resolve(source, today).isRenewable()) {
+            throw new BusinessException("Chỉ xác nhận không gia hạn khi hợp đồng đang hiệu lực hoặc chờ gia hạn.");
         }
         source.setRenewalDeclinedAt(VietnamTime.now());
         source.setRenewalDeclineReason(decision);
@@ -341,9 +335,46 @@ public class ContractRenewalServiceImpl implements ContractRenewalService {
                 userRepository.save(account);
             }
         });
-        log.info("Hợp đồng {} chuyển từ Không gia hạn sang Đã chấm dứt. Đã khóa tài khoản nhân viên {}.",
+        log.info("Hợp đồng {} chuyển từ Không gia hạn sang Đã hết hạn. Đã khóa tài khoản nhân viên {}.",
                 contract.getContractCode(), employee.getId());
         return true;
+    }
+
+    /**
+     * Admin chỉ gia hạn/không gia hạn hợp đồng Manager.
+     * Manager chỉ thao tác với Staff thuộc cửa hàng mình, không được tự thao tác hợp đồng của mình.
+     */
+    private void requireRenewalActor(AuthenticatedUser actor, Employee employee) {
+        RoleName targetRole = roleOf(employee);
+        if (actor.getRoleName() == RoleName.ADMIN) {
+            if (targetRole != RoleName.MANAGER) {
+                throw new BusinessException("Admin chỉ được gia hạn hoặc không gia hạn hợp đồng của Manager.");
+            }
+            return;
+        }
+        if (actor.getRoleName() != RoleName.MANAGER) {
+            throw new BusinessException("Bạn không có quyền thao tác gia hạn hợp đồng.");
+        }
+        if (actor.getEmployeeId() != null && actor.getEmployeeId().equals(employee.getId())) {
+            throw new BusinessException("Không thể gia hạn hoặc không gia hạn hợp đồng của chính bạn.");
+        }
+        if (targetRole == RoleName.MANAGER || targetRole == RoleName.ADMIN) {
+            throw new BusinessException("Không thể gia hạn hoặc không gia hạn hợp đồng của tài khoản Manager.");
+        }
+        Store managed = requireManagedStore(actor);
+        if (employee.getStore() == null || !managed.getId().equals(employee.getStore().getId())) {
+            throw new BusinessException("Nhân viên không thuộc cửa hàng bạn quản lý.");
+        }
+    }
+
+    private RoleName roleOf(Employee employee) {
+        if (employee == null || employee.getId() == null) {
+            return null;
+        }
+        return userRepository.findByEmployee_Id(employee.getId())
+                .map(User::getRole)
+                .map(Role::getRoleName)
+                .orElse(null);
     }
 
     private EmploymentContract insertRenewal(EmploymentContract source,
