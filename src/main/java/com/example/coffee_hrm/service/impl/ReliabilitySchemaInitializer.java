@@ -71,6 +71,36 @@ public class ReliabilitySchemaInitializer implements ApplicationRunner {
             END
             """;
 
+    /** Đơn xin tăng ca ngoài định mức hợp đồng (xem db/overtime-request.sql). */
+    static final String OVERTIME_REQUESTS_DDL = """
+            IF OBJECT_ID(N'dbo.OvertimeRequests', N'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.OvertimeRequests (
+                    OvertimeRequestId INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                    EmployeeId INT NOT NULL,
+                    StoreId INT NOT NULL,
+                    ShiftId INT NOT NULL,
+                    WorkDate DATE NOT NULL,
+                    ContractWeeklyQuota INT NULL,
+                    Reason NVARCHAR(255) NOT NULL,
+                    Status NVARCHAR(20) NOT NULL CONSTRAINT DF_OvertimeRequests_Status DEFAULT (N'Pending'),
+                    ReviewedByUserId INT NULL,
+                    ReviewedAt DATETIME2 NULL,
+                    ReviewNote NVARCHAR(255) NULL,
+                    CreatedAssignmentId INT NULL,
+                    CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_OvertimeRequests_CreatedAt DEFAULT (SYSDATETIME()),
+                    CONSTRAINT FK_OvertimeRequests_Employee FOREIGN KEY (EmployeeId) REFERENCES dbo.Employees(EmployeeId),
+                    CONSTRAINT FK_OvertimeRequests_Store FOREIGN KEY (StoreId) REFERENCES dbo.Stores(StoreId),
+                    CONSTRAINT FK_OvertimeRequests_Shift FOREIGN KEY (ShiftId) REFERENCES dbo.Shifts(ShiftId),
+                    CONSTRAINT FK_OvertimeRequests_ReviewedBy FOREIGN KEY (ReviewedByUserId) REFERENCES dbo.Users(UserId)
+                );
+                CREATE INDEX IX_OvertimeRequests_Store_Status_WorkDate
+                    ON dbo.OvertimeRequests (StoreId, Status, WorkDate DESC);
+                CREATE INDEX IX_OvertimeRequests_Employee_WorkDate
+                    ON dbo.OvertimeRequests (EmployeeId, WorkDate DESC);
+            END
+            """;
+
     @Override
     public void run(ApplicationArguments args) {
         jdbcTemplate.execute("""
@@ -108,6 +138,7 @@ public class ReliabilitySchemaInitializer implements ApplicationRunner {
                 """);
         jdbcTemplate.execute(SHIFT_COVER_INVITATIONS_DDL);
         jdbcTemplate.execute(MONTHLY_EMPLOYEE_AWARDS_DDL);
+        jdbcTemplate.execute(OVERTIME_REQUESTS_DDL);
         log.info("Đã kiểm tra cấu trúc dữ liệu Điểm chuyên cần & Hỗ trợ ca gấp (ReliabilityScore & ReliabilityScoreLogs).");
     }
 }

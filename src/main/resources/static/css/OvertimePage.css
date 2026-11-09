@@ -1,0 +1,365 @@
+.ot-quota-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px 18px;
+  border: 1px solid var(--line, #e4d9cc);
+  border-radius: 10px;
+  background: var(--paper-dim, #faf6f1);
+  margin-bottom: 16px;
+}
+
+.ot-quota-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.ot-metric {
+  background: #fff;
+  border: 1px solid var(--line, #e4d9cc);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.ot-metric span {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-soft, #6e5a4f);
+}
+
+.ot-metric strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 18px;
+  color: var(--espresso, #2c1e16);
+}
+
+.ot-quota-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  border: 1px solid var(--line, #e4d9cc);
+  background: #fff;
+}
+
+.ot-quota-banner.is-ready {
+  border-color: #c9dccb;
+  background: #f3faf4;
+  color: #2f5e35;
+}
+
+.ot-quota-banner.is-short {
+  border-color: #e6d3a3;
+  background: #fff8ec;
+  color: #7c4f0e;
+}
+
+.ot-quota-banner.is-blocked {
+  border-color: #e8c7bb;
+  background: #fdf3ef;
+  color: var(--clay, #a63d2f);
+}
+
+.ot-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.ot-week-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ot-btn,
+.ot-btn-secondary,
+.ot-btn-approve,
+.ot-btn-reject {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.ot-btn {
+  background: var(--caramel, #9c5a2e);
+  color: #fff;
+}
+
+.ot-btn:hover {
+  background: var(--caramel-dark, #7f4620);
+}
+
+.ot-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ot-btn-secondary {
+  background: #fff;
+  color: var(--espresso, #2c1e16);
+  border-color: var(--line, #e4d9cc);
+}
+
+.ot-btn-secondary:hover {
+  background: var(--paper-dim, #faf6f1);
+}
+
+.ot-btn-secondary.is-active {
+  background: var(--espresso, #2c1e16);
+  color: #fff;
+  border-color: var(--espresso, #2c1e16);
+}
+
+.ot-btn-approve {
+  background: #2f6b39;
+  color: #fff;
+}
+
+.ot-btn-approve:hover {
+  background: #24542c;
+}
+
+.ot-btn-reject {
+  background: #fff;
+  color: var(--clay, #a63d2f);
+  border-color: #e8c7bb;
+}
+
+.ot-btn-reject:hover {
+  background: #fdf3ef;
+}
+
+.ot-grid-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line, #e4d9cc);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.ot-grid {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+}
+
+.ot-grid th,
+.ot-grid td {
+  border-bottom: 1px solid var(--line, #e4d9cc);
+  border-right: 1px solid var(--line, #e4d9cc);
+  padding: 10px;
+  vertical-align: top;
+  text-align: left;
+}
+
+.ot-grid th:last-child,
+.ot-grid td:last-child {
+  border-right: 0;
+}
+
+.ot-grid thead th {
+  background: var(--paper-dim, #faf6f1);
+  text-align: center;
+  font-size: 13px;
+}
+
+.ot-grid thead th.ot-shift-col {
+  text-align: left;
+  min-width: 140px;
+}
+
+.ot-slot-cell {
+  min-width: 118px;
+}
+
+.ot-slot-cap {
+  font-size: 11px;
+  color: var(--ink-soft, #6e5a4f);
+  margin-bottom: 6px;
+}
+
+.ot-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.ot-badge.open,
+.ot-badge.approved,
+.ot-badge.ot-approved {
+  background: #e6f4ea;
+  color: #256029;
+}
+
+.ot-badge.pending,
+.ot-badge.ot-pending {
+  background: #fff4db;
+  color: #8a5a12;
+}
+
+.ot-badge.regular {
+  background: #ece6df;
+  color: #4b382a;
+}
+
+.ot-badge.rejected,
+.ot-badge.full,
+.ot-badge.overlap {
+  background: #fbeae5;
+  color: #9e3324;
+}
+
+.ot-badge.past,
+.ot-badge.locked,
+.ot-badge.day-limit,
+.ot-badge.cancelled {
+  background: #f1efed;
+  color: #776b63;
+}
+
+.ot-pick-btn {
+  margin-top: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 12px;
+  border-radius: 5px;
+  border: 1px solid var(--caramel, #9c5a2e);
+  background: #fff;
+  color: var(--caramel, #9c5a2e);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ot-pick-btn:hover {
+  background: var(--caramel, #9c5a2e);
+  color: #fff;
+}
+
+.ot-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.ot-form-field {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ink-soft, #6e5a4f);
+}
+
+.ot-form-field.full {
+  grid-column: 1 / -1;
+}
+
+.ot-form-field input,
+.ot-form-field select,
+.ot-form-field textarea {
+  font: inherit;
+  color: var(--espresso, #2c1e16);
+  border: 1px solid var(--line, #e4d9cc);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #fff;
+  width: 100%;
+}
+
+.ot-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.ot-stat-card {
+  background: #fff;
+  border: 1px solid var(--line, #e4d9cc);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.ot-stat-card span {
+  display: block;
+  font-size: 12.5px;
+  color: var(--ink-soft, #6e5a4f);
+}
+
+.ot-stat-card strong {
+  display: block;
+  font-size: 24px;
+  margin-top: 4px;
+  color: var(--espresso, #2c1e16);
+}
+
+.ot-table-wrap {
+  overflow-x: auto;
+}
+
+.ot-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.ot-table th,
+.ot-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line, #e4d9cc);
+  text-align: left;
+  vertical-align: top;
+}
+
+.ot-table thead th {
+  background: var(--paper-dim, #faf6f1);
+  font-weight: 600;
+  color: var(--espresso, #2c1e16);
+}
+
+.ot-review-box {
+  display: grid;
+  gap: 6px;
+  min-width: 220px;
+}
+
+.ot-review-box input[type="text"] {
+  font: inherit;
+  font-size: 12.5px;
+  padding: 6px 8px;
+  border: 1px solid var(--line, #e4d9cc);
+  border-radius: 5px;
+}
+
+.ot-review-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ot-subtext {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-soft, #6e5a4f);
+  margin-top: 2px;
+}
+

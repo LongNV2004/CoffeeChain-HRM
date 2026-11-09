@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Đăng kí tăng ca — CoffeeHRM</title>
+    <title>Đơn xin tăng ca — CoffeeHRM</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
+    <link rel="stylesheet" th:href="@{/css/StaffWork.css}">
+    <link rel="stylesheet" th:href="@{/css/OvertimePage.css}">
 </head>
 <body>
 <th:block th:if="${navRole == 'manager'}">
@@ -19,12 +21,401 @@
 <main class="wrap dash-main">
     <section class="welcome">
         <div class="eyebrow" th:text="${eyebrow}">CoffeeHRM</div>
-        <h1>Đăng kí tăng ca</h1>
+        <h1 th:text="${navRole == 'manager' ? 'Duyệt đơn xin tăng ca' : 'Đơn xin tăng ca'}">Đơn xin tăng ca</h1>
+        <p th:if="${overtimeView != null}">
+            <span th:text="${overtimeView.employeeName}">Nhân viên</span>
+            <span th:if="${overtimeView.storeName}"> · <span th:text="${overtimeView.storeName}">Cửa hàng</span></span>
+        </p>
     </section>
-    <section class="panel">
-        <h2>Đăng ký ca làm thêm</h2>
-        <p class="empty">Đăng ký ca làm thêm ngoài lịch làm việc đã được phân.</p>
-    </section>
+
+    <p class="flash success" th:if="${successMessage}" th:text="${successMessage}">Thành công</p>
+    <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}">Lỗi</p>
+    <p class="flash error" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
+
+    <!-- ==================== GIAO DIỆN NHÂN VIÊN (STAFF) ==================== -->
+    <th:block th:if="${navRole == 'staff' and overtimeView != null}">
+        <section class="panel">
+            <div class="ot-toolbar">
+                <div>
+                    <h2>Định mức hợp đồng &amp; Lịch tuần <span th:text="${overtimeView.formattedWeekRange}">09/11 – 15/11/2026</span></h2>
+                    <p class="muted">
+                        Trong hợp đồng quy định số ca làm tối đa mỗi tuần. Khi đã đăng ký đủ số ca theo hợp đồng, bạn có thể làm đơn xin tăng ca cho các ca trống bên dưới.
+                    </p>
+                </div>
+                <div class="ot-week-nav">
+                    <a class="ot-btn-secondary" th:href="@{/schedule/staff/overtime(week=${overtimeView.previousWeek})}">← Tuần trước</a>
+                    <a class="ot-btn-secondary" th:href="@{/schedule/staff/overtime(week=${overtimeView.currentWeek})}">Tuần hiện tại</a>
+                    <a class="ot-btn-secondary" th:href="@{/schedule/staff/overtime(week=${overtimeView.nextWeek})}">Tuần kế tiếp →</a>
+                </div>
+            </div>
+
+            <div class="ot-quota-card">
+                <div class="ot-quota-metrics">
+                    <div class="ot-metric">
+                        <span>Số ca tối đa theo hợp đồng</span>
+                        <strong th:text="${overtimeView.contractWeeklyQuota != null ? overtimeView.contractWeeklyQuota + ' ca/tuần' : 'Chưa quy định'}">7 ca/tuần</strong>
+                    </div>
+                    <div class="ot-metric">
+                        <span>Đã đăng ký / phân công trong tuần</span>
+                        <strong th:text="${overtimeView.contractWeeklyQuota != null ? (overtimeView.regularShiftsInWeek + '/' + overtimeView.contractWeeklyQuota + ' ca') : (overtimeView.regularShiftsInWeek + ' ca')}">7/7 ca</strong>
+                    </div>
+                    <div class="ot-metric">
+                        <span>Tăng ca đã duyệt trong tuần</span>
+                        <strong th:text="${'+' + overtimeView.approvedOvertimeInWeek + ' ca'}">+0 ca</strong>
+                    </div>
+                    <div class="ot-metric">
+                        <span>Đơn tăng ca đang chờ duyệt</span>
+                        <strong th:text="${overtimeView.pendingOvertimeInWeek + ' đơn'}">0 đơn</strong>
+                    </div>
+                </div>
+
+                <div class="ot-quota-banner"
+                     th:classappend="${overtimeView.contractBlockMessage != null ? 'is-blocked' : (overtimeView.quotaReached ? 'is-ready' : 'is-short')}">
+                    <span th:text="${overtimeView.quotaStatusMessage}">
+                        Bạn đã đăng ký đủ số ca theo hợp đồng trong tuần này.
+                    </span>
+                    <a class="ot-btn-secondary"
+                       th:if="${!overtimeView.quotaReached and overtimeView.contractBlockMessage == null}"
+                       th:href="@{/availability}">
+                        Đi tới Đăng kí lịch làm việc →
+                    </a>
+                </div>
+            </div>
+
+            <p class="muted" th:if="${#lists.isEmpty(overtimeView.shiftRows)}">
+                Cửa hàng chưa cấu hình ca làm việc.
+            </p>
+
+            <div class="ot-grid-wrap" th:if="${!#lists.isEmpty(overtimeView.shiftRows)}">
+                <table class="ot-grid">
+                    <thead>
+                    <tr>
+                        <th class="ot-shift-col">Ca làm việc</th>
+                        <th th:each="day : ${overtimeView.days}">
+                            <div class="day-name" th:text="${day.dayName}">Thứ 2</div>
+                            <div class="day-date" th:text="${day.formattedDate}">09/11</div>
+                        </th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="row : ${overtimeView.shiftRows}">
+                        <td>
+                            <div class="shift-title" th:text="${row.shiftName}">Ca sáng</div>
+                            <div class="shift-hours" th:text="${row.formattedTime}">07:00 – 12:00</div>
+                        </td>
+                        <td class="ot-slot-cell" th:each="cell : ${row.cells}">
+                            <div class="ot-slot-cap">
+                                Đã xếp: <strong th:text="${cell.capacityLabel}">0/4 người</strong>
+                            </div>
+                            <span class="ot-badge" th:classappend="${cell.stateKey}" th:text="${cell.stateLabel}">Có thể xin tăng ca</span>
+                            <span class="ot-subtext" th:text="${cell.stateHint}">Nhấn để chọn ca này</span>
+                            <button type="button"
+                                    class="ot-pick-btn"
+                                    th:if="${cell.selectable}"
+                                    th:attr="data-shift-id=${cell.shiftId},data-work-date=${cell.workDate},data-label=${cell.dayName + ' (' + cell.formattedDate + ') — ' + cell.shiftName}">
+                                + Xin tăng ca
+                            </button>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="panel" id="overtimeFormPanel">
+            <h2>Tạo đơn xin tăng ca</h2>
+            <p class="muted">
+                Chọn ngày và ca muốn làm thêm ngoài định mức hợp đồng. Khi Quản lý duyệt, ca sẽ tự động được xếp vào Lịch làm việc của bạn.
+            </p>
+            <form th:action="@{/schedule/staff/overtime}" th:object="${overtimeForm}" method="post">
+                <input type="hidden" name="week" th:value="${overtimeView.weekStart}">
+                <div class="ot-form-grid">
+                    <label class="ot-form-field">
+                        Ngày xin tăng ca
+                        <input type="date"
+                               id="otWorkDate"
+                               th:field="*{workDate}"
+                               required
+                               th:disabled="${!overtimeView.canSubmitOvertimeInWeek}">
+                    </label>
+                    <label class="ot-form-field">
+                        Ca làm việc
+                        <select id="otShiftId"
+                                th:field="*{shiftId}"
+                                required
+                                th:disabled="${!overtimeView.canSubmitOvertimeInWeek}">
+                            <option value="">-- Chọn ca làm việc --</option>
+                            <option th:each="row : ${overtimeView.shiftRows}"
+                                    th:value="${row.shiftId}"
+                                    th:text="${row.shiftName + ' (' + row.formattedTime + ')'}">Ca sáng</option>
+                        </select>
+                    </label>
+                    <label class="ot-form-field full">
+                        Lý do xin tăng ca
+                        <textarea id="otReason"
+                                  th:field="*{reason}"
+                                  rows="3"
+                                  maxlength="255"
+                                  required
+                                  placeholder="Nhập lý do xin đăng ký thêm ca ngoài định mức hợp đồng..."
+                                  th:disabled="${!overtimeView.canSubmitOvertimeInWeek}"></textarea>
+                    </label>
+                </div>
+                <div style="margin-top: 14px;">
+                    <button type="submit"
+                            class="ot-btn"
+                            th:disabled="${!overtimeView.canSubmitOvertimeInWeek}">
+                        Gửi đơn xin tăng ca
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <section class="panel">
+            <h2>Danh sách đơn xin tăng ca của tôi</h2>
+            <p class="empty" th:if="${#lists.isEmpty(overtimeView.requests)}">
+                Bạn chưa gửi đơn xin tăng ca nào.
+            </p>
+            <div class="ot-table-wrap" th:if="${!#lists.isEmpty(overtimeView.requests)}">
+                <table class="ot-table">
+                    <thead>
+                    <tr>
+                        <th>Ngày tăng ca</th>
+                        <th>Ca làm việc</th>
+                        <th>Định mức HĐ</th>
+                        <th>Lý do</th>
+                        <th>Trạng thái</th>
+                        <th>Phản hồi của Quản lý</th>
+                        <th>Thao tác</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="item : ${overtimeView.requests}">
+                        <td>
+                            <strong th:text="${item.dayOfWeekName + ', ' + item.formattedWorkDate}">Thứ 7, 14/11/2026</strong>
+                            <span class="ot-subtext" th:text="${'Gửi lúc: ' + item.formattedCreatedAt}">09/11/2026 10:00</span>
+                        </td>
+                        <td>
+                            <strong th:text="${item.shiftName}">Ca sáng</strong>
+                            <span class="ot-subtext" th:text="${item.shiftTime}">07:00 – 12:00</span>
+                        </td>
+                        <td>
+                            <span th:text="${item.contractWeeklyQuota != null ? item.contractWeeklyQuota + ' ca/tuần' : '—'}">7 ca/tuần</span>
+                            <span class="ot-subtext" th:text="${'Đã có ' + item.employeeRegularShiftsInWeek + ' ca HĐ trong tuần'}">Đã có 7 ca HĐ</span>
+                        </td>
+                        <td th:text="${item.reason}">Xin làm thêm cuối tuần</td>
+                        <td>
+                            <span class="ot-badge" th:classappend="${item.statusKey}" th:text="${item.statusLabel}">Chờ duyệt</span>
+                        </td>
+                        <td>
+                            <span th:if="${item.reviewNote != null and !#strings.isEmpty(item.reviewNote)}" th:text="${item.reviewNote}">Đồng ý</span>
+                            <span class="muted" th:if="${item.reviewNote == null or #strings.isEmpty(item.reviewNote)}">—</span>
+                            <span class="ot-subtext" th:if="${item.formattedReviewedAt != null}"
+                                  th:text="${(item.reviewedByName != null ? item.reviewedByName + ' · ' : '') + item.formattedReviewedAt}"></span>
+                        </td>
+                        <td>
+                            <form th:if="${item.canCancel}"
+                                  th:action="@{/schedule/staff/overtime/{id}/cancel(id=${item.id})}"
+                                  method="post">
+                                <input type="hidden" name="week" th:value="${overtimeView.weekStart}">
+                                <button type="submit"
+                                        class="ot-btn-reject"
+                                        data-coffee-confirm="Bạn chắc chắn muốn hủy đơn xin tăng ca này?"
+                                        data-coffee-title="Hủy đơn xin tăng ca"
+                                        data-coffee-ok="Hủy đơn"
+                                        data-coffee-tone="danger">
+                                    Hủy đơn
+                                </button>
+                            </form>
+                            <span class="muted" th:unless="${item.canCancel}">—</span>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </th:block>
+
+    <!-- ==================== GIAO DIỆN QUẢN LÝ (MANAGER) ==================== -->
+    <th:block th:if="${navRole == 'manager' and overtimeView != null}">
+        <div class="ot-stats-grid" th:if="${overtimeView.totals != null}">
+            <article class="ot-stat-card">
+                <span>Tổng đơn xin tăng ca</span>
+                <strong th:text="${overtimeView.totals.total}">0</strong>
+            </article>
+            <article class="ot-stat-card">
+                <span>Đang chờ duyệt</span>
+                <strong th:text="${overtimeView.totals.pending}">0</strong>
+            </article>
+            <article class="ot-stat-card">
+                <span>Đã duyệt</span>
+                <strong th:text="${overtimeView.totals.approved}">0</strong>
+            </article>
+            <article class="ot-stat-card">
+                <span>Đã từ chối</span>
+                <strong th:text="${overtimeView.totals.rejected}">0</strong>
+            </article>
+        </div>
+
+        <section class="panel">
+            <div class="ot-toolbar">
+                <div class="ot-week-nav">
+                    <a class="ot-btn-secondary"
+                       th:classappend="${statusFilter == 'all'} ? ' is-active'"
+                       th:href="@{/schedule/manager/overtime(status='all')}">Tất cả</a>
+                    <a class="ot-btn-secondary"
+                       th:classappend="${statusFilter == 'pending'} ? ' is-active'"
+                       th:href="@{/schedule/manager/overtime(status='pending')}">Chờ duyệt</a>
+                    <a class="ot-btn-secondary"
+                       th:classappend="${statusFilter == 'approved'} ? ' is-active'"
+                       th:href="@{/schedule/manager/overtime(status='approved')}">Đã duyệt</a>
+                    <a class="ot-btn-secondary"
+                       th:classappend="${statusFilter == 'rejected'} ? ' is-active'"
+                       th:href="@{/schedule/manager/overtime(status='rejected')}">Đã từ chối</a>
+                </div>
+
+                <div class="ot-week-nav" th:if="${overtimeView.totals != null and overtimeView.totals.pending > 0}">
+                    <form th:action="@{/schedule/manager/overtime/review-all}" method="post" style="display:inline;">
+                        <input type="hidden" name="approved" value="true">
+                        <input type="hidden" name="status" th:value="${statusFilter}">
+                        <button type="submit"
+                                class="ot-btn-approve"
+                                data-coffee-confirm="Duyệt tất cả đơn xin tăng ca đang chờ? Các ca được duyệt sẽ tự động thêm vào Lịch làm việc của cửa hàng."
+                                data-coffee-title="Duyệt tất cả đơn tăng ca"
+                                data-coffee-ok="Duyệt tất cả">
+                            Duyệt tất cả đang chờ
+                        </button>
+                    </form>
+                    <form th:action="@{/schedule/manager/overtime/review-all}" method="post" style="display:inline;">
+                        <input type="hidden" name="approved" value="false">
+                        <input type="hidden" name="status" th:value="${statusFilter}">
+                        <button type="submit"
+                                class="ot-btn-reject"
+                                data-coffee-confirm="Từ chối tất cả đơn xin tăng ca đang chờ?"
+                                data-coffee-title="Từ chối tất cả đơn tăng ca"
+                                data-coffee-ok="Từ chối tất cả"
+                                data-coffee-tone="danger">
+                            Từ chối tất cả
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <p class="empty" th:if="${#lists.isEmpty(overtimeView.requests)}">
+                Chưa có đơn xin tăng ca nào trong bộ lọc hiện tại.
+            </p>
+
+            <div class="ot-table-wrap" th:if="${!#lists.isEmpty(overtimeView.requests)}">
+                <table class="ot-table">
+                    <thead>
+                    <tr>
+                        <th>Nhân viên</th>
+                        <th>Ngày &amp; Ca xin tăng ca</th>
+                        <th>Định mức hợp đồng</th>
+                        <th>Sức chứa ca</th>
+                        <th>Lý do xin tăng ca</th>
+                        <th>Trạng thái</th>
+                        <th>Xét duyệt / Phản hồi</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="item : ${overtimeView.requests}">
+                        <td>
+                            <strong th:text="${item.employeeName}">Nguyễn Văn A</strong>
+                            <span class="ot-subtext" th:if="${item.employeePhone}" th:text="${item.employeePhone}">0900000000</span>
+                        </td>
+                        <td>
+                            <strong th:text="${item.dayOfWeekName + ', ' + item.formattedWorkDate}">Thứ 7, 14/11/2026</strong>
+                            <span class="ot-subtext" th:text="${item.shiftName + ' (' + item.shiftTime + ')'}">Ca sáng (07:00 – 12:00)</span>
+                            <span class="ot-subtext" th:text="${'Gửi lúc: ' + item.formattedCreatedAt}"></span>
+                        </td>
+                        <td>
+                            <strong th:text="${item.contractWeeklyQuota != null ? 'Tối đa ' + item.contractWeeklyQuota + ' ca/tuần' : 'Chưa quy định'}">Tối đa 7 ca/tuần</strong>
+                            <span class="ot-subtext"
+                                  th:text="${'Tuần này: ' + item.employeeRegularShiftsInWeek + '/' + (item.contractWeeklyQuota != null ? item.contractWeeklyQuota : '?') + ' ca HĐ · +' + item.employeeApprovedOvertimeInWeek + ' tăng ca'}">
+                                Tuần này: 7/7 ca HĐ · +0 tăng ca
+                            </span>
+                        </td>
+                        <td>
+                            <strong th:text="${item.slotMaxEmployees != null ? (item.slotOccupiedCount + '/' + item.slotMaxEmployees + ' người') : (item.slotOccupiedCount + ' người')}">2/4 người</strong>
+                            <span class="ot-subtext"
+                                  th:text="${item.slotMaxEmployees != null and item.slotOccupiedCount >= item.slotMaxEmployees ? 'Đã đủ chỉ tiêu' : 'Còn nhận thêm'}">
+                                Còn nhận thêm
+                            </span>
+                        </td>
+                        <td th:text="${item.reason}">Hỗ trợ cuối tuần</td>
+                        <td>
+                            <span class="ot-badge" th:classappend="${item.statusKey}" th:text="${item.statusLabel}">Chờ duyệt</span>
+                        </td>
+                        <td>
+                            <div class="ot-review-box" th:if="${item.pending}">
+                                <form th:action="@{/schedule/manager/overtime/{id}/review(id=${item.id})}" method="post">
+                                    <input type="hidden" name="status" th:value="${statusFilter}">
+                                    <input type="text"
+                                           name="reviewNote"
+                                           maxlength="255"
+                                           placeholder="Ghi chú duyệt / từ chối (tùy chọn)"
+                                           style="width:100%; margin-bottom: 6px;">
+                                    <div class="ot-review-actions">
+                                        <button type="submit"
+                                                name="approved"
+                                                value="true"
+                                                class="ot-btn-approve">
+                                            Duyệt &amp; Xếp ca
+                                        </button>
+                                        <button type="submit"
+                                                name="approved"
+                                                value="false"
+                                                class="ot-btn-reject">
+                                            Từ chối
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                            <div th:unless="${item.pending}">
+                                <span th:if="${item.reviewNote != null and !#strings.isEmpty(item.reviewNote)}" th:text="${item.reviewNote}">Đã duyệt</span>
+                                <span class="muted" th:if="${item.reviewNote == null or #strings.isEmpty(item.reviewNote)}">—</span>
+                                <span class="ot-subtext" th:if="${item.formattedReviewedAt != null}"
+                                      th:text="${(item.reviewedByName != null ? item.reviewedByName + ' · ' : '') + item.formattedReviewedAt}"></span>
+                            </div>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </th:block>
 </main>
+
+<script th:if="${navRole == 'staff'}">
+    (function () {
+        var buttons = document.querySelectorAll(".ot-pick-btn");
+        var dateInput = document.getElementById("otWorkDate");
+        var shiftSelect = document.getElementById("otShiftId");
+        var reasonInput = document.getElementById("otReason");
+        var formPanel = document.getElementById("overtimeFormPanel");
+        if (!buttons.length || !dateInput || !shiftSelect) {
+            return;
+        }
+        buttons.forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                var shiftId = btn.getAttribute("data-shift-id");
+                var workDate = btn.getAttribute("data-work-date");
+                if (workDate) {
+                    dateInput.value = workDate;
+                }
+                if (shiftId) {
+                    shiftSelect.value = shiftId;
+                }
+                if (formPanel && formPanel.scrollIntoView) {
+                    formPanel.scrollIntoView({ behavior: "smooth", block: "center" });
+                }
+                if (reasonInput) {
+                    reasonInput.focus();
+                }
+            });
+        });
+    })();
+</script>
 </body>
 </html>

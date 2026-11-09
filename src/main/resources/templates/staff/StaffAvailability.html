@@ -46,6 +46,10 @@
             <p id="quota-missing">Số ca còn thiếu: 7 ca.</p>
             <p id="quota-status" class="is-short">Hãy chọn đủ số ca theo hợp đồng.</p>
             <p id="quota-day" class="muted">Mỗi ngày chỉ được chọn tối đa 2 ca.</p>
+            <p class="muted">
+                Nếu muốn đăng ký thêm ngoài <strong th:text="${availabilityGrid.contractWeeklyShifts + ' ca/tuần'}">7 ca/tuần</strong> theo hợp đồng, vui lòng làm
+                <a th:href="@{/schedule/staff/overtime}">Đơn xin tăng ca</a>.
+            </p>
         </div>
 
         <form class="availability-form" th:action="@{/availability}" th:object="${availabilityForm}" method="post"
