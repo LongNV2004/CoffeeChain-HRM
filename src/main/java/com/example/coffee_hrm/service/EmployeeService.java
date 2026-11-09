@@ -32,12 +32,23 @@ public interface EmployeeService {
             Integer employeeId,
             String citizenId
     );
+    /**
+     * Admin cập nhật ngày sinh trong hồ sơ nhân viên; {@code null} xóa ngày sinh đã lưu.
+     */
+    EmployeeResponse updateDateOfBirth(AuthenticatedUser actor, Integer storeId, Integer employeeId,
+                                       java.time.LocalDate dateOfBirth);
+
     EmployeeResponse changeEmployeeRole(AuthenticatedUser actor, Integer storeId, Integer employeeId, String role);
 
     /**
      * Admin chấm dứt ngay hợp đồng hiện tại của quản lý cửa hàng, không qua đề xuất.
      */
     EmployeeResponse terminateManagerContract(AuthenticatedUser actor, Integer storeId, Integer employeeId, String reason);
+
+    /**
+     * Tình trạng Manager của cửa hàng và các Staff có thể thay thế (Admin).
+     */
+    com.example.coffee_hrm.dto.response.ManagerSuccession getManagerSuccession(AuthenticatedUser actor, Integer storeId);
 
     /**
      * Nhân sự của đúng cửa hàng Manager đang quản lý.

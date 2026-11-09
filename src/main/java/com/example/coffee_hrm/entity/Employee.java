@@ -59,6 +59,9 @@ public class Employee {
     @Builder.Default
     private CertificationStatus certificationStatus = CertificationStatus.NOTCERTIFIED;
 
+    @Column(name = "DateOfBirth")
+    private LocalDate dateOfBirth;
+
     @Column(name = "HireDate", nullable = false)
     private LocalDate hireDate;
 

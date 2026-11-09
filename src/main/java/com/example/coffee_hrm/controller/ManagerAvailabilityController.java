@@ -41,6 +41,7 @@ public class ManagerAvailabilityController {
                                           @AuthenticationPrincipal AuthenticatedUser user,
                                           Model model) {
         model.addAttribute("displayName", user.getDisplayName());
+        model.addAttribute("today", VietnamTime.today());
         try {
             LocalDate weekStart = resolveConfigWeek(week);
             WeeklyAvailabilityView grid = staffAvailabilityService.getStoreWeekStaffingGrid(user, weekStart);

@@ -121,6 +121,12 @@ public class StoreManagerController {
         return store;
     }
 
+    /** Ngày sinh lớn nhất cho phép trên form (hôm qua theo giờ Việt Nam). */
+    @ModelAttribute("maxBirthDate")
+    public java.time.LocalDate maxBirthDate() {
+        return com.example.coffee_hrm.common.time.VietnamTime.today().minusDays(1);
+    }
+
     private void publishOutcome(RedirectAttributes redirectAttributes, ManagerProvisionResult result) {
         String message = result.isEmailSent()
                 ? "Đã tạo tài khoản Manager " + result.getManagerName()

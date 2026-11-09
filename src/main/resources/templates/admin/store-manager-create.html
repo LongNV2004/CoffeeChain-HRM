@@ -58,6 +58,10 @@
                                placeholder="079203000123">
                         <span class="field-error" th:if="${#fields.hasErrors('citizenId')}" th:errors="*{citizenId}">Error</span>
                     </label>
+                    <label>Ngày sinh
+                        <input type="date" th:field="*{dateOfBirth}" min="1900-01-01" th:attr="max=${maxBirthDate}">
+                        <span class="field-error" th:if="${#fields.hasErrors('dateOfBirth')}" th:errors="*{dateOfBirth}">Error</span>
+                    </label>
                 </div>
             </section>
         </div>

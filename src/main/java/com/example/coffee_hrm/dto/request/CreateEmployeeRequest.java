@@ -50,6 +50,9 @@ public class CreateEmployeeRequest {
 
     private EmployeeStatus status;
 
+    /** Ngày sinh (không bắt buộc). */
+    private LocalDate dateOfBirth;
+
     @NotNull
     private LocalDate hireDate;
     @NotBlank

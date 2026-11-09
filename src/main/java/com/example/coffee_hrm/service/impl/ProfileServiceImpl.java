@@ -114,7 +114,8 @@ public class ProfileServiceImpl implements ProfileService {
                 .accountStatusLabel(accountActive ? "Đang hoạt động" : "Bị khóa")
                 .hireDate(employee.getHireDate())
                 .terminationDate(employee.getTerminationDate())
-                .dateOfBirth(personal.dateOfBirth())
+                // Ngày sinh trong hồ sơ nhân viên; hồ sơ cũ chưa có thì lấy từ hồ sơ tuyển dụng.
+                .dateOfBirth(employee.getDateOfBirth() != null ? employee.getDateOfBirth() : personal.dateOfBirth())
                 .genderLabel(personal.genderLabel())
                 .accountCreatedAt(user.getCreatedAt())
                 .lastLogin(user.getLastLogin())

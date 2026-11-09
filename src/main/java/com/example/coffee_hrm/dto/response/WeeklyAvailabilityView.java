@@ -193,5 +193,7 @@ public class WeeklyAvailabilityView {
         private boolean activeInWeek;
         /** Các ô ca của đơn, dạng {@code ;thứ|tên ca;}. */
         private String slotKeys;
+        /** Thời điểm nhân viên gửi đơn (bản ghi sớm nhất của đơn). */
+        private java.time.LocalDateTime submittedAt;
     }
 }

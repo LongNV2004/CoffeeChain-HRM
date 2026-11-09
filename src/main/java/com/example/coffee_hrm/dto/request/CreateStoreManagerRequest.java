@@ -37,6 +37,10 @@ public class CreateStoreManagerRequest {
     @Pattern(regexp = "^[0-9]{12}$", message = "Số căn cước công dân phải gồm đúng 12 chữ số.")
     private String citizenId;
 
+    /** Ngày sinh (không bắt buộc). */
+    @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE)
+    private java.time.LocalDate dateOfBirth;
+
     public void setFullName(String fullName) {
         this.fullName = fullName == null ? null : fullName.trim();
     }

@@ -953,6 +953,11 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                     .positionName(positionName(first))
                     .activeInWeek(activeInWeek)
                     .slotKeys(slotKeys)
+                    .submittedAt(group.stream()
+                            .map(WorkAvailability::getCreatedAt)
+                            .filter(Objects::nonNull)
+                            .min(Comparator.naturalOrder())
+                            .orElse(null))
                     .build());
         }
         return groups;

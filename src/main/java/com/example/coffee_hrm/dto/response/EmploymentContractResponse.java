@@ -22,6 +22,7 @@ public class EmploymentContractResponse {
     private final String employeeName;
     /** CCCD hiện đọc từ hồ sơ nhân viên. Null ở danh sách. File hợp đồng đã ký không lưu và không bị ghi lại số này. */
     private final String citizenId;
+    private final LocalDate dateOfBirth;
     private final String positionLabel;
     private final LocalDate hireDate;
     private final Integer storeId;
@@ -52,4 +53,25 @@ public class EmploymentContractResponse {
     private final ContractValidityStatus validityStatus;
     private final String validityStatusLabel;
     private final LocalDate terminatedDate;
+
+    /** Mức lương đúng như trong hợp đồng: phân cách hàng nghìn bằng dấu chấm, không hiện phần thập phân ,00. */
+    public String getSalaryLabel() {
+        return formatMoney(salary);
+    }
+
+    public String getAllowanceLabel() {
+        return formatMoney(allowance);
+    }
+
+    public static String formatMoney(BigDecimal value) {
+        if (value == null) {
+            return null;
+        }
+        java.text.DecimalFormatSymbols symbols = new java.text.DecimalFormatSymbols(java.util.Locale.ROOT);
+        symbols.setGroupingSeparator('.');
+        symbols.setDecimalSeparator(',');
+        java.text.DecimalFormat format = new java.text.DecimalFormat("#,##0.##", symbols);
+        format.setRoundingMode(java.math.RoundingMode.HALF_UP);
+        return format.format(value);
+    }
 }

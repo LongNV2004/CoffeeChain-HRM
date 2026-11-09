@@ -36,6 +36,8 @@
             <dt>Chức vụ</dt><dd th:text="${contract.positionLabel}">Nhân viên</dd>
             <dt>Số căn cước công dân (CCCD)</dt>
             <dd th:text="${contract.citizenId != null ? contract.citizenId : 'Chưa có trong hồ sơ'}">Chưa có trong hồ sơ</dd>
+            <dt>Ngày sinh</dt>
+            <dd th:text="${contract.dateOfBirth != null ? #temporals.format(contract.dateOfBirth, 'dd/MM/yyyy') : 'Chưa có trong hồ sơ'}">02/05/2000</dd>
             <dt>Ngày vào làm</dt>
             <dd th:text="${contract.hireDate != null ? #temporals.format(contract.hireDate, 'dd/MM/yyyy') : '—'}">01/01/2026</dd>
         </dl>
@@ -52,7 +54,7 @@
             <dt>Ngày kết thúc</dt>
             <dd th:text="${contract.endDate == null ? 'Không xác định thời hạn' : #temporals.format(contract.endDate, 'dd/MM/yyyy')}">Không xác định thời hạn</dd>
             <dt>Mức lương (đồng/giờ)</dt>
-            <dd th:text="${#numbers.formatDecimal(contract.salary, 1, 'POINT', 0, 'COMMA') + ' đồng/giờ'}">0 đồng/giờ</dd>
+            <dd th:text="${contract.salaryLabel != null ? contract.salaryLabel + ' đồng/giờ' : 'Chưa cập nhật'}">0 đồng/giờ</dd>
             <dt>Số ca làm việc quy định</dt>
             <dd th:text="${contract.weeklyShiftCount != null ? contract.weeklyShiftCount + ' ca/tuần' : 'Chưa quy định'}">7 ca/tuần</dd>
             <dt>Ghi chú</dt>

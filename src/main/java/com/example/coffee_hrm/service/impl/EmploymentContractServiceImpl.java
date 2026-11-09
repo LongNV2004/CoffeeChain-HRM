@@ -412,6 +412,7 @@ public class EmploymentContractServiceImpl implements EmploymentContractService 
                 .employeeId(employee == null ? null : employee.getId())
                 .employeeName(employee == null ? null : employee.getFullName())
                 .citizenId(revealCitizenId && employee != null ? employee.getCitizenId() : null)
+                .dateOfBirth(employee != null ? employee.getDateOfBirth() : null)
                 .positionLabel(positionLabel(employee))
                 .hireDate(employee == null ? null : employee.getHireDate())
                 .storeId(store == null ? null : store.getId())

@@ -73,6 +73,11 @@
                         th:classappend="${detail.employee.citizenId == null or #strings.isEmpty(detail.employee.citizenId)} ? ' is-placeholder'">079203000123</dd>
                 </div>
                 <div>
+                    <dt>Ngày sinh</dt>
+                    <dd th:if="${detail.employee.dateOfBirth != null}" th:text="${#temporals.format(detail.employee.dateOfBirth, 'dd/MM/yyyy')}">02/05/2000</dd>
+                    <dd th:if="${detail.employee.dateOfBirth == null}" class="is-placeholder">Chưa cập nhật</dd>
+                </div>
+                <div>
                     <dt>Địa chỉ</dt>
                     <dd th:text="${detail.employee.address != null and !#strings.isEmpty(detail.employee.address) ? detail.employee.address : 'Chưa cập nhật'}"
                         th:classappend="${detail.employee.address == null or #strings.isEmpty(detail.employee.address)} ? ' is-placeholder'">Địa chỉ</dd>
