@@ -195,10 +195,11 @@ class AdminManagerSuccessionPagesTest {
     }
 
     @Test
-    void employeeDetailShowsAndEditsDateOfBirth() throws Exception {
+    void employeeDetailShowsBirthDateCitizenIdAndCertificateWithoutEditForms() throws Exception {
         EmployeeResponse withBirthDate = EmployeeResponse.builder()
                 .id(4).fullName("Nghiêm Tiến Quý").storeId(1).storeName("Coffee Cầu Giấy")
                 .status(EmployeeStatus.ACTIVE).roleName(RoleName.STAFF).accountActive(true)
+                .citizenId("079203000123").hasCertificate(true)
                 .dateOfBirth(LocalDate.of(2000, 5, 2)).build();
         when(employeeService.getStoreEmployee(any(), eq(1), eq(4))).thenReturn(withBirthDate);
 
@@ -206,18 +207,15 @@ class AdminManagerSuccessionPagesTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("<dt>Ngày sinh</dt>")))
                 .andExpect(content().string(containsString("02/05/2000")))
-                .andExpect(content().string(containsString("/admin/stores/1/employees/4/date-of-birth")))
-                .andExpect(content().string(containsString("value=\"2000-05-02\"")));
-
-        mockMvc.perform(post("/admin/stores/1/employees/4/date-of-birth").with(user(admin())).with(csrf())
-                        .param("dateOfBirth", "1999-12-31"))
-                .andExpect(redirectedUrl("/admin/stores/1/employees/4"))
-                .andExpect(flash().attribute("successMessage", "Đã cập nhật ngày sinh."));
-        verify(employeeService).updateDateOfBirth(any(), eq(1), eq(4), eq(LocalDate.of(1999, 12, 31)));
-
-        mockMvc.perform(post("/admin/stores/1/employees/4/date-of-birth").with(user(admin())).with(csrf())
-                        .param("dateOfBirth", "31/12/1999"))
-                .andExpect(flash().attribute("errorMessage", "Ngày sinh không hợp lệ."));
+                .andExpect(content().string(containsString("079203000123")))
+                .andExpect(content().string(containsString("<dt>Chứng chỉ nhân viên</dt>")))
+                .andExpect(content().string(containsString("badge badge-ok\">Có</span>")))
+                // Không còn form sửa CCCD, ngày sinh và không còn dòng ảnh đại diện.
+                .andExpect(content().string(not(containsString("/date-of-birth"))))
+                .andExpect(content().string(not(containsString("/citizen-id"))))
+                .andExpect(content().string(not(containsString("Cập nhật ngày sinh"))))
+                .andExpect(content().string(not(containsString("Cập nhật CCCD"))))
+                .andExpect(content().string(not(containsString("Ảnh đại diện"))));
     }
 
     private EmployeeResponse employee(int id, String name, RoleName role, EmployeeStatus status, boolean active) {

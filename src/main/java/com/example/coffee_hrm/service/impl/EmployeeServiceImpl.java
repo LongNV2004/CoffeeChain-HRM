@@ -3,6 +3,7 @@ import com.example.coffee_hrm.dto.request.CreateEmployeeRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import com.example.coffee_hrm.common.enums.AssignmentStatus;
 import com.example.coffee_hrm.common.enums.AttendanceStatus;
+import com.example.coffee_hrm.common.enums.CertificationStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.enums.TrainingClassStatus;
@@ -289,7 +290,6 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new BusinessException(EMPLOYEE_NOT_IN_STORE);
         }
 
-        String nextCitizenId = resolveNextCitizenId(employee, request.getCitizenId());
         RoleName targetRole = parseAssignableRole(request.getRole());
         User account = userRepository.findByEmployee_Id(employeeId).orElse(null);
 
@@ -361,16 +361,12 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         employee.setFullName(request.getFullName().trim());
         employee.setPhone(request.getPhone().trim());
-        employee.setCitizenId(nextCitizenId);
         employee.setEmail(email);
         employee.setAddress(request.getAddress());
         employee.setAvatarUrl(request.getAvatarUrl());
         employee.setStore(targetStore);
         employee.setHireDate(request.getHireDate());
-        // Không gửi ngày sinh thì giữ ngày sinh đang lưu, giống cách xử lý CCCD.
-        if (request.getDateOfBirth() != null) {
-            employee.setDateOfBirth(BirthDates.validateOptional(request.getDateOfBirth()));
-        }
+        // CCCD và ngày sinh được điền khi tuyển dụng; cập nhật hồ sơ giữ nguyên hai trường này.
         employee.setStatus(request.getStatus());
         employee.setTerminationDate(
                 request.getStatus() == EmployeeStatus.TERMINATED
@@ -408,51 +404,6 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
     }
 
-    @Override
-    @Transactional
-    public EmployeeResponse updateDateOfBirth(AuthenticatedUser actor,
-                                              Integer storeId,
-                                              Integer employeeId,
-                                              LocalDate dateOfBirth) {
-        requireAdmin(actor);
-        Employee employee = employeeRepository.findByIdWithStoreAndManager(employeeId)
-                .orElseThrow(() -> new BusinessException(EMPLOYEE_NOT_FOUND));
-        if (employee.getStore() == null || !storeId.equals(employee.getStore().getId())) {
-            throw new BusinessException(EMPLOYEE_NOT_IN_STORE);
-        }
-        employee.setDateOfBirth(BirthDates.validateOptional(dateOfBirth));
-        employeeRepository.save(employee);
-        User account = userRepository.findByEmployee_Id(employeeId).orElse(null);
-        return toResponse(employee, account, employee.getStore(), true);
-    }
-
-    @Override
-    @Transactional
-    public EmployeeResponse updateCitizenId(AuthenticatedUser actor,
-                                            Integer storeId,
-                                            Integer employeeId,
-                                            String citizenId) {
-        requireAdmin(actor);
-        Employee employee = employeeRepository.findByIdWithStoreAndManager(employeeId)
-                .orElseThrow(() -> new BusinessException(EMPLOYEE_NOT_FOUND));
-        if (employee.getStore() == null || !storeId.equals(employee.getStore().getId())) {
-            throw new BusinessException(EMPLOYEE_NOT_IN_STORE);
-        }
-        String normalized = CitizenIds.require(citizenId);
-        if (!normalized.equals(employee.getCitizenId())) {
-            if (employeeRepository.existsByCitizenIdAndIdNot(normalized, employee.getId())) {
-                throw new BusinessException(CitizenIds.DUPLICATE_MESSAGE);
-            }
-            employee.setCitizenId(normalized);
-            try {
-                employeeRepository.save(employee);
-            } catch (DataIntegrityViolationException ex) {
-                throw new BusinessException(CitizenIds.DUPLICATE_MESSAGE);
-            }
-        }
-        User account = userRepository.findByEmployee_Id(employeeId).orElse(null);
-        return toResponse(employee, account, employee.getStore(), true);
-    }
     @Override
     @Transactional
     public EmployeeResponse changeEmployeeRole(AuthenticatedUser actor, Integer storeId, Integer employeeId, String role) {
@@ -889,17 +840,6 @@ public class EmployeeServiceImpl implements EmployeeService {
         return toResponse(employee, user, store, false);
     }
 
-    private String resolveNextCitizenId(Employee employee, String raw) {
-        String normalized = CitizenIds.optional(raw);
-        if (normalized == null || normalized.equals(employee.getCitizenId())) {
-            return employee.getCitizenId();
-        }
-        if (employeeRepository.existsByCitizenIdAndIdNot(normalized, employee.getId())) {
-            throw new BusinessException(CitizenIds.DUPLICATE_MESSAGE);
-        }
-        return normalized;
-    }
-
     private EmployeeResponse toResponse(Employee employee, User user, Store store, boolean revealCitizenId) {
         Employee manager = store.getManager();
         String citizenId = employee.getCitizenId();
@@ -922,7 +862,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .userId(user != null ? user.getId() : null)
                 .roleName(user != null && user.getRole() != null ? user.getRole().getRoleName() : null)
                 .accountActive(user == null ? null : Boolean.TRUE.equals(user.getIsActive()))
-                .hasCertificate(Boolean.TRUE.equals(employee.getHasCertificate()))
+                .hasCertificate(employee.getCertificationStatus() == CertificationStatus.CERTIFIED)
                 .certificateIssuedOn(employee.getCertificateIssuedOn())
                 .managementCertified(Boolean.TRUE.equals(employee.getManagementCertified()))
                 .storeManager(manager != null && manager.getId().equals(employee.getId()))

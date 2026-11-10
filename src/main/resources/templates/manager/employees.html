@@ -124,6 +124,7 @@
                     <th>Họ tên</th>
                     <th>Số CCCD</th>
                     <th>Chức vụ</th>
+                    <th>Chứng chỉ</th>
                     <th>Ngày vào làm</th>
                     <th>Trạng thái nhân viên</th>
                     <th>Trạng thái hợp đồng</th>
@@ -132,7 +133,7 @@
                 </thead>
                 <tbody>
                 <tr th:if="${employees == null or #lists.isEmpty(employees)}">
-                    <td colspan="9" class="empty"
+                    <td colspan="10" class="empty"
                         th:text="${errorMessage != null} ? 'Không thể hiển thị danh sách nhân sự.' : 'Cửa hàng chưa có nhân sự.'">Cửa hàng chưa có nhân sự.</td>
                 </tr>
                 <tr th:each="employee : ${employees}" class="employee-row"
@@ -146,7 +147,8 @@
                              data-contract-status=${employee.contractStatusKey ?: 'NONE'},
                              data-contract-label=${employee.contractStatusLabel ?: 'Chưa có hợp đồng'},
                              data-employee-role=${roleKey},
-                             data-employee-status=${employee.status != null ? employee.status.name() : ''}">
+                             data-employee-status=${employee.status != null ? employee.status.name() : ''},
+                             data-certified=${employee.hasCertificate}">
                     <td class="employee-index"></td>
                     <td th:text="${employee.id}">1</td>
                     <td class="employee-person">
@@ -159,6 +161,10 @@
                         <span th:if="${roleKey == 'STAFF'}" class="badge">Staff</span>
                         <span th:if="${roleKey == 'NONE'}" class="muted">Chưa có tài khoản</span>
                         <span th:if="${roleKey != 'MANAGER' and roleKey != 'STAFF' and roleKey != 'NONE'}" class="badge" th:text="${roleKey}">Role</span>
+                    </td>
+                    <td>
+                        <span th:if="${employee.hasCertificate}" class="badge badge-ok">Có</span>
+                        <span th:unless="${employee.hasCertificate}" class="muted">Chưa có</span>
                     </td>
                     <td th:text="${employee.hireDate != null} ? ${#temporals.format(employee.hireDate, 'dd/MM/yyyy')} : 'Chưa cập nhật'">01/01/2025</td>
                     <td>
@@ -189,7 +195,7 @@
                     </td>
                 </tr>
                 <tr id="employeeNoMatch" hidden>
-                    <td colspan="9" class="empty">Không tìm thấy nhân viên phù hợp.</td>
+                    <td colspan="10" class="empty">Không tìm thấy nhân viên phù hợp.</td>
                 </tr>
                 </tbody>
             </table>

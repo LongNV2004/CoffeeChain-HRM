@@ -94,7 +94,10 @@
                 <label for="startDate">
                     Ngày bắt đầu hợp đồng
                     <input id="startDate" name="startDate" type="date" required
+                           th:min="${renewal and renewalMinStart != null ? #temporals.format(renewalMinStart, 'yyyy-MM-dd') : null}"
                            th:value="${form.startDate != null ? #temporals.format(form.startDate, 'yyyy-MM-dd') : ''}">
+                    <span class="cc-hint" th:if="${renewal and renewalSourceEnd != null}"
+                          th:text="${'Hợp đồng cũ hết hạn ngày ' + #temporals.format(renewalSourceEnd, 'dd/MM/yyyy') + '. Hợp đồng gia hạn phải bắt đầu từ ' + #temporals.format(renewalSourceEnd.plusDays(1), 'dd/MM/yyyy') + ' trở đi.'}">Hợp đồng cũ hết hạn</span>
                     <span class="cc-flag" id="startDate-flag" hidden></span>
                     <span class="cc-error" th:if="${#fields.hasErrors('startDate')}" th:errors="*{startDate}"></span>
                 </label>

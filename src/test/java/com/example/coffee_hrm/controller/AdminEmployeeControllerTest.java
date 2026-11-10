@@ -168,37 +168,30 @@ class AdminEmployeeControllerTest {
     }
 
     @Test
-    void staffAndManagerCannotUpdateCitizenIdThroughTheEndpoint() throws Exception {
-        mockMvc.perform(post("/admin/stores/1/employees/9/citizen-id")
-                        .with(user(actor(RoleName.STAFF)))
-                        .with(csrf())
-                        .param("citizenId", "079203000123"))
-                .andExpect(redirectedUrl("/dashboard/staff"));
-        mockMvc.perform(post("/admin/stores/1/employees/9/citizen-id")
-                        .with(user(actor(RoleName.MANAGER)))
-                        .with(csrf())
-                        .param("citizenId", "079203000123"))
-                .andExpect(redirectedUrl("/dashboard/manager"));
+    void staffAndManagerCannotUseTheAdminEditEndpoint() throws Exception {
         mockMvc.perform(post("/admin/stores/1/employees/9/edit")
                         .with(user(actor(RoleName.STAFF)))
                         .with(csrf())
                         .contentType("application/json")
-                        .content("{\"citizenId\":\"079203000123\",\"fullName\":\"An\",\"phone\":\"0900000000\",\"email\":\"a@x.vn\",\"storeId\":1,\"status\":\"ACTIVE\",\"hireDate\":\"2026-01-01\",\"role\":\"STAFF\"}"))
+                        .content("{\"fullName\":\"An\",\"phone\":\"0900000000\",\"email\":\"a@x.vn\",\"storeId\":1,\"status\":\"ACTIVE\",\"hireDate\":\"2026-01-01\",\"role\":\"STAFF\"}"))
                 .andExpect(redirectedUrl("/dashboard/staff"));
 
-        verify(employeeService, never()).updateCitizenId(any(), any(), any(), any());
         verify(employeeService, never()).updateEmployee(any(), any(), any(), any());
     }
 
     @Test
-    void adminUpdatesCitizenIdAndReturnsToTheEmployeePage() throws Exception {
+    void adminCanNoLongerUpdateCitizenIdOrBirthDateDirectly() throws Exception {
+        // CCCD và ngày sinh được điền khi tuyển dụng; Admin không còn endpoint sửa riêng.
         mockMvc.perform(post("/admin/stores/1/employees/9/citizen-id")
                         .with(user(actor(RoleName.ADMIN)))
                         .with(csrf())
                         .param("citizenId", "079203000123"))
-                .andExpect(redirectedUrl("/admin/stores/1/employees/9"));
-
-        verify(employeeService).updateCitizenId(any(), eq(1), eq(9), eq("079203000123"));
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/stores/1/employees/9/date-of-birth")
+                        .with(user(actor(RoleName.ADMIN)))
+                        .with(csrf())
+                        .param("dateOfBirth", "2000-05-02"))
+                .andExpect(status().isNotFound());
     }
 
     private AuthenticatedUser actor(RoleName roleName) {

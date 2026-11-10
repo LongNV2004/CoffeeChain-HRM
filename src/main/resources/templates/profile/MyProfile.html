@@ -24,12 +24,6 @@
     <p class="stf-unassigned" th:if="${managerContractLimitedMessage != null}" role="status"
        th:text="${managerContractLimitedMessage}">Tài khoản đang chờ hoàn thiện hợp đồng.</p>
     <section class="profile-hero">
-        <div class="profile-avatar" aria-hidden="true">
-            <img th:if="${profile.avatarUrl != null and !#strings.isEmpty(profile.avatarUrl)}"
-                 th:src="${profile.avatarUrl}" alt="">
-            <span th:if="${profile.avatarUrl == null or #strings.isEmpty(profile.avatarUrl)}"
-                  th:text="${profile.initials}">AN</span>
-        </div>
         <div>
             <p class="eyebrow" th:text="${profile.roleLabel}">Nhân viên</p>
             <h1 th:text="${profile.fullName != null ? profile.fullName : 'Hồ sơ cá nhân'}">Họ và tên</h1>

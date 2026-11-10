@@ -90,7 +90,11 @@
         </section>
 
         <p class="sc-note" th:if="${staffSlotCapacity == 0}">
-            Cửa hàng chưa có nhân viên Staff đang làm việc nên chưa thể lưu chỉ tiêu lớn hơn 0.
+            Cửa hàng chưa có nhân viên Staff nào nên chưa thể cấu hình số nhân viên tối đa. Hãy thêm nhân viên trước.
+        </p>
+        <p class="sc-note" th:if="${staffSlotCapacity != null and staffSlotCapacity > 0 and eligibleStaff < staffSlotCapacity}"
+           th:text="${'Cửa hàng có ' + staffSlotCapacity + ' nhân viên Staff, trong đó ' + eligibleStaff + ' người đủ điều kiện đăng ký ca (đang làm việc, có hợp đồng và chứng chỉ). Bạn vẫn cấu hình được nhu cầu ca tối đa ' + staffSlotCapacity + ' người; nhân viên chưa có hợp đồng hoặc chứng chỉ chưa thể đăng ký hay được xếp ca.'}">
+            Cửa hàng có nhân viên chưa đủ điều kiện đăng ký ca.
         </p>
         <p class="sc-empty" th:if="${availabilityGrid != null and #lists.isEmpty(availabilityGrid.shiftRows)}">
             Cửa hàng chưa có ca làm việc.

@@ -126,6 +126,7 @@ public class ContractRenewalServiceImpl implements ContractRenewalService {
             throw new BusinessException("Hợp đồng này đã được gia hạn.");
         }
         requireRenewableStatus(source, today, false);
+        requireStartAfterSourceEnd(source, startDate);
         requireNoOverlap(employee.getId(), source.getId(), startDate, endDate, today);
         ContractOcrService.Acceptance acceptance = contractOcrService.requireAccepted(
                 file.originalName(), file.content(), employee);
@@ -509,6 +510,21 @@ public class ContractRenewalServiceImpl implements ContractRenewalService {
                 && file.content()[2] == 'D' && file.content()[3] == 'F';
         if (!name.endsWith(".pdf") || !header) {
             throw new BusinessException("Hợp đồng gia hạn phải là file PDF hợp lệ.");
+        }
+    }
+
+    static final String START_AFTER_SOURCE_END_MESSAGE =
+            "Ngày bắt đầu hiệu lực của hợp đồng gia hạn phải sau ngày hết hạn của hợp đồng cũ (%s). Chọn từ ngày %s trở đi.";
+
+    /** Hợp đồng mới chỉ có hiệu lực từ ngày sau ngày hết hạn của hợp đồng cũ, không được chồng lên. */
+    static void requireStartAfterSourceEnd(EmploymentContract source, LocalDate startDate) {
+        if (source == null || source.getEndDate() == null || startDate == null) {
+            return;
+        }
+        if (!startDate.isAfter(source.getEndDate())) {
+            java.time.format.DateTimeFormatter format = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
+            throw new BusinessException(String.format(START_AFTER_SOURCE_END_MESSAGE,
+                    source.getEndDate().format(format), source.getEndDate().plusDays(1).format(format)));
         }
     }
 

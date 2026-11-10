@@ -119,7 +119,6 @@ public class AdminEmployeeController {
         model.addAttribute("contracts", contracts);
         model.addAttribute("terminableContract", terminableContract(employee, contracts));
         model.addAttribute("succession", successionOf(user, storeId));
-        model.addAttribute("maxBirthDate", com.example.coffee_hrm.common.time.VietnamTime.today().minusDays(1));
         model.addAttribute("history", EmployeeRecordSupport.history(employee, List.of(), contracts));
         model.addAttribute("tab", "contract".equals(tab) || "history".equals(tab) ? tab : "profile");
         return EMPLOYEE_DETAIL_VIEW;
@@ -265,45 +264,6 @@ public class AdminEmployeeController {
             @AuthenticationPrincipal AuthenticatedUser user
     ) {
         return employeeService.getStoreEmployee(user, storeId, employeeId);
-    }
-
-    @PostMapping("/stores/{storeId}/employees/{employeeId}/citizen-id")
-    public String updateCitizenId(
-            @PathVariable Integer storeId,
-            @PathVariable Integer employeeId,
-            @RequestParam(required = false) String citizenId,
-            @AuthenticationPrincipal AuthenticatedUser user,
-            RedirectAttributes redirectAttributes
-    ) {
-        try {
-            employeeService.updateCitizenId(user, storeId, employeeId, citizenId);
-            redirectAttributes.addFlashAttribute("successMessage", "Đã cập nhật số căn cước công dân.");
-        } catch (BusinessException ex) {
-            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
-        }
-        return "redirect:/admin/stores/" + storeId + "/employees/" + employeeId;
-    }
-
-    @PostMapping("/stores/{storeId}/employees/{employeeId}/date-of-birth")
-    public String updateDateOfBirth(
-            @PathVariable Integer storeId,
-            @PathVariable Integer employeeId,
-            @RequestParam(required = false) String dateOfBirth,
-            @AuthenticationPrincipal AuthenticatedUser user,
-            RedirectAttributes redirectAttributes
-    ) {
-        try {
-            java.time.LocalDate parsed = dateOfBirth == null || dateOfBirth.isBlank()
-                    ? null : java.time.LocalDate.parse(dateOfBirth.trim());
-            employeeService.updateDateOfBirth(user, storeId, employeeId, parsed);
-            redirectAttributes.addFlashAttribute("successMessage",
-                    parsed == null ? "Đã xóa ngày sinh trong hồ sơ." : "Đã cập nhật ngày sinh.");
-        } catch (java.time.format.DateTimeParseException ex) {
-            redirectAttributes.addFlashAttribute("errorMessage", "Ngày sinh không hợp lệ.");
-        } catch (BusinessException ex) {
-            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
-        }
-        return "redirect:/admin/stores/" + storeId + "/employees/" + employeeId;
     }
 
     @PostMapping("/stores/{storeId}/employees/{employeeId}/edit")

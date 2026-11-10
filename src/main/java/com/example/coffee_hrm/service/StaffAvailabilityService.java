@@ -57,16 +57,19 @@ public interface StaffAvailabilityService {
     void reviewRegistration(String registrationKey, boolean approved, AuthenticatedUser manager);
 
     /**
-     * Duyệt hoặc từ chối mọi đơn đang chờ của cửa hàng.
-     * Mỗi đơn vẫn được xử lý riêng; đơn đã duyệt hoặc đã từ chối không đổi.
-     *
-     * @return số đơn đang chờ đã xử lý
+     * Duyệt hoặc từ chối mọi đơn đang chờ có hiệu lực trong tuần {@code weekStart} (null: mọi tuần).
+     * Mỗi đơn được xử lý trong giao dịch riêng: đơn không duyệt được được bỏ qua và báo lại,
+     * các đơn khác vẫn được lưu. Đơn đã duyệt hoặc đã từ chối không đổi.
      */
-    int reviewAllPendingRegistrations(boolean approved, AuthenticatedUser manager);
+    ReviewAllResult reviewAllPendingRegistrations(boolean approved, AuthenticatedUser manager, LocalDate weekStart);
+
+    /** Số đơn đã xử lý và các đơn không xử lý được ("Tên nhân viên: lý do"). */
+    record ReviewAllResult(int reviewed, List<String> failures) {
+    }
 
     /**
-     * Số nhân viên Staff đang làm việc tại cửa hàng của Manager.
-     * Không tính Manager, Admin, nhân viên không còn hoạt động, hoặc cửa hàng khác.
+     * Số nhân viên Staff còn thuộc cửa hàng của Manager (đang làm việc, nghỉ phép hoặc chờ hoàn thiện hợp đồng).
+     * Không tính Manager, Admin, nhân viên đã nghỉ việc, hoặc cửa hàng khác.
      */
     int countStaffForSlotLimit(AuthenticatedUser manager);
 

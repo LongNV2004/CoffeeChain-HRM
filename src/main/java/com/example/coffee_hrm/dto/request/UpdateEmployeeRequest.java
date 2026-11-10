@@ -1,7 +1,6 @@
 package com.example.coffee_hrm.dto.request;
 
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
-import com.example.coffee_hrm.common.security.CitizenIds;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -30,9 +29,6 @@ public class UpdateEmployeeRequest {
     @Size(max = 15)
     private String phone;
 
-    @Pattern(regexp = "^[0-9]{12}$", message = "Số căn cước công dân phải gồm đúng 12 chữ số.")
-    private String citizenId;
-
     @NotBlank
     @Email
     @Size(max = 100)
@@ -50,17 +46,10 @@ public class UpdateEmployeeRequest {
     @NotNull
     private EmployeeStatus status;
 
-    /** Ngày sinh (không bắt buộc). */
-    private LocalDate dateOfBirth;
-
     @NotNull
     private LocalDate hireDate;
 
     private LocalDate terminationDate;
     @NotBlank
     private String role;
-
-    public void setCitizenId(String citizenId) {
-        this.citizenId = CitizenIds.normalize(citizenId);
-    }
 }

@@ -42,6 +42,7 @@
         </header>
 
         <p class="rv-flash success" role="status" th:if="${successMessage}" th:text="${successMessage}">Đã duyệt</p>
+        <p class="rv-flash warning" role="status" th:if="${warningMessage}" th:text="${warningMessage}">Cảnh báo</p>
         <p class="rv-flash error" role="alert" th:if="${errorMessage}" th:text="${errorMessage}">Lỗi</p>
         <p class="rv-flash error" role="alert" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
 
@@ -117,6 +118,11 @@
                         <span class="rv-legend-item is-pending">Chờ duyệt</span>
                         <span class="rv-legend-item is-rejected">Từ chối</span>
                         <a class="rv-link" th:href="@{/availability/manager/limits(week=${weekStart})}">Cấu hình nhu cầu ca</a>
+                        <button type="button" class="rv-btn rv-btn-primary sa-open" id="saOpen"
+                                th:data-url="@{/availability/manager/allocation(week=${weekStart})}">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6M19 8v6M22 11h-6"/></svg>
+                            Phân bổ nhân sự
+                        </button>
                     </div>
                 </header>
                 <div class="rv-week-wrap">
@@ -210,7 +216,7 @@
                             <input type="hidden" name="week" th:value="${weekStart}">
                             <input type="hidden" name="approved" value="true">
                             <button class="rv-btn rv-btn-primary" type="submit"
-                                    data-coffee-confirm="Duyệt tất cả đơn đang chờ? Mỗi nhân viên được duyệt theo đơn của chính họ; các ca trong đơn được xếp vào lịch."
+                                    data-coffee-confirm="Duyệt tất cả đơn đang chờ trong tuần này? Mỗi đơn được duyệt riêng; đơn nào không duyệt được sẽ được báo lại và các đơn khác vẫn được duyệt."
                                     data-coffee-title="Duyệt tất cả đơn"
                                     data-coffee-ok="Duyệt tất cả">Duyệt tất cả</button>
                         </form>
@@ -218,7 +224,7 @@
                             <input type="hidden" name="week" th:value="${weekStart}">
                             <input type="hidden" name="approved" value="false">
                             <button class="rv-btn rv-btn-danger" type="submit"
-                                    data-coffee-confirm="Từ chối tất cả đơn đang chờ? Chỉ các đơn đang chờ bị từ chối. Đơn đã duyệt được giữ nguyên."
+                                    data-coffee-confirm="Từ chối tất cả đơn đang chờ trong tuần này? Chỉ các đơn đang chờ bị từ chối. Đơn đã duyệt được giữ nguyên."
                                     data-coffee-title="Từ chối tất cả đơn"
                                     data-coffee-ok="Từ chối tất cả"
                                     data-coffee-tone="danger">Từ chối tất cả</button>
@@ -264,6 +270,7 @@
                             <td data-label="Nhân viên">
                                 <strong th:text="${item.employeeName != null ? item.employeeName : 'Nhân viên'}">Nguyễn Văn A</strong>
                                 <span class="rv-sub" th:if="${item.certificationLabel != null}" th:text="${item.certificationLabel}">Đã chứng nhận</span>
+                                <span class="rv-tag" th:if="${item.allocatedByManager}">Quản lý phân bổ</span>
                             </td>
                             <td data-label="Mã NV"><span class="rv-code" th:text="${code}">NV001</span></td>
                             <td data-label="Vị trí" th:text="${item.positionName != null ? item.positionName : '—'}">Pha chế</td>
@@ -381,6 +388,23 @@
                         </form>
                     </div>
                 </footer>
+            </div>
+        </div>
+
+        <!-- G. Phân bổ nhân sự (nội dung nạp từ /availability/manager/allocation) -->
+        <div class="rv-modal sa-modal" id="saModal" role="dialog" aria-modal="true" aria-labelledby="saTitle" hidden>
+            <div class="rv-modal-backdrop" data-sa-close></div>
+            <div class="rv-modal-card sa-card" tabindex="-1">
+                <header class="rv-modal-head">
+                    <div>
+                        <h2 id="saTitle">Phân bổ nhân sự</h2>
+                        <p class="rv-sub">Chọn nhân viên rồi bấm Phân bổ: hệ thống tự xếp vào các ca còn thiếu người và đưa thẳng vào lịch làm việc.</p>
+                    </div>
+                    <button type="button" class="rv-icon-btn" data-sa-close aria-label="Đóng">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                    </button>
+                </header>
+                <div id="saBody" aria-live="polite"></div>
             </div>
         </div>
 

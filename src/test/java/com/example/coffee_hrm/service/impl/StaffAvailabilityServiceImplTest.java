@@ -32,6 +32,7 @@ import com.example.coffee_hrm.repository.WorkAvailabilityRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.NotificationService;
 import com.example.coffee_hrm.service.ScheduleService;
+import com.example.coffee_hrm.service.StaffAvailabilityService;
 import com.example.coffee_hrm.service.support.AvailabilityCoverage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,6 +60,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.inOrder;
@@ -502,9 +504,10 @@ class StaffAvailabilityServiceImplTest {
         when(userRepository.findByEmployee_Id(20)).thenReturn(Optional.of(buildUser(3, "staff1", RoleName.STAFF, staff)));
         when(userRepository.findByEmployee_Id(21)).thenReturn(Optional.of(buildUser(4, "staff2", RoleName.STAFF, other)));
 
-        int reviewed = service.reviewAllPendingRegistrations(true, managerUser);
+        StaffAvailabilityService.ReviewAllResult result = service.reviewAllPendingRegistrations(true, managerUser, null);
 
-        assertEquals(2, reviewed);
+        assertEquals(2, result.reviewed());
+        assertTrue(result.failures().isEmpty());
         assertEquals(ApprovalStatus.APPROVED, selected.getStatus());
         assertEquals(ApprovalStatus.APPROVED, otherPending.getStatus());
         assertEquals(ApprovalStatus.APPROVED, alreadyApproved.getStatus());
@@ -525,9 +528,9 @@ class StaffAvailabilityServiceImplTest {
         when(workAvailabilityRepository.findByRegistrationKey("batch-tuan")).thenReturn(List.of(pending));
         when(userRepository.findByEmployee_Id(20)).thenReturn(Optional.of(buildUser(3, "staff1", RoleName.STAFF, staff)));
 
-        int reviewed = service.reviewAllPendingRegistrations(false, managerUser);
+        StaffAvailabilityService.ReviewAllResult result = service.reviewAllPendingRegistrations(false, managerUser, null);
 
-        assertEquals(1, reviewed);
+        assertEquals(1, result.reviewed());
         assertEquals(ApprovalStatus.REJECTED, pending.getStatus());
         assertEquals(ApprovalStatus.APPROVED, approved.getStatus());
         verify(scheduleService, never()).assignShiftFromApprovedAvailability(any(), any());
@@ -541,7 +544,7 @@ class StaffAvailabilityServiceImplTest {
                 .thenReturn(List.of());
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.reviewAllPendingRegistrations(true, managerUser));
+                () -> service.reviewAllPendingRegistrations(true, managerUser, null));
 
         assertEquals("Không có đơn đang chờ duyệt.", ex.getMessage());
         verify(workAvailabilityRepository, never()).findByRegistrationKey(anyString());
@@ -549,7 +552,7 @@ class StaffAvailabilityServiceImplTest {
     }
 
     @Test
-    void approveAllStopsWhenOneEmployeeCannotBeScheduled() {
+    void approveAllSkipsTheRegistrationThatCannotBeScheduledAndApprovesTheRest() {
         WorkAvailability selected = pendingPattern("batch-tuan", staff);
         Employee other = Employee.builder()
                 .id(21)
@@ -559,21 +562,71 @@ class StaffAvailabilityServiceImplTest {
                 .certificationStatus(CertificationStatus.CERTIFIED)
                 .build();
         WorkAvailability otherPending = pendingPattern("batch-mai", other);
+        otherPending.setId(6);
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
         when(workAvailabilityRepository.findVisibleByStore(eq(1), any(LocalDate.class), eq(ApprovalStatus.PENDING)))
                 .thenReturn(List.of(selected, otherPending));
+        when(workAvailabilityRepository.findByRegistrationKey("batch-tuan")).thenReturn(List.of(selected));
+        when(workAvailabilityRepository.findByRegistrationKey("batch-mai")).thenReturn(List.of(otherPending));
+        when(userRepository.findByEmployee_Id(21)).thenReturn(Optional.of(buildUser(4, "staff2", RoleName.STAFF, other)));
+        // Chỉ ca của nhân viên 20 bị trùng giờ.
+        doAnswer(invocation -> {
+            com.example.coffee_hrm.dto.request.AssignShiftRequest request = invocation.getArgument(0);
+            if (request.getEmployeeId() == 20) {
+                throw new BusinessException("Nhân viên đã có ca trùng giờ.");
+            }
+            return null;
+        }).when(scheduleService).assignShiftFromApprovedAvailability(any(), any());
+
+        StaffAvailabilityService.ReviewAllResult result = service.reviewAllPendingRegistrations(true, managerUser, null);
+
+        assertEquals(1, result.reviewed());
+        assertEquals(1, result.failures().size());
+        assertTrue(result.failures().getFirst().startsWith(staff.getFullName() + ": "));
+        assertTrue(result.failures().getFirst().contains("trùng giờ"));
+        assertEquals(ApprovalStatus.PENDING, selected.getStatus());
+        assertEquals(ApprovalStatus.APPROVED, otherPending.getStatus());
+    }
+
+    @Test
+    void approveAllOnlyTouchesRegistrationsOfTheWeekOnScreen() {
+        WorkAvailability thisWeek = pendingPattern("batch-tuan", staff);
+        WorkAvailability stale = pendingPattern("batch-old", staff);
+        stale.setId(8);
+        stale.setValidFrom(thisWeek.getValidFrom().minusWeeks(3));
+        stale.setValidTo(thisWeek.getValidFrom().minusWeeks(3).plusDays(6));
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        when(workAvailabilityRepository.findVisibleByStore(eq(1), any(LocalDate.class), eq(ApprovalStatus.PENDING)))
+                .thenReturn(List.of(stale, thisWeek));
+        when(workAvailabilityRepository.findByRegistrationKey("batch-tuan")).thenReturn(List.of(thisWeek));
+        when(userRepository.findByEmployee_Id(20)).thenReturn(Optional.of(buildUser(3, "staff1", RoleName.STAFF, staff)));
+
+        StaffAvailabilityService.ReviewAllResult result =
+                service.reviewAllPendingRegistrations(true, managerUser, thisWeek.getValidFrom());
+
+        assertEquals(1, result.reviewed());
+        assertTrue(result.failures().isEmpty());
+        assertEquals(ApprovalStatus.APPROVED, thisWeek.getStatus());
+        assertEquals(ApprovalStatus.PENDING, stale.getStatus());
+        verify(workAvailabilityRepository, never()).findByRegistrationKey("batch-old");
+    }
+
+    @Test
+    void approveAllFailsOnlyWhenNoRegistrationCouldBeApproved() {
+        WorkAvailability selected = pendingPattern("batch-tuan", staff);
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        when(workAvailabilityRepository.findVisibleByStore(eq(1), any(LocalDate.class), eq(ApprovalStatus.PENDING)))
+                .thenReturn(List.of(selected));
         when(workAvailabilityRepository.findByRegistrationKey("batch-tuan")).thenReturn(List.of(selected));
         doThrow(new BusinessException("Nhân viên đã có ca trùng giờ."))
                 .when(scheduleService).assignShiftFromApprovedAvailability(any(), any());
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.reviewAllPendingRegistrations(true, managerUser));
+                () -> service.reviewAllPendingRegistrations(true, managerUser, null));
 
+        assertTrue(ex.getMessage().startsWith("Không duyệt được đơn nào."));
         assertTrue(ex.getMessage().contains("trùng giờ"));
         assertEquals(ApprovalStatus.PENDING, selected.getStatus());
-        assertEquals(ApprovalStatus.PENDING, otherPending.getStatus());
-        verify(workAvailabilityRepository, never()).findByRegistrationKey("batch-mai");
-        verify(workAvailabilityRepository, never()).saveAll(any());
     }
 
     @Test
@@ -837,8 +890,8 @@ class StaffAvailabilityServiceImplTest {
         assertFalse(ten.isWarning());
         assertEquals(10, existing.getMaxEmployees());
         assertEquals(StaffAvailabilityServiceImpl.SLOT_LIMIT_HEADCOUNT_MESSAGE, over.getMessage());
-        verify(employeeRepository, times(3)).countSchedulableStaff(
-                1, EmployeeStatus.ACTIVE, RoleName.STAFF, 10);
+        verify(employeeRepository, times(3)).countStoreStaffInStatuses(
+                1, StaffAvailabilityServiceImpl.STORE_STAFF_STATUSES, RoleName.STAFF, 10);
         verify(shiftSlotLimitRepository, times(2)).saveAndFlush(existing);
         verify(workAvailabilityRepository, never()).deleteByIds(any());
         verify(workAvailabilityRepository, never()).save(any());
@@ -1496,7 +1549,7 @@ class StaffAvailabilityServiceImplTest {
     }
 
     private void stubSchedulableStaff(int staffCount) {
-        when(employeeRepository.countSchedulableStaff(1, EmployeeStatus.ACTIVE, RoleName.STAFF, 10))
+        when(employeeRepository.countStoreStaffInStatuses(1, StaffAvailabilityServiceImpl.STORE_STAFF_STATUSES, RoleName.STAFF, 10))
                 .thenReturn((long) staffCount);
     }
 

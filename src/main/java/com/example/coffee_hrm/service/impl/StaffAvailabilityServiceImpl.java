@@ -45,7 +45,11 @@ import com.example.coffee_hrm.service.support.PositionStaffing;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -93,6 +97,10 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
     static final String NO_ACTIVE_POSITION_MESSAGE =
             "Chưa có vị trí công việc. Vị trí lấy từ danh mục kỹ năng đào tạo đang hoạt động.";
 
+    /** Staff còn thuộc cửa hàng: tính vào trần số nhân viên tối đa của ca, kể cả người chưa có hợp đồng. */
+    static final List<EmployeeStatus> STORE_STAFF_STATUSES =
+            List.of(EmployeeStatus.ACTIVE, EmployeeStatus.ON_LEAVE, EmployeeStatus.PENDING_CONTRACT);
+
     private static final List<ApprovalStatus> OCCUPYING_STATUSES =
             List.of(ApprovalStatus.PENDING, ApprovalStatus.APPROVED);
 
@@ -108,6 +116,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
     private final TrainingSkillRepository trainingSkillRepository;
     private final TrainingClassEnrollmentRepository trainingClassEnrollmentRepository;
     private final EmploymentContractRepository employmentContractRepository;
+    private final PlatformTransactionManager transactionManager;
 
     @Override
     public WeeklyAvailabilityView getNextWeekAvailabilityGrid(AuthenticatedUser staff) {
@@ -382,34 +391,74 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
         }
     }
 
+    /**
+     * Mỗi đơn được duyệt trong một giao dịch riêng: đơn lỗi không làm hỏng các đơn còn lại.
+     * Chỉ xét đơn đang chờ có hiệu lực trong tuần đang xem (đúng các đơn hiển thị trên màn hình).
+     */
     @Override
-    @Transactional
-    public int reviewAllPendingRegistrations(boolean approved, AuthenticatedUser manager) {
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public ReviewAllResult reviewAllPendingRegistrations(boolean approved, AuthenticatedUser manager, LocalDate weekStart) {
         Store store = resolveManagerStore(manager);
+        LocalDate monday = weekStart == null ? null
+                : weekStart.with(java.time.temporal.TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         List<WorkAvailability> visible = workAvailabilityRepository.findVisibleByStore(
                 store.getId(), VietnamTime.today(), ApprovalStatus.PENDING);
-        LinkedHashSet<String> registrationKeys = new LinkedHashSet<>();
-        List<Integer> legacyIds = new ArrayList<>();
+        Map<String, String> registrationKeys = new LinkedHashMap<>();
+        Map<Integer, String> legacyIds = new LinkedHashMap<>();
         for (WorkAvailability availability : visible) {
             if (resolveStatus(availability.getStatus()) != ApprovalStatus.PENDING) {
                 continue;
             }
+            if (monday != null && !coversWeek(availability, monday)) {
+                continue;
+            }
+            String name = availability.getEmployee() != null && availability.getEmployee().getFullName() != null
+                    ? availability.getEmployee().getFullName() : "Nhân viên";
             if (availability.getRegistrationKey() != null && !availability.getRegistrationKey().isBlank()) {
-                registrationKeys.add(availability.getRegistrationKey());
+                registrationKeys.putIfAbsent(availability.getRegistrationKey(), name);
             } else if (availability.getId() != null) {
-                legacyIds.add(availability.getId());
+                legacyIds.putIfAbsent(availability.getId(), name);
             }
         }
         if (registrationKeys.isEmpty() && legacyIds.isEmpty()) {
-            throw new BusinessException("Không có đơn đang chờ duyệt.");
+            throw new BusinessException(monday == null
+                    ? "Không có đơn đang chờ duyệt."
+                    : "Không có đơn đang chờ duyệt trong tuần này.");
         }
-        for (String registrationKey : registrationKeys) {
-            reviewRegistration(registrationKey, approved, manager);
+        int reviewed = 0;
+        List<String> failures = new ArrayList<>();
+        for (Map.Entry<String, String> entry : registrationKeys.entrySet()) {
+            try {
+                inOwnTransaction(() -> reviewRegistration(entry.getKey(), approved, manager));
+                reviewed++;
+            } catch (BusinessException ex) {
+                failures.add(entry.getValue() + ": " + ex.getMessage());
+            }
         }
-        for (Integer availabilityId : legacyIds) {
-            reviewAvailability(availabilityId, approved, manager);
+        for (Map.Entry<Integer, String> entry : legacyIds.entrySet()) {
+            try {
+                inOwnTransaction(() -> reviewAvailability(entry.getKey(), approved, manager));
+                reviewed++;
+            } catch (BusinessException ex) {
+                failures.add(entry.getValue() + ": " + ex.getMessage());
+            }
         }
-        return registrationKeys.size() + legacyIds.size();
+        if (reviewed == 0) {
+            throw new BusinessException((approved ? "Không duyệt được đơn nào. " : "Không từ chối được đơn nào. ")
+                    + String.join(" | ", failures));
+        }
+        return new ReviewAllResult(reviewed, List.copyOf(failures));
+    }
+
+    /** Chạy một lần duyệt trong giao dịch mới; lỗi chỉ hoàn tác đúng đơn đó. */
+    private void inOwnTransaction(Runnable work) {
+        if (transactionManager == null) {
+            work.run();
+            return;
+        }
+        TransactionTemplate template = new TransactionTemplate(transactionManager);
+        template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        template.executeWithoutResult(status -> work.run());
     }
 
     @Override
@@ -953,6 +1002,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                     .positionName(positionName(first))
                     .activeInWeek(activeInWeek)
                     .slotKeys(slotKeys)
+                    .allocatedByManager(StaffAllocationServiceImpl.ALLOCATION_NOTE.equals(first.getNote()))
                     .submittedAt(group.stream()
                             .map(WorkAvailability::getCreatedAt)
                             .filter(Objects::nonNull)
@@ -1083,8 +1133,8 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
     }
 
     private int countStaffExcludingManager(Store store, Integer managerEmployeeId) {
-        long count = employeeRepository.countSchedulableStaff(
-                store.getId(), EmployeeStatus.ACTIVE, RoleName.STAFF, managerEmployeeId);
+        long count = employeeRepository.countStoreStaffInStatuses(
+                store.getId(), STORE_STAFF_STATUSES, RoleName.STAFF, managerEmployeeId);
         return count > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) count;
     }
 

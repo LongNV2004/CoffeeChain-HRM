@@ -357,7 +357,7 @@ class EmployeeServiceImplTest {
     void listsManagerBeforeStaffWithoutChangingStoredRoles() {
         Employee manager = employee(11, storeA, EmployeeStatus.ON_LEAVE);
         manager.setFullName("Zara Manager");
-        manager.setHasCertificate(true);
+        manager.setCertificationStatus(com.example.coffee_hrm.common.enums.CertificationStatus.CERTIFIED);
         manager.setUser(User.builder().id(101).role(managerRole).employee(manager).passwordHash("SECRET-HASH").build());
         staffEmployee.setFullName("Binh Staff");
         staffEmployee.setUser(staffUser);
@@ -621,8 +621,9 @@ class EmployeeServiceImplTest {
     }
 
     @Test
-    void profileUpdateKeepsCitizenIdUnlessANewValidValueIsProvided() {
+    void profileUpdateNeverChangesCitizenIdOrBirthDate() {
         staffEmployee.setCitizenId("079203000123");
+        staffEmployee.setDateOfBirth(LocalDate.of(2000, 5, 2));
         staffEmployee.setEmail("e10@x.vn");
         when(employeeRepository.findByIdWithStoreAndManager(10)).thenReturn(Optional.of(staffEmployee));
         UpdateEmployeeRequest request = UpdateEmployeeRequest.builder()
@@ -636,40 +637,28 @@ class EmployeeServiceImplTest {
                 .build();
 
         EmployeeResponse kept = employeeService.updateEmployee(admin, 1, 10, request);
+
         assertEquals("079203000123", staffEmployee.getCitizenId());
         assertEquals("079203000123", kept.getCitizenId());
-
-        request.setCitizenId("079203000999");
-        employeeService.updateEmployee(admin, 1, 10, request);
-        assertEquals("079203000999", staffEmployee.getCitizenId());
-
-        request.setCitizenId("12ab");
-        assertMessage(CitizenIds.INVALID_MESSAGE, () -> employeeService.updateEmployee(admin, 1, 10, request));
-        assertEquals("079203000999", staffEmployee.getCitizenId());
-
-        when(employeeRepository.existsByCitizenIdAndIdNot("079203000111", 10)).thenReturn(true);
-        request.setCitizenId("079203000111");
-        assertMessage(CitizenIds.DUPLICATE_MESSAGE, () -> employeeService.updateEmployee(admin, 1, 10, request));
-        assertEquals("079203000999", staffEmployee.getCitizenId());
+        assertEquals(LocalDate.of(2000, 5, 2), staffEmployee.getDateOfBirth());
+        assertEquals("An", staffEmployee.getFullName());
     }
 
     @Test
-    void onlyAdminCanChangeCitizenIdDirectly() {
-        staffEmployee.setCitizenId("079203000123");
+    void certificateFollowsTheCertificationStatusUsedForShifts() {
+        staffEmployee.setCertificationStatus(com.example.coffee_hrm.common.enums.CertificationStatus.CERTIFIED);
+        staffEmployee.setHasCertificate(false);
         when(employeeRepository.findByIdWithStoreAndManager(10)).thenReturn(Optional.of(staffEmployee));
+        when(storeRepository.findByIdWithManager(1)).thenReturn(Optional.of(storeA));
+        when(employeeRepository.findByIdWithStoreAccount(10)).thenReturn(Optional.of(staffEmployee));
 
-        assertMessage(EmployeeServiceImpl.ACCESS_DENIED,
-                () -> employeeService.updateCitizenId(actor(RoleName.MANAGER), 1, 10, "079203000111"));
-        assertMessage(EmployeeServiceImpl.ACCESS_DENIED,
-                () -> employeeService.updateCitizenId(actor(RoleName.STAFF), 1, 10, "079203000111"));
-        assertEquals("079203000123", staffEmployee.getCitizenId());
+        assertTrue(employeeService.getStoreEmployee(admin, 1, 10).isHasCertificate());
 
-        when(employeeRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        EmployeeResponse updated = employeeService.updateCitizenId(admin, 1, 10, "079 203 000 999");
-        assertEquals("079203000999", staffEmployee.getCitizenId());
-        assertEquals("079203000999", updated.getCitizenId());
-        assertEquals("Employee 10", staffEmployee.getFullName());
+        staffEmployee.setCertificationStatus(com.example.coffee_hrm.common.enums.CertificationStatus.NOTCERTIFIED);
+        staffEmployee.setHasCertificate(true);
+        assertFalse(employeeService.getStoreEmployee(admin, 1, 10).isHasCertificate());
     }
+
 
     @Test
     void adminTerminatesTheCurrentManagerContractImmediately() {
@@ -705,26 +694,6 @@ class EmployeeServiceImplTest {
         verify(accountMailService).sendResignationDecision(eq("e5@x.vn"), eq("Employee 5"), eq("Store A"), any());
     }
 
-    @Test
-    void adminUpdatesAndClearsDateOfBirth() {
-        when(employeeRepository.findByIdWithStoreAndManager(10)).thenReturn(Optional.of(staffEmployee));
-
-        EmployeeResponse updated = employeeService.updateDateOfBirth(admin, 1, 10, LocalDate.of(2000, 5, 2));
-        assertEquals(LocalDate.of(2000, 5, 2), staffEmployee.getDateOfBirth());
-        assertEquals(LocalDate.of(2000, 5, 2), updated.getDateOfBirth());
-
-        assertMessage(com.example.coffee_hrm.common.time.BirthDates.FUTURE_MESSAGE,
-                () -> employeeService.updateDateOfBirth(admin, 1, 10, VietnamTime.today().plusDays(3)));
-        assertEquals(LocalDate.of(2000, 5, 2), staffEmployee.getDateOfBirth());
-
-        employeeService.updateDateOfBirth(admin, 1, 10, null);
-        assertNull(staffEmployee.getDateOfBirth());
-
-        assertMessage(EmployeeServiceImpl.EMPLOYEE_NOT_IN_STORE,
-                () -> employeeService.updateDateOfBirth(admin, 2, 10, LocalDate.of(2000, 5, 2)));
-        assertMessage(EmployeeServiceImpl.ACCESS_DENIED,
-                () -> employeeService.updateDateOfBirth(actor(RoleName.MANAGER), 1, 10, LocalDate.of(2000, 5, 2)));
-    }
 
     @Test
     void staffWithoutContractInForceCannotBecomeManager() {

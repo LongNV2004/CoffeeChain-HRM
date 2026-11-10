@@ -51,13 +51,6 @@
                         th:classappend="${detail.employee.fullName == null or #strings.isEmpty(detail.employee.fullName)} ? ' is-placeholder'">Tên</dd>
                 </div>
                 <div>
-                    <dt>Ảnh đại diện</dt>
-                    <dd th:if="${detail.employee.avatarUrl != null and !#strings.isEmpty(detail.employee.avatarUrl)}">
-                        <img class="employee-detail-avatar" th:src="${detail.employee.avatarUrl}" alt="">
-                    </dd>
-                    <dd th:if="${detail.employee.avatarUrl == null or #strings.isEmpty(detail.employee.avatarUrl)}" class="is-placeholder">Chưa cập nhật</dd>
-                </div>
-                <div>
                     <dt>Email</dt>
                     <dd th:text="${detail.employee.email != null and !#strings.isEmpty(detail.employee.email) ? detail.employee.email : 'Chưa cập nhật'}"
                         th:classappend="${detail.employee.email == null or #strings.isEmpty(detail.employee.email)} ? ' is-placeholder'">Email</dd>

@@ -2,12 +2,14 @@ package com.example.coffee_hrm.controller;
 
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.time.VietnamTime;
+import com.example.coffee_hrm.dto.request.StaffAllocationForm;
 import com.example.coffee_hrm.dto.request.UpdateSlotStaffingBatchForm;
 import com.example.coffee_hrm.dto.request.UpdateSlotStaffingForm;
 import com.example.coffee_hrm.dto.response.SlotConfigTotals;
 import com.example.coffee_hrm.dto.response.SlotLimitUpdateResult;
 import com.example.coffee_hrm.dto.response.WeeklyAvailabilityView;
 import com.example.coffee_hrm.security.AuthenticatedUser;
+import com.example.coffee_hrm.service.StaffAllocationService;
 import com.example.coffee_hrm.service.StaffAvailabilityService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -35,6 +37,7 @@ import java.util.Map;
 public class ManagerAvailabilityController {
 
     private final StaffAvailabilityService staffAvailabilityService;
+    private final StaffAllocationService staffAllocationService;
 
     @GetMapping
     public String managerAvailabilityPage(@RequestParam(required = false) String week,
@@ -156,17 +159,70 @@ public class ManagerAvailabilityController {
                             @AuthenticationPrincipal AuthenticatedUser user,
                             RedirectAttributes redirectAttributes) {
         try {
-            int reviewed = staffAvailabilityService.reviewAllPendingRegistrations(approved, user);
-            redirectAttributes.addFlashAttribute("successMessage",
-                    approved
-                            ? "Đã duyệt tất cả " + reviewed
-                            + " đơn đang chờ. Mỗi nhân viên được duyệt theo đơn của chính họ; các ca đã được xếp vào lịch làm việc và nhân viên đã được thông báo."
-                            : "Đã từ chối tất cả " + reviewed
-                            + " đơn đang chờ. Đơn đã duyệt được giữ nguyên. Nhân viên của các đơn vừa từ chối đã được thông báo.");
+            LocalDate weekStart = week == null || week.isBlank() ? null : LocalDate.parse(week);
+            StaffAvailabilityService.ReviewAllResult result =
+                    staffAvailabilityService.reviewAllPendingRegistrations(approved, user, weekStart);
+            String done = approved
+                    ? "Đã duyệt " + result.reviewed()
+                    + " đơn đang chờ. Các ca trong đơn đã được xếp vào lịch làm việc và nhân viên đã được thông báo."
+                    : "Đã từ chối " + result.reviewed()
+                    + " đơn đang chờ. Đơn đã duyệt được giữ nguyên. Nhân viên của các đơn vừa từ chối đã được thông báo.";
+            if (result.failures().isEmpty()) {
+                redirectAttributes.addFlashAttribute("successMessage", done);
+            } else {
+                redirectAttributes.addFlashAttribute("warningMessage", done + " " + result.failures().size()
+                        + (approved ? " đơn chưa duyệt được: " : " đơn chưa từ chối được: ")
+                        + String.join(" | ", result.failures()));
+            }
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
+        } catch (DateTimeParseException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", "Tuần không hợp lệ.");
         }
         keepWeek(redirectAttributes, week);
+        return "redirect:/availability/manager";
+    }
+
+    /** Phân bổ nhân sự: danh sách nhân viên đủ điều kiện cho modal, không ghi dữ liệu. */
+    @GetMapping("/allocation")
+    public String allocationPanel(@RequestParam(required = false) String week,
+                                  @AuthenticationPrincipal AuthenticatedUser user,
+                                  Model model) {
+        try {
+            LocalDate weekStart = week == null || week.isBlank() ? null : LocalDate.parse(week);
+            model.addAttribute("roster", staffAllocationService.roster(user, weekStart));
+            model.addAttribute("rosterError", null);
+        } catch (BusinessException ex) {
+            model.addAttribute("roster", null);
+            model.addAttribute("rosterError", ex.getMessage());
+        } catch (DateTimeParseException ex) {
+            model.addAttribute("roster", null);
+            model.addAttribute("rosterError", "Tuần không hợp lệ.");
+        }
+        return "manager/StaffAllocationPanel :: panel";
+    }
+
+    /** Phân bổ: các nhân viên đã chọn được xếp thẳng vào ca còn thiếu người; máy chủ kiểm tra lại điều kiện. */
+    @PostMapping("/allocation")
+    public String allocate(@ModelAttribute StaffAllocationForm form,
+                           @AuthenticationPrincipal AuthenticatedUser user,
+                           RedirectAttributes redirectAttributes) {
+        try {
+            LocalDate weekStart = form.getWeek() == null || form.getWeek().isBlank()
+                    ? null : LocalDate.parse(form.getWeek());
+            StaffAllocationService.Outcome outcome =
+                    staffAllocationService.allocate(user, weekStart, form.getEmployeeIds());
+            redirectAttributes.addFlashAttribute("successMessage", "Đã phân bổ " + outcome.shifts() + " ca cho "
+                    + outcome.employees() + " nhân viên vào các ca còn thiếu người. "
+                    + "Các ca đã được xếp vào lịch làm việc và nhân viên đã được thông báo.");
+            redirectAttributes.addAttribute("week", outcome.weekStart().toString());
+            return "redirect:/availability/manager";
+        } catch (BusinessException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
+        } catch (DateTimeParseException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", "Tuần không hợp lệ.");
+        }
+        keepWeek(redirectAttributes, form.getWeek());
         return "redirect:/availability/manager";
     }
 

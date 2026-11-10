@@ -117,8 +117,21 @@ class ContractRenewalServiceImplTest {
     }
 
     @Test
-    void renewalStartingTodayExpiresTheSourceAndKeepsItsFile() {
-        EmploymentContractResponse response = service.renew(manager, 8, request(today, today.plusMonths(6)), pdf());
+    void renewalMustStartAfterTheOldContractEnds() {
+        // Hợp đồng cũ hết hạn today+5: ngày bắt đầu mới phải từ today+6.
+        for (LocalDate start : List.of(today, today.plusDays(3), today.plusDays(5))) {
+            BusinessException error = assertThrows(BusinessException.class,
+                    () -> service.renew(manager, 8, request(start, start.plusMonths(6)), pdf()));
+            assertTrue(error.getMessage().contains("phải sau ngày hết hạn của hợp đồng cũ"), error.getMessage());
+            assertTrue(error.getMessage().contains(today.plusDays(6).format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))));
+        }
+        assertEquals(0, storedFiles());
+        verify(contracts, never()).saveAndFlush(any(EmploymentContract.class));
+    }
+
+    @Test
+    void renewalStartingTheDayAfterTheOldEndKeepsTheSourceAndItsFile() {
+        EmploymentContractResponse response = service.renew(manager, 8, request(today.plusDays(6), today.plusMonths(6)), pdf());
 
         assertEquals(21, response.getId());
         assertTrue(response.getContractCode().startsWith("HD"));
@@ -133,7 +146,7 @@ class ContractRenewalServiceImplTest {
 
     @Test
     void futureRenewalDoesNotChangeTheSourceYet() {
-        EmploymentContract created = captureSaved(today.plusDays(4));
+        EmploymentContract created = captureSaved(today.plusDays(6));
 
         assertNull(source.getSupersededDate());
         assertEquals(ContractValidityStatus.DA_GIA_HAN, ContractValidityRules.resolve(source, today, true));
@@ -195,7 +208,7 @@ class ContractRenewalServiceImplTest {
 
         when(contracts.saveAndFlush(any(EmploymentContract.class))).thenThrow(new DataIntegrityViolationException("trùng"));
         BusinessException duplicate = assertThrows(BusinessException.class,
-                () -> service.renew(manager, 8, request(today, today.plusMonths(1)), pdf()));
+                () -> service.renew(manager, 8, request(today.plusDays(6), today.plusMonths(2)), pdf()));
         assertTrue(duplicate.getMessage().contains("đã được gia hạn"));
         assertEquals(0, storedFiles());
         verify(notifications, never()).notifyUsers(any(), any(), any(), any(), any(), any());
@@ -257,7 +270,12 @@ class ContractRenewalServiceImplTest {
         source.setEndDate(today.plusMonths(3));
         assertEquals(ContractValidityStatus.DANG_HIEU_LUC, ContractValidityRules.resolve(source, today));
 
-        EmploymentContractResponse response = service.renew(manager, 8, request(today.plusDays(1), today.plusMonths(7)), pdf());
+        BusinessException overlapping = assertThrows(BusinessException.class,
+                () -> service.renew(manager, 8, request(today.plusDays(1), today.plusMonths(7)), pdf()));
+        assertTrue(overlapping.getMessage().contains("phải sau ngày hết hạn của hợp đồng cũ"));
+
+        EmploymentContractResponse response = service.renew(manager, 8,
+                request(today.plusMonths(3).plusDays(1), today.plusMonths(9)), pdf());
 
         assertEquals(21, response.getId());
         assertEquals(ContractValidityStatus.DA_GIA_HAN, ContractValidityRules.resolve(source, today, true));
@@ -309,7 +327,7 @@ class ContractRenewalServiceImplTest {
         when(ocr.requireAccepted(any(), any(), eq(managerEmployee)))
                 .thenReturn(new ContractOcrService.Acceptance("hash", "DAT"));
 
-        CreateEmploymentContractRequest renewRequest = request(today.plusDays(2), today.plusMonths(8));
+        CreateEmploymentContractRequest renewRequest = request(today.plusDays(6), today.plusMonths(8));
         renewRequest.setEmployeeId(50);
         EmploymentContractResponse renewed = service.renew(admin, 11, renewRequest, pdf());
         assertEquals(21, renewed.getId());

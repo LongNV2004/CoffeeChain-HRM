@@ -26,17 +26,9 @@ public interface EmployeeService {
     /**
      * Chỉ Admin sửa CCCD. Các trường hồ sơ khác không bị đổi.
      */
-    EmployeeResponse updateCitizenId(
-            AuthenticatedUser actor,
-            Integer storeId,
-            Integer employeeId,
-            String citizenId
-    );
     /**
      * Admin cập nhật ngày sinh trong hồ sơ nhân viên; {@code null} xóa ngày sinh đã lưu.
      */
-    EmployeeResponse updateDateOfBirth(AuthenticatedUser actor, Integer storeId, Integer employeeId,
-                                       java.time.LocalDate dateOfBirth);
 
     EmployeeResponse changeEmployeeRole(AuthenticatedUser actor, Integer storeId, Integer employeeId, String role);
 

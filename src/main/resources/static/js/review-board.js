@@ -483,3 +483,170 @@
         return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     }
 })();
+
+/* Phân bổ nhân sự: mở modal ngay trên trang, nạp nhân viên đủ điều kiện từ máy chủ; chỉ ghi dữ liệu khi bấm Phân bổ. */
+(function () {
+    "use strict";
+    var openBtn = document.getElementById("saOpen");
+    var modal = document.getElementById("saModal");
+    var body = document.getElementById("saBody");
+    if (!openBtn || !modal || !body) return;
+    var PAGE_SIZE = 8;
+    var lastTrigger = null;
+
+    openBtn.addEventListener("click", function () {
+        lastTrigger = openBtn;
+        modal.hidden = false;
+        document.body.classList.add("rv-modal-open");
+        load();
+        var card = modal.querySelector(".rv-modal-card");
+        if (card) card.focus();
+    });
+
+    modal.addEventListener("click", function (event) {
+        if (event.target.closest("[data-sa-close]")) close();
+        if (event.target.closest("[data-sa-retry]")) load();
+    });
+
+    document.addEventListener("keydown", function (event) {
+        if (event.key !== "Escape" || modal.hidden) return;
+        if (document.body.classList.contains("coffee-dialog-open")) return;
+        close();
+    });
+
+    function close() {
+        modal.hidden = true;
+        document.body.classList.remove("rv-modal-open");
+        if (lastTrigger) lastTrigger.focus();
+    }
+
+    function load() {
+        body.innerHTML = '<p class="sa-loading" role="status">Đang tìm nhân viên đủ điều kiện phân bổ…</p>';
+        fetch(openBtn.getAttribute("data-url"), {
+            credentials: "same-origin",
+            headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "text/html" }
+        }).then(function (response) {
+            if (!response.ok) throw new Error("HTTP " + response.status);
+            return response.text();
+        }).then(function (html) {
+            if (html.indexOf("sa-panel") < 0) throw new Error("unexpected");
+            body.innerHTML = html;
+            wire();
+        }).catch(function () {
+            body.innerHTML = '<p class="rv-flash error" role="alert">Không tải được danh sách nhân viên. Phiên đăng nhập có thể đã hết hạn hoặc mạng gián đoạn.</p>'
+                + '<footer class="rv-modal-foot"><button type="button" class="rv-btn rv-btn-ghost" data-sa-close>Đóng</button>'
+                + '<button type="button" class="rv-btn rv-btn-primary" data-sa-retry>Thử lại</button></footer>';
+        });
+    }
+
+    function wire() {
+        var form = document.getElementById("saForm");
+        var confirm = document.getElementById("saConfirm");
+        if (!form || !confirm) return;
+        var rows = toArray(form.querySelectorAll(".sa-row"));
+        var picks = toArray(form.querySelectorAll(".sa-pick"));
+        var search = document.getElementById("saSearch");
+        var contract = document.getElementById("saContract");
+        var registration = document.getElementById("saRegistration");
+        var eligibility = document.getElementById("saEligibility");
+        var selected = document.getElementById("saSelected");
+        var noMatch = document.getElementById("saNoMatch");
+        var pager = document.getElementById("saPager");
+        var pageInfo = document.getElementById("saPageInfo");
+        var page = 1;
+
+        [search, contract, registration, eligibility].forEach(function (field) {
+            if (!field) return;
+            field.addEventListener(field.tagName === "INPUT" ? "input" : "change", function () {
+                page = 1;
+                render();
+            });
+        });
+        picks.forEach(function (box) { box.addEventListener("change", refreshSelection); });
+
+        var selectAll = document.getElementById("saSelectAll");
+        if (selectAll) {
+            selectAll.addEventListener("click", function () {
+                picks.forEach(function (box) { if (!box.disabled) box.checked = true; });
+                refreshSelection();
+            });
+        }
+        var clear = document.getElementById("saClear");
+        if (clear) {
+            clear.addEventListener("click", function () {
+                picks.forEach(function (box) { box.checked = false; });
+                refreshSelection();
+            });
+        }
+        var prev = document.getElementById("saPrev");
+        var next = document.getElementById("saNext");
+        if (prev) prev.addEventListener("click", function () { page -= 1; render(); });
+        if (next) next.addEventListener("click", function () { page += 1; render(); });
+
+        form.addEventListener("submit", function (event) {
+            // Không phân bổ khi chưa chọn ai.
+            if (chosen().length === 0) {
+                event.preventDefault();
+                refreshSelection();
+            }
+        });
+
+        render();
+        refreshSelection();
+
+        function matches(row) {
+            var text = normalize(search ? search.value : "").trim();
+            if (text) {
+                var hay = normalize(row.getAttribute("data-name") + " " + row.getAttribute("data-code"));
+                if (hay.indexOf(text) < 0) return false;
+            }
+            if (contract && contract.value && row.getAttribute("data-contract") !== contract.value) return false;
+            if (registration && registration.value && row.getAttribute("data-registration") !== registration.value) return false;
+            if (eligibility && eligibility.value && row.getAttribute("data-eligible") !== eligibility.value) return false;
+            return true;
+        }
+
+        function render() {
+            var visible = rows.filter(matches);
+            var pages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+            page = Math.min(Math.max(1, page), pages);
+            var from = (page - 1) * PAGE_SIZE;
+            rows.forEach(function (row) { row.hidden = true; });
+            visible.forEach(function (row, index) { row.hidden = index < from || index >= from + PAGE_SIZE; });
+            if (noMatch) noMatch.hidden = visible.length > 0;
+            if (pager) {
+                pager.hidden = pages <= 1;
+                if (pageInfo) pageInfo.textContent = "Trang " + page + "/" + pages + " · " + visible.length + " nhân viên";
+                if (prev) prev.disabled = page <= 1;
+                if (next) next.disabled = page >= pages;
+            }
+        }
+
+        function chosen() {
+            return picks.filter(function (box) { return box.checked && !box.disabled; });
+        }
+
+        function refreshSelection() {
+            var list = chosen();
+            if (selected) selected.textContent = "Đã chọn " + list.length + " nhân viên";
+            confirm.disabled = list.length === 0;
+            var names = list.map(function (box) { return box.getAttribute("data-name"); });
+            confirm.setAttribute("data-coffee-confirm", list.length === 0
+                ? "Chưa chọn nhân viên nào."
+                : "Phân bổ " + list.length + " nhân viên: " + names.join(", ")
+                + ". Hệ thống sẽ tự xếp mỗi người vào các ca còn thiếu người, đủ số ca còn thiếu theo hợp đồng, và đưa thẳng vào lịch làm việc.");
+            rows.forEach(function (row) {
+                var box = row.querySelector(".sa-pick");
+                row.classList.toggle("is-selected", !!(box && box.checked));
+            });
+        }
+    }
+
+    function normalize(value) {
+        return (value || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d");
+    }
+
+    function toArray(list) {
+        return Array.prototype.slice.call(list);
+    }
+})();
