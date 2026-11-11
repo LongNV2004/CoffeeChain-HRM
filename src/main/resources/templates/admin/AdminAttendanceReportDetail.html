@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chi tiết báo cáo chấm công — CoffeeHRM</title>
+    <title>Chi tiết báo cáo cửa hàng — CoffeeHRM</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/AttendanceHistory.css}">
@@ -14,8 +14,8 @@
 <main class="wrap dash-main">
     <section class="welcome">
         <div class="eyebrow">Admin</div>
-        <h1>Chi tiết báo cáo chấm công</h1>
-        <p><a th:href="@{/attendance/admin/reports}">Quay lại danh sách</a></p>
+        <h1>Chi tiết báo cáo cửa hàng</h1>
+        <p><a th:href="@{/attendance/admin/reports(year=${detail != null ? detail.year : null},month=${detail != null ? detail.month : null})}">Quay lại danh sách báo cáo</a></p>
     </section>
 
     <p class="flash-ok" th:if="${success}" th:text="${success}">Đã cập nhật</p>
@@ -51,24 +51,33 @@
                     <td><span class="status-tag" th:classappend="${detail.statusCss}" th:text="${detail.statusLabel}">Đang chờ</span></td>
                 </tr>
                 <tr th:if="${detail.reviewNote != null and !#strings.isEmpty(detail.reviewNote)}">
-                    <th>Lý do yêu cầu gửi lại</th>
+                    <th>Lý do trả lại</th>
                     <td th:text="${detail.reviewNote}">Cần kiểm tra lại</td>
                 </tr>
                 </tbody>
             </table>
         </div>
         <p class="note" th:if="${detail.stale}">Dữ liệu chấm công đã thay đổi sau lần gửi. Quản lý có thể gửi lại.</p>
-        <p th:if="${detail.submitted}">
-            <a class="secondary-btn" th:href="@{/attendance/admin/reports/{id}/excel(id=${detail.reportId})}">Tải file Excel</a>
-        </p>
         <div class="report-actions" th:if="${detail.submitted and detail.statusCode != 'REVISION'}">
-            <form method="post" th:action="@{/attendance/admin/reports/{id}/revision(id=${detail.reportId})}">
+            <form method="post" th:if="${detail.statusCode == 'WAITING'}"
+                  th:action="@{/attendance/admin/reports/{id}/approve(id=${detail.reportId})}"
+                  data-coffee-title="Duyệt báo cáo"
+                  data-coffee-ok="Duyệt"
+                  th:attr="data-coffee-confirm=${'Duyệt báo cáo chấm công và lương ' + detail.periodLabel + ' của ' + detail.storeName + '? Sau khi duyệt có thể thanh toán lương cho nhân viên.'}">
+                <button class="primary-btn" type="submit">Duyệt báo cáo</button>
+            </form>
+            <form method="post" th:if="${payroll == null or #lists.isEmpty(payroll.payments)}"
+                  th:action="@{/attendance/admin/reports/{id}/revision(id=${detail.reportId})}"
+                  data-coffee-title="Trả lại báo cáo"
+                  data-coffee-ok="Trả lại"
+                  data-coffee-confirm="Trả lại báo cáo cho Manager? Manager sẽ được tính lại lương và gửi lại.">
                 <input type="hidden" name="year" th:value="${detail.year}">
                 <input type="hidden" name="month" th:value="${detail.month}">
                 <input type="hidden" name="back" value="detail">
-                <input type="text" name="note" maxlength="500" placeholder="Lý do gửi lại">
-                <button class="danger-btn" type="submit">Yêu cầu gửi lại</button>
+                <input type="text" name="note" maxlength="500" placeholder="Lý do trả lại">
+                <button class="danger-btn" type="submit">Trả lại báo cáo</button>
             </form>
+            <p class="note" th:if="${payroll != null and !#lists.isEmpty(payroll.payments)}">Báo cáo đã có giao dịch thanh toán nên không trả lại được.</p>
         </div>
     </section>
 
@@ -96,8 +105,165 @@
         <p class="note">Slot đã làm là từng ca có check-in và không vắng. Tổng slot đã làm cộng slot của từng nhân viên. Slot vi phạm gồm đi muộn và về sớm. Thiếu chấm công là từng slot có trạng thái vắng. Ngày không có slot không được tính là thiếu chấm công.</p>
     </section>
 
+    <section class="panel pay-board" id="bang-luong" th:if="${detail != null}">
+        <h2>B. Bảng lương và thanh toán</h2>
+        <p class="flash" th:if="${payrollError}" th:text="${payrollError}">Lỗi bảng lương</p>
+        <th:block th:if="${payroll != null}">
+            <p class="note">
+                Bảng lương <span th:text="${payroll.payrollStatusLabel.toLowerCase()}">đã chốt</span> khi Manager gửi báo cáo.
+                Tiền được chuyển khoản hoặc trả tiền mặt ngoài hệ thống; CoffeeHRM ghi nhận giao dịch sau khi Admin xác nhận.
+            </p>
+            <section class="summary">
+                <article>
+                    <div class="label">Nhân viên</div>
+                    <div class="value" th:text="${payroll.employeeCount}">0</div>
+                </article>
+                <article>
+                    <div class="label">Tổng lương cần thanh toán</div>
+                    <div class="value pay-money" th:text="${payroll.totalLabel}">0 đ</div>
+                </article>
+                <article>
+                    <div class="label">Đã thanh toán</div>
+                    <div class="value pay-money" th:text="${payroll.paidLabel}">0 đ</div>
+                </article>
+                <article>
+                    <div class="label">Còn phải trả</div>
+                    <div class="value pay-money" th:text="${payroll.remainingLabel}">0 đ</div>
+                </article>
+                <article>
+                    <div class="label">Trạng thái thanh toán</div>
+                    <div class="value"><span class="pay-badge" th:classappend="${payroll.paymentStatusKey}"
+                                             th:text="${payroll.paymentStatusLabel}">Chưa thanh toán</span></div>
+                </article>
+            </section>
+            <p class="pay-note" th:if="${!payroll.canPay and payroll.payBlockedReason != null}"
+               th:text="${payroll.payBlockedReason}">Chỉ thanh toán được báo cáo đã được duyệt.</p>
+
+            <details class="pay-form-box" th:if="${payroll.canPay}">
+                <summary class="primary-btn"
+                         th:text="${'Thanh toán toàn bộ (' + payroll.remainingLabel + ' cho ' + payroll.unpaidCount + ' nhân viên)'}">Thanh toán toàn bộ</summary>
+                <form class="pay-form" method="post" enctype="multipart/form-data"
+                      th:action="@{/attendance/admin/reports/{id}/pay-all(id=${payroll.reportId})}"
+                      data-coffee-title="Thanh toán toàn bộ báo cáo"
+                      data-coffee-ok="Xác nhận thanh toán"
+                      th:attr="data-coffee-confirm=${'Xác nhận đã trả ' + payroll.remainingLabel + ' cho ' + payroll.unpaidCount + ' nhân viên còn nợ trong báo cáo ' + payroll.storeName + ' · ' + payroll.periodLabel.toLowerCase() + '? Mỗi nhân viên được ghi nhận một giao dịch bằng đúng số còn phải trả.'}">
+                    <input type="hidden" name="requestKey" th:value="${payroll.requestKey}">
+                    <input type="hidden" name="expectedTotal" th:value="${payroll.remaining.toPlainString()}">
+                    <input type="hidden" name="expectedCount" th:value="${payroll.unpaidCount}">
+                    <p class="pay-sum">
+                        Số tiền: <strong th:text="${payroll.remainingLabel}">0 đ</strong>
+                        · Số nhân viên được thanh toán: <strong th:text="${payroll.unpaidCount}">0</strong>
+                    </p>
+                    <label>Phương thức thanh toán
+                        <select name="method" required>
+                            <option value="CHUYEN_KHOAN">Chuyển khoản</option>
+                            <option value="TIEN_MAT">Tiền mặt</option>
+                        </select>
+                    </label>
+                    <label>Ngày thanh toán
+                        <input type="date" name="paidDate" required th:value="${payroll.today}" th:max="${payroll.today}">
+                    </label>
+                    <label>Mã giao dịch (không bắt buộc)
+                        <input type="text" name="transactionCode" maxlength="100">
+                    </label>
+                    <label>Minh chứng thanh toán (JPG, PNG, PDF ≤ 2MB)
+                        <input type="file" name="proof" accept=".jpg,.jpeg,.png,.pdf">
+                    </label>
+                    <label class="pay-wide">Ghi chú
+                        <input type="text" name="note" maxlength="500">
+                    </label>
+                    <button class="primary-btn" type="submit">Xác nhận thanh toán toàn bộ</button>
+                </form>
+            </details>
+
+            <h3>Bảng lương nhân viên</h3>
+            <p class="day-empty" th:if="${#lists.isEmpty(payroll.employees)}">Bảng lương không có nhân viên nào.</p>
+            <div class="table-wrap" th:if="${!#lists.isEmpty(payroll.employees)}">
+                <table class="pay-table">
+                    <thead>
+                    <tr>
+                        <th>Mã NV</th>
+                        <th>Tên nhân viên</th>
+                        <th>Chức vụ</th>
+                        <th class="num">Tổng ca</th>
+                        <th class="num">Ca đã chấm công</th>
+                        <th class="num">Lương cơ bản</th>
+                        <th class="num">Phụ cấp</th>
+                        <th class="num">Khấu trừ</th>
+                        <th class="num">Thực nhận</th>
+                        <th class="num">Đã thanh toán</th>
+                        <th class="num">Còn phải trả</th>
+                        <th>Trạng thái</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="row : ${payroll.employees}">
+                        <td th:text="${row.employeeCode}">NV001</td>
+                        <td class="pay-name" th:text="${row.employeeName}">Lê Thị Thu</td>
+                        <td th:text="${row.position}">Nhân viên</td>
+                        <td class="num" th:text="${row.assignedShifts}">0</td>
+                        <td class="num" th:text="${row.attendedShifts}">0</td>
+                        <td class="num" th:text="${row.baseLabel}">0 đ</td>
+                        <td class="num" th:text="${row.allowanceLabel}">0 đ</td>
+                        <td class="num" th:text="${row.deductionLabel}">0 đ</td>
+                        <td class="num"><strong th:text="${row.netLabel}">0 đ</strong></td>
+                        <td class="num" th:text="${row.paidLabel}">0 đ</td>
+                        <td class="num" th:text="${row.remainingLabel}">0 đ</td>
+                        <td>
+                            <span class="pay-muted" th:if="${row.noSalary}">Không phát sinh lương</span>
+                            <span class="pay-badge" th:unless="${row.noSalary}" th:classappend="${row.paymentStatusKey}"
+                                  th:text="${row.paymentStatusLabel}">Chưa thanh toán</span>
+                        </td>
+                        <td>
+                            <a class="ops-link"
+                               th:href="@{/attendance/admin/reports/{id}/payroll/{e}(id=${payroll.reportId},e=${row.employeeId})}"
+                               th:text="${payroll.canPay and row.owed} ? 'Chi tiết / Thanh toán' : 'Chi tiết'">Chi tiết</a>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h3>Lịch sử thanh toán</h3>
+            <p class="day-empty" th:if="${#lists.isEmpty(payroll.payments)}">Chưa có giao dịch thanh toán nào.</p>
+            <div class="table-wrap" th:if="${!#lists.isEmpty(payroll.payments)}">
+                <table class="pay-table">
+                    <thead>
+                    <tr>
+                        <th>Ngày thanh toán</th>
+                        <th>Nhân viên</th>
+                        <th class="num">Số tiền</th>
+                        <th>Phương thức</th>
+                        <th>Mã giao dịch</th>
+                        <th>Minh chứng</th>
+                        <th>Admin xác nhận</th>
+                        <th>Ghi chú</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="pay : ${payroll.payments}">
+                        <td th:text="${#temporals.format(pay.paidDate, 'dd/MM/yyyy')}">10/11/2026</td>
+                        <td class="pay-name" th:text="${pay.employeeCode + ' — ' + pay.employeeName}">NV001 — Lê Thị Thu</td>
+                        <td class="num" th:text="${pay.amountLabel}">0 đ</td>
+                        <td th:text="${pay.methodLabel}">Chuyển khoản</td>
+                        <td th:text="${#strings.isEmpty(pay.transactionCode) ? '—' : pay.transactionCode}">—</td>
+                        <td>
+                            <a class="ops-link" th:if="${pay.hasProof}" target="_blank" rel="noopener"
+                               th:href="@{/attendance/admin/reports/{id}/payments/{p}/proof(id=${payroll.reportId},p=${pay.paymentId})}">Xem</a>
+                            <span th:unless="${pay.hasProof}">—</span>
+                        </td>
+                        <td th:text="${#strings.isEmpty(pay.paidByName) ? '—' : pay.paidByName}">Admin</td>
+                        <td class="pay-name" th:text="${#strings.isEmpty(pay.note) ? '—' : pay.note}">—</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </th:block>
+    </section>
+
     <section class="panel attn-screen report-staff" id="reportStaff" th:if="${detail != null}">
-        <h2>B. Lịch sử chấm công theo nhân viên</h2>
+        <h2>C. Lịch sử chấm công theo nhân viên</h2>
         <p class="note">Mỗi thẻ là một nhân viên trong tháng báo cáo. Bấm xem chi tiết để mở từng ca làm và buổi đào tạo.</p>
         <label class="day-search">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg>
@@ -143,6 +309,7 @@
                 <div class="slot-absent">
                     <span>Thiếu chấm công</span>
                     <strong th:text="${employee.absentRecords + ' slot'}">0 slot</strong>
+                    <span class="slot-leave">Nghỉ phép: <b th:text="${employee.leaveLabel()}">0</b></span>
                 </div>
                 <button type="button" class="month-detail" th:attr="data-dialog=|report-emp-${employee.employeeId}|">Xem chi tiết</button>
             </article>

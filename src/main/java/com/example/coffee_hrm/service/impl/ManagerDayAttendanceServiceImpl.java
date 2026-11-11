@@ -25,6 +25,7 @@ import com.example.coffee_hrm.repository.TrainingAttendanceRepository;
 import com.example.coffee_hrm.repository.TrainingClassEnrollmentRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.ManagerDayAttendanceService;
+import com.example.coffee_hrm.service.support.PeriodLeave;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -192,7 +193,9 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
         LocalDate start = selected.atDay(1);
         LocalDate end = selected.atEndOfMonth();
         List<Employee> roster = employeeRepository.findByStoreIdWithAccount(store.getId()).stream()
-                .filter(employee -> employee.getStatus() != EmployeeStatus.TERMINATED)
+                // Chỉ nhân viên đang làm việc (gồm đang nghỉ phép); bỏ người chờ hợp đồng và đã nghỉ việc.
+                .filter(employee -> employee.getStatus() == EmployeeStatus.ACTIVE
+                        || employee.getStatus() == EmployeeStatus.ON_LEAVE)
                 .sorted((left, right) -> {
                     String leftName = left.getFullName() == null ? "" : left.getFullName();
                     String rightName = right.getFullName() == null ? "" : right.getFullName();
@@ -273,8 +276,17 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
             }
             stats.computeIfAbsent(assignment.getEmployee().getId(), ignored -> new MonthStats()).missingSlots++;
         }
+        // Nghỉ phép đã duyệt: cùng nguồn PeriodLeave với báo cáo và bảng lương, không trùng ca làm/chấm công.
+        List<PeriodLeave.Slot> leaveSlots = PeriodLeave.collect(
+                shiftAssignmentRepository.findApprovedLeaveSlotsForStoreBetween(store.getId(), start, end),
+                assignments, records);
+        Map<Integer, PeriodLeave.Summary> leaveByEmployee = PeriodLeave.byEmployee(leaveSlots);
+        for (PeriodLeave.Slot slot : leaveSlots) {
+            lines.computeIfAbsent(slot.employeeId(), ignored -> new ArrayList<>()).add(leaveLine(slot));
+        }
         List<ManagerMonthAttendanceView.EmployeeMonth> employees = new ArrayList<>();
         int scheduledTotal = 0;
+        int leaveTotal = 0;
         int completedTotal = 0;
         int lateTotal = 0;
         int earlyTotal = 0;
@@ -287,6 +299,8 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
             lateTotal += row.lateSlots;
             earlyTotal += row.earlySlots;
             missingTotal += row.missingSlots;
+            PeriodLeave.Summary leave = leaveByEmployee.getOrDefault(employee.getId(), PeriodLeave.Summary.NONE);
+            leaveTotal += leave.slots();
             List<ManagerMonthAttendanceView.DayLine> days = lines.getOrDefault(employee.getId(), List.of()).stream()
                     .sorted(Comparator.comparing(MonthLine::date).thenComparing(MonthLine::start, Comparator.nullsLast(Comparator.naturalOrder())))
                     .map(MonthLine::line)
@@ -312,6 +326,10 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
                     .earlyDurationLabel(durationLabel(row.earlyMinutes))
                     .late(row.lateSlots > 0)
                     .early(row.earlySlots > 0)
+                    .leaveSlots(leave.slots())
+                    .leaveDays(leave.days())
+                    .paidLeaveSlots(leave.paidSlots())
+                    .leaveLabel(leave.label())
                     .days(days)
                     .build());
         }
@@ -329,6 +347,7 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
                 .lateSlots(lateTotal)
                 .earlySlots(earlyTotal)
                 .missingSlots(missingTotal)
+                .leaveSlots(leaveTotal)
                 .detailFrom(start.toString())
                 .detailTo(detailTo.toString())
                 .detailReady(!start.isAfter(detailTo))
@@ -702,6 +721,25 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
                 .absent(absent)
                 .build();
         return new MonthLine(attendance.getWorkDate() == null ? LocalDate.MIN : attendance.getWorkDate(), start, line);
+    }
+
+    private MonthLine leaveLine(PeriodLeave.Slot slot) {
+        String schedule = slot.start() == null || slot.end() == null
+                ? "—"
+                : slot.start().format(SCHEDULE_FORMATTER) + " – " + slot.end().format(SCHEDULE_FORMATTER);
+        return new MonthLine(slot.workDate(), slot.start(), ManagerMonthAttendanceView.DayLine.builder()
+                .dateLabel(slot.workDate().format(DAY_FORMATTER))
+                .shiftName(slot.shiftName() == null || slot.shiftName().isBlank() ? "Ca làm" : slot.shiftName())
+                .scheduleLabel(schedule)
+                .checkInLabel("—")
+                .checkOutLabel("—")
+                .lateLabel("—")
+                .earlyLabel("—")
+                .workedLabel(slot.paid() ? "Nghỉ có hưởng lương" : "Nghỉ không hưởng lương")
+                .statusKey("leave")
+                .statusLabel(slot.label())
+                .leave(true)
+                .build());
     }
 
     private record MonthLine(LocalDate date, LocalTime start, ManagerMonthAttendanceView.DayLine line) {

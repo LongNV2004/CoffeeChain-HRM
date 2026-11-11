@@ -25,6 +25,12 @@ public class WeeklyScheduleView {
     private List<DayHeader> days;
     private List<ShiftRow> shiftRows;
     private List<EmployeeOption> storeEmployees;
+    /**
+     * Staff còn thuộc cửa hàng cho hộp Phân ca của Manager, kể cả người chưa đủ điều kiện
+     * (hiển thị nhưng khóa, kèm lý do). Chỉ có ở màn hình Manager.
+     */
+    @Builder.Default
+    private List<EmployeeOption> assignOptions = new java.util.ArrayList<>();
     private List<ColleagueShiftOption> colleagueShifts;
     private List<ShiftChangeItem> pendingShiftChanges;
     private List<ShiftChangeItem> incomingRequests;
@@ -119,6 +125,12 @@ public class WeeklyScheduleView {
         private int reliabilityScore = 100;
         private String reliabilityTierLabel;
         private boolean prioritySchedule;
+        /** Lý do không thể phân ca (chưa có hợp đồng, chứng chỉ...). {@code null} khi có thể phân ca. */
+        private String assignBlockReason;
+        /** Ngày đầu tiên còn được làm theo hợp đồng hiện tại hoặc sắp tới. */
+        private java.time.LocalDate contractFrom;
+        /** Ngày cuối được làm theo hợp đồng; {@code null} khi không xác định thời hạn. */
+        private java.time.LocalDate contractTo;
     }
 
     @Getter

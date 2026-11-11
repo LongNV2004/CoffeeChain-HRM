@@ -42,7 +42,7 @@
                 <span class="store-btn store-btn--secondary is-disabled" th:if="${card.actionHref == null}"
                       th:text="${card.actionLabel}">Chưa gửi</span>
                 <a class="store-btn store-btn--secondary" th:if="${card.secondaryHref != null}"
-                   th:href="${card.secondaryHref}" th:text="${card.secondaryLabel}">Tải Excel</a>
+                   th:href="${card.secondaryHref}" th:text="${card.secondaryLabel}">Xem thêm</a>
                 <form class="chain-store-revise" method="post" th:if="${card.canRevise}"
                       th:action="@{/attendance/admin/reports/{id}/revision(id=${card.reportId})}">
                     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">

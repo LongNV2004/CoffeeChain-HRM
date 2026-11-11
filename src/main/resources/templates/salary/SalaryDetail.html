@@ -14,7 +14,7 @@
     <header th:replace="~{fragments/navbar :: admin('salary')}"></header>
 </th:block>
 <th:block th:if="${navRole == 'manager'}">
-    <header th:replace="~{fragments/navbar :: manager('salary')}"></header>
+    <header th:replace="~{fragments/navbar :: manager('attendance-month')}"></header>
 </th:block>
 <th:block th:if="${navRole == 'staff'}">
     <header th:replace="~{fragments/navbar :: staff('salary')}"></header>
@@ -29,6 +29,7 @@
 
     <p class="salary-note" th:if="${detail.locked}">Bảng lương đã chốt. Số giờ và mức lương/giờ của kỳ này không đổi khi hợp đồng thay đổi sau đó.</p>
     <p class="salary-note" th:unless="${detail.locked}">Ca chưa đủ check-in và check-out, hoặc chưa xác định được ca và mức lương, có lương 0.</p>
+    <p class="salary-note" th:if="${detail.leaveShifts > 0}">Ca nghỉ phép năm đã duyệt được trả đủ giờ của ca theo mức lương/giờ; nghỉ không hưởng lương, nghỉ ốm, nghỉ việc riêng ghi nhận 0 đ.</p>
 
     <section class="salary-stats">
         <article>
@@ -42,6 +43,10 @@
         <article>
             <span>Ca chưa đủ điều kiện</span>
             <strong th:text="${detail.reviewShifts}">0</strong>
+        </article>
+        <article>
+            <span>Ca nghỉ phép (hưởng lương)</span>
+            <strong th:text="${detail.leaveShifts + ' (' + detail.paidLeaveShifts + ')'}">0 (0)</strong>
         </article>
         <article>
             <span>Giờ được tính lương</span>
@@ -59,7 +64,9 @@
 
     <div class="salary-actions">
         <span class="salary-badge" th:classappend="${detail.statusKey}" th:text="${detail.statusLabel}">Chưa tính</span>
-        <a class="ghost-btn" th:href="|${detail.homePath}?year=${detail.year}&month=${detail.month}|">Quay lại</a>
+        <a class="ghost-btn" th:if="${navRole == 'manager'}"
+           th:href="@{/attendance/manager/month(month=${#numbers.formatInteger(detail.year, 4, 'NONE') + '-' + #numbers.formatInteger(detail.month, 2, 'NONE')})}">Quay lại danh sách chấm công và lương</a>
+        <a class="ghost-btn" th:unless="${navRole == 'manager'}" th:href="|${detail.homePath}?year=${detail.year}&month=${detail.month}|">Quay lại</a>
     </div>
 
     <section class="panel">

@@ -20,6 +20,8 @@ public class ManagerMonthAttendanceView {
     private final int lateSlots;
     private final int earlySlots;
     private final int missingSlots;
+    /** Tổng ca nghỉ phép đã duyệt trong kỳ. */
+    private final int leaveSlots;
     private final String detailFrom;
     private final String detailTo;
     private final boolean detailReady;
@@ -47,6 +49,11 @@ public class ManagerMonthAttendanceView {
         private final String earlyDurationLabel;
         private final boolean late;
         private final boolean early;
+        /** Ca nghỉ phép đã duyệt trong kỳ. */
+        private final int leaveSlots;
+        private final int leaveDays;
+        private final int paidLeaveSlots;
+        private final String leaveLabel;
         @Builder.Default
         private final List<DayLine> days = List.of();
     }
@@ -70,5 +77,6 @@ public class ManagerMonthAttendanceView {
         private final boolean late;
         private final boolean earlyLeave;
         private final boolean absent;
+        private final boolean leave;
     }
 }

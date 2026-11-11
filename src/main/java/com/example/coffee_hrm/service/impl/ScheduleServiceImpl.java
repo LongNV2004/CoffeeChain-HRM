@@ -3,6 +3,8 @@ package com.example.coffee_hrm.service.impl;
 import com.example.coffee_hrm.common.enums.ApprovalStatus;
 import com.example.coffee_hrm.common.enums.AssignmentStatus;
 import com.example.coffee_hrm.common.enums.CertificationStatus;
+import com.example.coffee_hrm.common.enums.RoleName;
+import com.example.coffee_hrm.entity.EmploymentContract;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.InvitationStatus;
 import com.example.coffee_hrm.common.enums.NotificationType;
@@ -62,7 +64,109 @@ public class ScheduleServiceImpl implements ScheduleService {
         List<ShiftAssignment> assignments = shiftAssignmentRepository.findWeeklyAssignmentsForStore( store.getId(), monday, sunday, AssignmentStatus.ASSIGNED);
         List<Employee> activeEmployees = employeeRepository.findByStore_IdAndStatus(store.getId(), EmployeeStatus.ACTIVE);
         List<ShiftChangeRequest> pendingRequests = shiftChangeRequestRepository.findByStoreAndStatus( store.getId(), ApprovalStatus.PENDING);
-        return buildWeeklyScheduleView(store, monday, sunday, shifts, assignments, activeEmployees, pendingRequests, List.of(), user, true);
+        WeeklyScheduleView view = buildWeeklyScheduleView(store, monday, sunday, shifts, assignments, activeEmployees, pendingRequests, List.of(), user, true);
+        view.setAssignOptions(buildAssignOptions(store, view.getStoreEmployees()));
+        return view;
+    }
+
+    /**
+     * Mọi Staff còn thuộc cửa hàng cho hộp Phân ca. Người chưa có hợp đồng, chứng chỉ hoặc đang nghỉ phép
+     * vẫn hiện nhưng bị khóa kèm lý do; khoảng hiệu lực hợp đồng dùng để chặn ngày vượt hạn ngay trên form.
+     */
+    private List<WeeklyScheduleView.EmployeeOption> buildAssignOptions(Store store,
+                                                                     List<WeeklyScheduleView.EmployeeOption> ranked) {
+        Integer managerId = store.getManager() != null ? store.getManager().getId() : null;
+        List<Employee> staff = new ArrayList<>();
+        List<Employee> storeEmployees = employeeRepository.findByStoreIdWithAccount(store.getId());
+        for (Employee employee : storeEmployees == null ? List.<Employee>of() : storeEmployees) {
+            if (Objects.equals(employee.getId(), managerId)
+                    || employee.getStatus() == EmployeeStatus.TERMINATED
+                    || employee.getUser() == null || employee.getUser().getRole() == null
+                    || employee.getUser().getRole().getRoleName() != RoleName.STAFF) {
+                continue;
+            }
+            staff.add(employee);
+        }
+        if (staff.isEmpty()) {
+            return List.of();
+        }
+        Map<Integer, List<EmploymentContract>> contracts = new HashMap<>();
+        if (employmentContractRepository != null) {
+            List<EmploymentContract> loaded = employmentContractRepository.findByEmployeeIds(
+                    staff.stream().map(Employee::getId).toList());
+            for (EmploymentContract contract : loaded == null ? List.<EmploymentContract>of() : loaded) {
+                if (contract.getEmployee() != null) {
+                    contracts.computeIfAbsent(contract.getEmployee().getId(), ignored -> new ArrayList<>()).add(contract);
+                }
+            }
+        }
+        Map<Integer, Integer> rank = new HashMap<>();
+        Map<Integer, WeeklyScheduleView.EmployeeOption> rankedById = new HashMap<>();
+        if (ranked != null) {
+            for (int i = 0; i < ranked.size(); i++) {
+                rank.put(ranked.get(i).getEmployeeId(), i);
+                rankedById.put(ranked.get(i).getEmployeeId(), ranked.get(i));
+            }
+        }
+        LocalDate today = VietnamTime.today();
+        List<WeeklyScheduleView.EmployeeOption> options = new ArrayList<>();
+        for (Employee employee : staff) {
+            List<EmploymentContract> owned = contracts.getOrDefault(employee.getId(), List.of());
+            LocalDate from = null;
+            LocalDate to = null;
+            boolean openEnded = false;
+            for (EmploymentContract contract : owned) {
+                if (contract.getStartDate() == null) {
+                    continue;
+                }
+                LocalDate last = ContractValidityRules.lastWorkDay(contract);
+                if (last != null && last.isBefore(today)) {
+                    continue;
+                }
+                if (from == null || contract.getStartDate().isBefore(from)) {
+                    from = contract.getStartDate();
+                }
+                if (last == null) {
+                    openEnded = true;
+                } else if (to == null || last.isAfter(to)) {
+                    to = last;
+                }
+            }
+            if (openEnded) {
+                to = null;
+            }
+            String reason = null;
+            if (from == null) {
+                reason = owned.isEmpty() ? "chưa có hợp đồng" : "hợp đồng đã hết hạn";
+            } else if (employee.getCertificationStatus() != CertificationStatus.CERTIFIED) {
+                reason = "chưa có chứng chỉ";
+            } else if (employee.getStatus() == EmployeeStatus.ON_LEAVE) {
+                reason = "đang nghỉ phép";
+            } else if (employee.getStatus() == EmployeeStatus.PENDING_CONTRACT) {
+                reason = "hồ sơ chờ hoàn thiện hợp đồng";
+            } else if (employee.getUser() != null && !Boolean.TRUE.equals(employee.getUser().getIsActive())) {
+                reason = "tài khoản đang bị khóa";
+            }
+            WeeklyScheduleView.EmployeeOption known = rankedById.get(employee.getId());
+            options.add(WeeklyScheduleView.EmployeeOption.builder()
+                    .employeeId(employee.getId())
+                    .fullName(employee.getFullName())
+                    .email(employee.getEmail())
+                    .certified(employee.getCertificationStatus() == CertificationStatus.CERTIFIED)
+                    .reliabilityScore(known != null ? known.getReliabilityScore() : ReliabilityService.INITIAL_SCORE)
+                    .reliabilityTierLabel(known != null ? known.getReliabilityTierLabel() : null)
+                    .prioritySchedule(known != null && known.isPrioritySchedule())
+                    .assignBlockReason(reason)
+                    .contractFrom(from)
+                    .contractTo(to)
+                    .build());
+        }
+        options.sort(Comparator
+                .comparing((WeeklyScheduleView.EmployeeOption option) -> option.getAssignBlockReason() != null)
+                .thenComparing(option -> rank.getOrDefault(option.getEmployeeId(), Integer.MAX_VALUE))
+                .thenComparing(WeeklyScheduleView.EmployeeOption::getFullName,
+                        Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)));
+        return options;
     }
 
     @Override
@@ -103,11 +207,11 @@ public class ScheduleServiceImpl implements ScheduleService {
         if (!Objects.equals(employee.getStore().getId(), store.getId())) {
             throw new BusinessException("Nhân viên không thuộc cửa hàng này.");
         }
+        requireContractCoversShift(employee, request.getWorkDate());
+        requireCertifiedForSharedSchedule(employee);
         if (employee.getStatus() != EmployeeStatus.ACTIVE) {
             throw new BusinessException("Chỉ có thể phân ca cho nhân viên đang hoạt động (Active).");
         }
-        requireShiftWithinContract(employee.getId(), request.getWorkDate());
-        requireCertifiedForSharedSchedule(employee);
         if (!isShiftStillUpcoming(request.getWorkDate(), shift.getStartTime())) {
             throw new BusinessException("Không thể phân ca cho thời gian đã qua.");
         }
@@ -142,6 +246,9 @@ public class ScheduleServiceImpl implements ScheduleService {
         // normally, which automatically reopens their original slot (no link remains).
         if (assignment.getCancelledByLeaveRequest() != null) {
             throw new BusinessException("Không thể xóa ca đã hủy do đơn nghỉ được duyệt.");
+        }
+        if (coveredByApprovedRegistration(store.getId(), assignment)) {
+            throw new BusinessException("Không thể xóa lịch làm việc đã được duyệt từ đăng ký của nhân viên.");
         }
         List<ShiftChangeRequest> relatedRequests = shiftChangeRequestRepository.findAllByAssignmentId(assignment.getId());
         if (!relatedRequests.isEmpty()) {
@@ -436,6 +543,7 @@ public class ScheduleServiceImpl implements ScheduleService {
             if (targetEmp.getStatus() != com.example.coffee_hrm.common.enums.EmployeeStatus.ACTIVE) {
                 throw new BusinessException("Nhân viên thay thế hiện không ở trạng thái làm việc.");
             }
+            requireContractCoversShift(targetEmp, assignment.getWorkDate());
             requireCertifiedForSharedSchedule(targetEmp);
             ensureNoApprovedLeave(targetEmp.getId(), assignment.getShift().getId(), assignment.getWorkDate());
             if (!Objects.equals(targetEmp.getId(), requester.getId()) && shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus( targetEmp.getId(), assignment.getShift().getId(), assignment.getWorkDate(), AssignmentStatus.ASSIGNED)) {
@@ -468,6 +576,7 @@ public class ScheduleServiceImpl implements ScheduleService {
             if (replacementEmp.getStatus() != com.example.coffee_hrm.common.enums.EmployeeStatus.ACTIVE) {
                 throw new BusinessException("Nhân viên thay thế hiện không ở trạng thái làm việc.");
             }
+            requireContractCoversShift(replacementEmp, assignment.getWorkDate());
             requireCertifiedForSharedSchedule(replacementEmp);
             ensureNoApprovedLeave(replacementEmp.getId(), assignment.getShift().getId(), assignment.getWorkDate());
             if (shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus( replacementEmp.getId(), assignment.getShift().getId(), assignment.getWorkDate(), AssignmentStatus.ASSIGNED)) {
@@ -723,6 +832,53 @@ public class ScheduleServiceImpl implements ScheduleService {
         }
     }
 
+    static final String NO_CONTRACT_ASSIGN_MESSAGE =
+            "Nhân viên %s chưa có hợp đồng lao động nên chưa thể phân vào ca làm việc.";
+    static final String CONTRACT_NOT_STARTED_ASSIGN_MESSAGE =
+            "Hợp đồng của nhân viên %s có hiệu lực từ %s nên chưa thể phân ca ngày %s.";
+    static final String BEYOND_CONTRACT_ASSIGN_MESSAGE =
+            "Ca ngày %s vượt quá ngày hết hạn hợp đồng của nhân viên %s (%s). Không thể phân ca sau ngày hợp đồng hết hiệu lực.";
+
+    /**
+     * Chỉ phân ca khi nhân viên có hợp đồng bao trùm đúng ngày làm.
+     * Chặn: chưa có hợp đồng, hợp đồng chưa tới ngày hiệu lực, ngày làm sau ngày hết hạn hoặc ngày chấm dứt.
+     */
+    private void requireContractCoversShift(Employee employee, LocalDate workDate) {
+        if (employmentContractRepository == null || employee == null || employee.getId() == null || workDate == null) {
+            return;
+        }
+        String name = employee.getFullName() != null && !employee.getFullName().isBlank() ? employee.getFullName() : "này";
+        List<EmploymentContract> contracts = employmentContractRepository.findByEmployeeId(employee.getId());
+        if (contracts == null || contracts.stream().noneMatch(contract -> contract != null && contract.getStartDate() != null)) {
+            throw new BusinessException(String.format(NO_CONTRACT_ASSIGN_MESSAGE, name));
+        }
+        if (contracts.stream().anyMatch(contract -> ContractValidityRules.coversWorkDay(contract, workDate))) {
+            return;
+        }
+        LocalDate lastDay = contracts.stream()
+                .filter(contract -> contract != null && contract.getStartDate() != null
+                        && !contract.getStartDate().isAfter(workDate))
+                .map(ContractValidityRules::lastWorkDay)
+                .filter(Objects::nonNull)
+                .max(Comparator.naturalOrder())
+                .orElse(null);
+        if (lastDay != null) {
+            throw new BusinessException(String.format(BEYOND_CONTRACT_ASSIGN_MESSAGE,
+                    workDate.format(DATE_FORMATTER), name, lastDay.format(DATE_FORMATTER)));
+        }
+        LocalDate nextStart = contracts.stream()
+                .filter(contract -> contract != null && contract.getStartDate() != null
+                        && contract.getStartDate().isAfter(workDate))
+                .map(EmploymentContract::getStartDate)
+                .min(Comparator.naturalOrder())
+                .orElse(null);
+        if (nextStart != null) {
+            throw new BusinessException(String.format(CONTRACT_NOT_STARTED_ASSIGN_MESSAGE,
+                    name, nextStart.format(DATE_FORMATTER), workDate.format(DATE_FORMATTER)));
+        }
+        throw new BusinessException(String.format(NO_CONTRACT_ASSIGN_MESSAGE, name));
+    }
+
     private void rejectIfEmploymentEnded(Employee employee) {
         if (employee != null && employee.getStatus() == EmployeeStatus.TERMINATED) {
             throw new BusinessException(com.example.coffee_hrm.security.StaffEmploymentGuard.DENIED_MESSAGE);
@@ -739,6 +895,25 @@ public class ScheduleServiceImpl implements ScheduleService {
     private LocalDate resolveMonday(LocalDate input) {
         LocalDate date = input != null ? input : VietnamTime.today();
         return date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+    }
+
+    /** Ca trùng một đăng ký lịch làm việc đã duyệt của chính nhân viên đó (cùng ca, cùng ngày). */
+    private boolean coveredByApprovedRegistration(Integer storeId, ShiftAssignment assignment) {
+        if (workAvailabilityRepository == null || assignment.getEmployee() == null
+                || assignment.getShift() == null || assignment.getWorkDate() == null) {
+            return false;
+        }
+        List<WorkAvailability> approved = workAvailabilityRepository.findApprovedCovering(
+                storeId, assignment.getWorkDate(), assignment.getWorkDate(), ApprovalStatus.APPROVED);
+        if (approved == null) {
+            return false;
+        }
+        return approved.stream().anyMatch(availability -> availability.getEmployee() != null
+                && availability.getShift() != null
+                && Objects.equals(availability.getEmployee().getId(), assignment.getEmployee().getId())
+                && Objects.equals(availability.getShift().getId(), assignment.getShift().getId())
+                && (availability.getStatus() == null || availability.getStatus() == ApprovalStatus.APPROVED)
+                && AvailabilityCoverage.appliesOn(availability, assignment.getWorkDate()));
     }
 
     /** Đưa lịch đăng ký đã duyệt vào tuần, không thêm trùng nhân viên cùng ca hoặc ca đã nhượng/đổi. */

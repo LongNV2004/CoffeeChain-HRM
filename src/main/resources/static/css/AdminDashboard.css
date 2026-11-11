@@ -298,3 +298,37 @@ body:has(.coffee-sidebar) main.wrap.recruit-page #item-list{width:100%;min-width
 @media (max-width:720px){
   body:has(.coffee-sidebar) main.wrap.recruit-page{padding:8px 16px 40px;}
 }
+
+/* Đối soát lương trước khi chấm dứt hợp đồng */
+.settle-flag{margin-top:6px;display:grid;gap:2px;}
+.settle-panel{scroll-margin-top:24px;}
+.settle-panel h3{font-size:15px;margin:22px 0 8px;}
+.settle-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;}
+.settle-head .eyebrow{font-size:12px;color:var(--caramel-dark);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;}
+.settle-badge{font-size:13px;padding:6px 12px;}
+.settle-info{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;}
+.settle-info dd{text-align:right;overflow-wrap:anywhere;}
+.settle-totals{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:20px;}
+.settle-totals article{border:1px solid var(--line);background:#fff;padding:12px 14px;}
+.settle-totals .label{font-size:12px;color:var(--ink-soft);}
+.settle-totals .value{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:4px;}
+.settle-totals .value.ok{color:#3F6B45;}
+.settle-totals article.owed{border-color:#E8C7BB;background:#FBF0EB;}
+.settle-totals article.owed .value{color:var(--clay);}
+.settle-totals article.waiting{border-color:#EAD6B5;background:#FBF4E8;}
+.settle-totals article.waiting .value{color:#8A5A20;}
+.settle-verdict{margin-top:14px;padding:12px 14px;border-left:4px solid var(--line);background:#fff;font-size:14px;}
+.settle-verdict.ready{border-left-color:var(--tea);background:#EEF5EF;}
+.settle-verdict.blocked{border-left-color:var(--clay);background:#FBF0EB;}
+.settle-verdict ul{margin:6px 0 0;padding-left:18px;}
+.settle-panel td.num,.settle-panel th.num{text-align:right;font-variant-numeric:tabular-nums;}
+.settle-pay{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 14px;align-items:end;
+  border:1px solid var(--line);background:#fff;padding:14px;margin-bottom:12px;}
+.settle-pay label{display:grid;gap:4px;font-size:13px;color:var(--ink-soft);}
+.settle-pay input,.settle-pay select{font:inherit;color:var(--espresso);padding:8px 10px;border:1px solid var(--line);background:#fff;}
+.settle-pay-title{grid-column:1/-1;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+.settle-wide{grid-column:span 2;}
+@media (max-width:860px){
+  .settle-info,.settle-totals,.settle-pay{grid-template-columns:1fr;}
+  .settle-wide{grid-column:auto;}
+}

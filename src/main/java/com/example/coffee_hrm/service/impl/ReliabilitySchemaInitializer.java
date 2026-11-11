@@ -139,6 +139,18 @@ public class ReliabilitySchemaInitializer implements ApplicationRunner {
         jdbcTemplate.execute(SHIFT_COVER_INVITATIONS_DDL);
         jdbcTemplate.execute(MONTHLY_EMPLOYEE_AWARDS_DDL);
         jdbcTemplate.execute(OVERTIME_REQUESTS_DDL);
+        jdbcTemplate.execute("""
+                IF COL_LENGTH('OvertimeRequests', 'ContractWeeklyQuota') IS NULL
+                    ALTER TABLE OvertimeRequests ADD ContractWeeklyQuota INT NULL;
+                IF COL_LENGTH('OvertimeRequests', 'ReviewedByUserId') IS NULL
+                    ALTER TABLE OvertimeRequests ADD ReviewedByUserId INT NULL;
+                IF COL_LENGTH('OvertimeRequests', 'ReviewedAt') IS NULL
+                    ALTER TABLE OvertimeRequests ADD ReviewedAt DATETIME2 NULL;
+                IF COL_LENGTH('OvertimeRequests', 'ReviewNote') IS NULL
+                    ALTER TABLE OvertimeRequests ADD ReviewNote NVARCHAR(255) NULL;
+                IF COL_LENGTH('OvertimeRequests', 'CreatedAssignmentId') IS NULL
+                    ALTER TABLE OvertimeRequests ADD CreatedAssignmentId INT NULL;
+                """);
         log.info("Đã kiểm tra cấu trúc dữ liệu Điểm chuyên cần & Hỗ trợ ca gấp (ReliabilityScore & ReliabilityScoreLogs).");
     }
 }

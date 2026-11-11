@@ -193,5 +193,9 @@ public class WeeklyAvailabilityView {
         private boolean activeInWeek;
         /** Các ô ca của đơn, dạng {@code ;thứ|tên ca;}. */
         private String slotKeys;
+        /** Thời điểm nhân viên gửi đơn (bản ghi sớm nhất của đơn). */
+        private java.time.LocalDateTime submittedAt;
+        /** Đơn do Manager tạo bằng Đề xuất phân bổ nhân sự, không phải nhân viên tự gửi. */
+        private boolean allocatedByManager;
     }
 }

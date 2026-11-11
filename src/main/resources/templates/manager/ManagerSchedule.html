@@ -79,22 +79,22 @@
 
                 <!-- Day cells -->
                 <td th:each="cell : ${row.dayCells}" class="day-cell">
-                    <div class="assignments-list" th:if="${!#lists.isEmpty(cell.assignments)}">
-                        <div th:each="assign : ${cell.assignments}" class="assign-card published">
-                            <div>
-                                <div class="emp-name" th:text="${assign.employeeName}">Nguyễn Văn A</div>
-                            </div>
-                            <form th:if="${assign.canCancel}"
-                                  th:action="@{/schedule/manager/cancel/{id}(id=${assign.assignmentId})}"
-                                  method="post" style="display:inline;">
-                                <input type="hidden" name="currentWeek" th:value="${schedule.weekStartDate}">
-                                <button type="submit" class="del-btn" title="Hủy phân ca"
-                                        data-coffee-confirm="Bạn có chắc chắn muốn hủy phân công ca này không?"
-                                        data-coffee-title="Hủy phân công"
-                                        data-coffee-ok="Hủy phân công"
-                                        data-coffee-tone="danger">×</button>
-                            </form>
-                        </div>
+                    <!-- Cùng kiểu thẻ tên với Lịch làm việc của nhân viên. Ca đã duyệt từ đăng ký không có nút xóa. -->
+                    <div th:each="assign : ${cell.assignments}" class="emp-pill"
+                         th:classappend="${!assign.canCancel} ? ' is-locked'"
+                         th:title="${!assign.canCancel} ? 'Lịch đã được duyệt — Quản lý không thể xóa' : ''">
+                        <span class="emp-name" th:text="${assign.employeeName}">Nguyễn Văn A</span>
+                        <span class="emp-tag" th:if="${!assign.canCancel}" aria-label="Đã duyệt">✓</span>
+                        <form th:if="${assign.canCancel and assign.assignmentId != null}"
+                              th:action="@{/schedule/manager/cancel/{id}(id=${assign.assignmentId})}"
+                              method="post" class="emp-pill-form">
+                            <input type="hidden" name="currentWeek" th:value="${schedule.weekStartDate}">
+                            <button type="submit" class="del-btn" title="Hủy phân ca"
+                                    data-coffee-confirm="Bạn có chắc chắn muốn hủy phân công ca này không?"
+                                    data-coffee-title="Hủy phân công"
+                                    data-coffee-ok="Hủy phân công"
+                                    data-coffee-tone="danger">×</button>
+                        </form>
                     </div>
 
                     <!-- Quick assign button for this cell -->
@@ -307,13 +307,27 @@
                 <label for="empSelect">Nhân viên phân công *</label>
                 <select id="empSelect" name="employeeId" class="form-control" required>
                     <option value="">-- Chọn nhân viên --</option>
-                    <option th:each="emp : ${schedule.storeEmployees}"
-                            th:if="${emp.certified}"
+                    <option th:each="emp : ${schedule.assignOptions}"
                             th:value="${emp.employeeId}"
-                            th:text="${emp.fullName + ' (' + emp.email + ')'}">
-                        Nguyễn Văn A (a@fpt.edu.vn)
+                            th:disabled="${emp.assignBlockReason != null}"
+                            th:attr="data-name=${emp.fullName},
+                                     data-block=${emp.assignBlockReason != null ? emp.assignBlockReason : ''},
+                                     data-from=${emp.contractFrom != null ? emp.contractFrom : ''},
+                                     data-to=${emp.contractTo != null ? emp.contractTo : ''},
+                                     data-to-label=${emp.contractTo != null ? #temporals.format(emp.contractTo, 'dd/MM/yyyy') : ''},
+                                     data-from-label=${emp.contractFrom != null ? #temporals.format(emp.contractFrom, 'dd/MM/yyyy') : ''}"
+                            th:text="${emp.fullName + (emp.assignBlockReason != null ? ' — ' + emp.assignBlockReason : (emp.contractTo != null ? ' · HĐ đến ' + #temporals.format(emp.contractTo, 'dd/MM/yyyy') : ''))}">
+                        Nguyễn Văn A
                     </option>
                 </select>
+                <p id="assign-emp-help" class="assign-help" th:if="${#lists.isEmpty(schedule.assignOptions)}">
+                    Cửa hàng chưa có nhân viên Staff nào.
+                </p>
+                <p id="assign-emp-help-blocked" class="assign-help"
+                   th:if="${!#lists.isEmpty(schedule.assignOptions)}">
+                    Chỉ phân ca được cho nhân viên có hợp đồng còn hiệu lực vào ngày làm và đã có chứng chỉ. Nhân viên chưa đủ điều kiện được hiển thị kèm lý do.
+                </p>
+                <p id="assign-emp-error" hidden style="color:#9b2c2c;margin:8px 0 0;"></p>
             </div>
 
             <div class="modal-footer">
@@ -341,8 +355,57 @@
             && CoffeeHrmTime.isBeforeNow(workDate, startTime);
     }
 
+    /** Khóa nhân viên chưa đủ điều kiện hoặc có hợp đồng không bao trùm ngày đã chọn. */
+    function contractProblem(option, workDate) {
+        if (!option || !option.value) {
+            return '';
+        }
+        var name = option.getAttribute('data-name') || 'Nhân viên';
+        var block = option.getAttribute('data-block');
+        if (block) {
+            return 'Nhân viên ' + name + ' ' + block + ' nên chưa thể phân vào ca làm việc.';
+        }
+        if (!workDate) {
+            return '';
+        }
+        var from = option.getAttribute('data-from');
+        var to = option.getAttribute('data-to');
+        if (from && workDate < from) {
+            return 'Hợp đồng của nhân viên ' + name + ' có hiệu lực từ ' + option.getAttribute('data-from-label')
+                + ' nên chưa thể phân ca ngày này.';
+        }
+        if (to && workDate > to) {
+            return 'Ca ngày đã chọn vượt quá ngày hết hạn hợp đồng của nhân viên ' + name
+                + ' (' + option.getAttribute('data-to-label') + ').';
+        }
+        return '';
+    }
+
+    function refreshEmployeeOptions() {
+        var select = document.getElementById('empSelect');
+        var dateInput = document.getElementById('dateInput');
+        var error = document.getElementById('assign-emp-error');
+        if (!select) {
+            return '';
+        }
+        var workDate = dateInput ? dateInput.value : '';
+        Array.prototype.forEach.call(select.options, function (option) {
+            if (!option.value) {
+                return;
+            }
+            option.disabled = contractProblem(option, workDate) !== '';
+        });
+        var problem = contractProblem(select.options[select.selectedIndex], workDate);
+        if (error) {
+            error.hidden = !problem;
+            error.textContent = problem;
+        }
+        return problem;
+    }
+
     function openAssignModal() {
         showAssignTimeError('');
+        refreshEmployeeOptions();
         document.getElementById('assignModal').classList.add('open');
     }
     function closeAssignModal() {
@@ -358,6 +421,13 @@
         openAssignModal();
     }
 
+    ['dateInput', 'empSelect'].forEach(function (id) {
+        var field = document.getElementById(id);
+        if (field) {
+            field.addEventListener('change', refreshEmployeeOptions);
+        }
+    });
+
     var assignForm = document.getElementById('assign-shift-form');
     if (assignForm) {
         assignForm.addEventListener('submit', function (event) {
@@ -368,6 +438,10 @@
             if (shiftStartsInThePast(dateInput && dateInput.value, startTime)) {
                 event.preventDefault();
                 showAssignTimeError('Không thể phân ca cho thời gian đã qua.');
+                return;
+            }
+            if (refreshEmployeeOptions()) {
+                event.preventDefault();
             }
         });
     }

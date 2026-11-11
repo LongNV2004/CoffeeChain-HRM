@@ -69,12 +69,13 @@
                     <th>Đi muộn</th>
                     <th>Về sớm</th>
                     <th>Thiếu chấm công</th>
+                    <th>Nghỉ phép</th>
                     <th>Thao tác</th>
                 </tr>
                 </thead>
                 <tbody>
                 <tr th:if="${report.employees.isEmpty()}">
-                    <td colspan="6">Không có nhân viên thuộc cửa hàng.</td>
+                    <td colspan="7">Không có nhân viên thuộc cửa hàng.</td>
                 </tr>
                 <tr th:each="employee : ${report.employees}">
                     <td>
@@ -85,6 +86,7 @@
                     <td th:text="${employee.lateRecords}">0</td>
                     <td th:text="${employee.earlyRecords}">0</td>
                     <td th:text="${employee.absentRecords}">0</td>
+                    <td th:text="${employee.leaveLabel()}">0</td>
                     <td>
                         <a th:href="@{|/attendance/manager/reports/detail?year=${report.year}&month=${report.month}&employeeId=${employee.employeeId}&kind=${report.historyKind}#lich-ngay|}">Xem chi tiết</a>
                     </td>

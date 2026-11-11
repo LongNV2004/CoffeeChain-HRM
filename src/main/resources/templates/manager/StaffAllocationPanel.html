@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<body>
+<!-- Nội dung modal "Phân bổ nhân sự": chỉ nhân viên đủ điều kiện, mã và tên nhân viên. -->
+<div th:fragment="panel" class="sa-panel">
+    <p class="rv-flash error" role="alert" th:if="${rosterError != null}" th:text="${rosterError}">Lỗi</p>
+
+    <th:block th:if="${roster != null}" th:with="eligible=${roster.eligibleRows}">
+        <p class="sa-week">
+            Tuần phân bổ <strong th:text="${#temporals.format(roster.weekStart, 'dd/MM') + ' – ' + #temporals.format(roster.weekEnd, 'dd/MM/yyyy')}">16/11 – 22/11/2026</strong>
+            · <span th:text="${#lists.size(eligible) + ' nhân viên có thể phân bổ'}">0 nhân viên có thể phân bổ</span>
+        </p>
+
+        <p class="rv-flash warning" role="status" th:if="${!roster.allowed}" th:text="${roster.blockedMessage}">Không thể phân bổ</p>
+
+        <p class="sa-empty" th:if="${roster.allowed and #lists.isEmpty(eligible)}">
+            Hiện không có nhân viên nào đủ điều kiện phân bổ trong tuần này.
+        </p>
+
+        <th:block th:if="${roster.allowed and !#lists.isEmpty(eligible)}">
+            <label class="sa-field sa-search sa-search-only">
+                <span>Tìm nhân viên</span>
+                <input type="search" id="saSearch" placeholder="Tên hoặc mã nhân viên" autocomplete="off">
+            </label>
+
+            <form th:action="@{/availability/manager/allocation}" method="post" id="saForm">
+                <input type="hidden" name="week" th:value="${roster.weekStart}">
+                <div class="rv-table-wrap sa-table-wrap">
+                    <table class="rv-table sa-table sa-roster sa-roster-simple">
+                        <thead>
+                        <tr>
+                            <th scope="col" class="sa-check-col"><span class="sa-sr">Chọn</span></th>
+                            <th scope="col">Mã nhân viên</th>
+                            <th scope="col">Tên nhân viên</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="r : ${eligible}" class="sa-row"
+                            th:attr="data-name=${r.fullName != null ? r.fullName : ''},data-code=${r.employeeCode}">
+                            <td class="sa-check-col" data-label="Chọn">
+                                <input type="checkbox" name="employeeIds" class="sa-pick"
+                                       th:value="${r.employeeId}"
+                                       th:attr="aria-label=${'Chọn ' + r.fullName},data-name=${r.fullName}">
+                            </td>
+                            <td data-label="Mã nhân viên"><span class="rv-code" th:text="${r.employeeCode}">NV011</span></td>
+                            <td data-label="Tên nhân viên" class="sa-strong" th:text="${r.fullName != null ? r.fullName : 'Nhân viên'}">Nguyễn Văn An</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="sa-empty" id="saNoMatch" hidden>Không có nhân viên phù hợp.</p>
+                <nav class="sa-pager" id="saPager" aria-label="Phân trang" hidden>
+                    <button type="button" class="rv-btn rv-btn-ghost" id="saPrev">Trước</button>
+                    <span id="saPageInfo">Trang 1/1</span>
+                    <button type="button" class="rv-btn rv-btn-ghost" id="saNext">Sau</button>
+                </nav>
+            </form>
+        </th:block>
+    </th:block>
+
+    <footer class="rv-modal-foot sa-foot" th:with="canAllocate=${roster != null and roster.allowed and !#lists.isEmpty(roster.eligibleRows)}">
+        <div class="sa-foot-left" th:if="${canAllocate}">
+            <strong id="saSelected" aria-live="polite">Đã chọn 0 nhân viên</strong>
+            <button type="button" class="rv-btn rv-btn-ghost" id="saSelectAll">Chọn tất cả</button>
+            <button type="button" class="rv-btn rv-btn-ghost" id="saClear">Bỏ chọn tất cả</button>
+        </div>
+        <div class="sa-foot-right">
+            <button type="button" class="rv-btn rv-btn-ghost" data-sa-close>Đóng</button>
+            <button type="submit" form="saForm" class="rv-btn rv-btn-primary" id="saConfirm" disabled
+                    th:if="${canAllocate}"
+                    data-coffee-title="Phân bổ nhân sự"
+                    data-coffee-ok="Phân bổ"
+                    data-coffee-confirm="Phân bổ nhân viên đã chọn?">Phân bổ</button>
+        </div>
+    </footer>
+</div>
+</body>
+</html>

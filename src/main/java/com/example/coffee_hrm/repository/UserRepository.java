@@ -42,15 +42,27 @@ public interface UserRepository extends JpaRepository<User, Integer> {
             """)
     List<User> findByEmployeeIds(@Param("employeeIds") Collection<Integer> employeeIds);
 
+    /**
+     * Số thành viên khác của cửa hàng đang giữ role, không tính người đã nghỉ việc
+     * (Manager đã chấm dứt hợp đồng không còn chiếm vị trí quản lý cửa hàng).
+     */
+    default long countOtherStoreMembersWithRole(Integer storeId, Integer excludedEmployeeId, RoleName roleName) {
+        return countOtherStoreMembersWithRoleExcludingStatus(
+                storeId, excludedEmployeeId, roleName, com.example.coffee_hrm.common.enums.EmployeeStatus.TERMINATED);
+    }
+
     @Query("""
             SELECT COUNT(u) FROM User u
             WHERE u.role.roleName = :roleName
               AND u.employee.store.id = :storeId
               AND u.employee.id <> :excludedEmployeeId
+              AND (u.employee.status IS NULL OR u.employee.status <> :excludedStatus)
             """)
-    long countOtherStoreMembersWithRole(@Param("storeId") Integer storeId,
-                                        @Param("excludedEmployeeId") Integer excludedEmployeeId,
-                                        @Param("roleName") RoleName roleName);
+    long countOtherStoreMembersWithRoleExcludingStatus(
+            @Param("storeId") Integer storeId,
+            @Param("excludedEmployeeId") Integer excludedEmployeeId,
+            @Param("roleName") RoleName roleName,
+            @Param("excludedStatus") com.example.coffee_hrm.common.enums.EmployeeStatus excludedStatus);
 
     @Query("""
             SELECT u FROM User u

@@ -30,6 +30,7 @@ public class EmployeeResponse {
     private Integer storeId;
     private String storeName;
     private EmployeeStatus status;
+    private LocalDate dateOfBirth;
     private LocalDate hireDate;
     private LocalDate terminationDate;
     private LocalDateTime createdAt;

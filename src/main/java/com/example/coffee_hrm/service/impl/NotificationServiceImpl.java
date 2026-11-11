@@ -153,14 +153,14 @@ public class NotificationServiceImpl implements NotificationService {
                         : "/schedule/staff";
                 case ADMIN -> null;
             };
-            case "SHIFT_CHANGE" -> switch (user.getRoleName()) {
-                case MANAGER -> "/schedule/manager";
-                case STAFF -> "/schedule/staff";
-                case ADMIN -> null;
-            };
             case "OVERTIME_REQUEST" -> switch (user.getRoleName()) {
                 case MANAGER -> "/schedule/manager/overtime";
                 case STAFF -> "/schedule/staff/overtime";
+                case ADMIN -> null;
+            };
+            case "SHIFT_CHANGE" -> switch (user.getRoleName()) {
+                case MANAGER -> "/schedule/manager";
+                case STAFF -> "/schedule/staff";
                 case ADMIN -> null;
             };
             case "RECRUITMENT_REQUEST" -> switch (user.getRoleName()) {
@@ -195,6 +195,12 @@ public class NotificationServiceImpl implements NotificationService {
                         : "/attendance/admin/reports/" + notification.getReferenceId();
                 case MANAGER -> managerReportUrl(notification.getReferenceId());
                 case STAFF -> null;
+            };
+            // Nhân viên (kể cả quản lý cửa hàng) nhận lương: mở màn hình lương của mình.
+            case "PAYROLL_PAYMENT" -> switch (user.getRoleName()) {
+                case STAFF -> "/staff/salary";
+                case MANAGER -> "/attendance/manager/reports";
+                case ADMIN -> null;
             };
             default -> null;
         };

@@ -20,15 +20,14 @@ public interface PayrollService {
 
     void lock(AuthenticatedUser user, int year, int month);
 
-    byte[] export(AuthenticatedUser user,
-                  Integer year,
-                  Integer month,
-                  String period,
-                  Integer storeId,
-                  Integer employeeId,
-                  String status);
+    /**
+     * Chốt bảng lương khi Manager gửi báo cáo cửa hàng: bảng lương phải đã tính, khớp dữ liệu chấm công hiện tại
+     * và không còn ca thiếu dữ liệu. Bảng lương đã chốt thì giữ nguyên.
+     */
+    void lockForReport(AuthenticatedUser user, int year, int month);
 
-    String exportFileName(Integer year, Integer month, String period);
+    /** Admin trả lại báo cáo: mở khoá bảng lương để Manager tính lại rồi gửi lại. */
+    void reopenForRevision(Integer storeId, int year, int month);
 
     PayrollBoardView empty(AuthenticatedUser user);
 }

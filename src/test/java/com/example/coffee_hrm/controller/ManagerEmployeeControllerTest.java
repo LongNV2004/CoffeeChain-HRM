@@ -92,7 +92,11 @@ class ManagerEmployeeControllerTest {
                 .andExpect(content().string(containsString("Hợp đồng còn hiệu lực")))
                 .andExpect(content().string(containsString("Cửa hàng A")))
                 .andExpect(content().string(containsString("Nguyễn An")))
-                .andExpect(content().string(containsString("/manager/employees/5")));
+                .andExpect(content().string(containsString("/manager/employees/5")))
+                // Cột Chứng chỉ trong bảng hồ sơ nhân sự.
+                .andExpect(content().string(containsString("<th>Chứng chỉ</th>")))
+                .andExpect(content().string(containsString("data-certified=\"true\"")))
+                .andExpect(content().string(containsString("badge badge-ok\">Có</span>")));
 
         verify(employeeService).getManagedDirectory(any());
         verify(employeeService, never()).getStoreEmployees(any(), eq(99));
@@ -159,6 +163,7 @@ class ManagerEmployeeControllerTest {
                 .status(EmployeeStatus.ACTIVE)
                 .roleName(RoleName.STAFF)
                 .accountActive(true)
+                .hasCertificate(true)
                 .build();
         return new ManagedEmployeeDirectory(
                 1, "Cửa hàng A", "123 Lê Lợi",

@@ -1,16 +1,20 @@
 package com.example.coffee_hrm.service.impl;
 
+import com.example.coffee_hrm.common.enums.AssignmentStatus;
 import com.example.coffee_hrm.common.enums.AttendanceReportStatus;
 import com.example.coffee_hrm.common.enums.NotificationType;
+import com.example.coffee_hrm.common.enums.PayrollStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.dto.response.AdminAttendanceReportDetail;
 import com.example.coffee_hrm.dto.response.AdminAttendanceReportPage;
 import com.example.coffee_hrm.dto.response.AttendanceReportVersionView;
 import com.example.coffee_hrm.dto.response.ManagerAttendanceReportPage;
+import com.example.coffee_hrm.entity.Attendance;
 import com.example.coffee_hrm.entity.Employee;
 import com.example.coffee_hrm.entity.MonthlyAttendanceReport;
 import com.example.coffee_hrm.entity.MonthlyAttendanceReportVersion;
+import com.example.coffee_hrm.entity.MonthlyPayroll;
 import com.example.coffee_hrm.entity.Store;
 import com.example.coffee_hrm.entity.User;
 import com.example.coffee_hrm.report.AttendanceReportCalculator;
@@ -18,17 +22,21 @@ import com.example.coffee_hrm.report.AttendanceReportExcel;
 import com.example.coffee_hrm.report.AttendanceReportSnapshot;
 import com.example.coffee_hrm.report.AttendanceReportWorkbook;
 import com.example.coffee_hrm.report.ExcelSpreadsheetReader;
-import com.example.coffee_hrm.report.ReportExcelFile;
 import com.example.coffee_hrm.repository.AttendanceRepository;
 import com.example.coffee_hrm.repository.EmployeeRepository;
 import com.example.coffee_hrm.repository.MonthlyAttendanceReportRepository;
 import com.example.coffee_hrm.repository.MonthlyAttendanceReportVersionRepository;
+import com.example.coffee_hrm.repository.MonthlyPayrollRepository;
+import com.example.coffee_hrm.repository.PayrollPaymentRepository;
+import com.example.coffee_hrm.repository.ShiftAssignmentRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.repository.TrainingAttendanceRepository;
 import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.AttendanceReportService;
 import com.example.coffee_hrm.service.NotificationService;
+import com.example.coffee_hrm.service.PayrollService;
+import com.example.coffee_hrm.service.support.PeriodLeave;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -67,6 +75,14 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
     private final NotificationService notificationService;
     @Qualifier("attendanceReportClock")
     private final Clock clock;
+    private final PayrollService payrollService;
+    private final MonthlyPayrollRepository payrollRepository;
+    private final PayrollPaymentRepository paymentRepository;
+    private final ShiftAssignmentRepository shiftAssignmentRepository;
+
+    static final String WAITING_MESSAGE =
+            "Báo cáo kỳ này đang chờ Admin duyệt. Không gửi trùng; chỉ gửi lại khi Admin trả lại báo cáo.";
+    static final String APPROVED_MESSAGE = "Báo cáo kỳ này đã được Admin duyệt, không gửi lại được.";
 
     @Override
     public ManagerAttendanceReportPage managerPage(AuthenticatedUser user,
@@ -96,10 +112,21 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
         validatePeriod(year, month);
         Store store = resolveManagerStore(user);
         LocalDateTime now = LocalDateTime.now(clock);
-        AttendanceReportWorkbook workbook = loadWorkbook(store, year, month, user.getDisplayName(), now.toLocalDate());
         MonthlyAttendanceReport report = reportRepository
                 .findCurrent(store.getId(), year, month)
                 .orElseGet(() -> newReport(store, year, month));
+        // Mỗi cửa hàng chỉ có một báo cáo chính thức mỗi kỳ: không gửi trùng khi đang chờ duyệt hoặc đã duyệt.
+        if (report.getSubmittedAt() != null && report.getStatus() == AttendanceReportStatus.SUBMITTED) {
+            throw new BusinessException(WAITING_MESSAGE);
+        }
+        if (report.getSubmittedAt() != null && report.getStatus() == AttendanceReportStatus.APPROVED) {
+            throw new BusinessException(APPROVED_MESSAGE);
+        }
+        // Báo cáo kèm bảng lương đã chốt; sau khi gửi Manager không tính lại được cho tới khi bị trả lại.
+        if (payrollService != null) {
+            payrollService.lockForReport(user, year, month);
+        }
+        AttendanceReportWorkbook workbook = loadWorkbook(store, year, month, user.getDisplayName(), now.toLocalDate());
         int version = nextVersion(report);
 
         User sender = user.getUserId() == null ? null : userRepository.getReferenceById(user.getUserId());
@@ -137,28 +164,6 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
         }
         reportFiles.save(store.getId(), year, month, version, AttendanceReportExcel.write(workbook));
         notifyAdminsOfSubmit(saved);
-    }
-
-    @Override
-    public ReportExcelFile managerReportExcel(AuthenticatedUser user, int year, int month) {
-        assertManager(user);
-        validatePeriod(year, month);
-        Store store = resolveManagerStore(user);
-        MonthlyAttendanceReport report = reportRepository.findCurrent(store.getId(), year, month)
-                .orElseThrow(() -> new BusinessException("Báo cáo kỳ này chưa được gửi cho Admin."));
-        return readSubmittedExcel(report);
-    }
-
-    @Override
-    public ReportExcelFile adminReportExcel(AuthenticatedUser user, int reportId) {
-        return readSubmittedExcel(requireSubmitted(user, reportId));
-    }
-
-    @Override
-    public ReportExcelFile adminVersionExcel(AuthenticatedUser user, int reportId, int version) {
-        MonthlyAttendanceReport report = requireSubmitted(user, reportId);
-        requireVersion(report, version);
-        return excelFile(report, version);
     }
 
     @Override
@@ -203,24 +208,6 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
                 .build();
     }
 
-    private ReportExcelFile readSubmittedExcel(MonthlyAttendanceReport report) {
-        if (report.getSubmittedAt() == null || report.getStore() == null || report.getStore().getId() == null) {
-            throw new BusinessException("Báo cáo kỳ này chưa được gửi cho Admin.");
-        }
-        int version = report.getVersionNumber() == null ? 1 : report.getVersionNumber();
-        return excelFile(report, version);
-    }
-
-    private ReportExcelFile excelFile(MonthlyAttendanceReport report, int version) {
-        byte[] body = reportFiles.read(report.getStore().getId(), report.getReportYear(), report.getReportMonth(), version);
-        if (body == null) {
-            throw new BusinessException("Không tìm thấy file Excel của lần gửi này.");
-        }
-        return new ReportExcelFile(
-                AttendanceReportExcel.fileName(report.getStore().getId(), report.getReportYear(), report.getReportMonth(), version),
-                body);
-    }
-
     private MonthlyAttendanceReportVersion requireVersion(MonthlyAttendanceReport report, int version) {
         return versionRepository.findByReport_IdAndVersionNumber(report.getId(), version)
                 .orElseThrow(() -> new BusinessException("Không tìm thấy lần gửi này."));
@@ -233,7 +220,22 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
     @Override
     @Transactional
     public void approve(AuthenticatedUser user, int reportId) {
-        MonthlyAttendanceReport report = requireSubmitted(user, reportId);
+        MonthlyAttendanceReport report = requireSubmittedForUpdate(user, reportId);
+        if (report.getStatus() == AttendanceReportStatus.APPROVED) {
+            throw new BusinessException("Báo cáo đã được duyệt.");
+        }
+        if (report.getStatus() != AttendanceReportStatus.SUBMITTED) {
+            throw new BusinessException("Báo cáo đã bị trả lại. Chờ Manager gửi lại rồi mới duyệt.");
+        }
+        if (payrollRepository != null) {
+            MonthlyPayroll payroll = payrollRepository
+                    .findPeriod(report.getStore().getId(), report.getReportYear(), report.getReportMonth())
+                    .orElse(null);
+            if (payroll == null || payroll.getStatus() != PayrollStatus.DA_CHOT) {
+                throw new BusinessException("Báo cáo chưa kèm bảng lương đã chốt. "
+                        + "Hãy trả lại để Manager tính lương và gửi lại.");
+            }
+        }
         report.setStatus(AttendanceReportStatus.APPROVED);
         report.setReviewedAt(LocalDateTime.now(clock));
         report.setReviewedByName(user.getDisplayName());
@@ -245,7 +247,16 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
     @Override
     @Transactional
     public void requestRevision(AuthenticatedUser user, int reportId, String note) {
-        MonthlyAttendanceReport report = requireSubmitted(user, reportId);
+        MonthlyAttendanceReport report = requireSubmittedForUpdate(user, reportId);
+        if (report.getStatus() == AttendanceReportStatus.REVISION) {
+            throw new BusinessException("Báo cáo đã được trả lại cho Manager.");
+        }
+        if (paymentRepository != null && report.getId() != null && paymentRepository.existsByReport_Id(report.getId())) {
+            throw new BusinessException("Báo cáo đã có giao dịch thanh toán lương, không trả lại được.");
+        }
+        if (payrollService != null) {
+            payrollService.reopenForRevision(report.getStore().getId(), report.getReportYear(), report.getReportMonth());
+        }
         String clean = note == null ? "" : note.trim();
         if (clean.length() > 500) {
             clean = clean.substring(0, 500);
@@ -494,15 +505,30 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
                                                   LocalDate createdDate) {
         LocalDate start = LocalDate.of(year, month, 1);
         LocalDate end = start.withDayOfMonth(start.lengthOfMonth());
+        List<Attendance> records = attendanceRepository.findForMonthlyReport(store.getId(), start, end);
         return AttendanceReportCalculator.buildForPeriod(
                 store,
                 year,
                 month,
                 employeeRepository.findByStoreIdWithAccount(store.getId()),
-                attendanceRepository.findForMonthlyReport(store.getId(), start, end),
+                records,
                 trainingAttendanceRepository.findForMonthlyReport(store.getId(), start, end),
                 authorName,
-                createdDate);
+                createdDate,
+                leaveSummaries(store.getId(), start, end, records));
+    }
+
+    /** Nghỉ phép đã duyệt trong kỳ, cùng nguồn với bảng lương (PeriodLeave) để hai bên khớp số liệu. */
+    private Map<Integer, PeriodLeave.Summary> leaveSummaries(Integer storeId, LocalDate start, LocalDate end,
+                                                           List<Attendance> records) {
+        if (shiftAssignmentRepository == null) {
+            return Map.of();
+        }
+        return PeriodLeave.byEmployee(PeriodLeave.collect(
+                shiftAssignmentRepository.findApprovedLeaveSlotsForStoreBetween(storeId, start, end),
+                shiftAssignmentRepository.findPublishedAssignedForStoreBetween(
+                        storeId, start, end, AssignmentStatus.ASSIGNED),
+                records));
     }
 
     private LocalDateTime changedAt(Integer storeId, int year, int month) {
@@ -581,8 +607,8 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
         }
         notificationService.notifyUsers(
                 userRepository.findActiveByRoleName(RoleName.ADMIN),
-                "Báo cáo chấm công mới",
-                sender + " đã gửi báo cáo chấm công tháng " + periodLabel(report.getReportYear(), report.getReportMonth())
+                "Báo cáo chấm công và lương mới",
+                sender + " đã gửi báo cáo chấm công và lương tháng " + periodLabel(report.getReportYear(), report.getReportMonth())
                         + " của cửa hàng " + storeName(report) + ".",
                 NotificationType.ATTENDANCE_REPORT_SUBMITTED,
                 REPORT_REF,
@@ -602,10 +628,11 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
         }
         String period = periodLabel(report.getReportYear(), report.getReportMonth());
         String store = storeName(report);
-        String title = approved ? "Báo cáo đã được duyệt" : "Báo cáo cần gửi lại";
+        String title = approved ? "Báo cáo đã được duyệt" : "Báo cáo bị trả lại";
         String message = approved
-                ? "Admin đã duyệt báo cáo chấm công tháng " + period + " của cửa hàng " + store + "."
-                : "Admin yêu cầu gửi lại báo cáo chấm công tháng " + period + " của cửa hàng " + store + "."
+                ? "Admin đã duyệt báo cáo chấm công và lương tháng " + period + " của cửa hàng " + store + "."
+                : "Admin trả lại báo cáo chấm công và lương tháng " + period + " của cửa hàng " + store
+                + ". Hãy kiểm tra, tính lại lương và gửi lại."
                 + (report.getReviewNote() == null || report.getReviewNote().isBlank()
                 ? ""
                 : " Lý do: " + report.getReviewNote());
@@ -658,6 +685,13 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
         throw new BusinessException("Trạng thái báo cáo không hợp lệ.");
     }
 
+    /** Khoá dòng báo cáo trước khi đọc để duyệt, trả lại và thanh toán không chạy chồng lên nhau. */
+    private MonthlyAttendanceReport requireSubmittedForUpdate(AuthenticatedUser user, int reportId) {
+        assertAdmin(user);
+        reportRepository.findByIdForUpdate(reportId);
+        return requireSubmitted(user, reportId);
+    }
+
     private MonthlyAttendanceReport requireSubmitted(AuthenticatedUser user, int reportId) {
         assertAdmin(user);
         MonthlyAttendanceReport report = reportRepository.findByIdDetailed(reportId)
@@ -676,9 +710,9 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
             return new ReportBadge("APPROVED", "✓ Đã duyệt", "status-approved");
         }
         if (report.getStatus() == AttendanceReportStatus.REVISION) {
-            return new ReportBadge("REVISION", "Yêu cầu làm lại", "status-revision");
+            return new ReportBadge("REVISION", "Đã trả lại", "status-revision");
         }
-        return new ReportBadge("WAITING", "Đang chờ", "status-waiting");
+        return new ReportBadge("WAITING", "Chờ Admin duyệt", "status-waiting");
     }
 
     private record ReportBadge(String code, String label, String css) {
@@ -725,6 +759,7 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
                 .workDayCount(preview.getWorkDayCount())
                 .violationCount(preview.getViolationCount())
                 .missingCount(preview.getMissingCount())
+                .leaveSlotCount(preview.getLeaveSlotCount())
                 .build();
     }
 

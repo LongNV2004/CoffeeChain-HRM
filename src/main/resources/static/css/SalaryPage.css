@@ -34,3 +34,8 @@
 @media (max-width:900px){
   .salary-stats{grid-template-columns:1fr;}
 }
+/* Lương đã duyệt và thanh toán (Staff) */
+.salary-badge.CHUA_THANH_TOAN{background:#FFF1E4;color:#C2410C;}
+.salary-badge.DA_THANH_TOAN{background:#E5F3EA;color:#24683E;}
+.salary-sub{display:block;color:#6B5A52;font-size:12px;margin-top:2px;}
+.salary-pay{display:block;font-size:13px;white-space:nowrap;}

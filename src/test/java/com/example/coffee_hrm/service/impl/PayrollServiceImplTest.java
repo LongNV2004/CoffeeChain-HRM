@@ -1,6 +1,7 @@
 package com.example.coffee_hrm.service.impl;
 
 import com.example.coffee_hrm.common.enums.AssignmentStatus;
+import com.example.coffee_hrm.common.enums.AttendanceReportStatus;
 import com.example.coffee_hrm.common.enums.AttendanceStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.PayrollStatus;
@@ -10,6 +11,7 @@ import com.example.coffee_hrm.dto.response.PayrollBoardView;
 import com.example.coffee_hrm.entity.Attendance;
 import com.example.coffee_hrm.entity.Employee;
 import com.example.coffee_hrm.entity.EmploymentContract;
+import com.example.coffee_hrm.entity.MonthlyAttendanceReport;
 import com.example.coffee_hrm.entity.MonthlyPayroll;
 import com.example.coffee_hrm.entity.Role;
 import com.example.coffee_hrm.entity.Shift;
@@ -19,6 +21,7 @@ import com.example.coffee_hrm.entity.User;
 import com.example.coffee_hrm.repository.AttendanceRepository;
 import com.example.coffee_hrm.repository.EmployeeRepository;
 import com.example.coffee_hrm.repository.EmploymentContractRepository;
+import com.example.coffee_hrm.repository.MonthlyAttendanceReportRepository;
 import com.example.coffee_hrm.repository.MonthlyPayrollRepository;
 import com.example.coffee_hrm.repository.ShiftAssignmentRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
@@ -37,6 +40,9 @@ import java.time.LocalTime;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -62,6 +68,9 @@ class PayrollServiceImplTest {
     private EmployeeRepository employeeRepository;
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private MonthlyAttendanceReportRepository reportRepository;
 
     @InjectMocks
     private PayrollServiceImpl service;
@@ -209,6 +218,101 @@ class PayrollServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class, () -> service.calculate(admin, 2026, 10));
         assertEquals("Chỉ quản lý cửa hàng mới được tính lương.", ex.getMessage());
         verify(storeRepository, never()).findByManager_Id(anyInt());
+    }
+
+    @Test
+    void sentReportFreezesThePayrollForTheManager() {
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        MonthlyAttendanceReport report = MonthlyAttendanceReport.builder()
+                .id(5).store(store).reportYear(2026).reportMonth(10).status(AttendanceReportStatus.SUBMITTED)
+                .submittedAt(java.time.LocalDateTime.of(2026, 11, 1, 9, 0)).build();
+        when(reportRepository.findCurrent(1, 2026, 10)).thenReturn(Optional.of(report));
+
+        BusinessException calculate = assertThrows(BusinessException.class, () -> service.calculate(manager, 2026, 10));
+        assertEquals(PayrollServiceImpl.REPORT_SENT_MESSAGE, calculate.getMessage());
+        BusinessException lock = assertThrows(BusinessException.class, () -> service.lock(manager, 2026, 10));
+        assertEquals(PayrollServiceImpl.REPORT_SENT_MESSAGE, lock.getMessage());
+        verify(payrollRepository, never()).save(any());
+
+        PayrollBoardView board = service.board(manager, 2026, 10, null, null, null, null);
+        assertTrue(board.isReportLocked());
+        assertFalse(board.isCanCalculate());
+        assertFalse(board.isCanLock());
+
+        // Admin trả lại báo cáo: Manager tính lại được.
+        report.setStatus(AttendanceReportStatus.REVISION);
+        assertFalse(service.board(manager, 2026, 10, null, null, null, null).isReportLocked());
+    }
+
+    @Test
+    void sendingTheReportLocksACalculatedPayrollAndKeepsALockedOne() {
+        rememberSavedPayroll();
+        stubOctoberShift(Attendance.builder()
+                .id(30).employee(staffEmployee).shift(morning()).store(store).workDate(LocalDate.of(2026, 10, 6))
+                .checkInTime(LocalDate.of(2026, 10, 6).atTime(8, 0))
+                .checkOutTime(LocalDate.of(2026, 10, 6).atTime(16, 0))
+                .lateMinutes(0).earlyLeaveMinutes(0).status(AttendanceStatus.ON_TIME).build(), new BigDecimal("30000"));
+
+        BusinessException none = assertThrows(BusinessException.class, () -> service.lockForReport(manager, 2026, 10));
+        assertEquals("Hãy tính lương trước khi gửi báo cáo.", none.getMessage());
+
+        service.calculate(manager, 2026, 10);
+        service.lockForReport(manager, 2026, 10);
+        assertEquals(PayrollStatus.DA_CHOT, saved.getStatus());
+        service.lockForReport(manager, 2026, 10);
+        assertEquals(PayrollStatus.DA_CHOT, saved.getStatus());
+
+        service.reopenForRevision(1, 2026, 10);
+        assertEquals(PayrollStatus.DA_TINH, saved.getStatus());
+        assertNull(saved.getLockedAt());
+    }
+
+    @Test
+    void approvedAnnualLeaveIsPaidForTheShiftHoursAndUnpaidLeaveIsRecordedWithoutBlockingTheLock() {
+        rememberSavedPayroll();
+        stubOctoberShift(worked(LocalDate.of(2026, 10, 6)), new BigDecimal("30000"));
+        when(shiftAssignmentRepository.findApprovedLeaveSlotsForStoreBetween(
+                1, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31)))
+                .thenReturn(java.util.List.of(
+                        leaveSlot(21, LocalDate.of(2026, 10, 8), com.example.coffee_hrm.common.enums.LeaveType.ANNUAL),
+                        leaveSlot(22, LocalDate.of(2026, 10, 9), com.example.coffee_hrm.common.enums.LeaveType.SICK)));
+
+        service.calculate(manager, 2026, 10);
+
+        var line = saved.getEmployeeLines().getFirst();
+        assertEquals(1, line.getAssignedShiftCount());
+        assertEquals(16, line.getPayableHours());
+        assertEquals(0, new BigDecimal("480000").compareTo(line.getExpectedSalary()));
+        assertEquals(0, line.getReviewShiftCount());
+        assertEquals(3, line.getShiftLines().size());
+
+        service.lock(manager, 2026, 10);
+        assertEquals(PayrollStatus.DA_CHOT, saved.getStatus());
+    }
+
+    @Test
+    void leaveSlotIsNotCountedTwiceWhenTheSameShiftWasWorked() {
+        rememberSavedPayroll();
+        stubOctoberShift(worked(LocalDate.of(2026, 10, 6)), new BigDecimal("30000"));
+        when(shiftAssignmentRepository.findApprovedLeaveSlotsForStoreBetween(
+                1, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31)))
+                .thenReturn(java.util.List.of(
+                        leaveSlot(21, LocalDate.of(2026, 10, 6), com.example.coffee_hrm.common.enums.LeaveType.ANNUAL)));
+
+        service.calculate(manager, 2026, 10);
+
+        var line = saved.getEmployeeLines().getFirst();
+        assertEquals(1, line.getShiftLines().size());
+        assertEquals(8, line.getPayableHours());
+    }
+
+    private ShiftAssignment leaveSlot(int id, LocalDate day, com.example.coffee_hrm.common.enums.LeaveType type) {
+        com.example.coffee_hrm.entity.LeaveRequest leave = com.example.coffee_hrm.entity.LeaveRequest.builder()
+                .id(100 + id).employee(staffEmployee).startDate(day).endDate(day).leaveType(type)
+                .status(com.example.coffee_hrm.common.enums.ApprovalStatus.APPROVED).build();
+        return ShiftAssignment.builder()
+                .id(id).employee(staffEmployee).shift(morning()).workDate(day)
+                .status(AssignmentStatus.CANCELLED).isPublished(true).cancelledByLeaveRequest(leave).build();
     }
 
     private void rememberSavedPayroll() {

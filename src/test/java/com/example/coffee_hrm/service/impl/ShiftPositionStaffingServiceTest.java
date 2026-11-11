@@ -211,7 +211,7 @@ class ShiftPositionStaffingServiceTest {
     void changingTheTargetClearsOldPositionNeeds() {
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
         when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shift));
-        when(employeeRepository.countSchedulableStaff(1, EmployeeStatus.ACTIVE, RoleName.STAFF, 10)).thenReturn(5L);
+        when(employeeRepository.countStoreStaffInStatuses(1, StaffAvailabilityServiceImpl.STORE_STAFF_STATUSES, RoleName.STAFF, 10)).thenReturn(5L);
         when(shiftSlotLimitRepository.lockByShiftAndDay(1, 1)).thenReturn(Optional.of(openLimit(5)));
         when(workAvailabilityRepository.findCapacityCandidatesByShift(eq(1), any(), any(), any())).thenReturn(List.of());
 
@@ -226,7 +226,7 @@ class ShiftPositionStaffingServiceTest {
     void existingShiftWithoutPositionNeedsStillUpdatesTheTotal() {
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
         when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shift));
-        when(employeeRepository.countSchedulableStaff(1, EmployeeStatus.ACTIVE, RoleName.STAFF, 10)).thenReturn(5L);
+        when(employeeRepository.countStoreStaffInStatuses(1, StaffAvailabilityServiceImpl.STORE_STAFF_STATUSES, RoleName.STAFF, 10)).thenReturn(5L);
         when(shiftSlotLimitRepository.lockByShiftAndDay(1, 1)).thenReturn(Optional.of(openLimit(3)));
         when(workAvailabilityRepository.findCapacityCandidatesByShift(eq(1), any(), any(), any())).thenReturn(List.of());
 
@@ -394,7 +394,7 @@ class ShiftPositionStaffingServiceTest {
     }
 
     private void stubStaffCount(int count) {
-        when(employeeRepository.countSchedulableStaff(1, EmployeeStatus.ACTIVE, RoleName.STAFF, 10))
+        when(employeeRepository.countStoreStaffInStatuses(1, StaffAvailabilityServiceImpl.STORE_STAFF_STATUSES, RoleName.STAFF, 10))
                 .thenReturn((long) count);
     }
 

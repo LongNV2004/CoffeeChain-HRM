@@ -264,6 +264,7 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
                         .citizenId(candidate.getCitizenId())
                         .email(candidate.getEmail())
                         .address(candidate.getAddress())
+                        .dateOfBirth(candidate.getDateOfBirth())
                         .store(locked.request().getStore())
                         .status(EmployeeStatus.PENDING_CONTRACT)
                         .certificationStatus(CertificationStatus.NOTCERTIFIED)
@@ -595,6 +596,9 @@ public class RecruitmentRequestServiceImpl implements RecruitmentRequestService 
         }
         employee.setFullName(candidate.getFullName());
         employee.setPhone(candidate.getPhone());
+        if (candidate.getDateOfBirth() != null) {
+            employee.setDateOfBirth(candidate.getDateOfBirth());
+        }
         employee.setAddress(candidate.getAddress());
         syncCitizenId(employee, candidate.getCitizenId());
         employee.setStatus(EmployeeStatus.PENDING_CONTRACT);

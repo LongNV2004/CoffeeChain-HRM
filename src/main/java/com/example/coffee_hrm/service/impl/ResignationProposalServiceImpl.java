@@ -29,6 +29,7 @@ import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.AccountMailService;
 import com.example.coffee_hrm.service.NotificationService;
 import com.example.coffee_hrm.service.ResignationProposalService;
+import com.example.coffee_hrm.service.ResignationSettlementService;
 import com.example.coffee_hrm.service.support.ContractLifecycle;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -75,6 +76,7 @@ public class ResignationProposalServiceImpl implements ResignationProposalServic
     private final StoreRepository storeRepository;
     private final NotificationService notificationService;
     private final AccountMailService accountMailService;
+    private final ResignationSettlementService settlementService;
 
     @Override
     @Transactional
@@ -375,6 +377,9 @@ public class ResignationProposalServiceImpl implements ResignationProposalServic
         requirePending(item);
         Employee employee = requireCurrentEmployee(item);
         ensureStillEligible(proposal, employee);
+        // Đối soát lương lại ở backend (khoá các báo cáo tháng liên quan) ngay trong transaction duyệt:
+        // còn lương chưa trả hoặc kỳ lương chưa hoàn tất thì không được chấm dứt hợp đồng.
+        settlementService.assertSettled(employee.getId(), displayName(employee));
         LocalDate approvedDate = today == null ? VietnamTime.today() : today;
         if (employee.getHireDate() != null && approvedDate.isBefore(employee.getHireDate())) {
             throw new BusinessException(BEFORE_HIRE);

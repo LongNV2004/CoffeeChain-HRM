@@ -14,7 +14,7 @@
     <section class="welcome">
         <div class="eyebrow">Trụ sở — Admin</div>
         <h1 th:text="${request.title}">Đề xuất</h1>
-        <p>Duyệt hoặc từ chối từng nhân sự. Khi phê duyệt, hợp đồng hiện tại chuyển sang Đã chấm dứt ngay, nhân viên chuyển sang đã nghỉ việc và tài khoản bị khóa. Từ chối thì giữ nguyên hợp đồng và tài khoản.</p>
+        <p>Duyệt hoặc từ chối từng nhân sự. Trước khi duyệt, toàn bộ lương còn phải trả phải được đối soát và thanh toán. Khi phê duyệt, hợp đồng hiện tại chuyển sang Đã chấm dứt ngay, nhân viên chuyển sang đã nghỉ việc và tài khoản bị khóa. Từ chối thì giữ nguyên hợp đồng và tài khoản.</p>
     </section>
 
     <p class="flash success" th:if="${successMessage}" th:text="${successMessage}"></p>
@@ -50,7 +50,8 @@
                   data-coffee-title="Duyệt tất cả đang chờ"
                   data-coffee-ok="Duyệt tất cả">
                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                <button class="primary-btn" type="submit">Duyệt tất cả nhân sự đang chờ</button>
+                <button class="primary-btn" type="submit" th:disabled="${!allPendingEligible}"
+                        th:title="${allPendingEligible} ? '' : 'Còn nhân sự chưa hoàn tất đối soát hoặc còn lương chưa thanh toán.'">Duyệt tất cả nhân sự đang chờ</button>
             </form>
             <form th:action="@{/admin/resignation/{id}/reject-pending(id=${request.id})}" method="post"
                   data-coffee-confirm="Từ chối tất cả nhân sự đang chờ? Những dòng đã xử lý được giữ nguyên."
@@ -104,6 +105,12 @@
                         <span class="badge"
                               th:classappend="${item.status.name() == 'APPROVED'} ? ' badge-ok' : (${item.status.name() == 'REJECTED'} ? ' badge-off' : ' badge-wait')"
                               th:text="${item.statusLabel}">Chờ duyệt</span>
+                        <div th:if="${item.status.name() == 'PENDING' and settlements[item.id] != null}" class="settle-flag">
+                            <span class="badge" th:classappend="' ' + ${settlements[item.id].statusCss}"
+                                  th:text="${settlements[item.id].statusLabel}">Còn lương chưa thanh toán</span>
+                            <div class="muted" th:if="${settlements[item.id].remaining.signum() > 0}"
+                                 th:text="'Còn thiếu ' + ${settlements[item.id].remainingLabel}">Còn thiếu</div>
+                        </div>
                     </td>
                     <td>
                         <span th:if="${item.status.name() == 'PENDING'}">Chưa xử lý</span>
@@ -117,15 +124,19 @@
                              th:text="${item.reviewedByName + (item.reviewedAt != null ? ' · ' + #temporals.format(item.reviewedAt, 'dd/MM/yyyy HH:mm') : '')}">Admin</div>
                     </td>
                     <td>
-                        <div th:if="${item.status.name() == 'PENDING'}" class="resign-actions">
+                        <div th:if="${item.status.name() == 'PENDING'}" class="resign-actions"
+                             th:with="ready=${settlements[item.id] != null and settlements[item.id].eligible}">
                             <form th:action="@{/admin/resignation/{id}/items/{itemId}/approve(id=${request.id}, itemId=${item.id})}"
                                   method="post"
-                                  data-coffee-confirm="Phê duyệt nhân sự này? Hợp đồng hiện tại chấm dứt ngay và tài khoản bị khóa. Những nhân sự khác không đổi."
-                                  data-coffee-title="Duyệt nhân sự"
+                                  data-coffee-confirm="Lương đã được đối soát và thanh toán đủ. Phê duyệt chấm dứt hợp đồng? Hợp đồng hiện tại chấm dứt ngay và tài khoản bị khóa. Những nhân sự khác không đổi."
+                                  data-coffee-title="Duyệt chấm dứt hợp đồng"
                                   data-coffee-ok="Duyệt">
                                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                                <button class="primary-btn btn-sm" type="submit">Duyệt</button>
+                                <button class="primary-btn btn-sm" type="submit" th:disabled="${!ready}"
+                                        th:title="${ready} ? '' : 'Chưa đủ điều kiện: xem khu vực Đối soát lương bên dưới.'">Duyệt chấm dứt hợp đồng</button>
                             </form>
+                            <a class="ghost-btn btn-sm" th:href="'#settle-' + ${item.id}"
+                               th:text="${ready} ? 'Xem đối soát' : 'Đối soát / thanh toán'">Đối soát</a>
                             <form th:action="@{/admin/resignation/{id}/items/{itemId}/reject(id=${request.id}, itemId=${item.id})}"
                                   method="post"
                                   data-coffee-confirm="Từ chối nhân sự này? Những nhân sự khác không đổi."
@@ -152,7 +163,198 @@
                 </tbody>
             </table>
         </div>
-        <p class="muted">Phê duyệt có hiệu lực ngay. Hồ sơ, hợp đồng, chấm công, ca làm, đào tạo và chứng chỉ không bị xóa. Từ chối giữ nguyên hợp đồng, trạng thái làm việc và tài khoản.</p>
+        <p class="muted">Phê duyệt có hiệu lực ngay. Hồ sơ, hợp đồng, chấm công, ca làm, bảng lương, lịch sử thanh toán, đào tạo và chứng chỉ không bị xóa. Từ chối giữ nguyên hợp đồng, trạng thái làm việc và tài khoản.</p>
+    </section>
+
+    <section class="panel settle-panel" th:each="item : ${request.items}" th:id="'settle-' + ${item.id}"
+             th:with="st=${settlements[item.id]}">
+        <div class="settle-head">
+            <div>
+                <div class="eyebrow">Đối soát lương trước khi chấm dứt</div>
+                <h2 th:text="${item.employeeName}">An</h2>
+            </div>
+            <span class="badge settle-badge" th:if="${st != null}" th:classappend="' ' + ${st.statusCss}"
+                  th:text="${item.status.name() == 'PENDING'} ? ${st.statusLabel} : ${item.statusLabel}">Đủ điều kiện duyệt</span>
+        </div>
+
+        <p class="flash error" th:if="${settlementErrors[item.id] != null}" th:text="${settlementErrors[item.id]}">Lỗi</p>
+
+        <div class="settle-info">
+            <dl class="info-list">
+                <div><dt>Nhân viên</dt><dd th:text="${item.employeeName}">An</dd></div>
+                <div><dt>CCCD</dt><dd th:text="${item.citizenId != null ? item.citizenId : 'Chưa cập nhật'}">—</dd></div>
+                <div><dt>Chức vụ</dt><dd th:text="${item.positionLabel}">Nhân viên</dd></div>
+                <div><dt>Ngày vào làm</dt><dd th:text="${item.hireDate != null and item.hireDate != ''} ? ${item.hireDate} : '—'">—</dd></div>
+                <div><dt>Trạng thái hiện tại</dt><dd th:text="${item.currentStatusLabel}">Đang làm việc</dd></div>
+            </dl>
+            <dl class="info-list" th:if="${st != null and st.contract != null}">
+                <div><dt>Mã hợp đồng</dt><dd th:text="${st.contract.contractCode != null ? st.contract.contractCode : '—'}">HD</dd></div>
+                <div><dt>Loại hợp đồng</dt><dd th:text="${st.contract.termLabel}">Xác định thời hạn</dd></div>
+                <div><dt>Hiệu lực</dt>
+                    <dd th:text="${(st.contract.startDate != null ? #temporals.format(st.contract.startDate, 'dd/MM/yyyy') : '—') + ' → ' + (st.contract.endDate != null ? #temporals.format(st.contract.endDate, 'dd/MM/yyyy') : 'Không thời hạn')}">—</dd></div>
+                <div><dt>Mức lương</dt><dd th:text="${st.contract.rateLabel}">—</dd></div>
+            </dl>
+            <dl class="info-list" th:if="${st == null or st.contract == null}">
+                <div><dt>Hợp đồng</dt><dd>Không tìm thấy hợp đồng.</dd></div>
+            </dl>
+            <dl class="info-list">
+                <div><dt>Lý do chấm dứt</dt><dd th:text="${item.reason}">Lý do</dd></div>
+                <div th:if="${item.note != null}"><dt>Ghi chú</dt><dd th:text="${item.note}">Ghi chú</dd></div>
+            </dl>
+        </div>
+
+        <th:block th:if="${st != null}">
+            <div class="settle-totals">
+                <article>
+                    <div class="label">Tổng lương phải trả</div>
+                    <div class="value" th:text="${st.totalLabel}">0 đ</div>
+                </article>
+                <article>
+                    <div class="label">Đã thanh toán</div>
+                    <div class="value ok" th:text="${st.paidLabel}">0 đ</div>
+                </article>
+                <article th:classappend="${st.remaining.signum() > 0} ? ' owed' : ''">
+                    <div class="label">Còn phải thanh toán</div>
+                    <div class="value" th:text="${st.remainingLabel}">0 đ</div>
+                </article>
+                <article th:classappend="${st.pendingCount > 0} ? ' waiting' : ''">
+                    <div class="label">Kỳ chưa hoàn tất đối soát</div>
+                    <div class="value" th:text="${st.pendingCount} + ' / ' + ${st.periodCount}">0 / 0</div>
+                </article>
+            </div>
+            <p class="muted">Tổng phải trả chỉ gồm các kỳ có bảng lương đã chốt và báo cáo tháng đã được duyệt. Số tiền lấy trực tiếp từ bảng lương và lịch sử thanh toán hiện có.</p>
+
+            <div class="settle-verdict" th:if="${item.status.name() == 'PENDING'}"
+                 th:classappend="${st.eligible} ? ' ready' : ' blocked'">
+                <strong th:text="${st.eligible} ? 'Đủ điều kiện duyệt chấm dứt hợp đồng.' : 'Chưa đủ điều kiện duyệt chấm dứt hợp đồng.'">Trạng thái</strong>
+                <ul th:if="${!st.eligible}">
+                    <li th:each="reason : ${st.reasons}" th:text="${reason}">Lý do</li>
+                </ul>
+                <div th:if="${st.eligible and st.periodCount == 0}">Nhân sự không có kỳ lương phát sinh. Đã hoàn tất kiểm tra đối soát.</div>
+                <div th:if="${st.eligible and st.periodCount > 0}">Mọi kỳ lương đã chốt, đã duyệt và đã thanh toán đủ.</div>
+            </div>
+
+            <h3>Các kỳ lương liên quan</h3>
+            <p class="muted" th:if="${#lists.isEmpty(st.periods)}">Không có kỳ lương hoặc ca làm nào cần đối soát.</p>
+            <div class="table-scroll" th:if="${!#lists.isEmpty(st.periods)}">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>Kỳ lương</th>
+                        <th>Cửa hàng</th>
+                        <th>Bảng lương</th>
+                        <th>Báo cáo tháng</th>
+                        <th class="num">Phải trả</th>
+                        <th class="num">Đã trả</th>
+                        <th class="num">Còn lại</th>
+                        <th>Trạng thái</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="period : ${st.periods}">
+                        <td class="nowrap">
+                            <a class="row-link" th:if="${period.reportId != null}"
+                               th:href="@{/attendance/admin/reports/{r}(r=${period.reportId})}" th:text="${period.periodLabel}">Tháng</a>
+                            <span th:if="${period.reportId == null}" th:text="${period.periodLabel}">Tháng</span>
+                        </td>
+                        <td th:text="${period.storeName}">Store</td>
+                        <td th:text="${period.payrollStatusLabel}">Đã chốt</td>
+                        <td th:text="${period.reportStatusLabel}">Đã duyệt</td>
+                        <td class="num nowrap" th:text="${period.totalLabel}">0 đ</td>
+                        <td class="num nowrap" th:text="${period.paidLabel}">0 đ</td>
+                        <td class="num nowrap" th:text="${period.remainingLabel}">0 đ</td>
+                        <td>
+                            <span class="badge" th:classappend="' ' + ${period.statusCss}" th:text="${period.statusLabel}">Đã thanh toán</span>
+                            <div class="muted" th:if="${period.note != null}" th:text="${period.note}">Ghi chú</div>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <th:block th:if="${item.status.name() == 'PENDING' and st.hasPayable}">
+                <h3>Thanh toán lương còn thiếu</h3>
+                <form class="settle-pay" th:each="period : ${st.periods}" th:if="${period.payable}"
+                      method="post" enctype="multipart/form-data"
+                      th:action="@{/admin/resignation/{id}/items/{itemId}/pay(id=${request.id}, itemId=${item.id})}"
+                      data-coffee-title="Xác nhận thanh toán lương"
+                      data-coffee-ok="Xác nhận"
+                      th:attr="data-coffee-confirm=${'Xác nhận đã trả lương ' + period.periodLabel + ' (' + period.storeName + ') cho ' + item.employeeName + '? Số còn phải trả: ' + period.remainingLabel + '.'}">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                    <input type="hidden" name="reportId" th:value="${period.reportId}">
+                    <input type="hidden" name="requestKey" th:value="${st.requestKey + '-' + period.reportId}">
+                    <div class="settle-pay-title">
+                        <strong th:text="${period.periodLabel + ' · ' + period.storeName}">Tháng</strong>
+                        <span class="muted" th:text="'Còn phải trả ' + ${period.remainingLabel}">Còn phải trả</span>
+                    </div>
+                    <label>Số tiền thanh toán
+                        <input type="number" name="amount" required min="1" step="1"
+                               th:max="${period.remainingValue}" th:value="${period.remainingValue}">
+                    </label>
+                    <label>Phương thức
+                        <select name="method" required>
+                            <option value="CHUYEN_KHOAN">Chuyển khoản</option>
+                            <option value="TIEN_MAT">Tiền mặt</option>
+                        </select>
+                    </label>
+                    <label>Ngày thanh toán
+                        <input type="date" name="paidDate" required th:value="${st.today}" th:max="${st.today}">
+                    </label>
+                    <label>Mã giao dịch (không bắt buộc)
+                        <input type="text" name="transactionCode" maxlength="100">
+                    </label>
+                    <label>Minh chứng (JPG, PNG, PDF ≤ 2MB)
+                        <input type="file" name="proof" accept=".jpg,.jpeg,.png,.pdf">
+                    </label>
+                    <label class="settle-wide">Ghi chú
+                        <input type="text" name="note" maxlength="500" value="Thanh toán lương trước khi chấm dứt hợp đồng">
+                    </label>
+                    <button class="primary-btn" type="submit">Thanh toán lương</button>
+                </form>
+                <p class="muted">Có thể trả một phần; phần còn lại vẫn hiển thị cho tới khi trả đủ. Mỗi lần xác nhận chỉ được ghi nhận một lần.</p>
+            </th:block>
+
+            <h3>Lịch sử thanh toán</h3>
+            <p class="muted" th:if="${#lists.isEmpty(st.payments)}">Chưa có giao dịch thanh toán lương nào.</p>
+            <div class="table-scroll" th:if="${!#lists.isEmpty(st.payments)}">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>Ngày trả</th>
+                        <th>Kỳ lương</th>
+                        <th class="num">Số tiền</th>
+                        <th>Phương thức</th>
+                        <th>Mã giao dịch</th>
+                        <th>Người thực hiện</th>
+                        <th>Ghi nhận lúc</th>
+                        <th>Minh chứng</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="payment : ${st.payments}">
+                        <td class="nowrap" th:text="${payment.paidDate != null} ? ${#temporals.format(payment.paidDate, 'dd/MM/yyyy')} : '—'">—</td>
+                        <td>
+                            <span th:text="${payment.periodLabel}">Tháng</span>
+                            <div class="muted" th:text="${payment.storeName}">Store</div>
+                        </td>
+                        <td class="num nowrap" th:text="${payment.amountLabel}">0 đ</td>
+                        <td th:text="${payment.methodLabel}">Chuyển khoản</td>
+                        <td th:text="${payment.transactionCode != '' ? payment.transactionCode : '—'}">—</td>
+                        <td th:text="${payment.paidByName != '' ? payment.paidByName : '—'}">Admin</td>
+                        <td class="nowrap" th:text="${payment.createdAt != null} ? ${#temporals.format(payment.createdAt, 'dd/MM/yyyy HH:mm')} : '—'">—</td>
+                        <td>
+                            <a th:if="${payment.hasProof}" target="_blank" rel="noopener"
+                               th:href="@{/attendance/admin/reports/{r}/payments/{p}/proof(r=${payment.reportId}, p=${payment.paymentId})}">Xem</a>
+                            <span th:if="${!payment.hasProof}" class="muted">—</span>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </th:block>
+    </section>
+
+    <section class="panel">
         <p class="muted"><a class="back-link" th:href="@{/admin/resignation}">Quay lại danh sách</a></p>
     </section>
 </main>

@@ -1,0 +1,139 @@
+/* Admin: thay đổi chức vụ, chấm dứt hợp đồng Manager và bổ nhiệm người thay thế. */
+.ms-actions-grid, .ms-panel {
+    --ms-brown: #3d2314;
+    --ms-ink: #1f1510;
+    --ms-muted: #78726e;
+    --ms-line: #eadfd2;
+    --ms-soft: #faf5ee;
+    --ms-green: #276c4e;
+    --ms-green-bg: #e6f3ec;
+    --ms-amber: #9a5b17;
+    --ms-amber-bg: #fdf0dc;
+    --ms-red: #a33a2e;
+    --ms-red-bg: #fbe9e6;
+    color: var(--ms-ink);
+}
+.ms-actions-grid *, .ms-panel * { box-sizing: border-box; }
+
+.ms-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+    gap: 20px;
+    align-items: start;
+    margin-top: 20px;
+}
+
+/* Thẻ thao tác */
+.ms-card, .ms-panel {
+    background: #fff;
+    border: 1px solid var(--ms-line);
+    border-radius: 16px;
+    box-shadow: 0 3px 15px #3d231408;
+    padding: 20px 22px;
+    min-width: 0;
+}
+.ms-card.is-danger { border-color: #efcdc7; border-top: 4px solid var(--ms-red); }
+.ms-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-bottom: 14px; }
+.ms-card h2, .ms-panel h2 { margin: 0; font-family: Fraunces, serif; font-size: 20px; font-weight: 600; color: var(--ms-brown); }
+.ms-lead { margin: 0 0 12px; color: #4f453d; font-size: 14px; line-height: 1.5; }
+.ms-note { margin: 0; padding: 12px 14px; border-radius: 10px; background: var(--ms-soft); color: var(--ms-muted); font-size: 14px; }
+.ms-subtitle { margin: 16px 0 6px; font-size: 13px; font-weight: 600; color: var(--ms-muted); text-transform: uppercase; letter-spacing: .04em; }
+
+/* Staff → Manager */
+.ms-role-switch { display: inline-flex; align-items: center; gap: 8px; }
+.ms-role-switch svg { width: 18px; height: 18px; fill: none; stroke: var(--ms-muted); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ms-role { padding: 4px 10px; border-radius: 999px; background: #f1ebe4; color: #5d5047; font-size: 13px; font-weight: 600; }
+.ms-role.is-target { background: var(--ms-brown); color: #fff8ed; }
+
+.ms-checklist { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; border: 1px solid var(--ms-line); border-radius: 12px; overflow: hidden; }
+.ms-checklist li { display: flex; gap: 12px; align-items: flex-start; padding: 11px 14px; background: #fff; }
+.ms-checklist li + li { border-top: 1px solid #f3ece4; }
+.ms-checklist strong { display: block; font-size: 14px; font-weight: 600; }
+.ms-checklist strong em { font-style: normal; font-weight: 500; color: var(--ms-muted); }
+.ms-checklist span:not(.ms-check) { display: block; margin-top: 2px; font-size: 13px; color: var(--ms-muted); line-height: 1.45; }
+.ms-check {
+    flex: none; width: 22px; height: 22px; margin-top: 1px; border-radius: 50%;
+    display: grid; place-items: center; font-size: 13px; font-weight: 700; line-height: 1;
+}
+.ms-checklist li.is-pass .ms-check { background: var(--ms-green-bg); color: var(--ms-green); }
+.ms-checklist li.is-pass .ms-check::before { content: "✓"; }
+.ms-checklist li.is-fail { background: #fffaf9; }
+.ms-checklist li.is-fail .ms-check { background: var(--ms-red-bg); color: var(--ms-red); }
+.ms-checklist li.is-fail .ms-check::before { content: "✕"; }
+.ms-checklist li.is-fail span:not(.ms-check) { color: var(--ms-red); }
+.ms-checklist li.is-info .ms-check { background: var(--ms-amber-bg); color: var(--ms-amber); }
+.ms-checklist li.is-info .ms-check::before { content: "i"; font-family: Georgia, serif; }
+
+.ms-effects { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 14px; color: #4f453d; line-height: 1.5; }
+.ms-effects strong { color: var(--ms-ink); }
+
+.ms-card-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px 14px; margin-top: 16px; }
+.ms-hint { margin-right: auto; font-size: 13px; color: var(--ms-muted); }
+.ms-card .store-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* Chấm dứt hợp đồng */
+.ms-contract { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 16px; margin: 0; padding: 12px 14px; border-radius: 12px; background: var(--ms-soft); }
+.ms-contract dt { font-size: 12px; color: var(--ms-muted); }
+.ms-contract dd { margin: 2px 0 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.ms-field { display: grid; gap: 6px; margin-top: 14px; font-size: 14px; }
+.ms-field > span { font-weight: 600; color: #4f453d; }
+.ms-field > span b { color: var(--ms-red); font-weight: 600; }
+.ms-field > span em { font-style: normal; font-weight: 500; color: var(--ms-muted); }
+.ms-field textarea, .ms-field select {
+    width: 100%; padding: 10px 12px; border: 1px solid #ddd0c1; border-radius: 10px;
+    background: #fff; color: var(--ms-ink); font: 400 14px/1.45 'Inter', sans-serif;
+}
+.ms-field select { height: 42px; padding-top: 0; padding-bottom: 0; }
+.ms-field select:disabled { background: #f6f2ed; color: var(--ms-muted); }
+.ms-field textarea:focus-visible, .ms-field select:focus-visible { outline: 2px solid #b08b6d; outline-offset: 1px; }
+.ms-field small { font-size: 12px; color: var(--ms-muted); line-height: 1.45; }
+.ms-btn-danger { background: var(--ms-red); color: #fff; }
+.ms-btn-danger:hover { background: #862d23; color: #fff; }
+
+.ms-badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; background: #f1ebe4; color: #5d5047; }
+.ms-badge.is-ok { background: var(--ms-green-bg); color: var(--ms-green); }
+.ms-badge.is-muted { background: #f1ebe4; color: var(--ms-muted); }
+.ms-badge.is-danger { background: var(--ms-red-bg); color: var(--ms-red); }
+
+/* Bảng bổ nhiệm Manager thay thế */
+.ms-panel { margin: 20px 0; border-left: 4px solid #c98a2b; }
+.ms-panel-head { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 14px; }
+.ms-panel-head > div { flex: 1; min-width: 0; }
+.ms-panel-head p { margin: 6px 0 0; font-size: 14px; color: #4f453d; line-height: 1.5; }
+.ms-panel-icon { flex: none; width: 40px; height: 40px; border-radius: 11px; background: var(--ms-amber-bg); color: var(--ms-amber); display: grid; place-items: center; }
+.ms-panel-icon svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ms-count { flex: none; text-align: center; padding: 6px 12px; border-radius: 12px; background: var(--ms-soft); }
+.ms-count strong { display: block; font-size: 22px; line-height: 1.1; color: var(--ms-green); }
+.ms-count span { font-size: 12px; color: var(--ms-muted); }
+.ms-empty { margin: 0; padding: 18px; text-align: center; border: 1px dashed var(--ms-line); border-radius: 12px; color: var(--ms-muted); font-size: 14px; }
+
+.ms-table-wrap { max-width: 100%; overflow-x: auto; }
+.ms-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.ms-table th { text-align: left; padding: 9px 12px; font-size: 12px; font-weight: 600; color: var(--ms-muted); background: var(--ms-soft); border-bottom: 1px solid var(--ms-line); white-space: nowrap; }
+.ms-table th:first-child { border-top-left-radius: 10px; }
+.ms-table th:last-child { border-top-right-radius: 10px; }
+.ms-table td { padding: 11px 12px; border-bottom: 1px solid #f3ece4; vertical-align: middle; }
+.ms-table tbody tr:last-child td { border-bottom: 0; }
+.ms-table tr.is-blocked td { background: #fffcfa; }
+.ms-table .ms-actions { text-align: right; width: 1%; white-space: nowrap; }
+.ms-table form { margin: 0; }
+.ms-name { color: var(--ms-brown); font-weight: 600; text-decoration: none; }
+.ms-name:hover { text-decoration: underline; }
+.ms-sub { display: block; margin-top: 2px; font-size: 12px; color: var(--ms-muted); }
+.ms-muted { color: var(--ms-muted); }
+.ms-blockers { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: 13px; color: var(--ms-red); }
+.ms-blockers li::before { content: "✕ "; font-weight: 700; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@media (max-width: 760px) {
+    .ms-card, .ms-panel { padding: 16px; }
+    .ms-contract { grid-template-columns: 1fr 1fr; }
+    .ms-panel-head { flex-wrap: wrap; }
+    .ms-table thead { display: none; }
+    .ms-table, .ms-table tbody, .ms-table tr, .ms-table td { display: block; width: 100%; }
+    .ms-table tr { border: 1px solid var(--ms-line); border-radius: 12px; padding: 8px 12px; margin-bottom: 10px; }
+    .ms-table td { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border: 0; text-align: right; }
+    .ms-table td::before { content: attr(data-label); flex: none; color: var(--ms-muted); font-size: 12px; font-weight: 600; text-align: left; }
+    .ms-table .ms-actions { width: 100%; justify-content: flex-end; }
+    .ms-table .ms-actions::before { content: none; }
+}

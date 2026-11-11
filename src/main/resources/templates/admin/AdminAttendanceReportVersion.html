@@ -41,7 +41,6 @@
             <span th:text="${'Vắng ' + version.absentCount}">Vắng 0</span>
         </div>
         <div class="send-actions" style="margin-top:14px;">
-            <a class="ops-link" th:href="@{/attendance/admin/reports/{id}/versions/{version}/excel(id=${version.reportId}, version=${version.versionNumber})}">Tải Excel</a>
             <form class="delete-form" method="post"
                   th:if="${!version.current}"
                   th:action="@{/attendance/admin/reports/{id}/versions/{version}/delete(id=${version.reportId}, version=${version.versionNumber})}"
@@ -49,7 +48,7 @@
                 <button class="send-delete js-delete-open" type="button">Xoá</button>
             </form>
         </div>
-        <p class="flash" th:if="${version.fileMissing}">Không tìm thấy file Excel của lần gửi này.</p>
+        <p class="flash" th:if="${version.fileMissing}">Không tìm thấy dữ liệu đã lưu của lần gửi này.</p>
     </section>
 
     <section class="panel attn-screen report-staff" id="reportStaff" th:if="${version != null and !version.fileMissing}">
@@ -97,6 +96,7 @@
                 <div class="slot-absent">
                     <span>Thiếu chấm công</span>
                     <strong th:text="${employee.absentRecords + ' slot'}">0 slot</strong>
+                    <span class="slot-leave">Nghỉ phép: <b th:text="${employee.leaveSlots == '0' ? '0' : employee.leaveSlots + ' ca / ' + employee.leaveDays + ' ngày'}">0</b></span>
                 </div>
                 <button type="button" class="month-detail" th:attr="data-dialog=|version-emp-${employee.employeeId}|">Xem chi tiết</button>
             </article>

@@ -10,121 +10,293 @@
 <header th:replace="~{fragments/navbar :: manager('availability')}"></header>
 
 <main class="wrap dash-main review-page">
-    <div class="review-board">
+    <div class="review-board" th:attr="data-week-start=${weekStart}">
+
+        <!-- A. Tiêu đề trang -->
         <header class="rv-head">
-            <nav class="rv-crumb" aria-label="Đường dẫn">
-                <span>Quản lý cửa hàng</span>
-                <span aria-hidden="true">/</span>
-                <a th:href="@{/schedule/manager}">Lịch làm việc</a>
-                <span aria-hidden="true">/</span>
-                <span>Duyệt đăng ký</span>
-            </nav>
-            <h1>Duyệt đăng ký lịch làm việc</h1>
-            <p>Xem và duyệt các yêu cầu đăng ký lịch làm việc của nhân viên theo từng ca và từng ngày trong tuần.</p>
-        </header>
-
-        <p class="rv-flash success" th:if="${successMessage}" th:text="${successMessage}">Đã duyệt</p>
-        <p class="rv-flash error" th:if="${errorMessage}" th:text="${errorMessage}">Lỗi</p>
-        <p class="rv-flash error" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
-
-        <div class="rv-toolbar" th:if="${weekStart != null}">
-            <div class="rv-week">
-                <a class="rv-icon-btn" th:href="@{/availability/manager(week=${previousWeek})}" aria-label="Tuần trước">
+            <div class="rv-head-text">
+                <nav class="rv-crumb" aria-label="Đường dẫn">
+                    <span>Quản lý cửa hàng</span>
+                    <span aria-hidden="true">/</span>
+                    <a th:href="@{/schedule/manager}">Lịch làm việc</a>
+                    <span aria-hidden="true">/</span>
+                    <span>Duyệt đăng ký</span>
+                </nav>
+                <h1>Duyệt đăng ký lịch làm việc</h1>
+                <p>Quản lý và phê duyệt lịch đăng ký của nhân viên.</p>
+            </div>
+            <div class="rv-week" th:if="${weekStart != null}">
+                <a class="rv-icon-btn" th:href="@{/availability/manager(week=${previousWeek})}" aria-label="Tuần trước" title="Tuần trước">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6 9 12l6 6"/></svg>
                 </a>
-                <strong th:text="${#temporals.format(weekStart, 'dd/MM') + ' – ' + #temporals.format(weekStart.plusDays(6), 'dd/MM/yyyy')}">26/10 – 01/11/2026</strong>
-                <a class="rv-icon-btn" th:href="@{/availability/manager(week=${nextWeek})}" aria-label="Tuần tiếp theo">
+                <div class="rv-week-label">
+                    <span>Tuần</span>
+                    <strong th:text="${#temporals.format(weekStart, 'dd/MM') + ' – ' + #temporals.format(weekStart.plusDays(6), 'dd/MM/yyyy')}">26/10 – 01/11/2026</strong>
+                </div>
+                <a class="rv-icon-btn" th:href="@{/availability/manager(week=${nextWeek})}" aria-label="Tuần tiếp theo" title="Tuần tiếp theo">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
                 </a>
-                <a class="rv-text-btn" th:href="@{/availability/manager(week=${currentWeek})}">Tuần hiện tại</a>
+                <a class="rv-btn rv-btn-ghost" th:href="@{/availability/manager(week=${currentWeek})}"
+                   th:classappend="${weekStart == currentWeek ? 'is-current' : ''}">Tuần hiện tại</a>
             </div>
-            <div class="rv-filters" role="group" aria-label="Lọc ca">
-                <button type="button" class="is-on" data-shift-filter="all">Tất cả ca</button>
-                <button type="button" data-shift-filter="sáng">Ca sáng</button>
-                <button type="button" data-shift-filter="chiều">Ca chiều</button>
-                <button type="button" data-shift-filter="tối">Ca tối</button>
-            </div>
-            <a class="rv-text-btn" th:href="@{/availability/manager(week=${weekStart})}">Làm mới</a>
-        </div>
+        </header>
 
-        <section class="rv-stats" th:if="${reviewTotals != null}" aria-label="Tổng quan đơn đăng ký">
+        <p class="rv-flash success" role="status" th:if="${successMessage}" th:text="${successMessage}">Đã duyệt</p>
+        <p class="rv-flash warning" role="status" th:if="${warningMessage}" th:text="${warningMessage}">Cảnh báo</p>
+        <p class="rv-flash error" role="alert" th:if="${errorMessage}" th:text="${errorMessage}">Lỗi</p>
+        <p class="rv-flash error" role="alert" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
+
+        <!-- B. Thống kê -->
+        <section class="rv-stats" th:if="${reviewTotals != null}" aria-label="Tổng quan đơn đăng ký trong tuần">
             <article class="rv-stat">
-                <span class="rv-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></span>
-                <div><strong id="rvTotal" th:text="${reviewTotals.total}">0</strong><span>Tổng đơn đăng ký trong tuần</span></div>
-            </article>
-            <article class="rv-stat is-ok">
-                <span class="rv-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></svg></span>
-                <div><strong id="rvApproved" th:text="${reviewTotals.approved}">0</strong><span>Đã duyệt</span></div>
+                <span class="rv-stat-label">Tổng đăng ký</span>
+                <strong th:text="${reviewTotals.total}">0</strong>
             </article>
             <article class="rv-stat is-wait">
-                <span class="rv-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v6l4 2"/></svg></span>
-                <div><strong id="rvPending" th:text="${reviewTotals.pending}">0</strong><span>Chờ duyệt</span></div>
+                <span class="rv-stat-label">Chờ duyệt</span>
+                <strong th:text="${reviewTotals.pending}">0</strong>
+            </article>
+            <article class="rv-stat is-ok">
+                <span class="rv-stat-label">Đã duyệt</span>
+                <strong th:text="${reviewTotals.approved}">0</strong>
             </article>
             <article class="rv-stat is-no">
-                <span class="rv-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></span>
-                <div><strong id="rvRejected" th:text="${reviewTotals.rejected}">0</strong><span>Từ chối</span></div>
+                <span class="rv-stat-label">Từ chối</span>
+                <strong th:text="${reviewTotals.rejected}">0</strong>
             </article>
         </section>
 
-        <p class="rv-empty" th:if="${availabilityGrid != null and #lists.isEmpty(availabilityGrid.shiftRows)}">Cửa hàng chưa có ca làm việc.</p>
+        <!-- C. Thanh lọc -->
+        <div class="rv-toolbar" th:if="${weekStart != null}" role="search">
+            <form class="rv-field" method="get" th:action="@{/availability/manager}" id="rvWeekForm">
+                <label for="rvWeekInput">Tuần</label>
+                <input type="date" id="rvWeekInput" name="week" th:value="${weekStart}">
+                <noscript><button type="submit" class="rv-btn rv-btn-ghost">Xem</button></noscript>
+            </form>
+            <div class="rv-field">
+                <label for="rvShiftFilter">Ca làm</label>
+                <select id="rvShiftFilter">
+                    <option value="all">Tất cả</option>
+                    <option value="sáng">Ca sáng</option>
+                    <option value="chiều">Ca chiều</option>
+                    <option value="tối">Ca tối</option>
+                </select>
+            </div>
+            <div class="rv-field rv-field-grow">
+                <label for="rvSearch">Nhân viên</label>
+                <input type="search" id="rvSearch" placeholder="Tìm theo tên hoặc mã nhân viên" autocomplete="off">
+            </div>
+            <div class="rv-field">
+                <label for="rvStatusFilter">Trạng thái đăng ký</label>
+                <select id="rvStatusFilter">
+                    <option value="all">Tất cả</option>
+                    <option value="pending">Chờ duyệt</option>
+                    <option value="approved">Đã duyệt</option>
+                    <option value="rejected">Từ chối</option>
+                </select>
+            </div>
+        </div>
 
-        <div th:if="${availabilityGrid != null and !#lists.isEmpty(availabilityGrid.shiftRows)}">
-            <section class="rv-shift" th:each="row : ${availabilityGrid.shiftRows}"
-                     th:with="needReview=${#lists.size(row.dayCells.?[awaitingApproval]) > 0}, anyShort=${#lists.size(row.dayCells.?[staffingStatusKey == 'short']) > 0}"
-                     th:attr="data-shift-name=${#strings.toLowerCase(row.shiftName)}">
-                <header class="rv-shift-head">
+        <p class="rv-empty-card" th:if="${availabilityGrid != null and #lists.isEmpty(availabilityGrid.shiftRows)}">
+            Cửa hàng chưa có ca làm việc. Hãy tạo ca trước khi duyệt đăng ký.
+        </p>
+
+        <th:block th:if="${availabilityGrid != null and !#lists.isEmpty(availabilityGrid.shiftRows)}">
+
+            <!-- D. Lịch đăng ký theo tuần (bảng ca × ngày giống Lịch làm việc) -->
+            <section class="rv-card" aria-labelledby="rvStaffingTitle">
+                <header class="rv-card-head">
                     <div>
-                        <h2 th:text="${row.shiftName}">Ca sáng</h2>
-                        <span th:text="${row.formattedTime}">07:00 – 12:00</span>
+                        <h2 id="rvStaffingTitle">Lịch đăng ký theo tuần</h2>
+                        <p class="rv-card-sub">
+                            <span>Chỉ nhân viên <strong>đã duyệt</strong> được tính vào nhu cầu. Bấm vào ô để lọc danh sách, bấm vào tên để xem đơn.</span>
+                            <span id="rvStaffingSummary"></span>
+                        </p>
                     </div>
-                    <span class="rv-badge"
-                          th:classappend="${needReview ? 'is-warn' : (anyShort ? 'is-short' : 'is-enough')}"
-                          th:text="${needReview ? 'Cần duyệt' : (anyShort ? 'Thiếu nhân sự' : 'Đủ nhân sự')}">Đủ nhân sự</span>
+                    <div class="rv-legend" aria-label="Chú thích">
+                        <span class="rv-legend-item is-approved">Đã duyệt</span>
+                        <span class="rv-legend-item is-pending">Chờ duyệt</span>
+                        <span class="rv-legend-item is-rejected">Từ chối</span>
+                        <a class="rv-link" th:href="@{/availability/manager/limits(week=${weekStart})}">Cấu hình nhu cầu ca</a>
+                        <button type="button" class="rv-btn rv-btn-primary sa-open" id="saOpen"
+                                th:data-url="@{/availability/manager/allocation(week=${weekStart})}">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6M19 8v6M22 11h-6"/></svg>
+                            Phân bổ nhân sự
+                        </button>
+                    </div>
                 </header>
-                <div class="rv-day-scroll">
-                    <div class="rv-day-grid">
-                        <article class="rv-day" th:each="cell : ${row.dayCells}"
-                                 th:with="ratio=${cell.configured and cell.maxEmployees != null and cell.maxEmployees > 0 ? T(java.lang.Math).min(100, cell.registeredCount * 100 / cell.maxEmployees) : 0}, slotMark=${';' + cell.dayOfWeek + '|' + row.shiftName + ';'}">
-                            <div class="rv-day-top">
-                                <div>
-                                    <strong th:text="${cell.dayOfWeekName}">Thứ 2</strong>
-                                    <span th:text="${#temporals.format(cell.date, 'dd/MM')}">26/10</span>
+                <div class="rv-week-wrap">
+                    <table class="rv-week-grid">
+                        <thead>
+                        <tr>
+                            <th scope="col" class="rv-shift-col">Ca làm việc</th>
+                            <th scope="col" th:each="day : ${availabilityGrid.days}"
+                                th:classappend="${today != null and day.date == today} ? 'is-today'">
+                                <span class="rv-dname" th:text="${day.dayOfWeekName}">Thứ 2</span>
+                                <span class="rv-ddate" th:text="${#temporals.format(day.date, 'dd/MM')}">09/11</span>
+                            </th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr class="rv-shift-row" th:each="row : ${availabilityGrid.shiftRows}"
+                            th:attr="data-shift-name=${#strings.toLowerCase(row.shiftName)}">
+                            <th scope="row" class="rv-shift-cell">
+                                <span class="rv-shift-title" th:text="${row.shiftName}">Ca sáng</span>
+                                <span class="rv-shift-hours" th:text="${row.formattedTime}">07:00 – 12:00</span>
+                            </th>
+                            <td th:each="cell : ${row.dayCells}"
+                                th:with="st=${!cell.configured ? 'muted' : (cell.staffingStatusKey == 'enough' ? 'ok' : (cell.pendingCount > 0 ? 'wait' : 'short'))},
+                                         ratio=${cell.configured and cell.maxEmployees != null and cell.maxEmployees > 0 ? T(java.lang.Math).min(100, cell.approvedCount * 100 / cell.maxEmployees) : 0},
+                                         slotMark=${';' + cell.dayOfWeek + '|' + row.shiftName + ';'}"
+                                class="rv-slot" tabindex="0"
+                                th:classappend="${'is-' + st + (today != null and cell.date == today ? ' is-today' : '')}"
+                                th:attr="data-shift-name=${#strings.toLowerCase(row.shiftName)},
+                                         data-shift-label=${row.shiftName},
+                                         data-shift-time=${row.formattedTime},
+                                         data-slot=${slotMark},
+                                         data-day=${cell.dayOfWeek},
+                                         data-day-label=${cell.dayOfWeekName + ' · ' + #temporals.format(cell.date, 'dd/MM')},
+                                         data-demand=${cell.maxEmployees != null ? cell.maxEmployees : 0},
+                                         data-approved=${cell.approvedCount},
+                                         data-state=${st},
+                                         aria-label=${row.shiftName + ', ' + cell.dayOfWeekName + ' ' + #temporals.format(cell.date, 'dd/MM') + ': ' + cell.approvedCount + ' đã duyệt' + (cell.configured ? ' trên ' + cell.maxEmployees : '') + ', ' + cell.pendingCount + ' chờ duyệt'}">
+                                <div class="rv-slot-head">
+                                    <span class="rv-slot-count" th:if="${cell.configured}">
+                                        <b th:text="${cell.approvedCount}">0</b><span th:text="${'/' + cell.maxEmployees}">/3</span>
+                                    </span>
+                                    <span class="rv-slot-count is-muted" th:unless="${cell.configured}">—</span>
+                                    <span class="rv-badge" th:classappend="${'is-' + st}"
+                                          th:title="${cell.shortageSummary != null ? 'Vị trí còn thiếu: ' + cell.shortageSummary : null}"
+                                          th:text="${st == 'muted' ? 'Chưa cấu hình' : (st == 'ok' ? 'Đủ người' : (st == 'wait' ? cell.pendingCount + ' chờ duyệt' : (cell.shortfall > 0 ? 'Thiếu ' + cell.shortfall : 'Thiếu vị trí')))}">Thiếu 3</span>
                                 </div>
-                                <span class="rv-badge"
-                                      th:classappend="${cell.awaitingApproval ? 'is-warn' : (cell.staffingStatusKey == 'enough' ? 'is-enough' : (cell.staffingStatusKey == 'short' ? 'is-short' : 'is-muted'))}"
-                                      th:text="${cell.awaitingApproval ? 'Cần duyệt' : (cell.staffingStatusKey == 'enough' ? 'Đủ nhân sự' : (cell.staffingStatusKey == 'short' ? 'Thiếu nhân sự' : 'Chưa cấu hình'))}">Thiếu nhân sự</span>
-                            </div>
-                            <p class="rv-demand">Tổng nhu cầu <strong th:text="${cell.maxEmployees != null ? cell.maxEmployees : 0}">0</strong></p>
-                            <p class="rv-ratio">Đã đăng ký <strong th:text="${cell.registeredCount}">0</strong>/<span th:text="${cell.maxEmployees != null ? cell.maxEmployees : 0}">0</span>
-                                · <span th:text="${ratio}">0</span>%</p>
-                            <div class="rv-bar" th:classappend="${cell.staffingStatusKey}"><span th:style="|width: ${ratio}%|"></span></div>
-                            <p class="rv-hint" th:if="${cell.configured and cell.shortfall > 0}">
-                                Còn thiếu <strong th:text="${cell.shortfall}">0</strong> người so với số đã duyệt.
-                            </p>
+                                <div class="rv-meter" th:if="${cell.configured}" aria-hidden="true">
+                                    <span th:style="|width: ${ratio}%|"></span>
+                                </div>
+                                <ul class="rv-people">
+                                    <li th:each="item : ${registrations}"
+                                        th:if="${item.slotKeys != null and #strings.contains(item.slotKeys, slotMark)}"
+                                        th:attr="data-status=${item.statusKey},
+                                                 data-name=${item.employeeName != null ? item.employeeName : ''},
+                                                 data-code=${item.employeeId != null ? 'NV' + #numbers.formatInteger(item.employeeId, 3) : ''}">
+                                        <button type="button" class="rv-person"
+                                                th:classappend="${'is-' + item.statusKey}"
+                                                th:attr="data-reg-id=${item.registrationKey != null ? 'k:' + item.registrationKey : 'a:' + item.availabilityId}"
+                                                th:title="${(item.employeeName != null ? item.employeeName : 'Nhân viên') + ' · ' + item.statusLabel}">
+                                            <span class="rv-dot" aria-hidden="true"></span>
+                                            <span class="rv-pname" th:text="${item.employeeName != null ? item.employeeName : 'Nhân viên'}">Nguyễn Văn A</span>
+                                        </button>
+                                    </li>
+                                </ul>
+                                <p class="rv-slot-empty">Chưa có đăng ký</p>
+                                <p class="rv-slot-gap" th:if="${st != 'ok' and cell.shortageSummary != null}"
+                                   th:text="${'Thiếu: ' + cell.shortageSummary}">Thiếu: Pha chế 1</p>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="rv-empty" id="rvStaffingEmpty" hidden>Không có ca nào khớp bộ lọc.</p>
+            </section>
 
-                            <button type="button" class="rv-toggle">Xem danh sách nhân viên đăng ký</button>
-                            <div class="rv-people is-closed">
-                                <p class="rv-none">Chưa có đăng ký trong ca này.</p>
-                                <article class="rv-person" th:each="item : ${registrations}"
-                                         th:if="${item.slotKeys != null and #strings.contains(item.slotKeys, slotMark)}"
-                                         th:attr="data-reg=${item.registrationKey != null ? item.registrationKey : item.availabilityId},data-status=${item.statusKey}">
-                                    <div class="rv-person-top">
-                                        <div>
-                                            <strong th:text="${item.employeeName}">Nhân viên</strong>
-                                        </div>
-                                        <span class="rv-badge"
-                                              th:classappend="${item.statusKey == 'approved' ? 'is-enough' : (item.statusKey == 'pending' ? 'is-warn' : 'is-short')}"
-                                              th:text="${item.statusLabel}">Chờ duyệt</span>
-                                    </div>
-                                    <p th:text="${item.slotsByDay}">Thứ 2: Ca sáng</p>
-                                    <p th:text="${item.durationLabel + ' · ' + item.formattedPeriod}">1 tháng</p>
-                                    <div class="rv-actions" th:if="${item.pending}">
+            <!-- E. Danh sách đăng ký -->
+            <section class="rv-card" id="rvRegistrations" aria-labelledby="rvRegTitle">
+                <header class="rv-card-head">
+                    <div>
+                        <h2 id="rvRegTitle">Danh sách đăng ký của nhân viên</h2>
+                        <p class="rv-card-sub">
+                            <span id="rvRegCount" th:text="${#lists.size(registrations) + ' đơn trong tuần'}">0 đơn</span>
+                            <span class="rv-chip" id="rvSlotChip" hidden>
+                                <span id="rvSlotChipText"></span>
+                                <button type="button" id="rvSlotChipClear" aria-label="Bỏ lọc theo ca">×</button>
+                            </span>
+                        </p>
+                    </div>
+                    <div class="rv-bulk" th:if="${reviewTotals.pending > 0}">
+                        <form th:action="@{/availability/manager/review-all}" method="post">
+                            <input type="hidden" name="week" th:value="${weekStart}">
+                            <input type="hidden" name="approved" value="true">
+                            <button class="rv-btn rv-btn-primary" type="submit"
+                                    data-coffee-confirm="Duyệt tất cả đơn đang chờ trong tuần này? Mỗi đơn được duyệt riêng; đơn nào không duyệt được sẽ được báo lại và các đơn khác vẫn được duyệt."
+                                    data-coffee-title="Duyệt tất cả đơn"
+                                    data-coffee-ok="Duyệt tất cả">Duyệt tất cả</button>
+                        </form>
+                        <form th:action="@{/availability/manager/review-all}" method="post">
+                            <input type="hidden" name="week" th:value="${weekStart}">
+                            <input type="hidden" name="approved" value="false">
+                            <button class="rv-btn rv-btn-danger" type="submit"
+                                    data-coffee-confirm="Từ chối tất cả đơn đang chờ trong tuần này? Chỉ các đơn đang chờ bị từ chối. Đơn đã duyệt được giữ nguyên."
+                                    data-coffee-title="Từ chối tất cả đơn"
+                                    data-coffee-ok="Từ chối tất cả"
+                                    data-coffee-tone="danger">Từ chối tất cả</button>
+                        </form>
+                    </div>
+                </header>
+
+                <p class="rv-empty" th:if="${#lists.isEmpty(registrations)}">Chưa có nhân viên nào đăng ký lịch trong tuần này.</p>
+
+                <div class="rv-table-wrap" th:unless="${#lists.isEmpty(registrations)}">
+                    <table class="rv-table rv-regs">
+                        <thead>
+                        <tr>
+                            <th scope="col">Nhân viên</th>
+                            <th scope="col">Mã NV</th>
+                            <th scope="col">Vị trí</th>
+                            <th scope="col">Các ca đã đăng ký</th>
+                            <th scope="col">Ngày đăng ký</th>
+                            <th scope="col">Trạng thái</th>
+                            <th scope="col" class="actions">Thao tác</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr class="rv-reg-row" th:each="item : ${registrations}"
+                            th:with="code=${item.employeeId != null ? 'NV' + #numbers.formatInteger(item.employeeId, 3) : '—'},
+                                     slotList=${#strings.arraySplit(item.slotsByDay != null ? item.slotsByDay : '', ';')}"
+                            th:attr="data-reg-id=${item.registrationKey != null ? 'k:' + item.registrationKey : 'a:' + item.availabilityId},
+                                     data-reg=${item.registrationKey != null ? item.registrationKey : ''},
+                                     data-availability-id=${item.availabilityId},
+                                     data-status=${item.statusKey},
+                                     data-status-label=${item.statusLabel},
+                                     data-name=${item.employeeName != null ? item.employeeName : 'Nhân viên'},
+                                     data-code=${code},
+                                     data-position=${item.positionName != null ? item.positionName : ''},
+                                     data-cert=${item.certificationLabel != null ? item.certificationLabel : ''},
+                                     data-slots=${item.slotKeys != null ? item.slotKeys : ''},
+                                     data-slots-text=${item.slotsByDay != null ? item.slotsByDay : ''},
+                                     data-duration=${item.durationLabel != null ? item.durationLabel : ''},
+                                     data-period=${item.formattedPeriod != null ? item.formattedPeriod : ''},
+                                     data-projection=${item.projectionSummary != null ? item.projectionSummary : ''},
+                                     data-submitted=${item.submittedAt != null ? #temporals.format(item.submittedAt, 'dd/MM/yyyy HH:mm') : ''},
+                                     data-pending=${item.pending}">
+                            <td data-label="Nhân viên">
+                                <strong th:text="${item.employeeName != null ? item.employeeName : 'Nhân viên'}">Nguyễn Văn A</strong>
+                                <span class="rv-sub" th:if="${item.certificationLabel != null}" th:text="${item.certificationLabel}">Đã chứng nhận</span>
+                                <span class="rv-tag" th:if="${item.allocatedByManager}">Quản lý phân bổ</span>
+                            </td>
+                            <td data-label="Mã NV"><span class="rv-code" th:text="${code}">NV001</span></td>
+                            <td data-label="Vị trí" th:text="${item.positionName != null ? item.positionName : '—'}">Pha chế</td>
+                            <td data-label="Các ca đã đăng ký">
+                                <div class="rv-shift-chips">
+                                    <span class="rv-shift-chip" th:each="s, it : ${slotList}" th:if="${it.index < 3}" th:text="${#strings.trim(s)}">Thứ 2: Ca sáng</span>
+                                    <span class="rv-shift-chip is-more" th:if="${#arrays.length(slotList) > 3}" th:text="${'+' + (#arrays.length(slotList) - 3)}">+2</span>
+                                </div>
+                                <span class="rv-sub" th:text="${item.durationLabel + ' · ' + item.formattedPeriod}">1 tháng</span>
+                            </td>
+                            <td data-label="Ngày đăng ký" th:text="${item.submittedAt != null ? #temporals.format(item.submittedAt, 'dd/MM/yyyy HH:mm') : '—'}">01/11/2026</td>
+                            <td data-label="Trạng thái">
+                                <span class="rv-badge"
+                                      th:classappend="${item.statusKey == 'approved' ? 'is-ok' : (item.statusKey == 'pending' ? 'is-wait' : 'is-short')}"
+                                      th:text="${item.statusLabel}">Chờ duyệt</span>
+                            </td>
+                            <td data-label="Thao tác" class="actions">
+                                <div class="rv-row-actions">
+                                    <button type="button" class="rv-btn rv-btn-ghost rv-detail-btn">Chi tiết</button>
+                                    <th:block th:if="${item.pending}">
                                         <form th:action="@{/availability/manager/review}" method="post">
                                             <input type="hidden" name="week" th:value="${weekStart}">
                                             <input type="hidden" name="registrationKey" th:if="${item.registrationKey != null}" th:value="${item.registrationKey}">
                                             <input type="hidden" name="availabilityId" th:if="${item.registrationKey == null}" th:value="${item.availabilityId}">
                                             <input type="hidden" name="approved" value="true">
-                                            <button class="rv-approve" type="submit"
+                                            <button class="rv-btn rv-btn-primary" type="submit"
                                                     th:data-coffee-confirm="|Duyệt đơn đăng ký ca của ${item.employeeName}? Chỉ các ca trong đơn của nhân viên này được xếp vào lịch.|"
                                                     data-coffee-title="Duyệt đơn đăng ký ca"
                                                     data-coffee-ok="Duyệt">Duyệt</button>
@@ -134,48 +306,109 @@
                                             <input type="hidden" name="registrationKey" th:if="${item.registrationKey != null}" th:value="${item.registrationKey}">
                                             <input type="hidden" name="availabilityId" th:if="${item.registrationKey == null}" th:value="${item.availabilityId}">
                                             <input type="hidden" name="approved" value="false">
-                                            <button class="rv-reject" type="submit"
+                                            <button class="rv-btn rv-btn-danger" type="submit"
                                                     th:data-coffee-confirm="|Từ chối đơn đăng ký ca của ${item.employeeName}? Chỉ đơn của nhân viên này bị từ chối.|"
                                                     data-coffee-title="Từ chối đơn đăng ký ca"
                                                     data-coffee-ok="Từ chối"
                                                     data-coffee-tone="danger">Từ chối</button>
                                         </form>
-                                    </div>
-                                </article>
-                            </div>
-                        </article>
-                    </div>
+                                    </th:block>
+                                </div>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                    <p class="rv-empty" id="rvRegEmpty" hidden>Không có đơn đăng ký nào khớp bộ lọc.</p>
+                    <nav class="rv-pager" id="rvPager" aria-label="Phân trang" hidden>
+                        <button type="button" class="rv-btn rv-btn-ghost" id="rvPrevPage">Trước</button>
+                        <span id="rvPageInfo">Trang 1/1</span>
+                        <button type="button" class="rv-btn rv-btn-ghost" id="rvNextPage">Sau</button>
+                    </nav>
                 </div>
             </section>
+        </th:block>
 
-            <div class="rv-summary">
-                <div class="rv-summary-stats">
-                    <p>Tổng đơn <strong id="rvSumTotal" th:text="${reviewTotals.total}">0</strong></p>
-                    <p>Chờ duyệt <strong id="rvSumPending" th:text="${reviewTotals.pending}">0</strong></p>
-                    <p>Đã duyệt <strong id="rvSumApproved" th:text="${reviewTotals.approved}">0</strong></p>
-                    <p>Từ chối <strong id="rvSumRejected" th:text="${reviewTotals.rejected}">0</strong></p>
+        <!-- F. Chi tiết đơn đăng ký -->
+        <div class="rv-modal" id="rvDetail" role="dialog" aria-modal="true" aria-labelledby="rvDetailName" hidden>
+            <div class="rv-modal-backdrop" data-close></div>
+            <div class="rv-modal-card" tabindex="-1">
+                <header class="rv-modal-head">
+                    <div>
+                        <h2 id="rvDetailName">Nhân viên</h2>
+                        <p class="rv-sub" id="rvDetailMeta"></p>
+                    </div>
+                    <button type="button" class="rv-icon-btn" id="rvDetailClose" aria-label="Đóng">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                    </button>
+                </header>
+                <dl class="rv-detail-grid">
+                    <div><dt>Mã nhân viên</dt><dd id="rvDetailCode">—</dd></div>
+                    <div><dt>Vị trí</dt><dd id="rvDetailPosition">—</dd></div>
+                    <div><dt>Ngày đăng ký</dt><dd id="rvDetailSubmitted">—</dd></div>
+                    <div><dt>Trạng thái đơn</dt><dd><span class="rv-badge" id="rvDetailStatus">—</span></dd></div>
+                    <div class="wide"><dt>Thời hạn</dt><dd id="rvDetailPeriod">—</dd></div>
+                </dl>
+                <h3>Ca đăng ký trong tuần
+                    <span th:if="${weekStart != null}" th:text="${#temporals.format(weekStart, 'dd/MM') + ' – ' + #temporals.format(weekStart.plusDays(6), 'dd/MM/yyyy')}"></span>
+                </h3>
+                <div class="rv-table-wrap">
+                    <table class="rv-table rv-detail-table">
+                        <thead>
+                        <tr>
+                            <th scope="col">Ngày</th>
+                            <th scope="col">Ca làm</th>
+                            <th scope="col">Nhân sự ca (đã duyệt/nhu cầu)</th>
+                            <th scope="col">Trạng thái duyệt</th>
+                        </tr>
+                        </thead>
+                        <tbody id="rvDetailSlots"></tbody>
+                    </table>
                 </div>
-                <div class="rv-summary-actions" th:if="${reviewTotals.pending > 0}">
-                    <form th:action="@{/availability/manager/review-all}" method="post">
-                        <input type="hidden" name="week" th:value="${weekStart}">
-                        <input type="hidden" name="approved" value="true">
-                        <button class="rv-approve" type="submit"
-                                data-coffee-confirm="Duyệt tất cả đơn đang chờ? Mỗi nhân viên được duyệt theo đơn của chính họ; các ca trong đơn được xếp vào lịch."
-                                data-coffee-title="Duyệt tất cả đơn"
-                                data-coffee-ok="Duyệt tất cả">Duyệt tất cả</button>
-                    </form>
-                    <form th:action="@{/availability/manager/review-all}" method="post">
-                        <input type="hidden" name="week" th:value="${weekStart}">
-                        <input type="hidden" name="approved" value="false">
-                        <button class="rv-reject" type="submit"
-                                data-coffee-confirm="Từ chối tất cả đơn đang chờ? Chỉ các đơn đang chờ bị từ chối. Đơn đã duyệt được giữ nguyên."
-                                data-coffee-title="Từ chối tất cả đơn"
-                                data-coffee-ok="Từ chối tất cả"
-                                data-coffee-tone="danger">Từ chối tất cả</button>
-                    </form>
-                </div>
+                <footer class="rv-modal-foot">
+                    <button type="button" class="rv-btn rv-btn-ghost" id="rvDetailCancel">Đóng</button>
+                    <div class="rv-row-actions" id="rvDetailActions" hidden>
+                        <form th:action="@{/availability/manager/review}" method="post" id="rvDetailReject">
+                            <input type="hidden" name="week" th:value="${weekStart}">
+                            <input type="hidden" name="registrationKey">
+                            <input type="hidden" name="availabilityId">
+                            <input type="hidden" name="approved" value="false">
+                            <button class="rv-btn rv-btn-danger" type="submit"
+                                    data-coffee-title="Từ chối đơn đăng ký ca"
+                                    data-coffee-ok="Từ chối"
+                                    data-coffee-tone="danger">Từ chối</button>
+                        </form>
+                        <form th:action="@{/availability/manager/review}" method="post" id="rvDetailApprove">
+                            <input type="hidden" name="week" th:value="${weekStart}">
+                            <input type="hidden" name="registrationKey">
+                            <input type="hidden" name="availabilityId">
+                            <input type="hidden" name="approved" value="true">
+                            <button class="rv-btn rv-btn-primary" type="submit"
+                                    data-coffee-title="Duyệt đơn đăng ký ca"
+                                    data-coffee-ok="Duyệt">Duyệt</button>
+                        </form>
+                    </div>
+                </footer>
             </div>
         </div>
+
+        <!-- G. Phân bổ nhân sự (nội dung nạp từ /availability/manager/allocation) -->
+        <div class="rv-modal sa-modal" id="saModal" role="dialog" aria-modal="true" aria-labelledby="saTitle" hidden>
+            <div class="rv-modal-backdrop" data-sa-close></div>
+            <div class="rv-modal-card sa-card" tabindex="-1">
+                <header class="rv-modal-head">
+                    <div>
+                        <h2 id="saTitle">Phân bổ nhân sự</h2>
+                        <p class="rv-sub">Chọn nhân viên rồi bấm Phân bổ: hệ thống tự xếp vào các ca còn thiếu người và đưa thẳng vào lịch làm việc.</p>
+                    </div>
+                    <button type="button" class="rv-icon-btn" data-sa-close aria-label="Đóng">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                    </button>
+                </header>
+                <div id="saBody" aria-live="polite"></div>
+            </div>
+        </div>
+
+        <div class="rv-loading" aria-hidden="true"><span></span></div>
     </div>
 </main>
 <script th:src="@{/js/review-board.js}"></script>

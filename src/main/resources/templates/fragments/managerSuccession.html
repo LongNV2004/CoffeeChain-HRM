@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<body>
+<!--
+  Bảng bổ nhiệm Manager thay thế khi cửa hàng chưa có Manager.
+  succession: ManagerSuccession · storeId: mã cửa hàng
+  returnTo: 'list' để quay lại danh sách nhân viên · returnEmployeeId: hồ sơ cần quay lại (có thể null)
+-->
+<section th:fragment="panel(succession, storeId, returnTo, returnEmployeeId)"
+         th:if="${succession != null and !succession.storeHasManager()}"
+         class="ms-panel" aria-labelledby="msPanelTitle">
+    <header class="ms-panel-head">
+        <span class="ms-panel-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 9v4m0 4h.01M10.3 3.9 2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+        </span>
+        <div>
+            <h2 id="msPanelTitle">Cửa hàng chưa có Manager — bổ nhiệm người thay thế</h2>
+            <p>Staff đủ điều kiện khi có <strong>hợp đồng đang hiệu lực</strong> và <strong>tài khoản đang hoạt động</strong>.
+                Chứng chỉ quản lý không bắt buộc khi bổ nhiệm, nhưng Manager cần đạt chứng chỉ để dùng chức năng quản lý.</p>
+        </div>
+        <span class="ms-count">
+            <strong th:text="${#lists.size(succession.eligibleCandidates)}">0</strong>
+            <span>đủ điều kiện</span>
+        </span>
+    </header>
+
+    <p class="ms-empty" th:if="${#lists.isEmpty(succession.candidates())}">
+        Cửa hàng chưa có Staff đang làm việc để bổ nhiệm. Hãy tạo đề xuất tuyển dụng hoặc điều chuyển nhân sự.
+    </p>
+
+    <div class="ms-table-wrap" th:unless="${#lists.isEmpty(succession.candidates())}">
+        <table class="ms-table">
+            <thead>
+            <tr>
+                <th scope="col">Nhân viên</th>
+                <th scope="col">Hợp đồng</th>
+                <th scope="col">Chứng chỉ quản lý</th>
+                <th scope="col">Điều kiện</th>
+                <th scope="col" class="ms-actions"><span class="sr-only">Thao tác</span></th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="c : ${succession.candidates()}" th:classappend="${c.eligible() ? '' : 'is-blocked'}">
+                <td data-label="Nhân viên">
+                    <a class="ms-name" th:href="@{/admin/stores/{s}/employees/{e}(s=${storeId}, e=${c.employeeId()})}" th:text="${c.fullName()}">Tên</a>
+                    <span class="ms-sub" th:text="${c.email() != null ? c.email() : 'Mã NV ' + c.employeeId()}">email</span>
+                </td>
+                <td data-label="Hợp đồng">
+                    <th:block th:if="${c.contractCode() != null}">
+                        <strong th:text="${c.contractCode()}">HD</strong>
+                        <span class="ms-sub"
+                              th:text="${#temporals.format(c.contractStartDate(), 'dd/MM/yyyy') + ' – ' + (c.contractEndDate() != null ? #temporals.format(c.contractEndDate(), 'dd/MM/yyyy') : 'Không xác định')}">01/01 – 31/12</span>
+                    </th:block>
+                    <span th:if="${c.contractCode() == null}" class="ms-muted">Chưa có hợp đồng</span>
+                </td>
+                <td data-label="Chứng chỉ quản lý">
+                    <span class="ms-badge" th:classappend="${c.managementCertified() ? 'is-ok' : 'is-muted'}"
+                          th:text="${c.managementCertified() ? 'Hợp lệ' : 'Chưa đạt'}">Chưa đạt</span>
+                </td>
+                <td data-label="Điều kiện">
+                    <span th:if="${c.eligible()}" class="ms-badge is-ok">Đủ điều kiện</span>
+                    <ul th:unless="${c.eligible()}" class="ms-blockers">
+                        <li th:each="b : ${c.blockers()}" th:text="${b}">Chưa có hợp đồng</li>
+                    </ul>
+                </td>
+                <td class="ms-actions" data-label="">
+                    <form th:if="${c.eligible()}" method="post"
+                          th:action="@{/admin/stores/{s}/employees/{e}/role(s=${storeId}, e=${c.employeeId()})}">
+                        <input type="hidden" name="role" value="MANAGER">
+                        <input type="hidden" name="returnTo" th:if="${returnTo != null}" th:value="${returnTo}">
+                        <input type="hidden" name="returnEmployeeId" th:if="${returnEmployeeId != null}" th:value="${returnEmployeeId}">
+                        <button type="submit" class="store-btn store-btn--primary store-btn--compact"
+                                th:data-coffee-confirm="|Bổ nhiệm ${c.fullName()} làm Manager của cửa hàng? Tài khoản, hồ sơ, hợp đồng và lịch sử được giữ nguyên.|"
+                                data-coffee-title="Bổ nhiệm Manager"
+                                data-coffee-ok="Bổ nhiệm">Bổ nhiệm</button>
+                    </form>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+</body>
+</html>

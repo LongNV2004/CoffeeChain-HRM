@@ -52,6 +52,8 @@ public class AttendanceReportWorkbook {
         private final int workDayCount;
         private final int violationCount;
         private final int missingCount;
+        /** Tổng ca nghỉ phép đã duyệt trong kỳ. */
+        private final int leaveSlotCount;
     }
 
     @Getter
@@ -72,6 +74,16 @@ public class AttendanceReportWorkbook {
         private final int workedMinutes;
         private final int openCheckouts;
         private final String note;
+        /** Ca nghỉ phép đã duyệt trong kỳ (không trùng ca làm/chấm công). */
+        private final int leaveSlots;
+        /** Số ngày có ca nghỉ phép. */
+        private final int leaveDays;
+        /** Ca nghỉ được hưởng lương theo chính sách nghỉ phép. */
+        private final int paidLeaveSlots;
+
+        public String leaveLabel() {
+            return leaveSlots <= 0 ? "0" : leaveSlots + " ca / " + leaveDays + " ngày";
+        }
 
         public BigDecimal workedHours() {
             return hours(workedMinutes);

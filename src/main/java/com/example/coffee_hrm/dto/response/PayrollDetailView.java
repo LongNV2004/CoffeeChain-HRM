@@ -22,6 +22,9 @@ public class PayrollDetailView {
     private final boolean locked;
     private final int assignedShifts;
     private final int validShifts;
+    private final int leaveShifts;
+    private final int paidLeaveShifts;
+    private final int paidLeaveHours;
     private final int reviewShifts;
     private final int payableHours;
     private final String hourlyRateLabel;

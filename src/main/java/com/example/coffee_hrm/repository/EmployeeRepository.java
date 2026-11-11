@@ -223,6 +223,25 @@ public interface EmployeeRepository extends JpaRepository<Employee, Integer> {
                                 @Param("staffRole") RoleName staffRole,
                                 @Param("managerEmployeeId") Integer managerEmployeeId);
 
+    /**
+     * Staff còn thuộc cửa hàng (chưa nghỉ việc) dùng làm trần cho số nhân viên tối đa của một ca.
+     * Gồm cả nhân viên chờ hoàn thiện hợp đồng hoặc đang nghỉ phép; không tính Manager.
+     */
+    @Query("""
+            SELECT COUNT(e)
+            FROM Employee e
+            JOIN e.user u
+            JOIN u.role r
+            WHERE e.store.id = :storeId
+              AND e.status IN :statuses
+              AND r.roleName = :staffRole
+              AND e.id <> :managerEmployeeId
+            """)
+    long countStoreStaffInStatuses(@Param("storeId") Integer storeId,
+                                    @Param("statuses") Collection<EmployeeStatus> statuses,
+                                    @Param("staffRole") RoleName staffRole,
+                                    @Param("managerEmployeeId") Integer managerEmployeeId);
+
     @Query("""
             SELECT e.id
             FROM Employee e

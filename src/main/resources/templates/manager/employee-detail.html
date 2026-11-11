@@ -51,13 +51,6 @@
                         th:classappend="${detail.employee.fullName == null or #strings.isEmpty(detail.employee.fullName)} ? ' is-placeholder'">Tên</dd>
                 </div>
                 <div>
-                    <dt>Ảnh đại diện</dt>
-                    <dd th:if="${detail.employee.avatarUrl != null and !#strings.isEmpty(detail.employee.avatarUrl)}">
-                        <img class="employee-detail-avatar" th:src="${detail.employee.avatarUrl}" alt="">
-                    </dd>
-                    <dd th:if="${detail.employee.avatarUrl == null or #strings.isEmpty(detail.employee.avatarUrl)}" class="is-placeholder">Chưa cập nhật</dd>
-                </div>
-                <div>
                     <dt>Email</dt>
                     <dd th:text="${detail.employee.email != null and !#strings.isEmpty(detail.employee.email) ? detail.employee.email : 'Chưa cập nhật'}"
                         th:classappend="${detail.employee.email == null or #strings.isEmpty(detail.employee.email)} ? ' is-placeholder'">Email</dd>
@@ -71,6 +64,11 @@
                     <dt>Số căn cước công dân (CCCD)</dt>
                     <dd th:text="${detail.employee.citizenId != null and !#strings.isEmpty(detail.employee.citizenId) ? detail.employee.citizenId : 'Chưa cập nhật'}"
                         th:classappend="${detail.employee.citizenId == null or #strings.isEmpty(detail.employee.citizenId)} ? ' is-placeholder'">079203000123</dd>
+                </div>
+                <div>
+                    <dt>Ngày sinh</dt>
+                    <dd th:if="${detail.employee.dateOfBirth != null}" th:text="${#temporals.format(detail.employee.dateOfBirth, 'dd/MM/yyyy')}">02/05/2000</dd>
+                    <dd th:if="${detail.employee.dateOfBirth == null}" class="is-placeholder">Chưa cập nhật</dd>
                 </div>
                 <div>
                     <dt>Địa chỉ</dt>

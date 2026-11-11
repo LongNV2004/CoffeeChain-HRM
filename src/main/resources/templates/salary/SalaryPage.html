@@ -102,7 +102,7 @@
        th:text="|Còn ${board.reviewShifts} ca thiếu dữ liệu. Những ca này có lương 0 và chưa thể chốt.|">Còn ca thiếu dữ liệu.</p>
     <p class="salary-note" th:if="${storeCards == null and board.locked}">Bảng lương kỳ này đã chốt. Số giờ và mức lương/giờ được giữ nguyên.</p>
 
-    <div class="salary-actions" th:if="${storeCards == null and (board.canCalculate or board.canLock or board.canExport)}">
+    <div class="salary-actions" th:if="${storeCards == null and (board.canCalculate or board.canLock or !board.canFilterStore)}">
         <form th:if="${board.canCalculate}" method="post" th:action="${board.homePath + '/calculate'}"
               onsubmit="return confirm('Tính lương cả cửa hàng cho tháng này? Kết quả chưa chốt sẽ được ghi lại.');">
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
@@ -117,7 +117,6 @@
             <input type="hidden" name="month" th:value="${board.month}">
             <button class="ghost-btn" type="submit">Chốt lương</button>
         </form>
-        <a class="ghost-btn" th:if="${board.canExport}" th:href="${board.exportPath}">Xuất Excel</a>
         <span class="badge" th:if="${!board.canFilterStore}" th:text="${board.statusLabel}">Chưa tính</span>
     </div>
 
@@ -154,6 +153,51 @@
                     <td>
                         <a class="row-link"
                            th:href="|${board.homePath}/detail?year=${board.year}&month=${board.month}&employeeId=${row.employeeId}|">Xem chi tiết</a>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel" id="nhan-luong" th:if="${navRole == 'staff'}">
+        <h2>Lương đã duyệt và thanh toán</h2>
+        <p class="salary-note">Bảng lương chính thức sau khi Admin duyệt báo cáo cửa hàng. Bạn chỉ xem được, không chỉnh sửa.</p>
+        <p class="empty" th:if="${periods == null or #lists.isEmpty(periods)}">Chưa có kỳ lương nào được duyệt.</p>
+        <div class="salary-table-wrap" th:if="${periods != null and !#lists.isEmpty(periods)}">
+            <table>
+                <thead>
+                <tr>
+                    <th>Kỳ lương</th>
+                    <th>Tổng số ca đã làm</th>
+                    <th>Lương cơ bản</th>
+                    <th>Phụ cấp</th>
+                    <th>Khấu trừ</th>
+                    <th>Tổng lương thực nhận</th>
+                    <th>Số tiền đã nhận</th>
+                    <th>Số tiền còn lại</th>
+                    <th>Trạng thái thanh toán</th>
+                    <th>Ngày thanh toán</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="period : ${periods}">
+                    <td>
+                        <strong th:text="${period.periodLabel}">Tháng 10/2026</strong>
+                        <small class="salary-sub" th:text="${period.storeName}">Cầu Giấy</small>
+                    </td>
+                    <td th:text="${period.workedShifts + ' / ' + period.assignedShifts + ' ca'}">0 / 0 ca</td>
+                    <td th:text="${period.baseLabel}">0 đ</td>
+                    <td th:text="${period.allowanceLabel}">0 đ</td>
+                    <td th:text="${period.deductionLabel}">0 đ</td>
+                    <td><strong th:text="${period.netLabel}">0 đ</strong></td>
+                    <td th:text="${period.receivedLabel}">0 đ</td>
+                    <td th:text="${period.remainingLabel}">0 đ</td>
+                    <td><span class="salary-badge" th:classappend="${period.paymentStatusKey}" th:text="${period.paymentStatusLabel}">Chưa thanh toán</span></td>
+                    <td>
+                        <span th:if="${#lists.isEmpty(period.payments)}">—</span>
+                        <span class="salary-pay" th:each="pay : ${period.payments}"
+                              th:text="${#temporals.format(pay.paidDate, 'dd/MM/yyyy') + ' · ' + pay.amountLabel + ' · ' + pay.methodLabel}">10/11/2026 · 1.000.000 đ · Chuyển khoản</span>
                     </td>
                 </tr>
                 </tbody>

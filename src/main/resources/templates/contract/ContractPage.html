@@ -120,7 +120,7 @@
                     <td th:text="${#temporals.format(contract.startDate, 'dd/MM/yyyy')}">01/10/2026</td>
                     <td th:text="${contract.endDate == null ? 'Không xác định thời hạn' : #temporals.format(contract.endDate, 'dd/MM/yyyy')}">Không xác định thời hạn</td>
                     <td th:text="${contract.contractTermLabel != null ? contract.contractTermLabel : 'Chưa xác định'}">Xác định thời hạn</td>
-                    <td th:text="${#numbers.formatDecimal(contract.salary, 1, 'POINT', 0, 'COMMA') + ' đồng/giờ'}">0 đồng/giờ</td>
+                    <td th:text="${contract.salaryLabel != null ? contract.salaryLabel + ' đồng/giờ' : 'Chưa cập nhật'}">0 đồng/giờ</td>
                     <td th:text="${contract.weeklyShiftCount != null ? contract.weeklyShiftCount + ' ca/tuần' : 'Chưa quy định'}">7 ca/tuần</td>
                     <td>
                         <span class="badge"

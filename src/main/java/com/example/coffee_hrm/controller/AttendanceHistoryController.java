@@ -7,16 +7,13 @@ import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.AttendanceHistoryQuery;
 import com.example.coffee_hrm.dto.response.AttendanceHistoryView;
 import com.example.coffee_hrm.dto.response.ManagerMonthAttendanceView;
-import com.example.coffee_hrm.report.MonthAttendanceExcel;
+import com.example.coffee_hrm.dto.response.PayrollBoardView;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.AttendanceHistoryService;
 import com.example.coffee_hrm.service.ManagerDayAttendanceService;
+import com.example.coffee_hrm.service.PayrollService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.ContentDisposition;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
@@ -27,7 +24,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Controller
 @RequiredArgsConstructor
@@ -36,6 +38,7 @@ public class AttendanceHistoryController {
 
     private final AttendanceHistoryService attendanceHistoryService;
     private final ManagerDayAttendanceService managerDayAttendanceService;
+    private final PayrollService payrollService;
 
     @GetMapping("/staff/history")
     @PreAuthorize("hasRole('STAFF')")
@@ -105,29 +108,50 @@ public class AttendanceHistoryController {
     public String managerMonth(@RequestParam(value = "month", required = false) String month,
                                @AuthenticationPrincipal AuthenticatedUser user,
                                Model model) {
+        ManagerMonthAttendanceView board;
         try {
-            model.addAttribute("board", managerDayAttendanceService.getMonth(user, month));
+            board = managerDayAttendanceService.getMonth(user, month);
             model.addAttribute("pageError", null);
         } catch (BusinessException ex) {
-            model.addAttribute("board", managerDayAttendanceService.emptyMonth());
+            board = managerDayAttendanceService.emptyMonth();
             model.addAttribute("pageError", ex.getMessage());
         }
+        model.addAttribute("board", board);
+        addPayroll(user, board, model);
         return "manager/ManagerMonthAttendance";
     }
 
-    @GetMapping("/manager/month/export")
-    @PreAuthorize("hasRole('MANAGER')")
-    public ResponseEntity<byte[]> exportManagerMonth(@RequestParam(value = "month", required = false) String month,
-                                                     @AuthenticationPrincipal AuthenticatedUser user) {
-        ManagerMonthAttendanceView board = managerDayAttendanceService.getMonth(user, month);
-        byte[] body = MonthAttendanceExcel.write(board);
-        ContentDisposition disposition = ContentDisposition.attachment()
-                .filename(MonthAttendanceExcel.fileName(board))
-                .build();
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
-                .contentType(MediaType.parseMediaType("application/vnd.ms-excel"))
-                .body(body);
+    /**
+     * Bảng lương cùng tháng, hiển thị chung với chấm công. Dữ liệu và quyền hạn lấy nguyên từ
+     * {@link PayrollService}; màn hình chỉ ghép theo mã nhân viên.
+     */
+    private void addPayroll(AuthenticatedUser user, ManagerMonthAttendanceView board, Model model) {
+        PayrollBoardView payroll;
+        try {
+            payroll = payrollService.board(user, null, null, board.getMonthValue(), null, null, null);
+            model.addAttribute("payrollError", null);
+        } catch (BusinessException ex) {
+            payroll = null;
+            model.addAttribute("payrollError", ex.getMessage());
+        }
+        Map<Integer, PayrollBoardView.Row> byEmployee = new HashMap<>();
+        List<PayrollBoardView.Row> payrollOnly = new ArrayList<>();
+        if (payroll != null) {
+            Set<Integer> listed = new HashSet<>();
+            for (ManagerMonthAttendanceView.EmployeeMonth card : board.getEmployees()) {
+                listed.add(card.getEmployeeId());
+            }
+            for (PayrollBoardView.Row row : payroll.getRows()) {
+                byEmployee.put(row.getEmployeeId(), row);
+                if (!listed.contains(row.getEmployeeId())) {
+                    // Đã nghỉ hoặc chuyển cửa hàng nhưng vẫn có ca trong tháng: vẫn phải trả lương.
+                    payrollOnly.add(row);
+                }
+            }
+        }
+        model.addAttribute("payroll", payroll);
+        model.addAttribute("payByEmployee", byEmployee);
+        model.addAttribute("payrollOnly", payrollOnly);
     }
 
     @GetMapping("/admin")

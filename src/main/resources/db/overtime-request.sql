@@ -32,3 +32,15 @@ BEGIN
 END;
 GO
 
+IF COL_LENGTH('dbo.OvertimeRequests', 'ContractWeeklyQuota') IS NULL
+    ALTER TABLE dbo.OvertimeRequests ADD ContractWeeklyQuota INT NULL;
+IF COL_LENGTH('dbo.OvertimeRequests', 'ReviewedByUserId') IS NULL
+    ALTER TABLE dbo.OvertimeRequests ADD ReviewedByUserId INT NULL;
+IF COL_LENGTH('dbo.OvertimeRequests', 'ReviewedAt') IS NULL
+    ALTER TABLE dbo.OvertimeRequests ADD ReviewedAt DATETIME2 NULL;
+IF COL_LENGTH('dbo.OvertimeRequests', 'ReviewNote') IS NULL
+    ALTER TABLE dbo.OvertimeRequests ADD ReviewNote NVARCHAR(255) NULL;
+IF COL_LENGTH('dbo.OvertimeRequests', 'CreatedAssignmentId') IS NULL
+    ALTER TABLE dbo.OvertimeRequests ADD CreatedAssignmentId INT NULL;
+GO
+

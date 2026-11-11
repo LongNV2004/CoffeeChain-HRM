@@ -116,6 +116,19 @@ class EmployeeServiceImplTest {
         when(storeRepository.findByIdForUpdate(2)).thenReturn(Optional.of(storeB));
         when(userRepository.findByEmployee_Id(10)).thenReturn(Optional.of(staffUser));
         when(storeRepository.findAllByManager_Id(anyInt())).thenReturn(List.of());
+        // Staff đang có hợp đồng hiệu lực: đủ điều kiện hợp đồng để bổ nhiệm Manager.
+        when(employmentContractRepository.findByEmployeeId(10)).thenReturn(List.of(activeContract(10, staffEmployee)));
+    }
+
+    private EmploymentContract activeContract(int id, Employee owner) {
+        return EmploymentContract.builder()
+                .id(id)
+                .contractCode("HD-" + id)
+                .employee(owner)
+                .startDate(VietnamTime.today().minusMonths(1))
+                .endDate(VietnamTime.today().plusMonths(6))
+                .salary(new BigDecimal("10000"))
+                .build();
     }
 
     @Test
@@ -344,7 +357,7 @@ class EmployeeServiceImplTest {
     void listsManagerBeforeStaffWithoutChangingStoredRoles() {
         Employee manager = employee(11, storeA, EmployeeStatus.ON_LEAVE);
         manager.setFullName("Zara Manager");
-        manager.setHasCertificate(true);
+        manager.setCertificationStatus(com.example.coffee_hrm.common.enums.CertificationStatus.CERTIFIED);
         manager.setUser(User.builder().id(101).role(managerRole).employee(manager).passwordHash("SECRET-HASH").build());
         staffEmployee.setFullName("Binh Staff");
         staffEmployee.setUser(staffUser);
@@ -608,8 +621,9 @@ class EmployeeServiceImplTest {
     }
 
     @Test
-    void profileUpdateKeepsCitizenIdUnlessANewValidValueIsProvided() {
+    void profileUpdateNeverChangesCitizenIdOrBirthDate() {
         staffEmployee.setCitizenId("079203000123");
+        staffEmployee.setDateOfBirth(LocalDate.of(2000, 5, 2));
         staffEmployee.setEmail("e10@x.vn");
         when(employeeRepository.findByIdWithStoreAndManager(10)).thenReturn(Optional.of(staffEmployee));
         UpdateEmployeeRequest request = UpdateEmployeeRequest.builder()
@@ -623,40 +637,28 @@ class EmployeeServiceImplTest {
                 .build();
 
         EmployeeResponse kept = employeeService.updateEmployee(admin, 1, 10, request);
+
         assertEquals("079203000123", staffEmployee.getCitizenId());
         assertEquals("079203000123", kept.getCitizenId());
-
-        request.setCitizenId("079203000999");
-        employeeService.updateEmployee(admin, 1, 10, request);
-        assertEquals("079203000999", staffEmployee.getCitizenId());
-
-        request.setCitizenId("12ab");
-        assertMessage(CitizenIds.INVALID_MESSAGE, () -> employeeService.updateEmployee(admin, 1, 10, request));
-        assertEquals("079203000999", staffEmployee.getCitizenId());
-
-        when(employeeRepository.existsByCitizenIdAndIdNot("079203000111", 10)).thenReturn(true);
-        request.setCitizenId("079203000111");
-        assertMessage(CitizenIds.DUPLICATE_MESSAGE, () -> employeeService.updateEmployee(admin, 1, 10, request));
-        assertEquals("079203000999", staffEmployee.getCitizenId());
+        assertEquals(LocalDate.of(2000, 5, 2), staffEmployee.getDateOfBirth());
+        assertEquals("An", staffEmployee.getFullName());
     }
 
     @Test
-    void onlyAdminCanChangeCitizenIdDirectly() {
-        staffEmployee.setCitizenId("079203000123");
+    void certificateFollowsTheCertificationStatusUsedForShifts() {
+        staffEmployee.setCertificationStatus(com.example.coffee_hrm.common.enums.CertificationStatus.CERTIFIED);
+        staffEmployee.setHasCertificate(false);
         when(employeeRepository.findByIdWithStoreAndManager(10)).thenReturn(Optional.of(staffEmployee));
+        when(storeRepository.findByIdWithManager(1)).thenReturn(Optional.of(storeA));
+        when(employeeRepository.findByIdWithStoreAccount(10)).thenReturn(Optional.of(staffEmployee));
 
-        assertMessage(EmployeeServiceImpl.ACCESS_DENIED,
-                () -> employeeService.updateCitizenId(actor(RoleName.MANAGER), 1, 10, "079203000111"));
-        assertMessage(EmployeeServiceImpl.ACCESS_DENIED,
-                () -> employeeService.updateCitizenId(actor(RoleName.STAFF), 1, 10, "079203000111"));
-        assertEquals("079203000123", staffEmployee.getCitizenId());
+        assertTrue(employeeService.getStoreEmployee(admin, 1, 10).isHasCertificate());
 
-        when(employeeRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        EmployeeResponse updated = employeeService.updateCitizenId(admin, 1, 10, "079 203 000 999");
-        assertEquals("079203000999", staffEmployee.getCitizenId());
-        assertEquals("079203000999", updated.getCitizenId());
-        assertEquals("Employee 10", staffEmployee.getFullName());
+        staffEmployee.setCertificationStatus(com.example.coffee_hrm.common.enums.CertificationStatus.NOTCERTIFIED);
+        staffEmployee.setHasCertificate(true);
+        assertFalse(employeeService.getStoreEmployee(admin, 1, 10).isHasCertificate());
     }
+
 
     @Test
     void adminTerminatesTheCurrentManagerContractImmediately() {
@@ -684,10 +686,76 @@ class EmployeeServiceImplTest {
         assertEquals(VietnamTime.today(), manager.getTerminationDate());
         assertEquals(VietnamTime.today(), contract.getTerminatedDate());
         assertFalse(managerUser.getIsActive());
+        assertSame(staffRole, managerUser.getRole());
+        verify(userRepository).save(managerUser);
         assertNull(storeA.getManager());
         assertTrue(contract.getInternalNote().contains("Không tiếp tục đảm nhiệm"));
         verify(employmentContractRepository).saveAll(List.of(contract));
         verify(accountMailService).sendResignationDecision(eq("e5@x.vn"), eq("Employee 5"), eq("Store A"), any());
+    }
+
+
+    @Test
+    void staffWithoutContractInForceCannotBecomeManager() {
+        when(employmentContractRepository.findByEmployeeId(10)).thenReturn(List.of());
+        assertMessage("Chưa có hợp đồng lao động nên chưa thể bổ nhiệm làm Manager.",
+                () -> employeeService.changeEmployeeRole(admin, 1, 10, "MANAGER"));
+
+        EmploymentContract expired = activeContract(10, staffEmployee);
+        expired.setStartDate(VietnamTime.today().minusYears(1));
+        expired.setEndDate(VietnamTime.today().minusDays(1));
+        when(employmentContractRepository.findByEmployeeId(10)).thenReturn(List.of(expired));
+        assertMessage("Hợp đồng chưa có hiệu lực, đã hết hạn hoặc đã chấm dứt nên chưa thể bổ nhiệm làm Manager.",
+                () -> employeeService.changeEmployeeRole(admin, 1, 10, "MANAGER"));
+
+        assertNull(storeA.getManager());
+        assertSame(staffRole, staffUser.getRole());
+    }
+
+    @Test
+    void eligibleStaffReplacesTheTerminatedManager() {
+        Employee manager = employee(5, storeA, EmployeeStatus.ACTIVE);
+        User managerUser = User.builder().id(20).username("manager").passwordHash("x").role(managerRole)
+                .employee(manager).isActive(true).build();
+        storeA.setManager(manager);
+        when(employeeRepository.lockById(5)).thenReturn(Optional.of(manager));
+        when(userRepository.findByEmployee_Id(5)).thenReturn(Optional.of(managerUser));
+        when(employmentContractRepository.findByEmployeeId(5)).thenReturn(List.of(activeContract(5, manager)));
+        when(storeRepository.findAllByManager_Id(5)).thenReturn(List.of(storeA));
+
+        employeeService.terminateManagerContract(admin, 1, 5, "Nghỉ việc");
+        // Repository không tính người đã nghỉ việc nên cửa hàng không còn Manager nào chặn bổ nhiệm.
+        when(userRepository.countOtherStoreMembersWithRole(1, 10, RoleName.MANAGER)).thenReturn(0L);
+        employeeService.changeEmployeeRole(admin, 1, 10, "MANAGER");
+
+        assertSame(staffRole, managerUser.getRole());
+        assertSame(managerRole, staffUser.getRole());
+        assertSame(staffEmployee, storeA.getManager());
+    }
+
+    @Test
+    void successionListsWorkingStaffWithTheirContractEligibility() {
+        Employee noContract = employee(11, storeA, EmployeeStatus.ACTIVE);
+        noContract.setUser(User.builder().id(101).username("s11").passwordHash("x").role(staffRole)
+                .employee(noContract).isActive(true).build());
+        Employee leaver = employee(12, storeA, EmployeeStatus.TERMINATED);
+        leaver.setUser(User.builder().id(102).username("s12").passwordHash("x").role(staffRole)
+                .employee(leaver).isActive(false).build());
+        staffEmployee.setUser(staffUser);
+        when(storeRepository.findByIdWithManager(1)).thenReturn(Optional.of(storeA));
+        when(employeeRepository.findByStoreIdWithAccount(1)).thenReturn(List.of(noContract, leaver, staffEmployee));
+        when(employmentContractRepository.findByEmployeeId(11)).thenReturn(List.of());
+
+        com.example.coffee_hrm.dto.response.ManagerSuccession succession = employeeService.getManagerSuccession(admin, 1);
+
+        assertFalse(succession.storeHasManager());
+        assertEquals(List.of(10, 11), succession.candidates().stream()
+                .map(com.example.coffee_hrm.dto.response.ManagerSuccession.Candidate::employeeId).toList());
+        assertTrue(succession.candidateOf(10).eligible());
+        assertEquals("HD-10", succession.candidateOf(10).contractCode());
+        assertEquals(List.of("Chưa có hợp đồng lao động"), succession.candidateOf(11).blockers());
+        assertNull(succession.candidateOf(12));
+        assertEquals(1, succession.getEligibleCandidates().size());
     }
 
     @Test

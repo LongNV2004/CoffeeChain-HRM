@@ -6,13 +6,10 @@ import com.example.coffee_hrm.dto.response.PayrollBoardView;
 import com.example.coffee_hrm.dto.response.PayrollDetailView;
 import com.example.coffee_hrm.dto.response.StoreResponse;
 import com.example.coffee_hrm.security.AuthenticatedUser;
+import com.example.coffee_hrm.service.PayrollPaymentService;
 import com.example.coffee_hrm.service.PayrollService;
 import com.example.coffee_hrm.service.StoreService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ContentDisposition;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
@@ -36,31 +33,26 @@ public class SalaryPageController {
 
     private final PayrollService payrollService;
     private final StoreService storeService;
+    private final PayrollPaymentService payrollPaymentService;
 
+    /**
+     * Admin không còn màn hình "Quản lý lương" riêng: bảng lương, duyệt và thanh toán nằm trong "Báo cáo cửa hàng".
+     */
     @GetMapping("/admin/salary")
     @PreAuthorize("hasRole('ADMIN')")
-    public String adminSalary(@AuthenticationPrincipal AuthenticatedUser user,
-                              @RequestParam(value = "year", required = false) Integer year,
+    public String adminSalary(@RequestParam(value = "year", required = false) Integer year,
                               @RequestParam(value = "month", required = false) Integer month,
-                              @RequestParam(value = "period", required = false) String period,
-                              @RequestParam(value = "storeId", required = false) Integer storeId,
-                              @RequestParam(value = "employeeId", required = false) Integer employeeId,
-                              @RequestParam(value = "status", required = false) String status,
-                              Model model) {
-        return render(user, "Trụ sở — Admin", year, month, period, storeId, employeeId, status, model);
+                              @RequestParam(value = "period", required = false) String period) {
+        return redirectAdminReports(year, month, period);
     }
 
+    /** Manager không còn màn hình Lương riêng: bảng lương nằm trong "Danh sách chấm công và lương". */
     @GetMapping("/manager/salary")
     @PreAuthorize("hasRole('MANAGER')")
-    public String managerSalary(@AuthenticationPrincipal AuthenticatedUser user,
-                                @RequestParam(value = "year", required = false) Integer year,
+    public String managerSalary(@RequestParam(value = "year", required = false) Integer year,
                                 @RequestParam(value = "month", required = false) Integer month,
-                                @RequestParam(value = "period", required = false) String period,
-                                @RequestParam(value = "storeId", required = false) Integer storeId,
-                                @RequestParam(value = "employeeId", required = false) Integer employeeId,
-                                @RequestParam(value = "status", required = false) String status,
-                                Model model) {
-        return render(user, "Cửa hàng — Quản lý", year, month, period, storeId, employeeId, status, model);
+                                @RequestParam(value = "period", required = false) String period) {
+        return redirectManagerBoard(year, month, period);
     }
 
     @GetMapping("/staff/salary")
@@ -78,12 +70,9 @@ public class SalaryPageController {
 
     @GetMapping("/admin/salary/detail")
     @PreAuthorize("hasRole('ADMIN')")
-    public String adminDetail(@AuthenticationPrincipal AuthenticatedUser user,
-                              @RequestParam int year,
-                              @RequestParam int month,
-                              @RequestParam Integer employeeId,
-                              Model model) {
-        return detail(user, "Trụ sở — Admin", year, month, employeeId, model);
+    public String adminDetail(@RequestParam(value = "year", required = false) Integer year,
+                              @RequestParam(value = "month", required = false) Integer month) {
+        return redirectAdminReports(year, month, null);
     }
 
     @GetMapping("/manager/salary/detail")
@@ -114,9 +103,7 @@ public class SalaryPageController {
                             RedirectAttributes redirectAttributes) {
         payrollService.calculate(user, year, month);
         redirectAttributes.addFlashAttribute("successMessage", "Đã tính lương tháng " + month + "/" + year + ".");
-        redirectAttributes.addAttribute("year", year);
-        redirectAttributes.addAttribute("month", month);
-        return "redirect:/manager/salary";
+        return redirectManagerBoard(year, month, null);
     }
 
     @PostMapping("/manager/salary/lock")
@@ -127,44 +114,7 @@ public class SalaryPageController {
                        RedirectAttributes redirectAttributes) {
         payrollService.lock(user, year, month);
         redirectAttributes.addFlashAttribute("successMessage", "Đã chốt lương tháng " + month + "/" + year + ".");
-        redirectAttributes.addAttribute("year", year);
-        redirectAttributes.addAttribute("month", month);
-        return "redirect:/manager/salary";
-    }
-
-    @GetMapping("/admin/salary/export")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<byte[]> adminExport(@AuthenticationPrincipal AuthenticatedUser user,
-                                              @RequestParam(value = "year", required = false) Integer year,
-                                              @RequestParam(value = "month", required = false) Integer month,
-                                              @RequestParam(value = "period", required = false) String period,
-                                              @RequestParam(value = "storeId", required = false) Integer storeId,
-                                              @RequestParam(value = "employeeId", required = false) Integer employeeId,
-                                              @RequestParam(value = "status", required = false) String status) {
-        return excel(user, year, month, period, storeId, employeeId, status);
-    }
-
-    @GetMapping("/manager/salary/export")
-    @PreAuthorize("hasRole('MANAGER')")
-    public ResponseEntity<byte[]> managerExport(@AuthenticationPrincipal AuthenticatedUser user,
-                                                @RequestParam(value = "year", required = false) Integer year,
-                                                @RequestParam(value = "month", required = false) Integer month,
-                                                @RequestParam(value = "period", required = false) String period,
-                                                @RequestParam(value = "storeId", required = false) Integer storeId,
-                                                @RequestParam(value = "employeeId", required = false) Integer employeeId,
-                                                @RequestParam(value = "status", required = false) String status) {
-        return excel(user, year, month, period, storeId, employeeId, status);
-    }
-
-    @GetMapping("/staff/salary/export")
-    @PreAuthorize("hasRole('STAFF')")
-    public ResponseEntity<byte[]> staffExport(@AuthenticationPrincipal AuthenticatedUser user,
-                                              @RequestParam(value = "year", required = false) Integer year,
-                                              @RequestParam(value = "month", required = false) Integer month,
-                                              @RequestParam(value = "period", required = false) String period,
-                                              @RequestParam(value = "employeeId", required = false) Integer employeeId,
-                                              @RequestParam(value = "status", required = false) String status) {
-        return excel(user, year, month, period, null, employeeId, status);
+        return redirectManagerBoard(year, month, null);
     }
 
     @ExceptionHandler(BusinessException.class)
@@ -173,16 +123,55 @@ public class SalaryPageController {
                                  RedirectAttributes redirectAttributes) {
         redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
         String uri = request.getRequestURI() == null ? "" : request.getRequestURI();
-        String home = uri.contains("/admin/salary")
-                ? "/admin/salary"
-                : uri.contains("/staff/salary") ? "/staff/salary" : "/manager/salary";
         String year = request.getParameter("year");
         String month = request.getParameter("month");
+        if (uri.contains("/manager/salary")) {
+            Integer y = digits(year);
+            Integer m = digits(month);
+            return y != null && m != null ? redirectManagerBoard(y, m, null) : redirectManagerBoard(null, null, null);
+        }
+        if (uri.contains("/admin/salary")) {
+            return redirectAdminReports(digits(year), digits(month), null);
+        }
+        String home = "/staff/salary";
         if (year != null && month != null && year.chars().allMatch(Character::isDigit)
                 && month.chars().allMatch(Character::isDigit)) {
             return "redirect:" + home + "?year=" + year + "&month=" + month;
         }
         return "redirect:" + home;
+    }
+
+    /** Màn hình "Danh sách chấm công và lương" của Manager, mở đúng tháng đang xem. */
+    static final String MANAGER_BOARD = "/attendance/manager/month";
+
+    private String redirectManagerBoard(Integer year, Integer month, String period) {
+        String value = null;
+        if (period != null && period.matches("\\d{4}-\\d{2}")) {
+            value = period;
+        } else if (year != null && month != null && month >= 1 && month <= 12 && year >= 2000 && year <= 2100) {
+            value = String.format("%04d-%02d", year, month);
+        }
+        return "redirect:" + MANAGER_BOARD + (value == null ? "" : "?month=" + value);
+    }
+
+    private String redirectAdminReports(Integer year, Integer month, String period) {
+        Integer y = year;
+        Integer m = month;
+        if (period != null && period.matches("\\d{4}-\\d{2}")) {
+            y = Integer.valueOf(period.substring(0, 4));
+            m = Integer.valueOf(period.substring(5, 7));
+        }
+        if (y != null && m != null && m >= 1 && m <= 12 && y >= 2000 && y <= 2100) {
+            return "redirect:/attendance/admin/reports?year=" + y + "&month=" + m;
+        }
+        return "redirect:/attendance/admin/reports";
+    }
+
+    private static Integer digits(String value) {
+        if (value == null || value.isEmpty() || value.length() > 4 || !value.chars().allMatch(Character::isDigit)) {
+            return null;
+        }
+        return Integer.valueOf(value);
     }
 
     private String render(AuthenticatedUser user,
@@ -208,6 +197,14 @@ public class SalaryPageController {
         }
         if ("admin".equals(payrollNav(user)) && storeId == null) {
             model.addAttribute("storeCards", salaryCards(user, board));
+        }
+        if ("staff".equals(payrollNav(user))) {
+            // Các kỳ lương đã được Admin duyệt và tình trạng nhận lương của chính nhân viên.
+            try {
+                model.addAttribute("periods", payrollPaymentService.myPeriods(user));
+            } catch (BusinessException | org.springframework.dao.DataAccessException ex) {
+                model.addAttribute("periods", List.of());
+            }
         }
         return "salary/SalaryPage";
     }
@@ -246,23 +243,6 @@ public class SalaryPageController {
         model.addAttribute("eyebrow", eyebrow);
         model.addAttribute("detail", detail);
         return "salary/SalaryDetail";
-    }
-
-    private ResponseEntity<byte[]> excel(AuthenticatedUser user,
-                                         Integer year,
-                                         Integer month,
-                                         String period,
-                                         Integer storeId,
-                                         Integer employeeId,
-                                         String status) {
-        byte[] body = payrollService.export(user, year, month, period, storeId, employeeId, status);
-        ContentDisposition disposition = ContentDisposition.attachment()
-                .filename(payrollService.exportFileName(year, month, period))
-                .build();
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
-                .contentType(MediaType.parseMediaType("application/vnd.ms-excel"))
-                .body(body);
     }
 
     private String payrollNav(AuthenticatedUser user) {

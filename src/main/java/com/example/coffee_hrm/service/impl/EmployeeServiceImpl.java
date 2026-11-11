@@ -3,16 +3,20 @@ import com.example.coffee_hrm.dto.request.CreateEmployeeRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import com.example.coffee_hrm.common.enums.AssignmentStatus;
 import com.example.coffee_hrm.common.enums.AttendanceStatus;
+import com.example.coffee_hrm.common.enums.CertificationStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.enums.TrainingClassStatus;
 import com.example.coffee_hrm.common.enums.TrainingResult;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.security.CitizenIds;
+import com.example.coffee_hrm.common.time.BirthDates;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.response.EmployeeResponse;
 import com.example.coffee_hrm.dto.response.ManagedEmployeeDetail;
 import com.example.coffee_hrm.dto.response.ManagedEmployeeDirectory;
+import com.example.coffee_hrm.dto.response.ManagerSuccession;
+import com.example.coffee_hrm.security.ManagerContractAccess;
 import com.example.coffee_hrm.entity.Attendance;
 import com.example.coffee_hrm.entity.Employee;
 import com.example.coffee_hrm.entity.EmploymentContract;
@@ -236,6 +240,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .avatarUrl(request.getAvatarUrl())
                 .store(store)
                 .status(EmployeeStatus.ACTIVE)
+                .dateOfBirth(BirthDates.validateOptional(request.getDateOfBirth()))
                 .hireDate(request.getHireDate())
                 .build();
 
@@ -285,7 +290,6 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new BusinessException(EMPLOYEE_NOT_IN_STORE);
         }
 
-        String nextCitizenId = resolveNextCitizenId(employee, request.getCitizenId());
         RoleName targetRole = parseAssignableRole(request.getRole());
         User account = userRepository.findByEmployee_Id(employeeId).orElse(null);
 
@@ -357,12 +361,12 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         employee.setFullName(request.getFullName().trim());
         employee.setPhone(request.getPhone().trim());
-        employee.setCitizenId(nextCitizenId);
         employee.setEmail(email);
         employee.setAddress(request.getAddress());
         employee.setAvatarUrl(request.getAvatarUrl());
         employee.setStore(targetStore);
         employee.setHireDate(request.getHireDate());
+        // CCCD và ngày sinh được điền khi tuyển dụng; cập nhật hồ sơ giữ nguyên hai trường này.
         employee.setStatus(request.getStatus());
         employee.setTerminationDate(
                 request.getStatus() == EmployeeStatus.TERMINATED
@@ -400,33 +404,6 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
     }
 
-    @Override
-    @Transactional
-    public EmployeeResponse updateCitizenId(AuthenticatedUser actor,
-                                            Integer storeId,
-                                            Integer employeeId,
-                                            String citizenId) {
-        requireAdmin(actor);
-        Employee employee = employeeRepository.findByIdWithStoreAndManager(employeeId)
-                .orElseThrow(() -> new BusinessException(EMPLOYEE_NOT_FOUND));
-        if (employee.getStore() == null || !storeId.equals(employee.getStore().getId())) {
-            throw new BusinessException(EMPLOYEE_NOT_IN_STORE);
-        }
-        String normalized = CitizenIds.require(citizenId);
-        if (!normalized.equals(employee.getCitizenId())) {
-            if (employeeRepository.existsByCitizenIdAndIdNot(normalized, employee.getId())) {
-                throw new BusinessException(CitizenIds.DUPLICATE_MESSAGE);
-            }
-            employee.setCitizenId(normalized);
-            try {
-                employeeRepository.save(employee);
-            } catch (DataIntegrityViolationException ex) {
-                throw new BusinessException(CitizenIds.DUPLICATE_MESSAGE);
-            }
-        }
-        User account = userRepository.findByEmployee_Id(employeeId).orElse(null);
-        return toResponse(employee, account, employee.getStore(), true);
-    }
     @Override
     @Transactional
     public EmployeeResponse changeEmployeeRole(AuthenticatedUser actor, Integer storeId, Integer employeeId, String role) {
@@ -496,13 +473,74 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
         employeeRepository.save(employee);
         storeRepository.findAllByManager_Id(employee.getId()).forEach(managed -> managed.setManager(null));
-        if (account != null && !Boolean.FALSE.equals(account.getIsActive())) {
-            account.setIsActive(false);
-            userRepository.save(account);
-        }
+        // Người đã nghỉ không còn giữ chức vụ Manager: chuyển về Staff để vị trí quản lý
+        // của cửa hàng trống và Staff đủ điều kiện có thể được bổ nhiệm thay thế.
+        account.setRole(requireRole(RoleName.STAFF));
+        account.setIsActive(false);
+        userRepository.save(account);
         accountMailService.sendResignationDecision(
                 employee.getEmail(), employee.getFullName(), store.getStoreName(), VietnamTime.now());
         return toResponse(employee, account, store, true);
+    }
+
+    @Override
+    public ManagerSuccession getManagerSuccession(AuthenticatedUser actor, Integer storeId) {
+        requireAdmin(actor);
+        Store store = storeRepository.findByIdWithManager(storeId)
+                .orElseThrow(() -> new BusinessException(STORE_NOT_FOUND));
+        Employee manager = store.getManager();
+        boolean linkedManagerWorking = manager != null && manager.getStatus() != EmployeeStatus.TERMINATED;
+        boolean hasManager = linkedManagerWorking
+                || userRepository.countOtherStoreMembersWithRole(storeId, -1, RoleName.MANAGER) > 0;
+        LocalDate today = VietnamTime.today();
+        List<ManagerSuccession.Candidate> candidates = employeeRepository.findByStoreIdWithAccount(storeId).stream()
+                .filter(employee -> employee.getStatus() != EmployeeStatus.TERMINATED)
+                .filter(employee -> employee.getUser() != null && employee.getUser().getRole() != null
+                        && employee.getUser().getRole().getRoleName() == RoleName.STAFF)
+                .map(employee -> toCandidate(employee, today))
+                .sorted(Comparator.comparing(ManagerSuccession.Candidate::eligible).reversed()
+                        .thenComparing(candidate -> candidate.fullName() == null ? "" : candidate.fullName(),
+                                Collator.getInstance(Locale.forLanguageTag("vi-VN"))))
+                .toList();
+        return new ManagerSuccession(hasManager, linkedManagerWorking ? manager.getFullName() : null, candidates);
+    }
+
+    private ManagerSuccession.Candidate toCandidate(Employee employee, LocalDate today) {
+        List<EmploymentContract> contracts = employmentContractRepository.findByEmployeeId(employee.getId());
+        EmploymentContract current = contracts == null ? null : ContractValidityRules.applicable(contracts, today);
+        String contractBlocker = managerContractBlocker(contracts, today);
+        boolean accountActive = Boolean.TRUE.equals(employee.getUser().getIsActive());
+        List<String> blockers = new java.util.ArrayList<>();
+        if (contractBlocker != null) {
+            blockers.add(contractBlocker);
+        }
+        if (!accountActive) {
+            blockers.add("Tài khoản đang bị khóa");
+        }
+        return new ManagerSuccession.Candidate(
+                employee.getId(),
+                employee.getFullName(),
+                employee.getEmail(),
+                current != null ? current.getContractCode() : null,
+                current != null ? current.getStartDate() : null,
+                current != null ? current.getEndDate() : null,
+                current != null ? ContractValidityRules.resolve(current, today).getLabel() : null,
+                contractBlocker == null,
+                accountActive,
+                Boolean.TRUE.equals(employee.getManagementCertified()),
+                blockers);
+    }
+
+    /**
+     * Điều kiện hợp đồng để làm Manager: cùng quy tắc với {@link ManagerContractAccess}
+     * (Manager không có hợp đồng đang hiệu lực bị chặn khỏi chức năng quản lý).
+     */
+    private static String managerContractBlocker(List<EmploymentContract> contracts, LocalDate today) {
+        return switch (ManagerContractAccess.assess(contracts == null ? List.of() : contracts, today)) {
+            case NONE -> null;
+            case NO_CONTRACT -> "Chưa có hợp đồng lao động";
+            case NOT_IN_FORCE -> "Hợp đồng chưa có hiệu lực, đã hết hạn hoặc đã chấm dứt";
+        };
     }
 
     private static String requireTerminationReason(String reason) {
@@ -541,6 +579,11 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
         if (!Boolean.TRUE.equals(user.getIsActive())) {
             throw new BusinessException(INACTIVE_ACCOUNT_CANNOT_BE_MANAGER);
+        }
+        String contractBlocker = managerContractBlocker(
+                employmentContractRepository.findByEmployeeId(employee.getId()), VietnamTime.today());
+        if (contractBlocker != null) {
+            throw new BusinessException(contractBlocker + " nên chưa thể bổ nhiệm làm Manager.");
         }
 
         // Manager chỉ được gắn với cửa hàng của chính mình: gỡ mọi liên kết Manager ở cửa hàng khác.
@@ -797,17 +840,6 @@ public class EmployeeServiceImpl implements EmployeeService {
         return toResponse(employee, user, store, false);
     }
 
-    private String resolveNextCitizenId(Employee employee, String raw) {
-        String normalized = CitizenIds.optional(raw);
-        if (normalized == null || normalized.equals(employee.getCitizenId())) {
-            return employee.getCitizenId();
-        }
-        if (employeeRepository.existsByCitizenIdAndIdNot(normalized, employee.getId())) {
-            throw new BusinessException(CitizenIds.DUPLICATE_MESSAGE);
-        }
-        return normalized;
-    }
-
     private EmployeeResponse toResponse(Employee employee, User user, Store store, boolean revealCitizenId) {
         Employee manager = store.getManager();
         String citizenId = employee.getCitizenId();
@@ -823,13 +855,14 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .storeId(store.getId())
                 .storeName(store.getStoreName())
                 .status(employee.getStatus())
+                .dateOfBirth(employee.getDateOfBirth())
                 .hireDate(employee.getHireDate())
                 .terminationDate(employee.getTerminationDate())
                 .createdAt(employee.getCreatedAt())
                 .userId(user != null ? user.getId() : null)
                 .roleName(user != null && user.getRole() != null ? user.getRole().getRoleName() : null)
                 .accountActive(user == null ? null : Boolean.TRUE.equals(user.getIsActive()))
-                .hasCertificate(Boolean.TRUE.equals(employee.getHasCertificate()))
+                .hasCertificate(employee.getCertificationStatus() == CertificationStatus.CERTIFIED)
                 .certificateIssuedOn(employee.getCertificateIssuedOn())
                 .managementCertified(Boolean.TRUE.equals(employee.getManagementCertified()))
                 .storeManager(manager != null && manager.getId().equals(employee.getId()))

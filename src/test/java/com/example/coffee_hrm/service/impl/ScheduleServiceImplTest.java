@@ -89,6 +89,10 @@ class ScheduleServiceImplTest {
         empThu = Employee.builder().id(30).fullName("Lê Thị Thu").store(store).status(EmployeeStatus.ACTIVE)
                 .certificationStatus(CertificationStatus.CERTIFIED).build();
 
+        // Mặc định mọi nhân viên có hợp đồng đang hiệu lực; từng test ghi đè khi cần.
+        lenient().when(employmentContractRepository.findByEmployeeId(org.mockito.ArgumentMatchers.anyInt()))
+                .thenAnswer(invocation -> List.of(contract(invocation.getArgument(0),
+                        VietnamTime.today().minusMonths(1), VietnamTime.today().plusMonths(6))));
         lenient().when(approvedLeaveCoverage.index(any(), any(), any()))
                 .thenReturn(new ApprovedLeaveCoverage.WeekIndex(java.util.Set.of(), java.util.Set.of()));
 
@@ -102,6 +106,79 @@ class ScheduleServiceImplTest {
                 .startTime(LocalTime.of(7, 0))
                 .endTime(LocalTime.of(12, 0))
                 .build();
+    }
+
+    @Test
+    void assignShiftRejectsEmployeeWithoutContract() {
+        stubAssignable();
+        when(employmentContractRepository.findByEmployeeId(20)).thenReturn(List.of());
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> scheduleService.assignShift(assignRequest(VietnamTime.today().plusDays(1)), managerUser));
+
+        assertEquals(String.format(ScheduleServiceImpl.NO_CONTRACT_ASSIGN_MESSAGE, "Trần Văn Tuấn"), ex.getMessage());
+        verify(shiftAssignmentRepository, never()).save(any());
+    }
+
+    @Test
+    void assignShiftRejectsShiftAfterTheContractEnds() {
+        stubAssignable();
+        LocalDate end = VietnamTime.today().plusDays(3);
+        when(employmentContractRepository.findByEmployeeId(20))
+                .thenReturn(List.of(contract(20, VietnamTime.today().minusMonths(2), end)));
+
+        // Ngày hết hạn vẫn được phân ca.
+        scheduleService.assignShift(assignRequest(end), managerUser);
+        verify(shiftAssignmentRepository).save(any());
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> scheduleService.assignShift(assignRequest(end.plusDays(1)), managerUser));
+        assertTrue(ex.getMessage().contains("vượt quá ngày hết hạn hợp đồng"), ex.getMessage());
+        assertTrue(ex.getMessage().contains(end.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))));
+    }
+
+    @Test
+    void assignShiftRejectsShiftBeforeTheContractStarts() {
+        stubAssignable();
+        LocalDate start = VietnamTime.today().plusDays(5);
+        when(employmentContractRepository.findByEmployeeId(20))
+                .thenReturn(List.of(contract(20, start, start.plusMonths(6))));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> scheduleService.assignShift(assignRequest(VietnamTime.today().plusDays(1)), managerUser));
+        assertTrue(ex.getMessage().contains("có hiệu lực từ"), ex.getMessage());
+        verify(shiftAssignmentRepository, never()).save(any());
+    }
+
+    @Test
+    void pendingContractEmployeeGetsTheContractReasonFirst() {
+        stubAssignable();
+        empTuan.setStatus(EmployeeStatus.PENDING_CONTRACT);
+        when(employmentContractRepository.findByEmployeeId(20)).thenReturn(List.of());
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> scheduleService.assignShift(assignRequest(VietnamTime.today().plusDays(1)), managerUser));
+        assertTrue(ex.getMessage().contains("chưa có hợp đồng lao động"), ex.getMessage());
+    }
+
+    private void stubAssignable() {
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shiftMorning));
+        when(employeeRepository.lockByIdForLeaveRequest(20)).thenReturn(Optional.of(empTuan));
+        lenient().when(shiftAssignmentRepository.findByEmployee_IdAndWorkDateAndStatus(eq(20), any(), any()))
+                .thenReturn(List.of());
+    }
+
+    private static AssignShiftRequest assignRequest(LocalDate workDate) {
+        return AssignShiftRequest.builder().shiftId(1).employeeId(20).workDate(workDate).build();
+    }
+
+    private static com.example.coffee_hrm.entity.EmploymentContract contract(Integer employeeId, LocalDate start, LocalDate end) {
+        return com.example.coffee_hrm.entity.EmploymentContract.builder()
+                .id(employeeId * 10).contractCode("HD-" + employeeId)
+                .employee(Employee.builder().id(employeeId).build())
+                .startDate(start).endDate(end).weeklyShiftCount(5)
+                .salary(new java.math.BigDecimal("25000")).build();
     }
 
     @Test

@@ -115,18 +115,22 @@ public class ContractPageController {
     @PreAuthorize("hasRole('MANAGER')")
     public String createForm(@AuthenticationPrincipal AuthenticatedUser actor,
                              @RequestParam(required = false) Integer employeeId,
+                             @RequestParam(required = false) String renewal,
+                             @RequestParam(required = false) Integer contractId,
                              Model model) {
         prepareCreateForm(employeeId, model);
-        return renderCreate(actor, model);
+        return renderCreate(actor, model, renewal != null ? contractId : null);
     }
 
     @GetMapping("/admin/contract/create")
     @PreAuthorize("hasRole('ADMIN')")
     public String adminCreateForm(@AuthenticationPrincipal AuthenticatedUser actor,
                                   @RequestParam(required = false) Integer employeeId,
+                                  @RequestParam(required = false) String renewal,
+                                  @RequestParam(required = false) Integer contractId,
                                   Model model) {
         prepareCreateForm(employeeId, model);
-        return renderCreate(actor, model);
+        return renderCreate(actor, model, renewal != null ? contractId : null);
     }
 
     @PostMapping(value = "/admin/contract/ocr", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -225,7 +229,7 @@ public class ContractPageController {
         }
         if (binding.hasErrors()) {
             model.addAttribute("errorMessage", "Chưa tạo được hợp đồng. Hãy kiểm tra các trường được đánh dấu.");
-            return renderCreate(actor, model);
+            return renderCreate(actor, model, renewing ? contractId : null);
         }
         try {
             ContractFilePayload payload = new ContractFilePayload(contractFile.getOriginalFilename(), contractFile.getBytes());
@@ -237,10 +241,10 @@ public class ContractPageController {
             return "redirect:" + createdContractPath(actor, created);
         } catch (BusinessException ex) {
             attachFieldError(ex, binding, model);
-            return renderCreate(actor, model);
+            return renderCreate(actor, model, renewing ? contractId : null);
         } catch (IOException ex) {
             model.addAttribute("errorMessage", "Không đọc được file hợp đồng. Hãy chọn lại file.");
-            return renderCreate(actor, model);
+            return renderCreate(actor, model, renewing ? contractId : null);
         }
     }
 
@@ -302,8 +306,9 @@ public class ContractPageController {
                 .body(download.content());
     }
 
-    private String renderCreate(AuthenticatedUser actor, Model model) {
+    private String renderCreate(AuthenticatedUser actor, Model model, Integer renewalContractId) {
         boolean admin = actor != null && actor.getRoleName() == com.example.coffee_hrm.common.enums.RoleName.ADMIN;
+        addRenewalStartLimit(actor, model, renewalContractId);
         model.addAttribute("navRole", admin ? "admin" : "manager");
         model.addAttribute("allowRenewal", true);
         model.addAttribute("contractAction", admin ? "/admin/contract/create" : "/manager/contract/create");
@@ -320,6 +325,24 @@ public class ContractPageController {
         model.addAttribute("employees", employees);
         model.addAttribute("listPath", createCancelPath(actor, model, employees));
         return "contract/ContractCreate";
+    }
+
+    /** Hợp đồng gia hạn phải bắt đầu sau ngày hết hạn của hợp đồng cũ; form dùng mốc này làm ngày nhỏ nhất. */
+    private void addRenewalStartLimit(AuthenticatedUser actor, Model model, Integer renewalContractId) {
+        if (renewalContractId == null) {
+            return;
+        }
+        try {
+            EmploymentContractResponse source = contractService.detail(actor, renewalContractId);
+            if (source != null && source.getEndDate() != null) {
+                java.time.LocalDate minStart = source.getEndDate().plusDays(1);
+                java.time.LocalDate today = com.example.coffee_hrm.common.time.VietnamTime.today();
+                model.addAttribute("renewalSourceEnd", source.getEndDate());
+                model.addAttribute("renewalMinStart", minStart.isBefore(today) ? today : minStart);
+            }
+        } catch (BusinessException ignored) {
+            // Trang vẫn mở; máy chủ kiểm tra lại khi lưu.
+        }
     }
 
     private static ContractOcrView failedOcr(String message) {

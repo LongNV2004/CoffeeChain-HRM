@@ -122,6 +122,8 @@ public class StoreManagerAccountServiceImpl implements StoreManagerAccountServic
         String email = requireEmail(request == null ? null : request.getEmail());
         String phone = requirePhone(request == null ? null : request.getPhone());
         String citizenId = CitizenIds.require(request == null ? null : request.getCitizenId());
+        java.time.LocalDate dateOfBirth = com.example.coffee_hrm.common.time.BirthDates.validateOptional(
+                request == null ? null : request.getDateOfBirth());
         Store store = lockAssignableStore(storeId);
         if (store.getManager() != null) {
             throw new BusinessException(STORE_ALREADY_HAS_MANAGER);
@@ -137,6 +139,7 @@ public class StoreManagerAccountServiceImpl implements StoreManagerAccountServic
                     .fullName(fullName)
                     .phone(phone)
                     .citizenId(citizenId)
+                    .dateOfBirth(dateOfBirth)
                     .email(email)
                     .store(store)
                     .status(EmployeeStatus.ACTIVE)

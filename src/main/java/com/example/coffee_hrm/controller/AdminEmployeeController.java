@@ -5,6 +5,7 @@ import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.enums.ContractValidityStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.dto.response.EmployeeResponse;
+import com.example.coffee_hrm.dto.response.ManagerSuccession;
 import com.example.coffee_hrm.dto.response.EmploymentContractResponse;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.EmployeeService;
@@ -89,6 +90,7 @@ public class AdminEmployeeController {
                 employees, contractsOfStore(user));
         model.addAttribute("effectiveContractCount", totals.effectiveCount());
         model.addAttribute("expiringContractCount", totals.expiringCount());
+        model.addAttribute("succession", successionOf(user, storeId));
         return STORE_EMPLOYEES_VIEW;
     }
 
@@ -116,6 +118,7 @@ public class AdminEmployeeController {
         List<EmploymentContractResponse> contracts = contractsOf(user, employeeId);
         model.addAttribute("contracts", contracts);
         model.addAttribute("terminableContract", terminableContract(employee, contracts));
+        model.addAttribute("succession", successionOf(user, storeId));
         model.addAttribute("history", EmployeeRecordSupport.history(employee, List.of(), contracts));
         model.addAttribute("tab", "contract".equals(tab) || "history".equals(tab) ? tab : "profile");
         return EMPLOYEE_DETAIL_VIEW;
@@ -143,6 +146,8 @@ public class AdminEmployeeController {
     public String changeEmployeeRole(@PathVariable Integer storeId,
                                      @PathVariable Integer employeeId,
                                      @RequestParam(required = false) String role,
+                                     @RequestParam(required = false) String returnTo,
+                                     @RequestParam(required = false) Integer returnEmployeeId,
                                      @AuthenticationPrincipal AuthenticatedUser user,
                                      RedirectAttributes redirectAttributes) {
         try {
@@ -153,24 +158,55 @@ public class AdminEmployeeController {
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
         }
-        return "redirect:/admin/stores/" + storeId + "/employees/" + employeeId;
+        // Quay lại đúng trang Admin vừa thao tác (danh sách cửa hàng hoặc hồ sơ Manager cũ); chỉ nhận giá trị cố định.
+        if ("list".equals(returnTo)) {
+            return "redirect:/admin/stores/" + storeId + "/employees";
+        }
+        Integer target = returnEmployeeId != null ? returnEmployeeId : employeeId;
+        return "redirect:/admin/stores/" + storeId + "/employees/" + target;
     }
 
     @PostMapping("/stores/{storeId}/employees/{employeeId}/terminate-contract")
     public String terminateManagerContract(@PathVariable Integer storeId,
                                            @PathVariable Integer employeeId,
                                            @RequestParam(required = false) String reason,
+                                           @RequestParam(required = false) Integer replacementEmployeeId,
                                            @AuthenticationPrincipal AuthenticatedUser user,
                                            RedirectAttributes redirectAttributes) {
+        EmployeeResponse updated;
         try {
-            EmployeeResponse updated = employeeService.terminateManagerContract(user, storeId, employeeId, reason);
-            redirectAttributes.addFlashAttribute("successMessage",
-                    "Đã chấm dứt hợp đồng của " + updated.getFullName()
-                            + ". Hồ sơ chuyển sang đã nghỉ việc và tài khoản không đăng nhập được nữa.");
+            updated = employeeService.terminateManagerContract(user, storeId, employeeId, reason);
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
+            return "redirect:/admin/stores/" + storeId + "/employees/" + employeeId;
+        }
+        String terminated = "Đã chấm dứt hợp đồng của " + updated.getFullName()
+                + ". Tài khoản chuyển về Staff, hồ sơ chuyển sang đã nghỉ việc và không đăng nhập được nữa.";
+        if (replacementEmployeeId == null) {
+            redirectAttributes.addFlashAttribute("successMessage",
+                    terminated + " Cửa hàng đang chưa có Manager — hãy bổ nhiệm người thay thế.");
+            return "redirect:/admin/stores/" + storeId + "/employees/" + employeeId;
+        }
+        // Chấm dứt đã hoàn tất; bổ nhiệm người thay thế là bước riêng để lỗi bổ nhiệm không hoàn tác việc chấm dứt.
+        try {
+            EmployeeResponse replacement = employeeService.changeEmployeeRole(
+                    user, storeId, replacementEmployeeId, RoleName.MANAGER.name());
+            redirectAttributes.addFlashAttribute("successMessage",
+                    terminated + " " + replacement.getFullName() + " đã được bổ nhiệm làm Manager thay thế.");
+        } catch (BusinessException ex) {
+            redirectAttributes.addFlashAttribute("successMessage", terminated);
+            redirectAttributes.addFlashAttribute("errorMessage",
+                    "Chưa bổ nhiệm được Manager thay thế: " + ex.getMessage());
         }
         return "redirect:/admin/stores/" + storeId + "/employees/" + employeeId;
+    }
+
+    private ManagerSuccession successionOf(AuthenticatedUser user, Integer storeId) {
+        try {
+            return employeeService.getManagerSuccession(user, storeId);
+        } catch (BusinessException ex) {
+            return new ManagerSuccession(true, null, List.of());
+        }
     }
 
     private static EmploymentContractResponse terminableContract(EmployeeResponse employee,
@@ -228,23 +264,6 @@ public class AdminEmployeeController {
             @AuthenticationPrincipal AuthenticatedUser user
     ) {
         return employeeService.getStoreEmployee(user, storeId, employeeId);
-    }
-
-    @PostMapping("/stores/{storeId}/employees/{employeeId}/citizen-id")
-    public String updateCitizenId(
-            @PathVariable Integer storeId,
-            @PathVariable Integer employeeId,
-            @RequestParam(required = false) String citizenId,
-            @AuthenticationPrincipal AuthenticatedUser user,
-            RedirectAttributes redirectAttributes
-    ) {
-        try {
-            employeeService.updateCitizenId(user, storeId, employeeId, citizenId);
-            redirectAttributes.addFlashAttribute("successMessage", "Đã cập nhật số căn cước công dân.");
-        } catch (BusinessException ex) {
-            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
-        }
-        return "redirect:/admin/stores/" + storeId + "/employees/" + employeeId;
     }
 
     @PostMapping("/stores/{storeId}/employees/{employeeId}/edit")

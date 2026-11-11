@@ -49,6 +49,9 @@ public class OvertimePageController {
         } catch (DateTimeParseException ex) {
             model.addAttribute("overtimeView", null);
             model.addAttribute("pageError", "Tuần đã chọn không hợp lệ.");
+        } catch (org.springframework.dao.DataAccessException ex) {
+            model.addAttribute("overtimeView", null);
+            model.addAttribute("pageError", "Chưa đồng bộ bảng OvertimeRequests. Vui lòng khởi động lại ứng dụng để tự động cập nhật bảng dữ liệu.");
         }
         return "overtime/OvertimePage";
     }
@@ -167,6 +170,9 @@ public class OvertimePageController {
         } catch (DateTimeParseException ex) {
             model.addAttribute("overtimeView", null);
             model.addAttribute("pageError", "Tuần đã chọn không hợp lệ.");
+        } catch (org.springframework.dao.DataAccessException ex) {
+            model.addAttribute("overtimeView", null);
+            model.addAttribute("pageError", "Chưa đồng bộ bảng OvertimeRequests. Vui lòng khởi động lại ứng dụng để tự động cập nhật bảng dữ liệu.");
         }
     }
 
