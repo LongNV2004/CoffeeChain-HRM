@@ -14,7 +14,7 @@
     <header th:replace="~{fragments/navbar :: admin('salary')}"></header>
 </th:block>
 <th:block th:if="${navRole == 'manager'}">
-    <header th:replace="~{fragments/navbar :: manager('salary')}"></header>
+    <header th:replace="~{fragments/navbar :: manager('attendance-month')}"></header>
 </th:block>
 <th:block th:if="${navRole == 'staff'}">
     <header th:replace="~{fragments/navbar :: staff('salary')}"></header>
@@ -59,7 +59,9 @@
 
     <div class="salary-actions">
         <span class="salary-badge" th:classappend="${detail.statusKey}" th:text="${detail.statusLabel}">Chưa tính</span>
-        <a class="ghost-btn" th:href="|${detail.homePath}?year=${detail.year}&month=${detail.month}|">Quay lại</a>
+        <a class="ghost-btn" th:if="${navRole == 'manager'}"
+           th:href="@{/attendance/manager/month(month=${#numbers.formatInteger(detail.year, 4, 'NONE') + '-' + #numbers.formatInteger(detail.month, 2, 'NONE')})}">Quay lại danh sách chấm công và lương</a>
+        <a class="ghost-btn" th:unless="${navRole == 'manager'}" th:href="|${detail.homePath}?year=${detail.year}&month=${detail.month}|">Quay lại</a>
     </div>
 
     <section class="panel">

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Theo dõi chấm công — CoffeeHRM</title>
+    <title>Danh sách chấm công và lương — CoffeeHRM</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/AttendanceHistory.css}">
@@ -15,14 +15,14 @@
     <section class="day-board">
         <div class="day-head">
             <div>
-                <h1>Theo dõi chấm công</h1>
+                <h1>Danh sách chấm công và lương</h1>
                 <p class="day-date" th:text="${board.dateLabel}">Thứ Tư, 21/10/2026</p>
             </div>
         </div>
 
-        <nav class="track-tabs" aria-label="Theo dõi chấm công">
+        <nav class="track-tabs" aria-label="Danh sách chấm công và lương">
             <a class="is-on" th:href="@{/attendance/manager/day(date=${#temporals.format(board.workDate, 'yyyy-MM-dd')})}">Theo dõi theo ngày</a>
-            <a th:href="@{/attendance/manager/month}">Theo dõi theo tháng</a>
+            <a th:href="@{/attendance/manager/month}">Chấm công và lương theo tháng</a>
         </nav>
 
         <p class="flash" th:if="${pageError}" th:text="${pageError}">Lỗi</p>

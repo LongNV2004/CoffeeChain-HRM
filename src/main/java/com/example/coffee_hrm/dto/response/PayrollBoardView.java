@@ -18,8 +18,10 @@ public class PayrollBoardView {
     private final boolean canFilterStore;
     private final boolean canCalculate;
     private final boolean canLock;
-    private final boolean canExport;
     private final boolean locked;
+    /** Báo cáo cửa hàng của kỳ đã gửi Admin: Manager không tính hoặc chốt lại được. */
+    private final boolean reportLocked;
+    private final String reportLockMessage;
     private final String statusKey;
     private final String statusLabel;
     private final Integer selectedStoreId;
@@ -30,7 +32,6 @@ public class PayrollBoardView {
     private final String payableHoursLabel;
     private final String payrollFundLabel;
     private final int reviewShifts;
-    private final String exportPath;
     @Builder.Default
     private final List<StoreOption> stores = List.of();
     @Builder.Default

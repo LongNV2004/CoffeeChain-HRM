@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lương nhân viên — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/AttendanceHistory.css}">
+</head>
+<body>
+<header th:replace="~{fragments/navbar :: admin('reports')}"></header>
+
+<!-- Chi tiết chấm công, cách tính lương và thanh toán của một nhân viên trong báo cáo cửa hàng. -->
+<main class="wrap dash-main pay-board">
+    <section class="welcome">
+        <div class="eyebrow">TRỤ SỞ / BÁO CÁO CỬA HÀNG</div>
+        <h1 th:text="${detail != null ? detail.employee.employeeName : 'Lương nhân viên'}">Lê Thị Thu</h1>
+        <p th:if="${detail != null}"
+           th:text="${detail.employee.employeeCode + ' · ' + detail.employee.position + ' · ' + detail.report.storeName + ' · ' + detail.report.periodLabel}">NV001 · Nhân viên · Cầu Giấy · Tháng 10/2026</p>
+        <p><a th:href="@{/attendance/admin/reports/{id}(id=${reportId})} + '#bang-luong'">Quay lại báo cáo</a></p>
+    </section>
+
+    <p class="flash-ok" th:if="${success}" th:text="${success}">Đã ghi nhận</p>
+    <p class="flash" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
+
+    <th:block th:if="${detail != null}" th:with="row=${detail.employee}, report=${detail.report}">
+        <section class="summary">
+            <article>
+                <div class="label">Tổng số ca / đã chấm công</div>
+                <div class="value" th:text="${row.assignedShifts + ' / ' + row.attendedShifts}">0 / 0</div>
+            </article>
+            <article>
+                <div class="label">Lương cơ bản</div>
+                <div class="value pay-money" th:text="${row.baseLabel}">0 đ</div>
+            </article>
+            <article>
+                <div class="label">Phụ cấp</div>
+                <div class="value pay-money" th:text="${row.allowanceLabel}">0 đ</div>
+            </article>
+            <article>
+                <div class="label">Khấu trừ</div>
+                <div class="value pay-money" th:text="${row.deductionLabel}">0 đ</div>
+            </article>
+            <article>
+                <div class="label">Tổng lương thực nhận</div>
+                <div class="value pay-money" th:text="${row.netLabel}">0 đ</div>
+            </article>
+            <article>
+                <div class="label">Đã thanh toán / còn lại</div>
+                <div class="value pay-money" th:text="${row.paidLabel + ' / ' + row.remainingLabel}">0 đ</div>
+            </article>
+        </section>
+        <p class="note">
+            Trạng thái: <span class="pay-badge" th:classappend="${row.paymentStatusKey}" th:text="${row.paymentStatusLabel}">Chưa thanh toán</span>
+            · Lương cơ bản = giờ theo lịch × mức lương/giờ của các ca đủ điều kiện. Khấu trừ = giờ bị trừ khi đi muộn
+            hoặc về sớm quá 20 phút. Hệ thống chưa có phụ cấp.
+        </p>
+
+        <section class="panel" th:if="${report.canPay and row.owed}">
+            <h2>Thanh toán cho nhân viên</h2>
+            <form class="pay-form" method="post" enctype="multipart/form-data"
+                  th:action="@{/attendance/admin/reports/{id}/payroll/{e}/pay(id=${report.reportId},e=${row.employeeId})}"
+                  data-coffee-title="Xác nhận thanh toán"
+                  data-coffee-ok="Xác nhận"
+                  th:attr="data-coffee-confirm=${'Xác nhận đã trả lương cho ' + row.employeeName + '? Số còn phải trả: ' + row.remainingLabel + '.'}">
+                <input type="hidden" name="requestKey" th:value="${report.requestKey}">
+                <label>Số tiền thanh toán (còn phải trả <span th:text="${row.remainingLabel}">0 đ</span>)
+                    <input type="number" name="amount" required min="1" step="1"
+                           th:max="${row.remainingValue}" th:value="${row.remainingValue}">
+                </label>
+                <label>Phương thức thanh toán
+                    <select name="method" required>
+                        <option value="CHUYEN_KHOAN">Chuyển khoản</option>
+                        <option value="TIEN_MAT">Tiền mặt</option>
+                    </select>
+                </label>
+                <label>Ngày thanh toán
+                    <input type="date" name="paidDate" required th:value="${report.today}" th:max="${report.today}">
+                </label>
+                <label>Mã giao dịch (không bắt buộc)
+                    <input type="text" name="transactionCode" maxlength="100">
+                </label>
+                <label>Minh chứng thanh toán (JPG, PNG, PDF ≤ 2MB)
+                    <input type="file" name="proof" accept=".jpg,.jpeg,.png,.pdf">
+                </label>
+                <label class="pay-wide">Ghi chú
+                    <input type="text" name="note" maxlength="500">
+                </label>
+                <button class="primary-btn" type="submit">Xác nhận thanh toán</button>
+            </form>
+        </section>
+        <p class="pay-note" th:if="${!report.canPay and report.payBlockedReason != null}" th:text="${report.payBlockedReason}">
+            Chỉ thanh toán được báo cáo đã được duyệt.
+        </p>
+
+        <section class="panel">
+            <h2>Chấm công và cách tính lương</h2>
+            <p>
+                <a class="secondary-btn"
+                   th:href="@{/attendance/admin/reports/{id}(id=${report.reportId},employeeId=${row.employeeId})} + '#reportStaff'">Xem lịch sử chấm công</a>
+            </p>
+            <p class="day-empty" th:if="${#lists.isEmpty(detail.shifts)}">Không có ca nào trong kỳ.</p>
+            <div class="table-wrap" th:if="${!#lists.isEmpty(detail.shifts)}">
+                <table class="pay-table">
+                    <thead>
+                    <tr>
+                        <th>Ngày</th>
+                        <th>Ca</th>
+                        <th>Giờ theo lịch</th>
+                        <th>Check-in</th>
+                        <th>Check-out</th>
+                        <th>Chấm công</th>
+                        <th class="num">Giờ lịch</th>
+                        <th class="num">Giờ bị trừ</th>
+                        <th class="num">Giờ tính lương</th>
+                        <th class="num">Mức lương/giờ</th>
+                        <th class="num">Lương ca</th>
+                        <th>Ghi chú</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="shift : ${detail.shifts}" th:classappend="${shift.payable} ? '' : ' is-unpaid'">
+                        <td th:text="${#temporals.format(shift.workDate, 'dd/MM/yyyy')}">21/10/2026</td>
+                        <td th:text="${shift.shiftName}">Ca sáng</td>
+                        <td th:text="${shift.scheduleLabel}">07:00 – 12:00</td>
+                        <td th:text="${shift.checkInLabel}">07:00</td>
+                        <td th:text="${shift.checkOutLabel}">12:00</td>
+                        <td th:text="${shift.attendanceStatus}">Đúng giờ</td>
+                        <td class="num" th:text="${shift.scheduledHours}">5</td>
+                        <td class="num" th:text="${shift.deductedHours}">0</td>
+                        <td class="num" th:text="${shift.payableHours}">5</td>
+                        <td class="num" th:text="${shift.hourlyRateLabel}">25.000 đ/giờ</td>
+                        <td class="num" th:text="${shift.salaryLabel}">125.000 đ</td>
+                        <td class="pay-name" th:text="${#strings.isEmpty(shift.unpaidReason) ? '—' : shift.unpaidReason}">—</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="panel">
+            <h2>Lịch sử thanh toán</h2>
+            <p class="day-empty" th:if="${#lists.isEmpty(detail.payments)}">Chưa có giao dịch thanh toán nào.</p>
+            <div class="table-wrap" th:if="${!#lists.isEmpty(detail.payments)}">
+                <table class="pay-table">
+                    <thead>
+                    <tr>
+                        <th>Ngày thanh toán</th>
+                        <th class="num">Số tiền</th>
+                        <th>Phương thức</th>
+                        <th>Mã giao dịch</th>
+                        <th>Minh chứng</th>
+                        <th>Admin xác nhận</th>
+                        <th>Ghi chú</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="pay : ${detail.payments}">
+                        <td th:text="${#temporals.format(pay.paidDate, 'dd/MM/yyyy')}">10/11/2026</td>
+                        <td class="num" th:text="${pay.amountLabel}">0 đ</td>
+                        <td th:text="${pay.methodLabel}">Chuyển khoản</td>
+                        <td th:text="${#strings.isEmpty(pay.transactionCode) ? '—' : pay.transactionCode}">—</td>
+                        <td>
+                            <a class="ops-link" th:if="${pay.hasProof}" target="_blank" rel="noopener"
+                               th:href="@{/attendance/admin/reports/{id}/payments/{p}/proof(id=${report.reportId},p=${pay.paymentId})}">Xem</a>
+                            <span th:unless="${pay.hasProof}">—</span>
+                        </td>
+                        <td th:text="${#strings.isEmpty(pay.paidByName) ? '—' : pay.paidByName}">Admin</td>
+                        <td class="pay-name" th:text="${#strings.isEmpty(pay.note) ? '—' : pay.note}">—</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </th:block>
+</main>
+</body>
+</html>

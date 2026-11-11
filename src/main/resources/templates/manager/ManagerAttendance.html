@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title th:text="${historyNav == 'attendance-training-history'} ? 'Theo dõi chấm công — CoffeeHRM' : 'Lịch sử chấm công — CoffeeHRM'">Lịch sử chấm công — CoffeeHRM</title>
+    <title th:text="${historyNav == 'attendance-training-history'} ? 'Danh sách chấm công và lương — CoffeeHRM' : 'Lịch sử chấm công — CoffeeHRM'">Lịch sử chấm công — CoffeeHRM</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/AttendanceHistory.css}">
@@ -16,16 +16,16 @@
     <section class="attn-screen track-head" th:if="${historyNav == 'attendance-training-history'}">
         <div class="day-head">
             <div>
-                <h1>Theo dõi chấm công</h1>
+                <h1>Danh sách chấm công và lương</h1>
                 <p class="day-date">
                     <span th:text="${history.storeName != null ? history.storeName : 'Cửa hàng đang quản lý'}">Cửa hàng</span>
                     <span th:text="' · ' + ${#temporals.format(history.fromDate, 'dd/MM/yyyy')} + ' – ' + ${#temporals.format(history.toDate, 'dd/MM/yyyy')}"> · kỳ</span>
                 </p>
             </div>
         </div>
-        <nav class="track-tabs" aria-label="Theo dõi chấm công">
-            <a th:href="@{/attendance/manager/day}">Theo ngày</a>
-            <a th:href="@{/attendance/manager/month}">Theo tháng</a>
+        <nav class="track-tabs" aria-label="Danh sách chấm công và lương">
+            <a th:href="@{/attendance/manager/day}">Theo dõi theo ngày</a>
+            <a th:href="@{/attendance/manager/month}">Chấm công và lương theo tháng</a>
             <a class="is-on" th:href="@{/attendance/manager/history(kind='training')}">Đào tạo</a>
         </nav>
     </section>

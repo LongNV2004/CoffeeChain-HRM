@@ -2,6 +2,7 @@ package com.example.coffee_hrm.service.impl;
 
 import com.example.coffee_hrm.common.enums.AttendanceReportStatus;
 import com.example.coffee_hrm.common.enums.NotificationType;
+import com.example.coffee_hrm.common.enums.PayrollStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.time.VietnamTime;
@@ -10,6 +11,7 @@ import com.example.coffee_hrm.dto.response.ManagerAttendanceReportPage;
 import com.example.coffee_hrm.entity.Employee;
 import com.example.coffee_hrm.entity.MonthlyAttendanceReport;
 import com.example.coffee_hrm.entity.MonthlyAttendanceReportVersion;
+import com.example.coffee_hrm.entity.MonthlyPayroll;
 import com.example.coffee_hrm.entity.Role;
 import com.example.coffee_hrm.entity.Store;
 import com.example.coffee_hrm.entity.User;
@@ -17,12 +19,14 @@ import com.example.coffee_hrm.repository.AttendanceRepository;
 import com.example.coffee_hrm.repository.EmployeeRepository;
 import com.example.coffee_hrm.repository.MonthlyAttendanceReportRepository;
 import com.example.coffee_hrm.repository.MonthlyAttendanceReportVersionRepository;
+import com.example.coffee_hrm.repository.MonthlyPayrollRepository;
+import com.example.coffee_hrm.repository.PayrollPaymentRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.repository.TrainingAttendanceRepository;
-import com.example.coffee_hrm.report.ReportExcelFile;
 import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.NotificationService;
+import com.example.coffee_hrm.service.PayrollService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -47,6 +51,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -74,6 +79,12 @@ class AttendanceReportServiceImplTest {
     private NotificationService notificationService;
     @Mock
     private Clock clock;
+    @Mock
+    private PayrollService payrollService;
+    @Mock
+    private MonthlyPayrollRepository payrollRepository;
+    @Mock
+    private PayrollPaymentRepository paymentRepository;
 
     private AttendanceReportFileStore reportFiles;
     private AttendanceReportServiceImpl service;
@@ -101,7 +112,10 @@ class AttendanceReportServiceImplTest {
                 userRepository,
                 reportFiles,
                 notificationService,
-                clock);
+                clock,
+                payrollService,
+                payrollRepository,
+                paymentRepository);
         lenient().when(clock.getZone()).thenReturn(VietnamTime.ZONE);
         lenient().when(clock.instant()).thenReturn(Instant.parse("2026-10-10T02:00:00Z"));
     }
@@ -134,7 +148,7 @@ class AttendanceReportServiceImplTest {
     }
 
     @Test
-    void adminDownloadsTheExcelFileSavedAtSubmit() {
+    void submitKeepsASnapshotOfTheSentVersion() {
         stubStoreData();
         when(userRepository.getReferenceById(9)).thenReturn(User.builder().id(9).username("manager1").build());
         AtomicReference<MonthlyAttendanceReport> stored = new AtomicReference<>();
@@ -145,15 +159,14 @@ class AttendanceReportServiceImplTest {
             stored.set(report);
             return report;
         });
-        when(reportRepository.findByIdDetailed(15)).thenAnswer(invocation -> Optional.of(stored.get()));
         when(versionRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         service.submit(manager, 2026, 10);
-        ReportExcelFile file = service.adminReportExcel(admin, 15);
 
-        assertEquals("bao-cao-cham-cong-1-2026-10-v1.xls", file.fileName());
-        assertTrue(new String(file.body(), StandardCharsets.UTF_8).contains("Worksheet"));
-        assertTrue(new String(service.managerReportExcel(manager, 2026, 10).body(), StandardCharsets.UTF_8).contains("Cầu Giấy"));
+        // Bản lưu của lần gửi (dùng cho trang "Các lần gửi"); không còn cho tải xuống.
+        byte[] snapshot = reportFiles.read(1, 2026, 10, 1);
+        assertNotNull(snapshot);
+        assertTrue(new String(snapshot, StandardCharsets.UTF_8).contains("Cầu Giấy"));
     }
 
     @Test
@@ -173,7 +186,7 @@ class AttendanceReportServiceImplTest {
     }
 
     @Test
-    void resubmitIncreasesVersionAndSendTime() {
+    void resubmitAfterAdminReturnsIncreasesVersionAndSendTime() {
         stubStoreData();
         when(userRepository.getReferenceById(9)).thenReturn(User.builder().id(9).username("manager1").build());
         AtomicReference<MonthlyAttendanceReport> stored = new AtomicReference<>();
@@ -189,6 +202,8 @@ class AttendanceReportServiceImplTest {
                 Instant.parse("2026-10-10T03:00:00Z"));
 
         service.submit(manager, 2026, 10);
+        // Admin trả lại báo cáo, Manager mới được gửi lại.
+        stored.get().setStatus(AttendanceReportStatus.REVISION);
         service.submit(manager, 2026, 10);
 
         ArgumentCaptor<MonthlyAttendanceReportVersion> versions =
@@ -255,7 +270,7 @@ class AttendanceReportServiceImplTest {
                 .filter(row -> row.getStoreId() == 1)
                 .findFirst()
                 .orElseThrow();
-        assertEquals("Đang chờ", submitted.getStatusLabel());
+        assertEquals("Chờ Admin duyệt", submitted.getStatusLabel());
         assertEquals("status-waiting", submitted.getStatusCss());
         assertEquals(2, submitted.getVersionNumber());
     }
@@ -290,6 +305,7 @@ class AttendanceReportServiceImplTest {
                 .build();
         when(reportRepository.findByIdDetailed(4)).thenReturn(Optional.of(report));
         when(reportRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        stubLockedPayroll();
 
         service.approve(admin, 4);
         assertEquals(AttendanceReportStatus.APPROVED, report.getStatus());
@@ -304,7 +320,7 @@ class AttendanceReportServiceImplTest {
         when(trainingAttendanceRepository.findMonthlyReportChanges(any(), any())).thenReturn(List.of());
 
         ManagerAttendanceReportPage page = service.managerPage(manager, 2026, 10, null, null);
-        assertEquals("Yêu cầu làm lại", page.getStatusLabel());
+        assertEquals("Đã trả lại", page.getStatusLabel());
         assertEquals("status-revision", page.getStatusCss());
         assertEquals("Thiếu ảnh check-out", page.getReviewNote());
     }
@@ -326,6 +342,7 @@ class AttendanceReportServiceImplTest {
         });
         when(versionRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(reportRepository.findByIdDetailed(15)).thenAnswer(invocation -> Optional.of(stored.get()));
+        stubLockedPayroll();
 
         service.submit(manager, 2026, 10);
         service.approve(admin, 15);
@@ -378,6 +395,108 @@ class AttendanceReportServiceImplTest {
         BusinessException error = assertThrows(BusinessException.class, () -> service.deleteVersion(admin, 4, 2));
         assertTrue(error.getMessage().contains("mới hơn"));
         verify(versionRepository, never()).delete(current);
+    }
+
+    @Test
+    void submitLocksThePayrollAndRejectsDuplicates() {
+        stubStoreData();
+        when(userRepository.getReferenceById(9)).thenReturn(User.builder().id(9).username("manager1").build());
+        AtomicReference<MonthlyAttendanceReport> stored = new AtomicReference<>();
+        when(reportRepository.findCurrent(1, 2026, 10)).thenAnswer(invocation -> Optional.ofNullable(stored.get()));
+        when(reportRepository.saveAndFlush(any())).thenAnswer(invocation -> {
+            MonthlyAttendanceReport report = invocation.getArgument(0);
+            report.setId(15);
+            stored.set(report);
+            return report;
+        });
+
+        service.submit(manager, 2026, 10);
+
+        verify(payrollService).lockForReport(manager, 2026, 10);
+        assertEquals(AttendanceReportStatus.SUBMITTED, stored.get().getStatus());
+        // Đang chờ duyệt: không gửi trùng.
+        BusinessException waiting = assertThrows(BusinessException.class, () -> service.submit(manager, 2026, 10));
+        assertEquals(AttendanceReportServiceImpl.WAITING_MESSAGE, waiting.getMessage());
+        // Đã duyệt: không gửi lại.
+        stored.get().setStatus(AttendanceReportStatus.APPROVED);
+        BusinessException approved = assertThrows(BusinessException.class, () -> service.submit(manager, 2026, 10));
+        assertEquals(AttendanceReportServiceImpl.APPROVED_MESSAGE, approved.getMessage());
+        verify(versionRepository, times(1)).saveAndFlush(any());
+    }
+
+    @Test
+    void submitStopsWhenThePayrollIsNotReady() {
+        when(storeRepository.findByManager_Id(9)).thenReturn(Optional.of(store));
+        when(reportRepository.findCurrent(1, 2026, 10)).thenReturn(Optional.empty());
+        doThrow(new BusinessException("Hãy tính lương trước khi gửi báo cáo."))
+                .when(payrollService).lockForReport(manager, 2026, 10);
+
+        BusinessException error = assertThrows(BusinessException.class, () -> service.submit(manager, 2026, 10));
+
+        assertEquals("Hãy tính lương trước khi gửi báo cáo.", error.getMessage());
+        verify(reportRepository, never()).saveAndFlush(any());
+        verify(notificationService, never()).notifyUsers(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void approvalNeedsALockedPayrollAndHappensOnce() {
+        MonthlyAttendanceReport report = submittedReport();
+        when(reportRepository.findByIdDetailed(4)).thenReturn(Optional.of(report));
+
+        when(payrollRepository.findPeriod(1, 2026, 10)).thenReturn(Optional.empty());
+        assertThrows(BusinessException.class, () -> service.approve(admin, 4));
+        assertEquals(AttendanceReportStatus.SUBMITTED, report.getStatus());
+
+        when(reportRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        stubLockedPayroll();
+        service.approve(admin, 4);
+        assertEquals(AttendanceReportStatus.APPROVED, report.getStatus());
+        verify(reportRepository, times(2)).findByIdForUpdate(4);
+
+        BusinessException again = assertThrows(BusinessException.class, () -> service.approve(admin, 4));
+        assertTrue(again.getMessage().contains("đã được duyệt"));
+        assertThrows(BusinessException.class, () -> service.approve(manager, 4));
+    }
+
+    @Test
+    void returningReopensThePayrollUnlessSomeoneWasAlreadyPaid() {
+        MonthlyAttendanceReport report = submittedReport();
+        report.setStatus(AttendanceReportStatus.APPROVED);
+        when(reportRepository.findByIdDetailed(4)).thenReturn(Optional.of(report));
+
+        when(paymentRepository.existsByReport_Id(4)).thenReturn(true);
+        BusinessException paid = assertThrows(BusinessException.class,
+                () -> service.requestRevision(admin, 4, "Sai giờ"));
+        assertTrue(paid.getMessage().contains("thanh toán"));
+        verify(payrollService, never()).reopenForRevision(any(), anyIntValue(), anyIntValue());
+
+        when(paymentRepository.existsByReport_Id(4)).thenReturn(false);
+        when(reportRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        service.requestRevision(admin, 4, "Sai giờ");
+
+        assertEquals(AttendanceReportStatus.REVISION, report.getStatus());
+        verify(payrollService).reopenForRevision(1, 2026, 10);
+    }
+
+    private static int anyIntValue() {
+        return org.mockito.ArgumentMatchers.anyInt();
+    }
+
+    private MonthlyAttendanceReport submittedReport() {
+        return MonthlyAttendanceReport.builder()
+                .id(4)
+                .store(store)
+                .reportYear(2026)
+                .reportMonth(10)
+                .status(AttendanceReportStatus.SUBMITTED)
+                .versionNumber(1)
+                .submittedAt(LocalDateTime.of(2026, 10, 9, 8, 0))
+                .build();
+    }
+
+    private void stubLockedPayroll() {
+        when(payrollRepository.findPeriod(1, 2026, 10)).thenReturn(Optional.of(MonthlyPayroll.builder()
+                .id(30).store(store).payrollYear(2026).payrollMonth(10).status(PayrollStatus.DA_CHOT).build()));
     }
 
     private void stubStoreData() {

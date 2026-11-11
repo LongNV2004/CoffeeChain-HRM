@@ -1,6 +1,7 @@
 package com.example.coffee_hrm.service.impl;
 
 import com.example.coffee_hrm.common.enums.AssignmentStatus;
+import com.example.coffee_hrm.common.enums.AttendanceReportStatus;
 import com.example.coffee_hrm.common.enums.PayrollStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
@@ -9,6 +10,7 @@ import com.example.coffee_hrm.dto.response.PayrollBoardView;
 import com.example.coffee_hrm.dto.response.PayrollDetailView;
 import com.example.coffee_hrm.entity.Attendance;
 import com.example.coffee_hrm.entity.Employee;
+import com.example.coffee_hrm.entity.MonthlyAttendanceReport;
 import com.example.coffee_hrm.entity.EmploymentContract;
 import com.example.coffee_hrm.entity.MonthlyPayroll;
 import com.example.coffee_hrm.entity.PayrollEmployeeLine;
@@ -19,6 +21,7 @@ import com.example.coffee_hrm.entity.Store;
 import com.example.coffee_hrm.repository.AttendanceRepository;
 import com.example.coffee_hrm.repository.EmployeeRepository;
 import com.example.coffee_hrm.repository.EmploymentContractRepository;
+import com.example.coffee_hrm.repository.MonthlyAttendanceReportRepository;
 import com.example.coffee_hrm.repository.MonthlyPayrollRepository;
 import com.example.coffee_hrm.repository.ShiftAssignmentRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
@@ -66,6 +69,10 @@ public class PayrollServiceImpl implements PayrollService {
     private final MonthlyPayrollRepository payrollRepository;
     private final EmployeeRepository employeeRepository;
     private final UserRepository userRepository;
+    private final MonthlyAttendanceReportRepository reportRepository;
+
+    static final String REPORT_SENT_MESSAGE =
+            "Báo cáo cửa hàng kỳ này đã gửi Admin. Chỉ được tính lại lương khi Admin trả lại báo cáo.";
 
     @Override
     @Transactional(readOnly = true)
@@ -117,6 +124,7 @@ public class PayrollServiceImpl implements PayrollService {
         }
         YearMonth selected = requirePeriod(year, month);
         Store store = managerStore(user);
+        requireReportOpen(store, selected);
         MonthlyPayroll payroll = payrollRepository.findPeriod(store.getId(), selected.getYear(), selected.getMonthValue())
                 .orElseGet(() -> MonthlyPayroll.builder()
                         .store(store)
@@ -144,21 +152,77 @@ public class PayrollServiceImpl implements PayrollService {
         }
         YearMonth selected = requirePeriod(year, month);
         Store store = managerStore(user);
+        requireReportOpen(store, selected);
+        lockPayroll(user, store, selected, false);
+    }
+
+    @Override
+    @Transactional
+    public void lockForReport(AuthenticatedUser user, int year, int month) {
+        if (user.getRoleName() != RoleName.MANAGER) {
+            throw new BusinessException("Chỉ quản lý cửa hàng mới được gửi báo cáo lương.");
+        }
+        YearMonth selected = requirePeriod(year, month);
+        lockPayroll(user, managerStore(user), selected, true);
+    }
+
+    @Override
+    @Transactional
+    public void reopenForRevision(Integer storeId, int year, int month) {
+        if (storeId == null) {
+            return;
+        }
+        payrollRepository.findPeriod(storeId, year, month).ifPresent(payroll -> {
+            if (payroll.getStatus() == PayrollStatus.DA_CHOT) {
+                payroll.setStatus(PayrollStatus.DA_TINH);
+                payroll.setLockedAt(null);
+                payroll.setLockedBy(null);
+                payrollRepository.save(payroll);
+            }
+        });
+    }
+
+    /** Manager không sửa được bảng lương khi báo cáo đang chờ Admin duyệt hoặc đã được duyệt. */
+    private void requireReportOpen(Store store, YearMonth selected) {
+        if (reportSent(store.getId(), selected)) {
+            throw new BusinessException(REPORT_SENT_MESSAGE);
+        }
+    }
+
+    private boolean reportSent(Integer storeId, YearMonth selected) {
+        if (reportRepository == null || storeId == null) {
+            return false;
+        }
+        Optional<MonthlyAttendanceReport> report = reportRepository.findCurrent(
+                storeId, selected.getYear(), selected.getMonthValue());
+        if (report == null || report.isEmpty() || report.get().getSubmittedAt() == null) {
+            return false;
+        }
+        AttendanceReportStatus status = report.get().getStatus();
+        return status == AttendanceReportStatus.SUBMITTED || status == AttendanceReportStatus.APPROVED;
+    }
+
+    private void lockPayroll(AuthenticatedUser user, Store store, YearMonth selected, boolean forReport) {
+        String verb = forReport ? "gửi báo cáo" : "chốt lương";
         MonthlyPayroll payroll = payrollRepository.findPeriod(store.getId(), selected.getYear(), selected.getMonthValue())
-                .orElseThrow(() -> new BusinessException("Hãy tính lương trước khi chốt."));
+                .orElseThrow(() -> new BusinessException("Hãy tính lương trước khi " + (forReport ? "gửi báo cáo." : "chốt.")));
         if (payroll.getStatus() == PayrollStatus.DA_CHOT) {
+            if (forReport) {
+                return;
+            }
             throw new BusinessException("Bảng lương đã chốt.");
         }
         if (payroll.getStatus() != PayrollStatus.DA_TINH) {
-            throw new BusinessException("Hãy tính lương trước khi chốt.");
+            throw new BusinessException("Hãy tính lương trước khi " + (forReport ? "gửi báo cáo." : "chốt."));
         }
         List<PayrollEmployeeDraft> live = buildLive(store.getId(), selected);
         if (!matches(payroll, live)) {
-            throw new BusinessException("Dữ liệu chấm công hoặc hợp đồng đã thay đổi. Hãy tính lương lại trước khi chốt.");
+            throw new BusinessException("Dữ liệu chấm công hoặc hợp đồng đã thay đổi. Hãy tính lương lại trước khi "
+                    + (forReport ? "gửi báo cáo." : "chốt."));
         }
         int review = live.stream().mapToInt(PayrollEmployeeDraft::reviewShifts).sum();
         if (review > 0) {
-            throw new BusinessException("Còn " + review + " ca thiếu dữ liệu, chưa thể chốt lương.");
+            throw new BusinessException("Còn " + review + " ca thiếu dữ liệu, chưa thể " + verb + ".");
         }
         payroll.setStatus(PayrollStatus.DA_CHOT);
         payroll.setLockedAt(VietnamTime.now());
@@ -166,25 +230,6 @@ public class PayrollServiceImpl implements PayrollService {
             payroll.setLockedBy(userRepository.getReferenceById(user.getUserId()));
         }
         payrollRepository.save(payroll);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public byte[] export(AuthenticatedUser user,
-                         Integer year,
-                         Integer month,
-                         String period,
-                         Integer storeId,
-                         Integer employeeId,
-                         String status) {
-        Prepared prepared = prepare(user, year, month, period, storeId, employeeId, status);
-        return com.example.coffee_hrm.report.PayrollExcel.write(prepared.board(), prepared.details());
-    }
-
-    @Override
-    public String exportFileName(Integer year, Integer month, String period) {
-        YearMonth selected = resolvePeriod(year, month, period);
-        return "bang-luong-" + selected + ".xls";
     }
 
     @Override
@@ -283,14 +328,13 @@ public class PayrollServiceImpl implements PayrollService {
         int hours = shown.stream().mapToInt(PayrollBoardView.Row::getPayableHours).sum();
         PayrollStatus singleStatus = queried.size() == 1 ? snapshots.getFirst().status() : null;
         boolean locked = singleStatus == PayrollStatus.DA_CHOT;
-        String exportPath = home(user) + "/export?period=" + monthValue(selected)
-                + optionalQuery("storeId", user.getRoleName() == RoleName.ADMIN ? storeId : null)
-                + optionalQuery("employeeId", requestedEmployee)
-                + (statusFilter.isEmpty() ? "" : "&status=" + statusFilter);
+        boolean reportLocked = user.getRoleName() == RoleName.MANAGER && queried.size() == 1
+                && reportSent(queried.getFirst().getId(), selected);
         PayrollBoardView board = baseBoard(user, selected, user.getRoleName() == RoleName.ADMIN ? storeId : null, requestedEmployee, statusFilter)
-                .canCalculate(user.getRoleName() == RoleName.MANAGER && !locked)
-                .canLock(user.getRoleName() == RoleName.MANAGER && singleStatus == PayrollStatus.DA_TINH)
-                .canExport(true)
+                .canCalculate(user.getRoleName() == RoleName.MANAGER && !locked && !reportLocked)
+                .canLock(user.getRoleName() == RoleName.MANAGER && singleStatus == PayrollStatus.DA_TINH && !reportLocked)
+                .reportLocked(reportLocked)
+                .reportLockMessage(reportLocked ? REPORT_SENT_MESSAGE : null)
                 .locked(locked)
                 .statusKey(singleStatus == null ? "CHUA_TINH" : singleStatus.name())
                 .statusLabel(queried.size() == 1
@@ -309,7 +353,6 @@ public class PayrollServiceImpl implements PayrollService {
                         .toList())
                 .employees(employeeOptions)
                 .rows(shown)
-                .exportPath(exportPath)
                 .build();
         return new Prepared(board, shownDetails);
     }

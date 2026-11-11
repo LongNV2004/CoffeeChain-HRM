@@ -739,3 +739,47 @@ body:has(.coffee-sidebar) main.track-board .train-card .class-detail:hover{
   .track-desk .track-filters label,
   .track-desk .track-period label{min-width:0;width:100%;}
 }
+/* Danh sách chấm công và lương (Manager): phần lương trong tab tháng. */
+.track-desk .track-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+.track-desk .day-board > h2{margin:26px 0 0;font-size:18px;}
+.track-desk .pay-stats{grid-template-columns:repeat(4,minmax(0,1fr));}
+.track-desk .pay-note{margin:14px 0 0;padding:10px 12px;border-radius:8px;background:#F4E8D4;color:#8A5A20;font-size:14px;}
+.track-desk .pay-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:14px;}
+.track-desk .pay-actions form{margin:0;}
+.track-desk .track-table{min-width:1420px;}
+.track-desk .track-ops{display:flex;gap:6px;align-items:center;}
+.track-desk .track-name small{display:block;margin-top:2px;}
+.pay-badge{display:inline-block;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:600;background:#E7E2DE;color:#5C3C2E;}
+.day-date .pay-badge{margin-left:8px;vertical-align:middle;}
+.pay-badge.DA_TINH{background:#FFF1E4;color:#C2410C;}
+.pay-badge.DA_CHOT{background:#E5F3EA;color:#24683E;}
+.pay-none{color:#8A7A72;font-size:12px;}
+@media (max-width:1100px){
+  .track-desk .pay-stats{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media (max-width:640px){
+  .track-desk .pay-stats{grid-template-columns:minmax(0,1fr);}
+}
+/* Báo cáo cửa hàng: bảng lương và thanh toán (Admin, Manager). */
+.pay-badge.CHUA_THANH_TOAN{background:#FFF1E4;color:#C2410C;}
+.pay-badge.DA_THANH_TOAN{background:#E5F3EA;color:#24683E;}
+.pay-board .summary .value.pay-money{font-size:22px;}
+.pay-board h3{margin:22px 0 10px;font-size:16px;}
+.pay-table{min-width:980px;}
+.pay-table th,.pay-table td{white-space:nowrap;}
+.pay-table .num{text-align:right;}
+.pay-table .pay-name{white-space:normal;min-width:140px;}
+.pay-table tr.is-unpaid td{background:#FDF6F4;}
+.pay-muted{display:block;color:#8A7A72;font-size:12px;}
+.pay-note{margin:12px 0;padding:10px 12px;border-radius:8px;background:#F4E8D4;color:#8A5A20;font-size:14px;}
+.pay-form-box{margin:12px 0 4px;}
+.pay-form-box > summary{display:inline-flex;list-style:none;cursor:pointer;}
+.pay-form-box > summary::-webkit-details-marker{display:none;}
+.pay-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 16px;align-items:end;
+  margin-top:12px;padding:16px;border:1px solid var(--line);border-radius:12px;background:#FFFCFA;}
+.pay-form label{display:grid;gap:6px;font-size:13px;font-weight:600;color:#5C3C2E;}
+.pay-form input,.pay-form select{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;min-width:0;}
+.pay-form .pay-wide{grid-column:1 / -1;}
+.pay-form .pay-sum{grid-column:1 / -1;margin:0;}
+.pay-form button{justify-self:start;}
+.summary .value .pay-badge{font-family:'Be Vietnam Pro','Inter',Arial,sans-serif;font-size:13px;letter-spacing:normal;word-spacing:normal;line-height:1.4;vertical-align:middle;}

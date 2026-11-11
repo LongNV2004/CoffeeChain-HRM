@@ -191,6 +191,12 @@ public class NotificationServiceImpl implements NotificationService {
                 case MANAGER -> managerReportUrl(notification.getReferenceId());
                 case STAFF -> null;
             };
+            // Nhân viên (kể cả quản lý cửa hàng) nhận lương: mở màn hình lương của mình.
+            case "PAYROLL_PAYMENT" -> switch (user.getRoleName()) {
+                case STAFF -> "/staff/salary";
+                case MANAGER -> "/attendance/manager/reports";
+                case ADMIN -> null;
+            };
             default -> null;
         };
     }

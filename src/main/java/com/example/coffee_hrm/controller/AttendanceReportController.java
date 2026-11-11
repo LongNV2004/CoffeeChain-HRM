@@ -2,14 +2,13 @@ package com.example.coffee_hrm.controller;
 
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.time.VietnamTime;
+import com.example.coffee_hrm.dto.request.PayrollPaymentForm;
 import com.example.coffee_hrm.dto.response.AdminAttendanceReportPage;
-import com.example.coffee_hrm.dto.response.AdminStoreCard;
 import com.example.coffee_hrm.dto.response.ManagerAttendanceReportPage;
-import com.example.coffee_hrm.dto.response.StoreResponse;
-import com.example.coffee_hrm.report.ReportExcelFile;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.AttendanceReportService;
-import com.example.coffee_hrm.service.StoreService;
+import com.example.coffee_hrm.service.PayrollPaymentService;
+import com.example.coffee_hrm.service.PayrollService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.ContentDisposition;
@@ -21,28 +20,27 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 @Controller
 @RequiredArgsConstructor
 @RequestMapping("/attendance")
 public class AttendanceReportController {
 
-    private static final DateTimeFormatter REPORT_TIME = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     private final AttendanceReportService attendanceReportService;
-    private final StoreService storeService;
+    private final PayrollService payrollService;
+    private final PayrollPaymentService payrollPaymentService;
 
     @GetMapping("/manager/reports")
     @PreAuthorize("hasRole('MANAGER')")
@@ -50,8 +48,36 @@ public class AttendanceReportController {
                               @RequestParam(value = "month", required = false) Integer month,
                               @AuthenticationPrincipal AuthenticatedUser user,
                               Model model) {
-        return managerView(year, month, null, null, user, model, "manager/ManagerAttendanceReport");
+        String view = managerView(year, month, null, null, user, model, "manager/ManagerAttendanceReport");
+        addManagerPayroll(user, (ManagerAttendanceReportPage) model.getAttribute("report"), model);
+        return view;
     }
+
+    /**
+     * Báo cáo cửa hàng gồm chấm công và bảng lương. Manager xem bảng lương của kỳ, tình trạng duyệt và thanh toán;
+     * không duyệt hay thanh toán được.
+     */
+    private void addManagerPayroll(AuthenticatedUser user, ManagerAttendanceReportPage report, Model model) {
+        if (report == null) {
+            return;
+        }
+        try {
+            model.addAttribute("payroll", payrollService.board(user, report.getYear(), report.getMonth(),
+                    null, null, null, null));
+            model.addAttribute("payment", payrollPaymentService.managerReport(user, report.getYear(), report.getMonth()));
+        } catch (BusinessException ex) {
+            model.addAttribute("payroll", null);
+            model.addAttribute("payment", null);
+            model.addAttribute("payrollError", ex.getMessage());
+        } catch (DataAccessException ex) {
+            model.addAttribute("payroll", null);
+            model.addAttribute("payment", null);
+            model.addAttribute("payrollError", PAYMENT_SCHEMA_MESSAGE);
+        }
+    }
+
+    private static final String PAYMENT_SCHEMA_MESSAGE =
+            "Chưa đọc được dữ liệu thanh toán lương. Hãy chạy script src/main/resources/db/payroll-payment.sql.";
 
     @GetMapping("/manager/reports/detail")
     @PreAuthorize("hasRole('MANAGER')")
@@ -72,7 +98,8 @@ public class AttendanceReportController {
                          RedirectAttributes redirect) {
         try {
             attendanceReportService.submit(user, year, month);
-            redirect.addFlashAttribute("success", "Đã gửi báo cáo và file Excel cho Admin.");
+            redirect.addFlashAttribute("success",
+                    "Đã gửi báo cáo chấm công và lương cho Admin. Báo cáo đang chờ Admin duyệt.");
         } catch (BusinessException ex) {
             redirect.addFlashAttribute("pageError", ex.getMessage());
         } catch (DataAccessException ex) {
@@ -81,36 +108,92 @@ public class AttendanceReportController {
         return redirectManager(year, month);
     }
 
-    @GetMapping("/manager/reports/excel")
-    @PreAuthorize("hasRole('MANAGER')")
-    public ResponseEntity<byte[]> managerExcel(@RequestParam("year") int year,
-                                               @RequestParam("month") int month,
+    @PostMapping("/admin/reports/{reportId}/approve")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String approve(@PathVariable("reportId") int reportId,
+                          @AuthenticationPrincipal AuthenticatedUser user,
+                          RedirectAttributes redirect) {
+        try {
+            attendanceReportService.approve(user, reportId);
+            redirect.addFlashAttribute("success", "Đã duyệt báo cáo. Bây giờ có thể thanh toán lương cho nhân viên.");
+        } catch (BusinessException ex) {
+            redirect.addFlashAttribute("pageError", ex.getMessage());
+        } catch (DataAccessException ex) {
+            redirect.addFlashAttribute("pageError", SCHEMA_MESSAGE);
+        }
+        return "redirect:/attendance/admin/reports/" + reportId;
+    }
+
+    /** Thanh toán toàn bộ nhân viên còn nợ trong báo cáo. Tiền đã được trả ngoài hệ thống; ở đây chỉ ghi nhận. */
+    @PostMapping("/admin/reports/{reportId}/pay-all")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String payAll(@PathVariable("reportId") int reportId,
+                         @ModelAttribute PayrollPaymentForm form,
+                         @RequestParam(value = "proof", required = false) MultipartFile proof,
+                         @AuthenticationPrincipal AuthenticatedUser user,
+                         RedirectAttributes redirect) {
+        try {
+            PayrollPaymentService.PayAllResult result = payrollPaymentService.payAll(user, reportId, form, proof);
+            redirect.addFlashAttribute("success", "Đã ghi nhận thanh toán " + result.totalLabel() + " cho "
+                    + result.employees() + " nhân viên. Nhân viên đã nhận được thông báo.");
+        } catch (BusinessException ex) {
+            redirect.addFlashAttribute("pageError", ex.getMessage());
+        } catch (DataAccessException ex) {
+            redirect.addFlashAttribute("pageError", PAYMENT_SCHEMA_MESSAGE);
+        }
+        return "redirect:/attendance/admin/reports/" + reportId + "#bang-luong";
+    }
+
+    @GetMapping("/admin/reports/{reportId}/payroll/{employeeId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String adminPayrollEmployee(@PathVariable("reportId") int reportId,
+                                       @PathVariable("employeeId") int employeeId,
+                                       @AuthenticationPrincipal AuthenticatedUser user,
+                                       Model model) {
+        try {
+            model.addAttribute("detail", payrollPaymentService.employeePayroll(user, reportId, employeeId));
+        } catch (BusinessException ex) {
+            model.addAttribute("detail", null);
+            model.addAttribute("pageError", ex.getMessage());
+        } catch (DataAccessException ex) {
+            model.addAttribute("detail", null);
+            model.addAttribute("pageError", PAYMENT_SCHEMA_MESSAGE);
+        }
+        model.addAttribute("reportId", reportId);
+        return "admin/AdminPayrollEmployee";
+    }
+
+    @PostMapping("/admin/reports/{reportId}/payroll/{employeeId}/pay")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String payEmployee(@PathVariable("reportId") int reportId,
+                              @PathVariable("employeeId") int employeeId,
+                              @ModelAttribute PayrollPaymentForm form,
+                              @RequestParam(value = "proof", required = false) MultipartFile proof,
+                              @AuthenticationPrincipal AuthenticatedUser user,
+                              RedirectAttributes redirect) {
+        try {
+            String amount = payrollPaymentService.payEmployee(user, reportId, employeeId, form, proof);
+            redirect.addFlashAttribute("success", "Đã ghi nhận thanh toán " + amount + ". Nhân viên đã nhận được thông báo.");
+        } catch (BusinessException ex) {
+            redirect.addFlashAttribute("pageError", ex.getMessage());
+        } catch (DataAccessException ex) {
+            redirect.addFlashAttribute("pageError", PAYMENT_SCHEMA_MESSAGE);
+        }
+        return "redirect:/attendance/admin/reports/" + reportId + "/payroll/" + employeeId;
+    }
+
+    @GetMapping("/admin/reports/{reportId}/payments/{paymentId}/proof")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<byte[]> paymentProof(@PathVariable("reportId") int reportId,
+                                               @PathVariable("paymentId") int paymentId,
                                                @AuthenticationPrincipal AuthenticatedUser user) {
-        return excelResponse(attendanceReportService.managerReportExcel(user, year, month));
-    }
-
-    @GetMapping("/admin/reports/{reportId}/excel")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<byte[]> adminExcel(@PathVariable("reportId") int reportId,
-                                             @AuthenticationPrincipal AuthenticatedUser user) {
-        return excelResponse(attendanceReportService.adminReportExcel(user, reportId));
-    }
-
-    @GetMapping("/admin/reports/{reportId}/versions/{version}/excel")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<byte[]> adminVersionExcel(@PathVariable("reportId") int reportId,
-                                                    @PathVariable("version") int version,
-                                                    @AuthenticationPrincipal AuthenticatedUser user) {
-        return excelResponse(attendanceReportService.adminVersionExcel(user, reportId, version));
-    }
-
-    private ResponseEntity<byte[]> excelResponse(ReportExcelFile file) {
-        ContentDisposition disposition = ContentDisposition.attachment()
-                .filename(file.fileName())
+        PayrollPaymentService.ProofFile file = payrollPaymentService.proof(user, reportId, paymentId);
+        ContentDisposition disposition = ContentDisposition.inline()
+                .filename(file.fileName(), java.nio.charset.StandardCharsets.UTF_8)
                 .build();
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
-                .contentType(MediaType.parseMediaType("application/vnd.ms-excel"))
+                .contentType(MediaType.parseMediaType(file.contentType()))
                 .body(file.body());
     }
 
@@ -125,7 +208,7 @@ public class AttendanceReportController {
                                   RedirectAttributes redirect) {
         try {
             attendanceReportService.requestRevision(user, reportId, note);
-            redirect.addFlashAttribute("success", "Đã yêu cầu gửi lại báo cáo.");
+            redirect.addFlashAttribute("success", "Đã trả lại báo cáo cho Manager. Manager có thể tính lại lương và gửi lại.");
         } catch (BusinessException ex) {
             redirect.addFlashAttribute("pageError", ex.getMessage());
         } catch (DataAccessException ex) {
@@ -140,27 +223,26 @@ public class AttendanceReportController {
                             @RequestParam(value = "month", required = false) Integer month,
                             @RequestParam(value = "storeId", required = false) Integer storeId,
                             @RequestParam(value = "status", required = false) String status,
+                            @RequestParam(value = "paymentStatus", required = false) String paymentStatus,
+                            @RequestParam(value = "q", required = false) String query,
                             @AuthenticationPrincipal AuthenticatedUser user,
                             Model model) {
         try {
             AdminAttendanceReportPage page = attendanceReportService.adminPage(user, year, month, storeId, status);
             model.addAttribute("report", page);
             model.addAttribute("years", years(page.getYear()));
-            model.addAttribute("storeCards", reportCards(user, page));
-            model.addAttribute("pageError", null);
+            model.addAttribute("list", payrollPaymentService.adminReports(user, page, paymentStatus, query));
         } catch (BusinessException ex) {
             int fallbackYear = year == null ? LocalDate.now(VietnamTime.ZONE).getYear() : year;
             int fallbackMonth = month == null ? LocalDate.now(VietnamTime.ZONE).getMonthValue() : month;
             model.addAttribute("report", emptyAdmin(fallbackYear, fallbackMonth));
             model.addAttribute("years", years(fallbackYear));
-            model.addAttribute("storeCards", List.of());
             model.addAttribute("pageError", ex.getMessage());
         } catch (DataAccessException ex) {
             int fallbackYear = year == null ? LocalDate.now(VietnamTime.ZONE).getYear() : year;
             int fallbackMonth = month == null ? LocalDate.now(VietnamTime.ZONE).getMonthValue() : month;
             model.addAttribute("report", emptyAdmin(fallbackYear, fallbackMonth));
             model.addAttribute("years", years(fallbackYear));
-            model.addAttribute("storeCards", List.of());
             model.addAttribute("pageError", SCHEMA_MESSAGE);
         }
         return "admin/AdminAttendanceReport";
@@ -176,7 +258,15 @@ public class AttendanceReportController {
                               Model model) {
         try {
             model.addAttribute("detail", attendanceReportService.adminDetail(user, reportId, employeeId, kind, versionPage));
-            model.addAttribute("pageError", null);
+            try {
+                model.addAttribute("payroll", payrollPaymentService.reportPayroll(user, reportId));
+            } catch (BusinessException ex) {
+                model.addAttribute("payroll", null);
+                model.addAttribute("payrollError", ex.getMessage());
+            } catch (DataAccessException ex) {
+                model.addAttribute("payroll", null);
+                model.addAttribute("payrollError", PAYMENT_SCHEMA_MESSAGE);
+            }
         } catch (BusinessException ex) {
             model.addAttribute("detail", null);
             model.addAttribute("pageError", ex.getMessage());
@@ -214,7 +304,6 @@ public class AttendanceReportController {
                                Model model) {
         try {
             model.addAttribute("version", attendanceReportService.adminVersion(user, reportId, version));
-            model.addAttribute("pageError", null);
         } catch (BusinessException ex) {
             model.addAttribute("version", null);
             model.addAttribute("pageError", ex.getMessage());
@@ -241,7 +330,6 @@ public class AttendanceReportController {
                     user, year, month, employeeId, historyKind);
             model.addAttribute("report", page);
             model.addAttribute("years", years(page.getYear()));
-            model.addAttribute("pageError", null);
         } catch (BusinessException ex) {
             int fallbackYear = year == null ? LocalDate.now(VietnamTime.ZONE).getYear() : year;
             int fallbackMonth = month == null ? LocalDate.now(VietnamTime.ZONE).getMonthValue() : month;
@@ -281,54 +369,6 @@ public class AttendanceReportController {
             values.add(year);
         }
         return values;
-    }
-
-    private List<AdminStoreCard> reportCards(AuthenticatedUser user, AdminAttendanceReportPage page) {
-        Map<Integer, StoreResponse> stores = new HashMap<>();
-        try {
-            for (StoreResponse store : storeService.getStores(user)) {
-                stores.put(store.getId(), store);
-            }
-        } catch (BusinessException ex) {
-            stores.clear();
-        }
-        List<AdminStoreCard> cards = new ArrayList<>();
-        for (AdminAttendanceReportPage.Row row : page.getRows()) {
-            StoreResponse store = stores.get(row.getStoreId());
-            String address = store == null || store.getAddress() == null || store.getAddress().isBlank()
-                    ? "Chưa cập nhật"
-                    : store.getAddress();
-            String stateKey = switch (row.getStatusCode() == null ? "" : row.getStatusCode()) {
-                case "APPROVED" -> "active";
-                case "WAITING", "REVISION" -> "pre-opening";
-                default -> "inactive";
-            };
-            String version = row.getVersionNumber() == null ? "—" : String.valueOf(row.getVersionNumber());
-            String hint = row.isSubmitted()
-                    ? "Gửi lúc " + (row.getSubmittedAt() == null ? "—" : REPORT_TIME.format(row.getSubmittedAt()))
-                    + (row.isStale() ? " · Cần cập nhật" : "")
-                    : "Cửa hàng chưa gửi báo cáo kỳ này";
-            cards.add(AdminStoreCard.builder()
-                    .id(row.getStoreId())
-                    .storeName(row.getStoreName())
-                    .address(address)
-                    .statusLabel(row.getStatusLabel())
-                    .stateKey(stateKey)
-                    .metric(row.isSubmitted() ? "Phiên bản " + version : "Chưa gửi")
-                    .metricHint((row.getManagerName() == null || row.getManagerName().isBlank()
-                            ? "Chưa có quản lý"
-                            : row.getManagerName()) + " · " + hint)
-                    .actionHref(row.isSubmitted() ? "/attendance/admin/reports/" + row.getReportId() : null)
-                    .actionLabel(row.isSubmitted() ? "Xem báo cáo" : "Chưa gửi")
-                    .secondaryHref(row.isSubmitted() ? "/attendance/admin/reports/" + row.getReportId() + "/excel" : null)
-                    .secondaryLabel(row.isSubmitted() ? "Tải Excel" : null)
-                    .reportId(row.getReportId())
-                    .reportYear(page.getYear())
-                    .reportMonth(page.getMonth())
-                    .canRevise(row.isSubmitted() && !"REVISION".equals(row.getStatusCode()))
-                    .build());
-        }
-        return cards;
     }
 
     private ManagerAttendanceReportPage emptyManager(AuthenticatedUser user, int year, int month) {

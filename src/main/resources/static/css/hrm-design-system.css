@@ -1271,3 +1271,156 @@ body:has(.coffee-sidebar) .punch-card {
     body:has(.coffee-sidebar) .profile-facts,
     body:has(.coffee-sidebar) .profile-grid { grid-template-columns: 1fr; }
 }
+
+/* ==========================================================================
+   Nút bấm thống nhất toàn hệ thống: một hình dáng (bo tròn dạng viên thuốc),
+   hai cỡ (chuẩn 40px và gọn 34px cho thao tác trong bảng). Chỉ chuẩn hoá hình
+   dáng; màu theo ý nghĩa (chính / phụ / nguy hiểm) giữ nguyên ở từng trang.
+   Nút biểu tượng (chuông, đóng, menu, đăng xuất...) không thuộc nhóm này.
+   ========================================================================== */
+html body:has(.coffee-sidebar) :is(
+    .primary-btn,
+    .secondary-btn,
+    .ghost-btn,
+    .danger-btn,
+    .btn,
+    .btn-primary,
+    .btn-secondary,
+    .btn-danger,
+    .btn-publish,
+    .btn-agree,
+    .btn-decline,
+    .btn-swap,
+    .store-btn,
+    .rv-btn,
+    .cc-btn,
+    .ml-btn,
+    .leave-btn,
+    .manager-leave-btn,
+    .lb-btn,
+    .nav-btn,
+    .logout-btn,
+    .stf-btn,
+    .profile-save-btn,
+    .profile-edit-btn,
+    .profile-cancel-btn,
+    .nav-login-btn,
+    .sc-save,
+    .hrm-chip,
+    .ops-link,
+    .btn-sm,
+    .detail-btn,
+    .rv-detail-btn,
+    .del-btn,
+    .sc-text-btn,
+    .sc-filters button,
+    .page-btn,
+    .track-pages button,
+    .store-btn--compact
+) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    box-sizing: border-box;
+    min-height: 40px;
+    height: auto;
+    padding: 0 18px;
+    border-radius: 999px;
+    font-family: 'Be Vietnam Pro', 'Inter', Arial, sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+    text-decoration: none;
+    vertical-align: middle;
+    cursor: pointer;
+}
+html body:has(.coffee-sidebar) :is(
+    .ops-link,
+    .btn-sm,
+    .detail-btn,
+    .rv-detail-btn,
+    .del-btn,
+    .sc-text-btn,
+    .sc-filters button,
+    .page-btn,
+    .track-pages button,
+    .store-btn--compact
+) {
+    min-height: 34px;
+    min-width: 34px;
+    padding: 0 14px;
+    font-size: 13px;
+}
+html body:has(.coffee-sidebar) :is(
+    .primary-btn,
+    .secondary-btn,
+    .ghost-btn,
+    .danger-btn,
+    .btn,
+    .btn-primary,
+    .btn-secondary,
+    .btn-danger,
+    .btn-publish,
+    .btn-agree,
+    .btn-decline,
+    .btn-swap,
+    .store-btn,
+    .rv-btn,
+    .cc-btn,
+    .ml-btn,
+    .leave-btn,
+    .manager-leave-btn,
+    .lb-btn,
+    .nav-btn,
+    .logout-btn,
+    .stf-btn,
+    .profile-save-btn,
+    .profile-edit-btn,
+    .profile-cancel-btn,
+    .nav-login-btn,
+    .sc-save,
+    .hrm-chip,
+    .ops-link,
+    .btn-sm,
+    .detail-btn,
+    .rv-detail-btn,
+    .del-btn,
+    .sc-text-btn,
+    .sc-filters button,
+    .page-btn,
+    .track-pages button,
+    .store-btn--compact
+):is(:disabled, [aria-disabled="true"]) {
+    opacity: .5;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+/* Nút viền (phụ) không có màu riêng ở trang: nền trắng, viền nâu nhạt. */
+html body:has(.coffee-sidebar) :is(.ops-link, .detail-btn, .rv-detail-btn, .track-pages button:not(.is-on)) {
+    border: 1px solid rgba(60, 40, 30, .14);
+    background: #FFFFFF;
+    color: #1A1715;
+}
+html body:has(.coffee-sidebar) :is(.ops-link, .detail-btn, .rv-detail-btn, .track-pages button:not(:disabled)):hover {
+    border-color: #8C5335;
+    color: #8C5335;
+    background: #FAF6F0;
+}
+html body:has(.coffee-sidebar) .track-pages button.is-on {
+    color: #FBF8F5;
+}
+/* Nút nguy hiểm: cùng màu nhạt cho mọi trang. */
+html body:has(.coffee-sidebar) :is(.danger-btn, .btn-danger, .ml-btn-danger, .rv-btn-danger, .ms-btn-danger, .del-btn) {
+    border: 1px solid #F0C7C2;
+    background: #F8E4E1;
+    color: #9F3B32;
+}
+html body:has(.coffee-sidebar) :is(.danger-btn, .btn-danger, .ml-btn-danger, .rv-btn-danger, .ms-btn-danger, .del-btn):hover {
+    border-color: #9F3B32;
+}
+/* Thẻ <summary> dùng làm nút (ví dụ "Thanh toán toàn bộ"). */
+html body:has(.coffee-sidebar) summary:is(.primary-btn, .secondary-btn) {
+    list-style: none;
+}
