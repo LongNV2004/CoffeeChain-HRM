@@ -2047,7 +2047,7 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
             }
             int day = entry.getKey();
             String dayName = day >= 1 && day <= VI_DAYS.length ? VI_DAYS[day - 1] : "Ngày đã chọn";
-            throw new BusinessException(dayName + " chỉ được đăng ký tối đa 2 ca/ngày.");
+            throw new BusinessException(dayName + " chỉ được đăng ký tối đa 2 ca/ngày. Muốn làm ca thứ 3, hãy gửi đơn tăng ca.");
         }
     }
 

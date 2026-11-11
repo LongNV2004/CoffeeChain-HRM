@@ -129,6 +129,26 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
             @Param("storeId") Integer storeId,
             @Param("leaveRequestId") Integer leaveRequestId);
 
+    /**
+     * Ca được nhả do đơn nghỉ phép đã duyệt trong một kỳ (báo cáo chấm công và tính lương).
+     * Ca chỉ chuyển CANCELLED kèm đơn nghỉ khi Manager duyệt, nên đơn hủy/từ chối không lọt vào đây.
+     */
+    @Query("""
+            SELECT sa FROM ShiftAssignment sa
+            JOIN FETCH sa.shift s JOIN FETCH sa.employee e
+            JOIN FETCH sa.cancelledByLeaveRequest lr
+            WHERE s.store.id = :storeId
+              AND sa.workDate >= :startDate
+              AND sa.workDate <= :endDate
+              AND sa.status = com.example.coffee_hrm.common.enums.AssignmentStatus.CANCELLED
+              AND lr.status = com.example.coffee_hrm.common.enums.ApprovalStatus.APPROVED
+            ORDER BY sa.workDate, s.startTime, sa.id
+            """)
+    List<ShiftAssignment> findApprovedLeaveSlotsForStoreBetween(
+            @Param("storeId") Integer storeId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate);
+
     @Query("""
             SELECT sa FROM ShiftAssignment sa JOIN FETCH sa.employee e
             WHERE sa.replacesAssignment.id IN :ids

@@ -309,6 +309,7 @@
                 <div class="slot-absent">
                     <span>Thiếu chấm công</span>
                     <strong th:text="${employee.absentRecords + ' slot'}">0 slot</strong>
+                    <span class="slot-leave">Nghỉ phép: <b th:text="${employee.leaveLabel()}">0</b></span>
                 </div>
                 <button type="button" class="month-detail" th:attr="data-dialog=|report-emp-${employee.employeeId}|">Xem chi tiết</button>
             </article>

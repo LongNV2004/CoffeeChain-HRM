@@ -51,6 +51,9 @@ public final class AttendanceReportSnapshot {
             draft.earlyMinutes = blank(cell(row, 9), "0");
             draft.absentRecords = blank(cell(row, 11), "0");
             draft.hours = blank(cell(row, 12), "—");
+            // Cột nghỉ phép được thêm sau; bản gửi cũ không có thì coi là 0.
+            draft.leaveSlots = blank(cell(row, 14), "0");
+            draft.leaveDays = blank(cell(row, 15), "0");
         }
     }
 
@@ -151,6 +154,8 @@ public final class AttendanceReportSnapshot {
         private String earlyRecords = "0";
         private String earlyMinutes = "0";
         private String absentRecords = "0";
+        private String leaveSlots = "0";
+        private String leaveDays = "0";
         private final List<AttendanceReportVersionView.DayLine> shifts = new ArrayList<>();
         private final List<AttendanceReportVersionView.DayLine> trainings = new ArrayList<>();
 
@@ -174,6 +179,8 @@ public final class AttendanceReportSnapshot {
                     .earlyRecords(earlyRecords)
                     .earlyMinutes(earlyMinutes)
                     .absentRecords(absentRecords)
+                    .leaveSlots(leaveSlots)
+                    .leaveDays(leaveDays)
                     .shifts(List.copyOf(shifts))
                     .trainings(List.copyOf(trainings))
                     .build();

@@ -267,6 +267,54 @@ class PayrollServiceImplTest {
         assertNull(saved.getLockedAt());
     }
 
+    @Test
+    void approvedAnnualLeaveIsPaidForTheShiftHoursAndUnpaidLeaveIsRecordedWithoutBlockingTheLock() {
+        rememberSavedPayroll();
+        stubOctoberShift(worked(LocalDate.of(2026, 10, 6)), new BigDecimal("30000"));
+        when(shiftAssignmentRepository.findApprovedLeaveSlotsForStoreBetween(
+                1, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31)))
+                .thenReturn(java.util.List.of(
+                        leaveSlot(21, LocalDate.of(2026, 10, 8), com.example.coffee_hrm.common.enums.LeaveType.ANNUAL),
+                        leaveSlot(22, LocalDate.of(2026, 10, 9), com.example.coffee_hrm.common.enums.LeaveType.SICK)));
+
+        service.calculate(manager, 2026, 10);
+
+        var line = saved.getEmployeeLines().getFirst();
+        assertEquals(1, line.getAssignedShiftCount());
+        assertEquals(16, line.getPayableHours());
+        assertEquals(0, new BigDecimal("480000").compareTo(line.getExpectedSalary()));
+        assertEquals(0, line.getReviewShiftCount());
+        assertEquals(3, line.getShiftLines().size());
+
+        service.lock(manager, 2026, 10);
+        assertEquals(PayrollStatus.DA_CHOT, saved.getStatus());
+    }
+
+    @Test
+    void leaveSlotIsNotCountedTwiceWhenTheSameShiftWasWorked() {
+        rememberSavedPayroll();
+        stubOctoberShift(worked(LocalDate.of(2026, 10, 6)), new BigDecimal("30000"));
+        when(shiftAssignmentRepository.findApprovedLeaveSlotsForStoreBetween(
+                1, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31)))
+                .thenReturn(java.util.List.of(
+                        leaveSlot(21, LocalDate.of(2026, 10, 6), com.example.coffee_hrm.common.enums.LeaveType.ANNUAL)));
+
+        service.calculate(manager, 2026, 10);
+
+        var line = saved.getEmployeeLines().getFirst();
+        assertEquals(1, line.getShiftLines().size());
+        assertEquals(8, line.getPayableHours());
+    }
+
+    private ShiftAssignment leaveSlot(int id, LocalDate day, com.example.coffee_hrm.common.enums.LeaveType type) {
+        com.example.coffee_hrm.entity.LeaveRequest leave = com.example.coffee_hrm.entity.LeaveRequest.builder()
+                .id(100 + id).employee(staffEmployee).startDate(day).endDate(day).leaveType(type)
+                .status(com.example.coffee_hrm.common.enums.ApprovalStatus.APPROVED).build();
+        return ShiftAssignment.builder()
+                .id(id).employee(staffEmployee).shift(morning()).workDate(day)
+                .status(AssignmentStatus.CANCELLED).isPublished(true).cancelledByLeaveRequest(leave).build();
+    }
+
     private void rememberSavedPayroll() {
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
         when(payrollRepository.findPeriod(anyInt(), anyInt(), anyInt())).thenAnswer(invocation -> Optional.ofNullable(saved));

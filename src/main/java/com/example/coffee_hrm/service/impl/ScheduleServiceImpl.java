@@ -247,6 +247,9 @@ public class ScheduleServiceImpl implements ScheduleService {
         if (assignment.getCancelledByLeaveRequest() != null) {
             throw new BusinessException("Không thể xóa ca đã hủy do đơn nghỉ được duyệt.");
         }
+        if (coveredByApprovedRegistration(store.getId(), assignment)) {
+            throw new BusinessException("Không thể xóa lịch làm việc đã được duyệt từ đăng ký của nhân viên.");
+        }
         List<ShiftChangeRequest> relatedRequests = shiftChangeRequestRepository.findAllByAssignmentId(assignment.getId());
         if (!relatedRequests.isEmpty()) {
             shiftChangeRequestRepository.deleteAll(relatedRequests);
@@ -892,6 +895,25 @@ public class ScheduleServiceImpl implements ScheduleService {
     private LocalDate resolveMonday(LocalDate input) {
         LocalDate date = input != null ? input : VietnamTime.today();
         return date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+    }
+
+    /** Ca trùng một đăng ký lịch làm việc đã duyệt của chính nhân viên đó (cùng ca, cùng ngày). */
+    private boolean coveredByApprovedRegistration(Integer storeId, ShiftAssignment assignment) {
+        if (workAvailabilityRepository == null || assignment.getEmployee() == null
+                || assignment.getShift() == null || assignment.getWorkDate() == null) {
+            return false;
+        }
+        List<WorkAvailability> approved = workAvailabilityRepository.findApprovedCovering(
+                storeId, assignment.getWorkDate(), assignment.getWorkDate(), ApprovalStatus.APPROVED);
+        if (approved == null) {
+            return false;
+        }
+        return approved.stream().anyMatch(availability -> availability.getEmployee() != null
+                && availability.getShift() != null
+                && Objects.equals(availability.getEmployee().getId(), assignment.getEmployee().getId())
+                && Objects.equals(availability.getShift().getId(), assignment.getShift().getId())
+                && (availability.getStatus() == null || availability.getStatus() == ApprovalStatus.APPROVED)
+                && AvailabilityCoverage.appliesOn(availability, assignment.getWorkDate()));
     }
 
     /** Đưa lịch đăng ký đã duyệt vào tuần, không thêm trùng nhân viên cùng ca hoặc ca đã nhượng/đổi. */

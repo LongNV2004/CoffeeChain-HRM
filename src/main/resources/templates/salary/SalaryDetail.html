@@ -29,6 +29,7 @@
 
     <p class="salary-note" th:if="${detail.locked}">Bảng lương đã chốt. Số giờ và mức lương/giờ của kỳ này không đổi khi hợp đồng thay đổi sau đó.</p>
     <p class="salary-note" th:unless="${detail.locked}">Ca chưa đủ check-in và check-out, hoặc chưa xác định được ca và mức lương, có lương 0.</p>
+    <p class="salary-note" th:if="${detail.leaveShifts > 0}">Ca nghỉ phép năm đã duyệt được trả đủ giờ của ca theo mức lương/giờ; nghỉ không hưởng lương, nghỉ ốm, nghỉ việc riêng ghi nhận 0 đ.</p>
 
     <section class="salary-stats">
         <article>
@@ -42,6 +43,10 @@
         <article>
             <span>Ca chưa đủ điều kiện</span>
             <strong th:text="${detail.reviewShifts}">0</strong>
+        </article>
+        <article>
+            <span>Ca nghỉ phép (hưởng lương)</span>
+            <strong th:text="${detail.leaveShifts + ' (' + detail.paidLeaveShifts + ')'}">0 (0)</strong>
         </article>
         <article>
             <span>Giờ được tính lương</span>

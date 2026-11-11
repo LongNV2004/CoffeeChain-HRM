@@ -394,3 +394,18 @@ td > .sa-muted, .sa-cell > .sa-muted { display: block; }
 .sa-search-only { margin-top: 12px; max-width: 360px; }
 .sa-roster-simple { max-width: 640px; }
 .sa-roster-simple .sa-check-col { width: 44px; }
+
+/* Thẻ tên nhân viên: cùng kiểu với Lịch làm việc của nhân viên (nền trắng, viền mảnh, bo 4px, chữ 12px).
+   Trạng thái đăng ký chỉ thể hiện bằng chấm màu để không lệch hình dạng thẻ. */
+.rv-people { gap: 0; }
+.rv-person,
+.rv-person.is-approved,
+.rv-person.is-pending,
+.rv-person.is-rejected {
+    padding: 4px 8px; margin-bottom: 6px;
+    border: 1px solid var(--rv-line); border-left-width: 1px; border-radius: 4px;
+    background: #fff; font-size: 12px; font-weight: 500;
+}
+.rv-person:hover { background: var(--rv-hover); }
+.rv-person.is-pending { border-color: #E9D3AE; }
+.rv-person.is-rejected { color: var(--rv-muted); }

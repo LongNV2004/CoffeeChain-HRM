@@ -33,14 +33,33 @@ public record PayrollEmployeeDraft(
             boolean payable,
             boolean needsReview,
             String unpaidReason) {
+
+        /** Ca nghỉ phép đã duyệt: không có chấm công, trạng thái là tên loại nghỉ. */
+        public boolean leave() {
+            return attendanceId == null && PeriodLeave.isLeaveLabel(attendanceStatus);
+        }
     }
 
+    /** Ca được phân công đi làm (không gồm ca nghỉ phép). */
     public int assignedShifts() {
-        return shifts.size();
+        return (int) shifts.stream().filter(shift -> !shift.leave()).count();
     }
 
+    /** Ca đi làm hợp lệ được tính lương (không gồm ca nghỉ phép). */
     public int validShifts() {
-        return (int) shifts.stream().filter(Shift::payable).count();
+        return (int) shifts.stream().filter(shift -> !shift.leave() && shift.payable()).count();
+    }
+
+    public int leaveShifts() {
+        return (int) shifts.stream().filter(Shift::leave).count();
+    }
+
+    public int paidLeaveShifts() {
+        return (int) shifts.stream().filter(shift -> shift.leave() && shift.payable()).count();
+    }
+
+    public int paidLeaveHours() {
+        return shifts.stream().filter(Shift::leave).mapToInt(Shift::payableHours).sum();
     }
 
     public int reviewShifts() {

@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/AdminDashboard.css}">
+    <link rel="stylesheet" th:href="@{/css/overtime.css}">
 </head>
 <body>
 <th:block th:if="${navRole == 'manager'}">
@@ -16,15 +17,134 @@
     <header th:replace="~{fragments/navbar :: staff('overtime')}"></header>
 </th:block>
 
-<main class="wrap dash-main">
+<main class="wrap dash-main ot-page">
     <section class="welcome">
         <div class="eyebrow" th:text="${eyebrow}">CoffeeHRM</div>
-        <h1>Đăng kí tăng ca</h1>
+        <h1 th:text="${navRole == 'manager'} ? 'Duyệt đơn tăng ca' : 'Đăng kí tăng ca'">Đăng kí tăng ca</h1>
+        <p th:if="${page != null}"
+           th:text="|Bình thường mỗi ngày tối đa ${page.normalDailyLimit} ca. Khi đơn tăng ca được duyệt, nhân viên được làm tối đa ${page.overtimeDailyLimit} ca/ngày; ca tăng ca được thêm vào lịch làm việc và tính lương như ca thường.|">Quy tắc</p>
     </section>
-    <section class="panel">
-        <h2>Đăng ký ca làm thêm</h2>
-        <p class="empty">Đăng ký ca làm thêm ngoài lịch làm việc đã được phân.</p>
-    </section>
+
+    <p class="flash success" th:if="${successMessage}" th:text="${successMessage}" role="status">Đã gửi</p>
+    <p class="flash error" th:if="${errorMessage}" th:text="${errorMessage}" role="alert">Lỗi</p>
+    <p class="flash error" th:if="${pageError}" th:text="${pageError}" role="alert">Lỗi</p>
+
+    <th:block th:if="${page != null}">
+        <div class="ot-kpis">
+            <div class="ot-kpi"><span>Cửa hàng</span><strong th:text="${page.storeName}">Cửa hàng</strong></div>
+            <div class="ot-kpi is-warn"><span>Đơn chờ duyệt</span><strong th:text="${page.pendingCount}">0</strong></div>
+            <div class="ot-kpi is-good"><span>Đơn đã duyệt</span><strong th:text="${page.approvedCount}">0</strong></div>
+            <div class="ot-kpi"><span>Giới hạn khi tăng ca</span><strong th:text="${page.overtimeDailyLimit + ' ca/ngày'}">3 ca/ngày</strong></div>
+        </div>
+
+        <!-- Nhân viên: gửi đơn tăng ca -->
+        <section class="panel ot-form-panel" th:if="${navRole == 'staff'}">
+            <h2>Gửi đơn tăng ca</h2>
+            <form class="ot-form" method="post" th:action="@{/schedule/staff/overtime}">
+                <label>Ngày tăng ca
+                    <input type="date" name="workDate" required
+                           th:min="${page.minDate}" th:max="${page.maxDate}">
+                </label>
+                <label>Ca muốn làm thêm
+                    <select name="shiftId" required>
+                        <option value="">-- Chọn ca --</option>
+                        <option th:each="shift : ${page.shifts}" th:value="${shift.shiftId}" th:text="${shift.label}">Ca tối (17:00 – 22:00)</option>
+                    </select>
+                </label>
+                <label class="ot-wide">Lý do
+                    <input type="text" name="reason" maxlength="255" required placeholder="Ví dụ: Cửa hàng đông khách, muốn làm thêm ca tối">
+                </label>
+                <div class="ot-wide ot-actions">
+                    <button class="primary-btn" type="submit">Gửi đơn tăng ca</button>
+                    <span class="muted">Ca phải chưa bắt đầu, không trùng giờ với ca khác và không nằm trong ca đã được duyệt nghỉ.</span>
+                </div>
+            </form>
+        </section>
+
+        <section class="panel">
+            <h2 th:text="${navRole == 'manager'} ? 'Đơn chờ duyệt' : 'Đơn đang chờ duyệt'">Đơn chờ duyệt</h2>
+            <p class="empty" th:if="${#lists.isEmpty(page.pending)}">Không có đơn tăng ca nào đang chờ duyệt.</p>
+            <div class="ot-grid" th:if="${!#lists.isEmpty(page.pending)}">
+                <article class="ot-card is-pending" th:each="item : ${page.pending}">
+                    <header class="ot-card-top">
+                        <div>
+                            <h3 th:text="${navRole == 'manager'} ? ${item.employeeName} : ${item.shiftName + ' · ' + item.dateLabel}">Nguyễn Văn A</h3>
+                            <p class="ot-sub" th:if="${navRole == 'manager'}" th:text="${item.employeeCode}">NV001</p>
+                        </div>
+                        <span class="ot-badge" th:classappend="${item.statusKey}" th:text="${item.statusLabel}">Chờ duyệt</span>
+                    </header>
+                    <dl class="ot-facts">
+                        <div><dt>Ngày</dt><dd th:text="${item.dateLabel}">12/11/2026</dd></div>
+                        <div><dt>Ca</dt><dd th:text="${item.shiftName + ' (' + item.timeRange + ')'}">Ca tối (17:00 – 22:00)</dd></div>
+                        <div><dt>Ca đã có trong ngày</dt><dd th:text="${item.dayShiftCount + ' ca → ' + (item.dayShiftCount + 1) + ' ca nếu duyệt'}">2 ca</dd></div>
+                        <div><dt>Gửi lúc</dt><dd th:text="${item.createdLabel}">11/11/2026 10:00</dd></div>
+                    </dl>
+                    <p class="ot-reason" th:if="${!#strings.isEmpty(item.reason)}"><span>Lý do:</span> <span th:text="${item.reason}">Lý do</span></p>
+                    <div class="ot-card-actions">
+                        <form th:if="${item.canReview}" method="post"
+                              th:action="@{/schedule/manager/overtime/{id}/approve(id=${item.id})}"
+                              data-coffee-title="Duyệt đơn tăng ca"
+                              data-coffee-ok="Duyệt"
+                              th:attr="data-coffee-confirm=${'Duyệt cho ' + item.employeeName + ' tăng ca ' + item.shiftName + ' ngày ' + item.dateLabel + '? Ca sẽ được thêm vào lịch làm việc.'}">
+                            <button class="primary-btn" type="submit">Duyệt</button>
+                        </form>
+                        <details class="ot-reject" th:if="${item.canReview}">
+                            <summary class="ghost-btn">Từ chối</summary>
+                            <form method="post" th:action="@{/schedule/manager/overtime/{id}/reject(id=${item.id})}">
+                                <input type="text" name="reason" maxlength="500" required placeholder="Lý do từ chối" aria-label="Lý do từ chối">
+                                <button class="ghost-btn" type="submit">Xác nhận từ chối</button>
+                            </form>
+                        </details>
+                        <form th:if="${item.canCancel}" method="post"
+                              th:action="@{/schedule/staff/overtime/{id}/cancel(id=${item.id})}"
+                              data-coffee-title="Hủy đơn tăng ca"
+                              data-coffee-ok="Hủy đơn"
+                              data-coffee-tone="danger"
+                              data-coffee-confirm="Bạn có chắc muốn hủy đơn tăng ca này?">
+                            <button class="ghost-btn" type="submit">Hủy đơn</button>
+                        </form>
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <section class="panel">
+            <h2>Lịch sử đơn tăng ca</h2>
+            <p class="empty" th:if="${#lists.isEmpty(page.history)}">Chưa có đơn tăng ca đã xử lý.</p>
+            <div class="table-scroll" th:if="${!#lists.isEmpty(page.history)}">
+                <table class="ot-table">
+                    <thead>
+                    <tr>
+                        <th th:if="${navRole == 'manager'}">Nhân viên</th>
+                        <th>Ngày</th>
+                        <th>Ca</th>
+                        <th>Lý do</th>
+                        <th>Trạng thái</th>
+                        <th>Người xử lý</th>
+                        <th>Xử lý lúc</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="item : ${page.history}">
+                        <td th:if="${navRole == 'manager'}">
+                            <strong th:text="${item.employeeName}">Nguyễn Văn A</strong>
+                            <small class="muted" th:text="${item.employeeCode}">NV001</small>
+                        </td>
+                        <td th:text="${item.dateLabel}">12/11/2026</td>
+                        <td th:text="${item.shiftName + ' (' + item.timeRange + ')'}">Ca tối</td>
+                        <td>
+                            <span th:text="${item.reason}">Lý do</span>
+                            <small class="ot-reject-note" th:if="${item.rejectReason != null}" th:text="${'Từ chối: ' + item.rejectReason}">Từ chối</small>
+                        </td>
+                        <td><span class="ot-badge" th:classappend="${item.statusKey}" th:text="${item.statusLabel}">Đã duyệt</span></td>
+                        <td th:text="${item.resolverName != null ? item.resolverName : '—'}">Quản lý</td>
+                        <td th:text="${item.resolvedLabel}">—</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </th:block>
 </main>
 </body>
 </html>

@@ -115,7 +115,8 @@ class AttendanceReportServiceImplTest {
                 clock,
                 payrollService,
                 payrollRepository,
-                paymentRepository);
+                paymentRepository,
+                null);
         lenient().when(clock.getZone()).thenReturn(VietnamTime.ZONE);
         lenient().when(clock.instant()).thenReturn(Instant.parse("2026-10-10T02:00:00Z"));
     }

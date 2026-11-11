@@ -12,18 +12,24 @@
 <header th:replace="~{fragments/navbar :: manager('attendance-month')}"></header>
 
 <!-- Danh sách chấm công và lương: chấm công trong tháng và bảng lương của cùng kỳ trên một màn hình. -->
-<main class="wrap dash-main attn-screen track-board track-desk">
+<main class="wrap dash-main attn-screen track-board track-desk compact-board">
     <section class="day-board">
-        <div class="day-head">
+        <div class="day-head compact-head">
             <div>
                 <h1>Danh sách chấm công và lương</h1>
                 <p class="day-date">
-                    <span th:text="${board.monthLabel}">Tháng 10/2026</span>
+                    <span th:text="${board.storeName != null ? board.storeName + ' · ' + board.monthLabel : board.monthLabel}">Tháng 10/2026</span>
                     <span class="pay-badge" th:if="${payroll != null}"
                           th:classappend="${payroll.statusKey}"
                           th:text="${'Bảng lương: ' + payroll.statusLabel}">Bảng lương: Chưa tính</span>
                 </p>
             </div>
+            <form class="track-period compact-period" method="get" th:action="@{/attendance/manager/month}">
+                <label>Tháng
+                    <input type="month" name="month" th:value="${board.monthValue}"
+                           onchange="this.form.submit()" aria-label="Chọn tháng">
+                </label>
+            </form>
         </div>
 
         <nav class="track-tabs" aria-label="Danh sách chấm công và lương">
@@ -36,21 +42,62 @@
         <p class="flash" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
         <p class="flash" th:if="${payrollError != null and payrollError != pageError}" th:text="${payrollError}">Lỗi bảng lương</p>
 
-        <form class="track-filters" id="monthFilters">
-            <label>Cửa hàng
-                <select aria-label="Cửa hàng">
-                    <option th:text="${board.storeName != null ? board.storeName : 'Cửa hàng đang quản lý'}">Cửa hàng</option>
-                </select>
-            </label>
+        <div class="kpi-groups">
+            <section class="kpi-group" aria-label="Thống kê chấm công trong tháng">
+                <h2 class="kpi-title">Chấm công trong tháng</h2>
+                <div class="kpi-strip">
+                    <div class="kpi"><span>Ca phân công</span><strong th:text="${board.scheduledSlots}">0</strong></div>
+                    <div class="kpi is-good"><span>Ca hoàn thành</span><strong th:text="${board.completedSlots}">0</strong></div>
+                    <div class="kpi is-warn"><span>Ca đi muộn</span><strong th:text="${board.lateSlots}">0</strong></div>
+                    <div class="kpi is-warn"><span>Ca về sớm</span><strong th:text="${board.earlySlots}">0</strong></div>
+                    <div class="kpi is-bad"><span>Thiếu chấm công</span><strong th:text="${board.missingSlots}">0</strong></div>
+                    <div class="kpi is-leave"><span>Ca nghỉ phép</span><strong th:text="${board.leaveSlots}">0</strong></div>
+                </div>
+            </section>
+
+            <section class="kpi-group" th:if="${payroll != null}" aria-label="Thống kê lương trong tháng">
+                <h2 class="kpi-title">Lương tháng</h2>
+                <div class="kpi-strip">
+                    <div class="kpi"><span>Nhân viên có ca</span><strong th:text="${payroll.employeeCount}">0</strong></div>
+                    <div class="kpi"><span>Giờ tính lương</span><strong th:text="${payroll.payableHoursLabel}">0 giờ</strong></div>
+                    <div class="kpi kpi-wide"><span>Tổng quỹ lương dự kiến</span><strong th:text="${payroll.payrollFundLabel}">0 đ</strong></div>
+                </div>
+                <div class="pay-actions" th:if="${payroll.canCalculate or payroll.canLock}">
+                    <form th:if="${payroll.canCalculate}" method="post" th:action="@{/manager/salary/calculate}"
+                          data-coffee-title="Tính lương"
+                          data-coffee-ok="Tính lương"
+                          th:attr="data-coffee-confirm=${'Tính lương cả cửa hàng cho ' + payroll.periodLabel.toLowerCase() + '? Kết quả chưa chốt sẽ được ghi lại.'}">
+                        <input type="hidden" name="year" th:value="${payroll.year}">
+                        <input type="hidden" name="month" th:value="${payroll.month}">
+                        <button class="primary-btn" type="submit">Tính lương</button>
+                    </form>
+                    <form th:if="${payroll.canLock}" method="post" th:action="@{/manager/salary/lock}"
+                          data-coffee-title="Chốt lương"
+                          data-coffee-ok="Chốt lương"
+                          th:attr="data-coffee-confirm=${'Chốt lương ' + payroll.periodLabel.toLowerCase() + '? Sau khi chốt sẽ không tính lại được.'}">
+                        <input type="hidden" name="year" th:value="${payroll.year}">
+                        <input type="hidden" name="month" th:value="${payroll.month}">
+                        <button class="secondary-btn" type="submit">Chốt lương</button>
+                    </form>
+                </div>
+            </section>
+        </div>
+
+        <th:block th:if="${payroll != null}">
+            <p class="pay-note" th:if="${payroll.reviewShifts > 0}"
+               th:text="|Còn ${payroll.reviewShifts} ca thiếu dữ liệu. Những ca này có lương 0 và chưa thể chốt.|">Còn ca thiếu dữ liệu.</p>
+            <p class="pay-note" th:if="${payroll.locked}">Bảng lương kỳ này đã chốt. Số giờ và mức lương/giờ được giữ nguyên.</p>
+            <p class="pay-note" th:if="${payroll.reportLocked}" th:text="${payroll.reportLockMessage}">Báo cáo đã gửi Admin.</p>
+        </th:block>
+        <p class="pay-hint">Nghỉ phép chỉ tính ca thuộc đơn đã duyệt trong kỳ. Ca nghỉ phép năm được trả lương theo giờ của ca; nghỉ không hưởng lương, nghỉ ốm, nghỉ việc riêng được ghi nhận nhưng không phát sinh lương.</p>
+
+        <form class="track-filters compact-filters" id="monthFilters">
             <label>Nhân viên
                 <select id="monthEmployee" aria-label="Nhân viên">
                     <option value="">Tất cả</option>
                     <option th:each="card : ${board.employees}"
                             th:value="${card.employeeId}"
                             th:text="${card.employeeCode + ' — ' + card.employeeName}">NV001 — Lê Thị Thu</option>
-                    <option th:each="row : ${payrollOnly}"
-                            th:value="${row.employeeId}"
-                            th:text="${row.employeeCode + ' — ' + row.employeeName}">NV009 — Nhân viên cũ</option>
                 </select>
             </label>
             <label>Trạng thái chấm công
@@ -59,94 +106,20 @@
                     <option value="late">Có ca đi muộn</option>
                     <option value="early">Có ca về sớm</option>
                     <option value="missing">Có ca thiếu chấm công</option>
+                    <option value="leave">Có ca nghỉ phép</option>
                     <option value="done">Đủ ca hoàn thành</option>
                 </select>
             </label>
             <button class="secondary-btn" id="monthReset" type="button">Làm mới bộ lọc</button>
         </form>
 
-        <form class="track-period" method="get" th:action="@{/attendance/manager/month}">
-            <label>Tháng
-                <input type="month" name="month" th:value="${board.monthValue}"
-                       onchange="this.form.submit()" aria-label="Chọn tháng">
-            </label>
-        </form>
-
-        <h2>Chấm công trong tháng</h2>
-        <section class="track-stats" aria-label="Thống kê chấm công trong tháng">
-            <article>
-                <span>Tổng số ca được phân công</span>
-                <strong th:text="${board.scheduledSlots}">0</strong>
-            </article>
-            <article>
-                <span>Số ca đã hoàn thành</span>
-                <strong th:text="${board.completedSlots}">0</strong>
-            </article>
-            <article>
-                <span>Tổng số ca đi muộn</span>
-                <strong th:text="${board.lateSlots}">0</strong>
-            </article>
-            <article>
-                <span>Tổng số ca về sớm</span>
-                <strong th:text="${board.earlySlots}">0</strong>
-            </article>
-            <article>
-                <span>Số ca thiếu chấm công</span>
-                <strong th:text="${board.missingSlots}">0</strong>
-            </article>
-        </section>
-
-        <th:block th:if="${payroll != null}">
-            <h2>Lương tháng</h2>
-            <section class="track-stats pay-stats" aria-label="Thống kê lương trong tháng">
-                <article>
-                    <span>Nhân viên có ca trong kỳ</span>
-                    <strong th:text="${payroll.employeeCount}">0</strong>
-                </article>
-                <article>
-                    <span>Tổng số giờ được tính lương</span>
-                    <strong th:text="${payroll.payableHoursLabel}">0 giờ</strong>
-                </article>
-                <article>
-                    <span>Tổng quỹ lương dự kiến</span>
-                    <strong th:text="${payroll.payrollFundLabel}">0 đ</strong>
-                </article>
-                <article>
-                    <span>Trạng thái bảng lương</span>
-                    <strong th:text="${payroll.statusLabel}">Chưa tính</strong>
-                </article>
-            </section>
-
-            <p class="pay-note" th:if="${payroll.reviewShifts > 0}"
-               th:text="|Còn ${payroll.reviewShifts} ca thiếu dữ liệu. Những ca này có lương 0 và chưa thể chốt.|">Còn ca thiếu dữ liệu.</p>
-            <p class="pay-note" th:if="${payroll.locked}">Bảng lương kỳ này đã chốt. Số giờ và mức lương/giờ được giữ nguyên.</p>
-            <p class="pay-note" th:if="${payroll.reportLocked}" th:text="${payroll.reportLockMessage}">Báo cáo đã gửi Admin.</p>
-
-            <div class="pay-actions" th:if="${payroll.canCalculate or payroll.canLock}">
-                <form th:if="${payroll.canCalculate}" method="post" th:action="@{/manager/salary/calculate}"
-                      data-coffee-title="Tính lương"
-                      data-coffee-ok="Tính lương"
-                      th:attr="data-coffee-confirm=${'Tính lương cả cửa hàng cho ' + payroll.periodLabel.toLowerCase() + '? Kết quả chưa chốt sẽ được ghi lại.'}">
-                    <input type="hidden" name="year" th:value="${payroll.year}">
-                    <input type="hidden" name="month" th:value="${payroll.month}">
-                    <button class="primary-btn" type="submit">Tính lương</button>
-                </form>
-                <form th:if="${payroll.canLock}" method="post" th:action="@{/manager/salary/lock}"
-                      data-coffee-title="Chốt lương"
-                      data-coffee-ok="Chốt lương"
-                      th:attr="data-coffee-confirm=${'Chốt lương ' + payroll.periodLabel.toLowerCase() + '? Sau khi chốt sẽ không tính lại được.'}">
-                    <input type="hidden" name="year" th:value="${payroll.year}">
-                    <input type="hidden" name="month" th:value="${payroll.month}">
-                    <button class="secondary-btn" type="submit">Chốt lương</button>
-                </form>
-            </div>
-        </th:block>
-
-        <h2>Chấm công và lương theo nhân viên</h2>
-        <p class="day-empty" th:if="${#lists.isEmpty(board.employees) and #lists.isEmpty(payrollOnly)}">Không có nhân viên đang làm tại cửa hàng.</p>
+        <h2>Chấm công và lương theo nhân viên đang làm việc</h2>
+        <p class="day-empty" th:if="${#lists.isEmpty(board.employees)}">Không có nhân viên đang làm tại cửa hàng.</p>
+        <p class="pay-hint" th:if="${!#lists.isEmpty(payrollOnly)}"
+           th:text="|Có ${#lists.size(payrollOnly)} người đã nghỉ việc hoặc chuyển cửa hàng vẫn có ca trong kỳ. Lương của họ vẫn nằm trong quỹ lương; xem tại màn hình Tính lương theo tháng.|">Có người đã nghỉ vẫn có lương.</p>
         <p class="day-empty" id="monthFilteredEmpty" hidden>Không có nhân viên khớp bộ lọc.</p>
 
-        <div class="table-wrap" th:if="${!#lists.isEmpty(board.employees) or !#lists.isEmpty(payrollOnly)}">
+        <div class="table-wrap" th:if="${!#lists.isEmpty(board.employees)}">
             <table class="track-table">
                 <thead>
                 <tr>
@@ -158,6 +131,7 @@
                     <th>Ca đi muộn</th>
                     <th>Ca về sớm</th>
                     <th>Ca thiếu chấm công</th>
+                    <th>Nghỉ phép</th>
                     <th>Thời gian có mặt</th>
                     <th>Giờ được tính lương</th>
                     <th>Mức lương/giờ</th>
@@ -169,7 +143,7 @@
                 <tbody>
                 <tr class="track-row" th:each="card, cardStat : ${board.employees}"
                     th:with="pay=${payByEmployee[card.employeeId]}"
-                    th:attr="data-employee=${card.employeeId},data-late=${card.late},data-early=${card.early},data-missing=${card.missingSlots > 0},data-done=${card.scheduledSlots > 0 and card.missingSlots == 0 and card.completedSlots == card.scheduledSlots}">
+                    th:attr="data-employee=${card.employeeId},data-late=${card.late},data-early=${card.early},data-missing=${card.missingSlots > 0},data-leave=${card.leaveSlots > 0},data-done=${card.scheduledSlots > 0 and card.missingSlots == 0 and card.completedSlots == card.scheduledSlots}">
                     <td class="track-stt" th:text="${cardStat.count}">1</td>
                     <td th:text="${card.employeeCode}">NV001</td>
                     <td class="track-name" th:text="${card.employeeName}">Lê Thị Thu</td>
@@ -178,6 +152,11 @@
                     <td th:text="${card.lateSlots}">0</td>
                     <td th:text="${card.earlySlots}">0</td>
                     <td th:text="${card.missingSlots}">0</td>
+                    <td class="track-leave">
+                        <span th:text="${card.leaveLabel}">0</span>
+                        <small class="pay-none" th:if="${card.leaveSlots > 0}"
+                               th:text="${card.paidLeaveSlots + ' ca hưởng lương'}">1 ca hưởng lương</small>
+                    </td>
                     <td th:text="${card.paidHoursLabel}">0 phút</td>
                     <td th:text="${pay != null ? pay.payableHours + ' giờ' : '—'}">0 giờ</td>
                     <td th:text="${pay != null ? pay.hourlyRateLabel : '—'}">—</td>
@@ -192,33 +171,10 @@
                            th:href="@{/manager/salary/detail(year=${payroll.year},month=${payroll.month},employeeId=${card.employeeId})}">Chi tiết lương</a>
                     </td>
                 </tr>
-                <tr class="track-row" th:each="pay, payStat : ${payrollOnly}"
-                    th:attr="data-employee=${pay.employeeId},data-late=false,data-early=false,data-missing=false,data-done=false">
-                    <td class="track-stt" th:text="${#lists.size(board.employees) + payStat.count}">1</td>
-                    <td th:text="${pay.employeeCode}">NV009</td>
-                    <td class="track-name">
-                        <span th:text="${pay.employeeName}">Nhân viên cũ</span>
-                        <small class="pay-none">Không còn trong danh sách nhân viên cửa hàng</small>
-                    </td>
-                    <td th:text="${pay.assignedShifts}">0</td>
-                    <td>—</td>
-                    <td>—</td>
-                    <td>—</td>
-                    <td>—</td>
-                    <td>—</td>
-                    <td th:text="${pay.payableHours + ' giờ'}">0 giờ</td>
-                    <td th:text="${pay.hourlyRateLabel}">—</td>
-                    <td th:text="${pay.expectedSalaryLabel}">0 đ</td>
-                    <td><span class="pay-badge" th:classappend="${pay.statusKey}" th:text="${pay.statusLabel}">Chưa tính</span></td>
-                    <td class="track-ops">
-                        <a class="ops-link"
-                           th:href="@{/manager/salary/detail(year=${payroll.year},month=${payroll.month},employeeId=${pay.employeeId})}">Chi tiết lương</a>
-                    </td>
-                </tr>
                 </tbody>
             </table>
         </div>
-        <div class="track-pager" th:if="${!#lists.isEmpty(board.employees) or !#lists.isEmpty(payrollOnly)}">
+        <div class="track-pager" th:if="${!#lists.isEmpty(board.employees)}">
             <p id="monthCount">0 bản ghi</p>
             <label>Số dòng mỗi trang
                 <select id="monthPageSize" aria-label="Số dòng mỗi trang">
@@ -246,7 +202,11 @@
                     <div><span>Thời gian có mặt</span><strong th:text="${card.paidHoursLabel}">0 phút</strong></div>
                     <div><span>Ca thiếu chấm công</span><strong th:text="${card.missingSlots}">0</strong></div>
                 </div>
-                <p class="day-empty" th:if="${#lists.isEmpty(card.days)}">Chưa có bản ghi chấm công trong tháng này.</p>
+                <div class="slot-times">
+                    <div><span>Nghỉ phép</span><strong th:text="${card.leaveLabel}">0</strong></div>
+                    <div><span>Ca nghỉ hưởng lương</span><strong th:text="${card.paidLeaveSlots}">0</strong></div>
+                </div>
+                <p class="day-empty" th:if="${#lists.isEmpty(card.days)}">Chưa có bản ghi chấm công hoặc nghỉ phép trong tháng này.</p>
                 <div class="month-lines" th:if="${!#lists.isEmpty(card.days)}">
                     <article class="month-line" th:each="line : ${card.days}">
                         <div class="slot-top">
@@ -258,7 +218,7 @@
                             <div><span>Check-in</span><strong th:text="${line.checkInLabel}">07:10</strong></div>
                             <div><span>Check-out</span><strong th:text="${line.checkOutLabel}">12:00</strong></div>
                         </div>
-                        <div class="mine-hours"><span>Thời gian có mặt</span><strong th:text="${line.workedLabel}">4 giờ 50 phút</strong></div>
+                        <div class="mine-hours"><span th:text="${line.leave} ? 'Nghỉ phép' : 'Thời gian có mặt'">Thời gian có mặt</span><strong th:text="${line.workedLabel}">4 giờ 50 phút</strong></div>
                     </article>
                 </div>
                 <button class="primary-btn" value="close">Đóng</button>
@@ -295,6 +255,9 @@
             }
             if (state === "missing") {
                 return row.getAttribute("data-missing") === "true";
+            }
+            if (state === "leave") {
+                return row.getAttribute("data-leave") === "true";
             }
             if (state === "done") {
                 return row.getAttribute("data-done") === "true";

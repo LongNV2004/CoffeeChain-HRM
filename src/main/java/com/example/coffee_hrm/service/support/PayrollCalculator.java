@@ -81,6 +81,32 @@ public final class PayrollCalculator {
         return new Outcome(scheduled, payableHours, rate, salary, true, false, null, lateDeducted, earlyDeducted);
     }
 
+    /**
+     * Ca nghỉ phép đã duyệt. Nghỉ có hưởng lương (trừ quỹ phép năm) được trả đủ giờ của ca theo mức lương/giờ
+     * của hợp đồng; không áp dụng trừ đi muộn/về sớm vì không có chấm công. Nghỉ không hưởng lương ghi nhận 0 đ.
+     */
+    public static Outcome leave(LocalDate workDate,
+                                LocalTime start,
+                                LocalTime end,
+                                boolean paid,
+                                String leaveLabel,
+                                BigDecimal hourlyRate) {
+        int scheduled = scheduledHours(workDate, start, end);
+        BigDecimal rate = hourlyRate != null && hourlyRate.signum() > 0 ? hourlyRate : null;
+        if (!paid) {
+            return new Outcome(scheduled, 0, rate, BigDecimal.ZERO, false, false,
+                    leaveLabel + " — không hưởng lương", false, false);
+        }
+        if (scheduled <= 0) {
+            return blocked(0, rate, "Không xác định được ca làm");
+        }
+        if (rate == null) {
+            return blocked(scheduled, null, "Không xác định được mức lương");
+        }
+        BigDecimal salary = rate.multiply(BigDecimal.valueOf(scheduled)).setScale(0, RoundingMode.HALF_UP);
+        return new Outcome(scheduled, scheduled, rate, salary, true, false, null, false, false);
+    }
+
     private static Outcome blocked(int scheduledHours, BigDecimal hourlyRate, String reason) {
         return new Outcome(scheduledHours, 0, hourlyRate, BigDecimal.ZERO, false, true, reason, false, false);
     }

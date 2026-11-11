@@ -1,5 +1,6 @@
 package com.example.coffee_hrm.service.impl;
 
+import com.example.coffee_hrm.common.enums.AssignmentStatus;
 import com.example.coffee_hrm.common.enums.AttendanceReportStatus;
 import com.example.coffee_hrm.common.enums.NotificationType;
 import com.example.coffee_hrm.common.enums.PayrollStatus;
@@ -9,6 +10,7 @@ import com.example.coffee_hrm.dto.response.AdminAttendanceReportDetail;
 import com.example.coffee_hrm.dto.response.AdminAttendanceReportPage;
 import com.example.coffee_hrm.dto.response.AttendanceReportVersionView;
 import com.example.coffee_hrm.dto.response.ManagerAttendanceReportPage;
+import com.example.coffee_hrm.entity.Attendance;
 import com.example.coffee_hrm.entity.Employee;
 import com.example.coffee_hrm.entity.MonthlyAttendanceReport;
 import com.example.coffee_hrm.entity.MonthlyAttendanceReportVersion;
@@ -26,6 +28,7 @@ import com.example.coffee_hrm.repository.MonthlyAttendanceReportRepository;
 import com.example.coffee_hrm.repository.MonthlyAttendanceReportVersionRepository;
 import com.example.coffee_hrm.repository.MonthlyPayrollRepository;
 import com.example.coffee_hrm.repository.PayrollPaymentRepository;
+import com.example.coffee_hrm.repository.ShiftAssignmentRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.repository.TrainingAttendanceRepository;
 import com.example.coffee_hrm.repository.UserRepository;
@@ -33,6 +36,7 @@ import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.AttendanceReportService;
 import com.example.coffee_hrm.service.NotificationService;
 import com.example.coffee_hrm.service.PayrollService;
+import com.example.coffee_hrm.service.support.PeriodLeave;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -74,6 +78,7 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
     private final PayrollService payrollService;
     private final MonthlyPayrollRepository payrollRepository;
     private final PayrollPaymentRepository paymentRepository;
+    private final ShiftAssignmentRepository shiftAssignmentRepository;
 
     static final String WAITING_MESSAGE =
             "Báo cáo kỳ này đang chờ Admin duyệt. Không gửi trùng; chỉ gửi lại khi Admin trả lại báo cáo.";
@@ -500,15 +505,30 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
                                                   LocalDate createdDate) {
         LocalDate start = LocalDate.of(year, month, 1);
         LocalDate end = start.withDayOfMonth(start.lengthOfMonth());
+        List<Attendance> records = attendanceRepository.findForMonthlyReport(store.getId(), start, end);
         return AttendanceReportCalculator.buildForPeriod(
                 store,
                 year,
                 month,
                 employeeRepository.findByStoreIdWithAccount(store.getId()),
-                attendanceRepository.findForMonthlyReport(store.getId(), start, end),
+                records,
                 trainingAttendanceRepository.findForMonthlyReport(store.getId(), start, end),
                 authorName,
-                createdDate);
+                createdDate,
+                leaveSummaries(store.getId(), start, end, records));
+    }
+
+    /** Nghỉ phép đã duyệt trong kỳ, cùng nguồn với bảng lương (PeriodLeave) để hai bên khớp số liệu. */
+    private Map<Integer, PeriodLeave.Summary> leaveSummaries(Integer storeId, LocalDate start, LocalDate end,
+                                                           List<Attendance> records) {
+        if (shiftAssignmentRepository == null) {
+            return Map.of();
+        }
+        return PeriodLeave.byEmployee(PeriodLeave.collect(
+                shiftAssignmentRepository.findApprovedLeaveSlotsForStoreBetween(storeId, start, end),
+                shiftAssignmentRepository.findPublishedAssignedForStoreBetween(
+                        storeId, start, end, AssignmentStatus.ASSIGNED),
+                records));
     }
 
     private LocalDateTime changedAt(Integer storeId, int year, int month) {
@@ -739,6 +759,7 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
                 .workDayCount(preview.getWorkDayCount())
                 .violationCount(preview.getViolationCount())
                 .missingCount(preview.getMissingCount())
+                .leaveSlotCount(preview.getLeaveSlotCount())
                 .build();
     }
 

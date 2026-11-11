@@ -40,6 +40,8 @@ public class AttendanceReportVersionView {
         private final String earlyRecords;
         private final String earlyMinutes;
         private final String absentRecords;
+        private final String leaveSlots;
+        private final String leaveDays;
         private final List<DayLine> shifts;
         private final List<DayLine> trainings;
     }

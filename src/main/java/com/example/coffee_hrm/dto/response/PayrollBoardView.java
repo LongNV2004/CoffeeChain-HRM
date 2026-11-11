@@ -62,6 +62,8 @@ public class PayrollBoardView {
         private final String employeeName;
         private final String storeName;
         private final int assignedShifts;
+        private final int leaveShifts;
+        private final int paidLeaveShifts;
         private final int payableHours;
         private final String hourlyRateLabel;
         private final String expectedSalaryLabel;

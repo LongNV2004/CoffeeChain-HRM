@@ -9,6 +9,7 @@ import com.example.coffee_hrm.entity.Store;
 import com.example.coffee_hrm.entity.TrainingAttendance;
 import com.example.coffee_hrm.entity.TrainingClass;
 import com.example.coffee_hrm.entity.User;
+import com.example.coffee_hrm.service.support.PeriodLeave;
 
 import java.time.Duration;
 import java.time.LocalDate;
@@ -32,6 +33,17 @@ public final class AttendanceReportCalculator {
                                                  List<TrainingAttendance> trainingRows,
                                                  String authorName,
                                                  LocalDate createdDate) {
+        return build(store, employees, shiftRows, trainingRows, authorName, createdDate, Map.of());
+    }
+
+    public static AttendanceReportWorkbook build(Store store,
+                                                 List<Employee> employees,
+                                                 List<Attendance> shiftRows,
+                                                 List<TrainingAttendance> trainingRows,
+                                                 String authorName,
+                                                 LocalDate createdDate,
+                                                 Map<Integer, PeriodLeave.Summary> leave) {
+        Map<Integer, PeriodLeave.Summary> leaveByEmployee = leave == null ? Map.of() : leave;
         int year = createdDate.getYear();
         int month = createdDate.getMonthValue();
         List<Employee> roster = employees.stream()
@@ -151,13 +163,16 @@ public final class AttendanceReportCalculator {
         List<AttendanceReportWorkbook.SummaryRow> summaries = new ArrayList<>();
         int summaryOrder = 1;
         for (SummaryAccumulator accumulator : byEmployee.values()) {
-            summaries.add(accumulator.toRow(summaryOrder++));
+            summaries.add(accumulator.toRow(summaryOrder++,
+                    leaveByEmployee.getOrDefault(accumulator.employee.getId(), PeriodLeave.Summary.NONE)));
         }
 
         int workDayCount = 0;
         int violationCount = 0;
         int missingCount = 0;
+        int leaveCount = 0;
         for (AttendanceReportWorkbook.SummaryRow summary : summaries) {
+            leaveCount += summary.getLeaveSlots();
             workDayCount += summary.getAttendedDays();
             violationCount += summary.getLateRecords() + summary.getEarlyRecords();
             missingCount += summary.getAbsentRecords();
@@ -176,6 +191,7 @@ public final class AttendanceReportCalculator {
                 .workDayCount(workDayCount)
                 .violationCount(violationCount)
                 .missingCount(missingCount)
+                .leaveSlotCount(leaveCount)
                 .build();
 
         return AttendanceReportWorkbook.builder()
@@ -200,6 +216,18 @@ public final class AttendanceReportCalculator {
                                                           List<TrainingAttendance> trainingRows,
                                                           String authorName,
                                                           LocalDate createdDate) {
+        return buildForPeriod(store, year, month, employees, shiftRows, trainingRows, authorName, createdDate, Map.of());
+    }
+
+    public static AttendanceReportWorkbook buildForPeriod(Store store,
+                                                          int year,
+                                                          int month,
+                                                          List<Employee> employees,
+                                                          List<Attendance> shiftRows,
+                                                          List<TrainingAttendance> trainingRows,
+                                                          String authorName,
+                                                          LocalDate createdDate,
+                                                          Map<Integer, PeriodLeave.Summary> leave) {
         LocalDate start = LocalDate.of(year, month, 1);
         LocalDate end = start.withDayOfMonth(start.lengthOfMonth());
         List<Attendance> inPeriod = shiftRows.stream()
@@ -208,7 +236,7 @@ public final class AttendanceReportCalculator {
         List<TrainingAttendance> trainingInPeriod = trainingRows.stream()
                 .filter(row -> row.getWorkDate() != null && !row.getWorkDate().isBefore(start) && !row.getWorkDate().isAfter(end))
                 .toList();
-        AttendanceReportWorkbook workbook = build(store, employees, inPeriod, trainingInPeriod, authorName, createdDate);
+        AttendanceReportWorkbook workbook = build(store, employees, inPeriod, trainingInPeriod, authorName, createdDate, leave);
         return AttendanceReportWorkbook.builder()
                 .storeId(workbook.getStoreId())
                 .storeName(workbook.getStoreName())
@@ -500,7 +528,7 @@ public final class AttendanceReportCalculator {
             }
         }
 
-        private AttendanceReportWorkbook.SummaryRow toRow(int order) {
+        private AttendanceReportWorkbook.SummaryRow toRow(int order, PeriodLeave.Summary leave) {
             return AttendanceReportWorkbook.SummaryRow.builder()
                     .order(order)
                     .employeeId(employee.getId())
@@ -517,6 +545,9 @@ public final class AttendanceReportCalculator {
                     .workedMinutes(workedMinutes)
                     .openCheckouts(openCheckouts)
                     .note(String.join("; ", notes))
+                    .leaveSlots(leave.slots())
+                    .leaveDays(leave.days())
+                    .paidLeaveSlots(leave.paidSlots())
                     .build();
         }
     }

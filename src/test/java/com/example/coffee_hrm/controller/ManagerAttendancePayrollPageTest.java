@@ -110,9 +110,12 @@ class ManagerAttendancePayrollPageTest {
                 .andExpect(content().string(containsString("25.000 đ/giờ")))
                 .andExpect(content().string(containsString("Tổng quỹ lương dự kiến")))
                 .andExpect(content().string(containsString("href=\"/manager/salary/detail?year=2026&amp;month=10&amp;employeeId=11\"")))
-                // Nhân viên đã nghỉ nhưng có ca trong tháng vẫn có dòng lương
-                .andExpect(content().string(containsString("Trần Cũ")))
-                .andExpect(content().string(containsString("employeeId=12")))
+                // Chỉ hiển thị nhân viên đang làm việc; người đã nghỉ vẫn có lương thì chỉ báo số lượng
+                .andExpect(content().string(not(containsString("Trần Cũ"))))
+                .andExpect(content().string(not(containsString("employeeId=12"))))
+                .andExpect(content().string(containsString("người đã nghỉ việc hoặc chuyển cửa hàng vẫn có ca trong kỳ")))
+                // Cột nghỉ phép
+                .andExpect(content().string(containsString("<th>Nghỉ phép</th>")))
                 // Tính lương ngay tại màn hình này; không còn xuất Excel
                 .andExpect(content().string(containsString("action=\"/manager/salary/calculate\"")))
                 .andExpect(content().string(containsString(">Tính lương</button>")))

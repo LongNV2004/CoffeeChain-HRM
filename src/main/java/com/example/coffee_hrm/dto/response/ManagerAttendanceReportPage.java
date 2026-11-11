@@ -49,5 +49,6 @@ public class ManagerAttendanceReportPage {
         private final int workDayCount;
         private final int violationCount;
         private final int missingCount;
+        private final int leaveSlotCount;
     }
 }

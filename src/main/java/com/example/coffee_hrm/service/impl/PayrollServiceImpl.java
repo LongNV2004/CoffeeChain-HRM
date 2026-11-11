@@ -31,6 +31,7 @@ import com.example.coffee_hrm.service.PayrollService;
 import com.example.coffee_hrm.service.impl.ContractValidityRules;
 import com.example.coffee_hrm.service.support.PayrollCalculator;
 import com.example.coffee_hrm.service.support.PayrollEmployeeDraft;
+import com.example.coffee_hrm.service.support.PeriodLeave;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -457,9 +458,40 @@ public class PayrollServiceImpl implements PayrollService {
                     outcome.needsReview(),
                     outcome.unpaidReason()));
         }
+        // Ca nghỉ phép đã duyệt: dùng chung PeriodLeave với báo cáo chấm công để số liệu khớp nhau.
+        for (PeriodLeave.Slot slot : PeriodLeave.collect(
+                shiftAssignmentRepository.findApprovedLeaveSlotsForStoreBetween(storeId, start, end),
+                assignments, records)) {
+            names.putIfAbsent(slot.employeeId(), slot.employeeName() == null ? "—" : slot.employeeName());
+            PayrollCalculator.Outcome outcome = PayrollCalculator.leave(
+                    slot.workDate(), slot.start(), slot.end(), slot.paid(), slot.label(),
+                    slot.paid() ? rateFor(contracts, slot.employeeId(), slot.workDate()) : null);
+            shifts.computeIfAbsent(slot.employeeId(), ignored -> new ArrayList<>()).add(new PayrollEmployeeDraft.Shift(
+                    slot.assignmentId(),
+                    null,
+                    slot.workDate(),
+                    slot.shiftName() == null || slot.shiftName().isBlank() ? "Ca làm" : slot.shiftName(),
+                    slot.start(),
+                    slot.end(),
+                    null,
+                    null,
+                    slot.label(),
+                    outcome.scheduledHours(),
+                    false,
+                    false,
+                    outcome.payableHours(),
+                    outcome.hourlyRate(),
+                    outcome.shiftSalary(),
+                    outcome.payable(),
+                    outcome.needsReview(),
+                    outcome.unpaidReason()));
+        }
         List<PayrollEmployeeDraft> drafts = new ArrayList<>();
         for (Map.Entry<Integer, List<PayrollEmployeeDraft.Shift>> entry : shifts.entrySet()) {
-            drafts.add(new PayrollEmployeeDraft(entry.getKey(), names.get(entry.getKey()), List.copyOf(entry.getValue())));
+            List<PayrollEmployeeDraft.Shift> sorted = new ArrayList<>(entry.getValue());
+            sorted.sort(Comparator.comparing(PayrollEmployeeDraft.Shift::workDate)
+                    .thenComparing(PayrollEmployeeDraft.Shift::scheduledStart, Comparator.nullsLast(Comparator.naturalOrder())));
+            drafts.add(new PayrollEmployeeDraft(entry.getKey(), names.get(entry.getKey()), List.copyOf(sorted)));
         }
         drafts.sort(Comparator.comparing(PayrollEmployeeDraft::employeeName, String.CASE_INSENSITIVE_ORDER)
                 .thenComparing(PayrollEmployeeDraft::employeeId));
@@ -497,7 +529,7 @@ public class PayrollServiceImpl implements PayrollService {
                         shift.getHourlyRate(),
                         shift.getShiftSalary() == null ? BigDecimal.ZERO : shift.getShiftSalary(),
                         Boolean.TRUE.equals(shift.getPayable()),
-                        shift.getUnpaidReason() != null && !shift.getUnpaidReason().isBlank(),
+                        needsReview(shift),
                         shift.getUnpaidReason()));
             }
             String name = line.getEmployee().getFullName() == null ? "—" : line.getEmployee().getFullName();
@@ -506,6 +538,15 @@ public class PayrollServiceImpl implements PayrollService {
         drafts.sort(Comparator.comparing(PayrollEmployeeDraft::employeeName, String.CASE_INSENSITIVE_ORDER)
                 .thenComparing(PayrollEmployeeDraft::employeeId));
         return drafts;
+    }
+
+    /** Ca có lý do không trả lương cần xử lý, trừ ca nghỉ không hưởng lương (đúng chính sách, không cần xem lại). */
+    private boolean needsReview(PayrollShiftLine shift) {
+        if (shift.getUnpaidReason() == null || shift.getUnpaidReason().isBlank()) {
+            return false;
+        }
+        boolean leave = shift.getAttendanceId() == null && PeriodLeave.isLeaveLabel(shift.getAttendanceStatusLabel());
+        return !leave || Boolean.TRUE.equals(shift.getPayable()) || !shift.getUnpaidReason().contains("không hưởng lương");
     }
 
     private List<PayrollEmployeeLine> toLines(List<PayrollEmployeeDraft> drafts) {
@@ -605,6 +646,8 @@ public class PayrollServiceImpl implements PayrollService {
                 .employeeName(draft.employeeName())
                 .storeName(store.getStoreName())
                 .assignedShifts(draft.assignedShifts())
+                .leaveShifts(draft.leaveShifts())
+                .paidLeaveShifts(draft.paidLeaveShifts())
                 .payableHours(draft.payableHours())
                 .hourlyRateLabel(rateLabel(draft))
                 .expectedSalaryLabel(money(draft.expectedSalary()))
@@ -648,6 +691,9 @@ public class PayrollServiceImpl implements PayrollService {
                 .locked(status == PayrollStatus.DA_CHOT)
                 .assignedShifts(draft.assignedShifts())
                 .validShifts(draft.validShifts())
+                .leaveShifts(draft.leaveShifts())
+                .paidLeaveShifts(draft.paidLeaveShifts())
+                .paidLeaveHours(draft.paidLeaveHours())
                 .reviewShifts(draft.reviewShifts())
                 .payableHours(draft.payableHours())
                 .hourlyRateLabel(rateLabel(draft))

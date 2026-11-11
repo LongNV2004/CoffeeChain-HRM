@@ -153,6 +153,11 @@ public class NotificationServiceImpl implements NotificationService {
                         : "/schedule/staff";
                 case ADMIN -> null;
             };
+            case "OVERTIME_REQUEST" -> switch (user.getRoleName()) {
+                case MANAGER -> "/schedule/manager/overtime";
+                case STAFF -> "/schedule/staff/overtime";
+                case ADMIN -> null;
+            };
             case "SHIFT_CHANGE" -> switch (user.getRoleName()) {
                 case MANAGER -> "/schedule/manager";
                 case STAFF -> "/schedule/staff";

@@ -783,3 +783,78 @@ body:has(.coffee-sidebar) main.track-board .train-card .class-detail:hover{
 .pay-form .pay-sum{grid-column:1 / -1;margin:0;}
 .pay-form button{justify-self:start;}
 .summary .value .pay-badge{font-family:'Be Vietnam Pro','Inter',Arial,sans-serif;font-size:13px;letter-spacing:normal;word-spacing:normal;line-height:1.4;vertical-align:middle;}
+
+/* ===== Bố cục gọn (Danh sách chấm công và lương, Báo cáo cửa hàng của Manager) ===== */
+.compact-board .compact-head{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px 20px;}
+.compact-board .compact-head h1{font-size:24px;}
+.compact-board .compact-period{margin-top:0;}
+.compact-board .compact-period label{min-width:160px;}
+.kpi-groups{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:12px;margin-top:16px;}
+.kpi-group{min-width:0;padding:12px 14px;border:1px solid rgba(92,60,46,.12);border-radius:14px;background:#FFFCFA;}
+.track-desk .day-board .kpi-title,
+.kpi-title{margin:0 0 8px;font-size:13px;font-weight:700;color:#5C3C2E;text-transform:uppercase;letter-spacing:.4px;}
+.kpi-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:8px;}
+.kpi{min-width:0;padding:8px 10px;border-radius:10px;background:#fff;border:1px solid rgba(92,60,46,.08);border-left:3px solid #C9B8A6;}
+.kpi span{display:block;font-size:12px;line-height:1.3;color:#6B5A52;}
+.kpi strong{display:block;margin-top:2px;font-size:18px;font-weight:700;line-height:1.25;color:#080606;
+  overflow-wrap:anywhere;font-family:'Be Vietnam Pro','Inter',sans-serif;}
+.kpi.kpi-wide{grid-column:span 2;}
+.kpi.is-good{border-left-color:#3E8E5E;}
+.kpi.is-warn{border-left-color:#D9822B;}
+.kpi.is-bad{border-left-color:#C0483D;}
+.kpi.is-leave{border-left-color:#5B7FB8;}
+.kpi .pay-badge{font-size:12px;}
+.kpi-group .pay-actions{margin-top:10px;}
+.pay-hint{margin:10px 0 0;color:#6B5A52;font-size:13px;line-height:1.5;}
+.compact-board .compact-filters{margin-top:14px;padding:10px 12px;border:1px solid rgba(92,60,46,.1);border-radius:12px;background:#fff;}
+.compact-board .compact-filters label{min-width:200px;}
+.compact-board .day-board > h2{margin:20px 0 8px;font-size:17px;}
+.track-desk .track-leave small{display:block;margin-top:2px;}
+.day-badge.leave,
+.track-desk .day-badge.leave{background:#E6EDF8;color:#2F4E86;}
+.compact-board .pay-note{margin:10px 0 0;}
+/* Báo cáo cửa hàng (Manager) */
+.report-compact .welcome{margin-bottom:12px;}
+.report-compact .welcome h1{font-size:26px;}
+.report-toolbar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:12px;
+  padding:12px 14px;margin-bottom:12px;border:1px solid var(--line);border-radius:12px;background:#fff;}
+.report-toolbar .filter-form{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin:0;}
+.report-toolbar .filter-form label{min-width:120px;}
+.report-toolbar .clock-actions{display:flex;flex-wrap:wrap;gap:8px;margin:0;}
+.report-toolbar .clock-actions form{margin:0;}
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px 16px;margin:0;}
+.info-grid div{min-width:0;}
+.info-grid dt{font-size:12px;color:var(--ink-soft);}
+.info-grid dd{margin:2px 0 0;font-weight:600;overflow-wrap:anywhere;}
+.report-compact .panel{padding:14px 16px;}
+.report-compact .panel h2{font-size:17px;margin-bottom:10px;}
+.report-compact .kpi-strip{margin-bottom:6px;}
+@media (max-width:1100px){
+  .kpi-groups{grid-template-columns:minmax(0,1fr);}
+}
+@media (max-width:520px){
+  .kpi-strip{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .kpi.kpi-wide{grid-column:1 / -1;}
+  .compact-board .compact-filters label,
+  .report-toolbar .filter-form label{min-width:0;width:100%;}
+  .report-toolbar .filter-form,.report-toolbar .clock-actions{width:100%;}
+}
+.slot-leave{display:block;margin-top:4px;font-size:12px;color:#2F4E86;}
+/* Báo cáo cửa hàng (Admin): lưới card từng cửa hàng, cùng kiểu Danh sách chi nhánh. */
+.report-cards-page{padding-top:0;}
+.report-cards-page .report-kpis{padding:12px 14px;}
+.report-cards-page .store-panel{margin-top:4px;}
+.report-cards-page .store-panel h2{font-size:20px;}
+.report-cards-page .store-panel p{font-size:14px;}
+.report-card .status-tag{flex:none;}
+.report-card-stale{margin:0;font-size:13px;color:#9F3B32;}
+.report-card-facts{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;margin:0;padding:10px 12px;border-radius:12px;background:#fff;border:1px solid #f0e6d8;}
+.report-card-facts div{min-width:0;}
+.report-card-facts dt{font-size:12px;color:#7b776f;font-weight:600;}
+.report-card-facts dd{margin:2px 0 0;font-weight:700;color:#3d2314;overflow-wrap:anywhere;}
+.report-card-pay{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0;font-size:14px;color:#7b776f;}
+.report-cards-page .chain-store-card .pay-badge{font-size:12px;}
+@media (min-width:1101px){
+  .kpi-groups > .kpi-group:first-child .kpi-strip{grid-template-columns:repeat(6,minmax(0,1fr));}
+}
+.kpi strong .pay-badge{display:inline-block;width:auto;}

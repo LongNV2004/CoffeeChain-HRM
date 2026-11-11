@@ -1365,7 +1365,7 @@ class StaffAvailabilityServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.submitNextWeekAvailability(slots("1:1", "2:1", "3:1"), staffUser));
 
-        assertEquals("Thứ 2 chỉ được đăng ký tối đa 2 ca/ngày.", ex.getMessage());
+        assertEquals("Thứ 2 chỉ được đăng ký tối đa 2 ca/ngày. Muốn làm ca thứ 3, hãy gửi đơn tăng ca.", ex.getMessage());
         verify(workAvailabilityRepository, never()).saveAll(any());
     }
 
@@ -1401,7 +1401,7 @@ class StaffAvailabilityServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.reviewRegistration("three", true, managerUser));
 
-        assertEquals("Thứ 2 chỉ được đăng ký tối đa 2 ca/ngày.", ex.getMessage());
+        assertEquals("Thứ 2 chỉ được đăng ký tối đa 2 ca/ngày. Muốn làm ca thứ 3, hãy gửi đơn tăng ca.", ex.getMessage());
         verify(scheduleService, never()).assignShiftFromApprovedAvailability(any(), any());
     }
 

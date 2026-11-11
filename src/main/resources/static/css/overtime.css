@@ -1,0 +1,45 @@
+/* Đăng kí tăng ca (Nhân viên) / Duyệt đơn tăng ca (Quản lý). */
+.ot-page .welcome p{max-width:780px;}
+.ot-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:0 0 16px;}
+.ot-kpi{min-width:0;padding:10px 12px;border:1px solid #E4D7C4;border-left:3px solid #C9B8A6;border-radius:10px;background:#fff;}
+.ot-kpi span{display:block;font-size:12px;color:#7A6C5D;}
+.ot-kpi strong{display:block;margin-top:2px;font-size:18px;color:#2B1B12;overflow-wrap:anywhere;}
+.ot-kpi.is-warn{border-left-color:#D9822B;}
+.ot-kpi.is-good{border-left-color:#3E8E5E;}
+.ot-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 16px;align-items:end;}
+.ot-form label{display:grid;gap:6px;font-size:13px;font-weight:600;color:#5C3C2E;min-width:0;}
+.ot-form input,.ot-form select{font:inherit;padding:9px 10px;border:1px solid #E4D7C4;border-radius:8px;background:#fff;min-width:0;}
+.ot-wide{grid-column:1 / -1;}
+.ot-actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center;}
+.ot-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;}
+.ot-card{display:flex;flex-direction:column;gap:10px;min-width:0;padding:16px;border:1px solid #E4D7C4;border-radius:14px;background:#FFFDF9;}
+.ot-card.is-pending{border-left:3px solid #D9822B;}
+.ot-card-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;}
+.ot-card-top h3{margin:0;font-size:17px;color:#2B1B12;}
+.ot-sub{margin:2px 0 0;font-size:13px;color:#7A6C5D;}
+.ot-facts{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;margin:0;}
+.ot-facts div{min-width:0;}
+.ot-facts dt{font-size:12px;color:#7A6C5D;}
+.ot-facts dd{margin:2px 0 0;font-weight:600;color:#2B1B12;overflow-wrap:anywhere;}
+.ot-reason{margin:0;font-size:14px;color:#4A3324;}
+.ot-reason span:first-child{color:#7A6C5D;}
+.ot-card-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;margin-top:auto;}
+.ot-card-actions form{margin:0;}
+.ot-reject > summary{list-style:none;cursor:pointer;}
+.ot-reject > summary::-webkit-details-marker{display:none;}
+.ot-reject form{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
+.ot-reject input{flex:1 1 180px;min-width:0;font:inherit;padding:8px 10px;border:1px solid #E4D7C4;border-radius:8px;}
+.ot-badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;background:#E7E2DE;color:#5C3C2E;}
+.ot-badge.PENDING{background:#FFF1E4;color:#C2410C;}
+.ot-badge.APPROVED{background:#E5F3EA;color:#24683E;}
+.ot-badge.REJECTED{background:#F8E4E1;color:#9F3B32;}
+.ot-badge.CANCELLED{background:#EEE;color:#6B6B6B;}
+.ot-table{width:100%;border-collapse:collapse;min-width:760px;}
+.ot-table th,.ot-table td{padding:10px 12px;border-bottom:1px solid #E4D7C4;text-align:left;vertical-align:top;font-size:14px;}
+.ot-table th{font-size:12px;color:#7A6C5D;background:#F1E8DB;}
+.ot-table small{display:block;margin-top:2px;}
+.ot-reject-note{color:#9F3B32;}
+@media (max-width:520px){
+  .ot-facts{grid-template-columns:1fr;}
+  .ot-grid{grid-template-columns:minmax(0,1fr);}
+}
