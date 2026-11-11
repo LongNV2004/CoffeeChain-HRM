@@ -57,6 +57,18 @@ public interface MonthlyAttendanceReportRepository extends JpaRepository<Monthly
     @Query("SELECT r FROM MonthlyAttendanceReport r WHERE r.id = :id")
     Optional<MonthlyAttendanceReport> findByIdForUpdate(@Param("id") Integer id);
 
+    /** Khoá báo cáo của một kỳ khi kiểm tra đối soát lương để duyệt chấm dứt hợp đồng. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT r FROM MonthlyAttendanceReport r
+            WHERE r.store.id = :storeId
+              AND r.reportYear = :year
+              AND r.reportMonth = :month
+            """)
+    Optional<MonthlyAttendanceReport> lockCurrent(@Param("storeId") Integer storeId,
+                                                  @Param("year") int year,
+                                                  @Param("month") int month);
+
     long countByReportYearAndReportMonthAndSubmittedAtIsNotNullAndStatusNotIn(
             int reportYear,
             int reportMonth,

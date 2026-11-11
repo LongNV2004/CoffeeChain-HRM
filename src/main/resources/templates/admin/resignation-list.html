@@ -86,6 +86,11 @@
                               th:classappend="${request.status.name() == 'COMPLETED'} ? ' badge-ok' : (${request.status.name() == 'PARTIALLY_PROCESSED'} ? ' badge-partial' : ' badge-wait')"
                               th:text="${request.statusLabel}">Chờ duyệt</span>
                         <div class="muted" th:if="${request.outcomeLabel != null}" th:text="${request.outcomeLabel}">Xử lý hỗn hợp</div>
+                        <div class="settle-flag" th:if="${settlementBadges != null and settlementBadges[request.id] != null}"
+                             th:with="badge=${settlementBadges[request.id]}">
+                            <span class="badge" th:classappend="' ' + ${badge.statusCss}"
+                                  th:text="'Lương: ' + ${badge.statusLabel}">Lương</span>
+                        </div>
                     </td>
                     <td><a class="row-link" th:href="@{/admin/resignation/{id}(id=${request.id})}">Chi tiết</a></td>
                 </tr>

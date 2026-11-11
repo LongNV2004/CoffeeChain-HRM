@@ -27,6 +27,7 @@ import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.AccountMailService;
 import com.example.coffee_hrm.service.NotificationService;
+import com.example.coffee_hrm.service.ResignationSettlementService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -71,6 +72,8 @@ class ResignationProposalServiceImplTest {
     private NotificationService notificationService;
     @Mock
     private AccountMailService accountMailService;
+    @Mock
+    private ResignationSettlementService settlementService;
 
     private ResignationProposalServiceImpl service;
     private Store store;
@@ -94,7 +97,8 @@ class ResignationProposalServiceImplTest {
                 userRepository,
                 storeRepository,
                 notificationService,
-                accountMailService);
+                accountMailService,
+                settlementService);
 
         store = Store.builder().id(4).storeName("Store A").address("12 Nguyễn Trãi").build();
         otherStore = Store.builder().id(8).storeName("Store B").address("20 Lê Lợi").build();
@@ -475,6 +479,27 @@ class ResignationProposalServiceImplTest {
             proposal.setId(7);
             return proposal;
         });
+    }
+
+    @Test
+    void approvalIsRefusedWhileSalaryIsStillOwedAndNothingIsTerminated() {
+        ProposalFixture fixture = pendingProposal();
+        when(employeeRepository.findByIdWithStoreAccount(11)).thenReturn(Optional.of(an));
+        when(userRepository.findById(1)).thenReturn(Optional.of(adminUser));
+        org.mockito.Mockito.doThrow(new BusinessException(
+                        "Chưa thể duyệt chấm dứt hợp đồng cho An Nguyễn. Còn 225.000 đ lương đã xác định chưa thanh toán (1 kỳ)."))
+                .when(settlementService).assertSettled(eq(11), any());
+
+        BusinessException blocked = assertThrows(BusinessException.class, () -> service.approveItem(admin, 7, 101));
+        assertTrue(blocked.getMessage().contains("225.000 đ"));
+        assertThrows(BusinessException.class, () -> service.approvePending(admin, 7));
+
+        assertEquals(ResignationItemStatus.PENDING, fixture.first().getStatus());
+        assertEquals(EmployeeStatus.ACTIVE, an.getStatus());
+        assertNull(an.getTerminationDate());
+        assertTrue(an.getUser().getIsActive());
+        verify(employeeRepository, never()).lockByIdForLeaveRequest(any());
+        verify(proposalRepository, never()).save(any());
     }
 
     private ProposalFixture pendingProposal() {

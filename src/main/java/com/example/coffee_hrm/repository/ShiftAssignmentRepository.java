@@ -303,4 +303,19 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate,
             @Param("status") AssignmentStatus status);
+
+    /** Ca đã công bố của một nhân viên tới hết một ngày, mọi cửa hàng (đối soát lương khi chấm dứt hợp đồng). */
+    @Query("""
+            SELECT sa FROM ShiftAssignment sa
+            JOIN FETCH sa.shift s
+            JOIN FETCH s.store
+            WHERE sa.employee.id = :employeeId
+              AND sa.workDate <= :untilDate
+              AND sa.status = :status
+              AND sa.isPublished = true
+            """)
+    List<ShiftAssignment> findPublishedAssignedForEmployeeUntil(
+            @Param("employeeId") Integer employeeId,
+            @Param("untilDate") LocalDate untilDate,
+            @Param("status") AssignmentStatus status);
 }
