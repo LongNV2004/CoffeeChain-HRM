@@ -1,5 +1,3 @@
--- Drop attendance IP columns after the application no longer maps them.
--- Run this script manually. It does not drop tables or any other column.
 SET NOCOUNT ON;
 
 DECLARE @dropStoreDefault NVARCHAR(MAX) = N'';
