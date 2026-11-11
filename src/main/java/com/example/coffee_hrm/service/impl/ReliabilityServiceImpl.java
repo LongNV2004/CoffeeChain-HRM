@@ -409,18 +409,18 @@ public class ReliabilityServiceImpl implements ReliabilityService {
         if (employee.getStore() == null || !Objects.equals(employee.getStore().getId(), store.getId())) {
             throw new BusinessException("Nhân viên không thuộc cửa hàng bạn quản lý.");
         }
-        ReliabilityActionType actionType = category.isBonus()
-                ? ReliabilityActionType.MANAGER_BONUS
-                : ReliabilityActionType.MANAGER_PENALTY;
+        ReliabilityActionType actionType = category.getActionType();
         LocalDateTime now = VietnamTime.now();
-        YearMonth month = YearMonth.from(now);
-        Integer usedRaw = reliabilityScoreLogRepository.sumDeltaForEmployeeAndActionInRange(
-                employee.getId(), actionType.getDbValue(), month.atDay(1).atStartOfDay(), month.plusMonths(1).atDay(1).atStartOfDay());
-        int used = Math.abs(usedRaw != null ? usedRaw : 0);
-        if (used + Math.abs(category.getPoints()) > MANUAL_ADJUST_MONTHLY_CAP) {
-            throw new BusinessException("Vượt hạn mức điều chỉnh thủ công trong tháng: " + employee.getFullName()
-                    + " đã được " + (category.isBonus() ? "cộng " : "trừ ") + used + "/" + MANUAL_ADJUST_MONTHLY_CAP
-                    + " điểm, không thể " + (category.isBonus() ? "cộng" : "trừ") + " thêm " + Math.abs(category.getPoints()) + " điểm.");
+        if (category.isManualQuotaCategory()) {
+            YearMonth month = YearMonth.from(now);
+            Integer usedRaw = reliabilityScoreLogRepository.sumDeltaForEmployeeAndActionInRange(
+                    employee.getId(), actionType.getDbValue(), month.atDay(1).atStartOfDay(), month.plusMonths(1).atDay(1).atStartOfDay());
+            int used = Math.abs(usedRaw != null ? usedRaw : 0);
+            if (used + Math.abs(category.getPoints()) > MANUAL_ADJUST_MONTHLY_CAP) {
+                throw new BusinessException("Vượt hạn mức điều chỉnh thủ công trong tháng: " + employee.getFullName()
+                        + " đã được " + (category.isBonus() ? "cộng " : "trừ ") + used + "/" + MANUAL_ADJUST_MONTHLY_CAP
+                        + " điểm, không thể " + (category.isBonus() ? "cộng" : "trừ") + " thêm " + Math.abs(category.getPoints()) + " điểm.");
+            }
         }
         String fullReason = "[" + category.getLabel() + "] " + trimmedReason;
         applyScoreDelta(employee, actionType, category.getPoints(), fullReason, REF_MANAGER_ADJUST, null, now);

@@ -257,7 +257,7 @@ public class ScheduleController {
             @AuthenticationPrincipal AuthenticatedUser user,
             Model model) {
 
-        prepareStaffSchedule(user, date, model, true);
+        prepareStaffSchedule(user, date, model, false);
         return "staff/StaffSchedule";
     }
 
@@ -266,7 +266,7 @@ public class ScheduleController {
         model.addAttribute("schedule", scheduleView);
         model.addAttribute("currentEmployeeId", user.getEmployeeId());
         model.addAttribute("shiftChangePage", shiftChangePage);
-        model.addAttribute("schedulePath", shiftChangePage ? "/schedule/staff/shift-change" : "/schedule/staff");
+        model.addAttribute("schedulePath", "/schedule/staff");
         model.addAttribute("coverInvitations", shiftCoverInvitationService.getPendingForStaff(user));
         if (!model.containsAttribute("changeForm")) {
             model.addAttribute("changeForm", new CreateShiftChangeRequestDto());
@@ -274,8 +274,7 @@ public class ScheduleController {
     }
 
     private String staffScheduleRedirect(String origin, LocalDate currentWeek) {
-        String path = "shift-change".equals(origin) ? "/schedule/staff/shift-change" : "/schedule/staff";
-        return "redirect:" + path + (currentWeek != null ? "?date=" + currentWeek : "");
+        return "redirect:/schedule/staff" + (currentWeek != null ? "?date=" + currentWeek : "");
     }
 
     @PostMapping("/staff/request-change")

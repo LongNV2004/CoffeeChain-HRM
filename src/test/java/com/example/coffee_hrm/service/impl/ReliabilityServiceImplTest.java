@@ -130,6 +130,22 @@ class ReliabilityServiceImplTest {
     }
 
     @Test
+    void manualAdjustShiftAndPunctualityCategoriesAreNotCappedByMonthly15Limit() {
+        when(storeRepository.findByManager_Id(1)).thenReturn(Optional.of(store));
+        when(employeeRepository.findByIdWithStore(30)).thenReturn(Optional.of(empRescuer));
+
+        reliabilityService.adjustScoreByManager(30, "RESCUE_SHIFT_24H", "Nhận ca gấp tối thứ 6", managerUser);
+        reliabilityService.adjustScoreByManager(30, "LATE_SHIFT_CANCEL", "Xin hủy ca sát giờ", managerUser);
+
+        ArgumentCaptor<ReliabilityScoreLog> logCaptor = ArgumentCaptor.forClass(ReliabilityScoreLog.class);
+        verify(reliabilityScoreLogRepository, times(2)).save(logCaptor.capture());
+        assertEquals(ReliabilityActionType.RESCUE_SHIFT_24H.getDbValue(), logCaptor.getAllValues().get(0).getActionType());
+        assertEquals(5, logCaptor.getAllValues().get(0).getPointsDelta());
+        assertEquals(ReliabilityActionType.LATE_SHIFT_CANCEL.getDbValue(), logCaptor.getAllValues().get(1).getActionType());
+        assertEquals(-10, logCaptor.getAllValues().get(1).getPointsDelta());
+    }
+
+    @Test
     void lateShiftChangeWithin24hDeducts10Points() {
         LocalDateTime urgentStart = VietnamTime.now().plusHours(6);
         Shift shift = Shift.builder()

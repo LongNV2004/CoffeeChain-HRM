@@ -327,8 +327,7 @@
                     <svg class="coffee-icon coffee-chevron coffee-side-label"><use href="#coffee-i-chevron"/></svg>
                 </button>
                 <div class="coffee-group-children">
-                    <a th:href="@{/schedule/staff}" th:classappend="${active == 'schedule'} ? ' is-active'">Lịch làm việc</a>
-                    <a th:href="@{/schedule/staff/shift-change}" th:classappend="${active == 'shift-change'} ? ' is-active'">Đổi ca</a>
+                    <a th:href="@{/schedule/staff}" th:classappend="${active == 'schedule' or active == 'shift-change'} ? ' is-active'">Lịch làm việc</a>
                     <a th:unless="${staffEmploymentEnded}" th:href="@{/availability}" th:classappend="${active == 'availability'} ? ' is-active'">Đăng kí lịch làm việc</a>
                     <a th:unless="${staffEmploymentEnded}" th:href="@{/schedule/staff/overtime}" th:classappend="${active == 'overtime'} ? ' is-active'">Đăng kí tăng ca</a>
                 </div>

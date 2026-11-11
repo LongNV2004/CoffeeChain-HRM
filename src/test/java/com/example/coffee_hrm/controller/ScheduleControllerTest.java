@@ -136,7 +136,10 @@ class ScheduleControllerTest {
                 .andExpect(content().string(containsString("Lời mời hỗ trợ ca từ Quản lý")))
                 .andExpect(content().string(containsString("Thay Trần Văn Tuấn")))
                 .andExpect(content().string(containsString("từ chối lần này sẽ bị -3đ")))
-                .andExpect(content().string(containsString("/schedule/staff/invitations/900/decline")));
+                .andExpect(content().string(containsString("/schedule/staff/invitations/900/decline")))
+                .andExpect(content().string(containsString("Lịch làm việc chung tại cửa hàng")))
+                .andExpect(content().string(containsString("Lịch sử yêu cầu đổi ca của tôi")))
+                .andExpect(content().string(containsString("⇄ Đổi ca")));
     }
 
     @Test
@@ -151,16 +154,55 @@ class ScheduleControllerTest {
     }
 
     private WeeklyScheduleView sampleWeek(WeeklyScheduleView.ShiftChangeItem pending) {
-        java.time.LocalDate monday = java.time.LocalDate.of(2026, 11, 2);
+        java.time.LocalDate monday = java.time.LocalDate.of(2026, 11, 16);
+        String[] dayNames = {"Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"};
+        java.util.List<WeeklyScheduleView.DayHeader> days = new java.util.ArrayList<>();
+        for (int i = 0; i < 7; i++) {
+            java.time.LocalDate d = monday.plusDays(i);
+            days.add(WeeklyScheduleView.DayHeader.builder()
+                    .date(d).dayOfWeekName(dayNames[i])
+                    .formattedDate(String.format("%02d/%02d", d.getDayOfMonth(), d.getMonthValue()))
+                    .isToday(i == 1).build());
+        }
+        WeeklyScheduleView.AssignmentItem me = WeeklyScheduleView.AssignmentItem.builder()
+                .assignmentId(101).employeeId(30).employeeName("Lê Thị Thu")
+                .isCurrentStaff(true).canRequestChange(true).status("ASSIGNED").build();
+        WeeklyScheduleView.AssignmentItem tuan = WeeklyScheduleView.AssignmentItem.builder()
+                .assignmentId(102).employeeId(31).employeeName("Trần Văn Tuấn")
+                .isCurrentStaff(false).canRequestChange(false).status("ASSIGNED").build();
+        WeeklyScheduleView.AssignmentItem duc = WeeklyScheduleView.AssignmentItem.builder()
+                .assignmentId(103).employeeId(32).employeeName("Phạm Minh Đức")
+                .isCurrentStaff(false).canRequestChange(false).status("ASSIGNED").build();
+
+        java.util.List<WeeklyScheduleView.DayCell> morningCells = new java.util.ArrayList<>();
+        java.util.List<WeeklyScheduleView.DayCell> afternoonCells = new java.util.ArrayList<>();
+        java.util.List<WeeklyScheduleView.DayCell> eveningCells = new java.util.ArrayList<>();
+        for (int i = 0; i < 7; i++) {
+            java.time.LocalDate d = monday.plusDays(i);
+            morningCells.add(WeeklyScheduleView.DayCell.builder().date(d).shiftId(1)
+                    .assignments(i == 0 ? java.util.List.of(duc, tuan) : (i < 6 ? java.util.List.of(me, tuan) : java.util.List.of()))
+                    .build());
+            afternoonCells.add(WeeklyScheduleView.DayCell.builder().date(d).shiftId(2)
+                    .assignments(i < 5 ? java.util.List.of(tuan, me, duc) : (i == 5 ? java.util.List.of(me) : java.util.List.of()))
+                    .build());
+            eveningCells.add(WeeklyScheduleView.DayCell.builder().date(d).shiftId(3)
+                    .assignments(i == 0 ? java.util.List.of(me) : (i < 4 ? java.util.List.of(duc) : java.util.List.of()))
+                    .build());
+        }
+        java.util.List<WeeklyScheduleView.ShiftRow> rows = java.util.List.of(
+                WeeklyScheduleView.ShiftRow.builder().shiftId(1).shiftName("Ca Sáng").formattedTime("07:00 – 12:00").dayCells(morningCells).build(),
+                WeeklyScheduleView.ShiftRow.builder().shiftId(2).shiftName("Ca Chiều").formattedTime("12:00 – 17:00").dayCells(afternoonCells).build(),
+                WeeklyScheduleView.ShiftRow.builder().shiftId(3).shiftName("Ca Tối").formattedTime("17:00 – 22:00").dayCells(eveningCells).build()
+        );
         return WeeklyScheduleView.builder()
-                .storeId(10).storeName("CoffeeHRM").storeAddress("123")
+                .storeId(10).storeName("The Coffee House - Cầu Giấy").storeAddress("122 Cầu Giấy, Hà Nội")
                 .weekStartDate(monday).weekEndDate(monday.plusDays(6))
                 .prevWeekDate(monday.minusWeeks(1)).nextWeekDate(monday.plusWeeks(1))
-                .days(java.util.List.of()).shiftRows(java.util.List.of())
+                .days(days).shiftRows(rows)
                 .storeEmployees(java.util.List.of()).colleagueShifts(java.util.List.of())
                 .pendingShiftChanges(pending == null ? java.util.List.of() : java.util.List.of(pending))
                 .incomingRequests(java.util.List.of()).openRescueRequests(java.util.List.of())
-                .currentStaffReliabilityScore(100).currentStaffTierLabel("Ổn định")
+                .currentStaffReliabilityScore(97).currentStaffTierLabel("Ổn định")
                 .build();
     }
 

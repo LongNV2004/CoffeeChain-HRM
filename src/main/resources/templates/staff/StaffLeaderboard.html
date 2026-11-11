@@ -40,11 +40,8 @@
             <a class="lb-nav-btn" th:href="@{/schedule/staff/leaderboard(month=${leaderboard.prevMonthParam})}">← Tháng trước</a>
             <span class="lb-period-pill" th:text="${leaderboard.periodLabel}">Tháng 10/2026</span>
             <a class="lb-nav-btn" th:if="${leaderboard.nextMonthParam != null}" th:href="@{/schedule/staff/leaderboard(month=${leaderboard.nextMonthParam})}">Tháng sau →</a>
-            <a class="lb-nav-btn primary" th:href="@{/schedule/staff/shift-change}">
-                <i data-lucide="arrow-left-right" style="width:14px;height:14px;"></i> Trang Đổi ca
-            </a>
-            <a class="lb-nav-btn" th:href="@{/schedule/staff}">
-                <i data-lucide="calendar" style="width:14px;height:14px;"></i> Lịch tuần
+            <a class="lb-nav-btn primary" th:href="@{/schedule/staff}">
+                <i data-lucide="calendar" style="width:14px;height:14px;"></i> Lịch làm việc &amp; Đổi ca
             </a>
         </div>
     </section>

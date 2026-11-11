@@ -65,10 +65,10 @@
                     <a th:href="@{/staff/leave}" th:text="|${dashboard.pendingLeaveCount} đơn nghỉ phép|">1 đơn nghỉ phép</a>
                 </li>
                 <li th:if="${dashboard.pendingShiftChangeCount > 0}">
-                    <a th:href="@{/schedule/staff/shift-change}" th:text="|${dashboard.pendingShiftChangeCount} yêu cầu đổi ca|">1 yêu cầu đổi ca</a>
+                    <a th:href="@{/schedule/staff#requests-history}" th:text="|${dashboard.pendingShiftChangeCount} yêu cầu đổi ca|">1 yêu cầu đổi ca</a>
                 </li>
                 <li th:if="${dashboard.incomingShiftChangeCount > 0}">
-                    <a th:href="@{/schedule/staff/shift-change}" th:text="|${dashboard.incomingShiftChangeCount} lời mời đổi ca|">1 lời mời đổi ca</a>
+                    <a th:href="@{/schedule/staff}" th:text="|${dashboard.incomingShiftChangeCount} lời mời đổi ca|">1 lời mời đổi ca</a>
                 </li>
             </ul>
         </article>

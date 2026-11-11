@@ -448,12 +448,21 @@
                 <label for="adjCategory">Danh mục *</label>
                 <select id="adjCategory" name="category" class="lb-form-control" required>
                     <option value="">-- Chọn danh mục --</option>
-                    <option th:each="c : ${adjustCategories}"
-                            th:value="${c.name()}"
-                            th:text="${(c.points > 0 ? '+' : '') + c.points + ' điểm — ' + c.label}">+3 điểm — Được khách hàng khen</option>
+                    <optgroup label="Quy tắc Ca làm &amp; Chuyên cần (không giới hạn số lần/tháng)">
+                        <option th:each="c : ${adjustCategories}"
+                                th:if="${!c.manualQuotaCategory}"
+                                th:value="${c.name()}"
+                                th:text="${(c.points > 0 ? '+' : '') + c.points + ' điểm — ' + c.label}">+5 điểm — Hỗ trợ ca gấp (&lt;24h)</option>
+                    </optgroup>
+                    <optgroup th:label="${'Khen thưởng &amp; Nhắc nhở khác (tối đa ±' + leaderboard.manualAdjustCap + 'đ/tháng)'}">
+                        <option th:each="c : ${adjustCategories}"
+                                th:if="${c.manualQuotaCategory}"
+                                th:value="${c.name()}"
+                                th:text="${(c.points > 0 ? '+' : '') + c.points + ' điểm — ' + c.label}">+3 điểm — Được khách hàng khen</option>
+                    </optgroup>
                 </select>
                 <small style="color:var(--ink-soft);display:block;margin-top:4px;"
-                       th:text="'Mỗi nhân viên được cộng tối đa ' + ${leaderboard.manualAdjustCap} + ' điểm và trừ tối đa ' + ${leaderboard.manualAdjustCap} + ' điểm thủ công mỗi tháng. Nhân viên sẽ thấy lý do trong lịch sử điểm.'">Hạn mức</small>
+                       th:text="'Các mục Ca làm &amp; Chuyên cần (+5đ, +2đ, -10đ, -3đ, -15đ, -2đ/-4đ/-6đ) không giới hạn số lần/tháng. Riêng nhóm Khen thưởng/Nhắc nhở khác giới hạn ±' + ${leaderboard.manualAdjustCap} + ' điểm/tháng mỗi nhân viên.'">Hạn mức</small>
             </div>
 
             <div class="lb-form-group">
