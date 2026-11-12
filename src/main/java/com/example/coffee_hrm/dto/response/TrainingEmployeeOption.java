@@ -25,6 +25,9 @@ public class TrainingEmployeeOption {
     /** STAFF học chứng chỉ nhân viên. MANAGER học chứng chỉ quản lý. */
     private RoleName roleName;
     private boolean managementCertified;
+    /** Manager chưa đủ điều kiện học chứng chỉ quản lý (chưa có hợp đồng hợp lệ...). Null nếu đủ điều kiện. */
+    @lombok.Setter
+    private String managementBlockReason;
 
     @Builder.Default
     private List<Integer> certifiedSkillIds = List.of();

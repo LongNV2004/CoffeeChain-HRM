@@ -124,7 +124,7 @@
         <h2>Bảng lương</h2>
         <p class="empty" th:if="${#lists.isEmpty(board.rows)}">Không có nhân viên được phân ca trong kỳ đã chọn.</p>
         <div class="salary-table-wrap" th:if="${!#lists.isEmpty(board.rows)}">
-            <table>
+            <table data-paginate>
                 <thead>
                 <tr>
                     <th>STT</th>
@@ -165,7 +165,7 @@
         <p class="salary-note">Bảng lương chính thức sau khi Admin duyệt báo cáo cửa hàng. Bạn chỉ xem được, không chỉnh sửa.</p>
         <p class="empty" th:if="${periods == null or #lists.isEmpty(periods)}">Chưa có kỳ lương nào được duyệt.</p>
         <div class="salary-table-wrap" th:if="${periods != null and !#lists.isEmpty(periods)}">
-            <table>
+            <table data-paginate>
                 <thead>
                 <tr>
                     <th>Kỳ lương</th>

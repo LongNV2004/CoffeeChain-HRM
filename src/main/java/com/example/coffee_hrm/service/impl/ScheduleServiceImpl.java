@@ -53,6 +53,7 @@ public class ScheduleServiceImpl implements ScheduleService {
     private final NotificationService notificationService;
     private final ReliabilityService reliabilityService;
     private final ShiftCoverInvitationRepository shiftCoverInvitationRepository;
+    private final OvertimeRequestRepository overtimeRequestRepository;
     private static final String SHIFT_CHANGE_REF = "SHIFT_CHANGE";
     @Override
     @Transactional(readOnly = true)
@@ -247,8 +248,14 @@ public class ScheduleServiceImpl implements ScheduleService {
         if (assignment.getCancelledByLeaveRequest() != null) {
             throw new BusinessException("Không thể xóa ca đã hủy do đơn nghỉ được duyệt.");
         }
+        if (inSharedSchedule(assignment)) {
+            throw new BusinessException("Không thể hủy phân công ca đã duyệt và đang có trong lịch làm việc chung.");
+        }
         if (coveredByApprovedRegistration(store.getId(), assignment)) {
             throw new BusinessException("Không thể xóa lịch làm việc đã được duyệt từ đăng ký của nhân viên.");
+        }
+        if (!approvedOvertimeAssignmentIds(List.of(assignment.getId())).isEmpty()) {
+            throw new BusinessException("Không thể xóa ca tăng ca đã được duyệt của nhân viên.");
         }
         List<ShiftChangeRequest> relatedRequests = shiftChangeRequestRepository.findAllByAssignmentId(assignment.getId());
         if (!relatedRequests.isEmpty()) {
@@ -629,6 +636,9 @@ public class ScheduleServiceImpl implements ScheduleService {
         long totalCount = 0;
         long publishedCount = 0;
         long draftCount = 0;
+        Set<Integer> lockedOvertimeIds = isManagerView
+                ? approvedOvertimeAssignmentIds(assignments.stream().map(ShiftAssignment::getId).filter(Objects::nonNull).toList())
+                : Set.of();
         for (ShiftAssignment sa : assignments) {
             totalCount++;
             boolean isPub = sa.getIsPublished() == null || Boolean.TRUE.equals(sa.getIsPublished());
@@ -638,7 +648,7 @@ public class ScheduleServiceImpl implements ScheduleService {
                 draftCount++;
             }
             boolean isCurrentStaff = user.getEmployeeId() != null && Objects.equals(user.getEmployeeId(), sa.getEmployee().getId());
-            WeeklyScheduleView.AssignmentItem item = WeeklyScheduleView.AssignmentItem.builder() .assignmentId(sa.getId()) .employeeId(sa.getEmployee().getId()) .employeeName(sa.getEmployee().getFullName()) .employeePhone(sa.getEmployee().getPhone()) .status(sa.getStatus().getDbValue()) .isPublished(isPub) .isCurrentStaff(isCurrentStaff) .canCancel(isManagerView) .canRequestChange(!isManagerView && isCurrentStaff && isShiftStillUpcoming(sa.getWorkDate(), sa.getShift().getStartTime())) .build();
+            WeeklyScheduleView.AssignmentItem item = WeeklyScheduleView.AssignmentItem.builder() .assignmentId(sa.getId()) .employeeId(sa.getEmployee().getId()) .employeeName(sa.getEmployee().getFullName()) .employeePhone(sa.getEmployee().getPhone()) .status(sa.getStatus().getDbValue()) .isPublished(isPub) .isCurrentStaff(isCurrentStaff) .canCancel(isManagerView && !inSharedSchedule(sa) && !lockedOvertimeIds.contains(sa.getId())) .canRequestChange(!isManagerView && isCurrentStaff && isShiftStillUpcoming(sa.getWorkDate(), sa.getShift().getStartTime())) .build();
             String key = sa.getShift().getId() + "_" + sa.getWorkDate().toString();
             assignmentMap.computeIfAbsent(key, k -> new ArrayList<>()).add(item);
             boolean isColleague = currentEmpId != null && !Objects.equals(sa.getEmployee().getId(), currentEmpId);
@@ -898,6 +908,21 @@ public class ScheduleServiceImpl implements ScheduleService {
     }
 
     /** Ca trùng một đăng ký lịch làm việc đã duyệt của chính nhân viên đó (cùng ca, cùng ngày). */
+    /** Ca đã duyệt (đang hiệu lực) và đã công bố lên lịch làm việc chung — Quản lý không được hủy. */
+    private static boolean inSharedSchedule(ShiftAssignment assignment) {
+        boolean published = assignment.getIsPublished() == null || Boolean.TRUE.equals(assignment.getIsPublished());
+        return published && assignment.getStatus() == AssignmentStatus.ASSIGNED;
+    }
+
+    /** Ca phân công sinh ra từ đơn tăng ca đã duyệt — Quản lý không được xóa. */
+    private Set<Integer> approvedOvertimeAssignmentIds(Collection<Integer> assignmentIds) {
+        if (overtimeRequestRepository == null || assignmentIds == null || assignmentIds.isEmpty()) {
+            return Set.of();
+        }
+        List<Integer> ids = overtimeRequestRepository.findAssignmentIdsByStatus(assignmentIds, ApprovalStatus.APPROVED);
+        return ids == null ? Set.of() : new HashSet<>(ids);
+    }
+
     private boolean coveredByApprovedRegistration(Integer storeId, ShiftAssignment assignment) {
         if (workAvailabilityRepository == null || assignment.getEmployee() == null
                 || assignment.getShift() == null || assignment.getWorkDate() == null) {
@@ -968,6 +993,16 @@ public class ScheduleServiceImpl implements ScheduleService {
                 Integer employeeId = availability.getEmployee().getId();
                 Integer shiftId = availability.getShift().getId();
                 LocalDate workDate = dh.getDate();
+                String key = shiftId + "_" + workDate;
+
+                // Ca phân công trùng với lịch đăng ký đã duyệt: Quản lý không được xóa
+                // (cùng điều kiện với coveredByApprovedRegistration trong cancelAssignment).
+                List<WeeklyScheduleView.AssignmentItem> existingItems = assignmentMap.get(key);
+                if (existingItems != null) {
+                    existingItems.stream()
+                            .filter(item -> Objects.equals(item.getEmployeeId(), employeeId))
+                            .forEach(item -> item.setCanCancel(false));
+                }
 
                 if (surrenderedSlots.contains(employeeId + "_" + shiftId + "_" + workDate)) {
                     continue;
@@ -995,13 +1030,9 @@ public class ScheduleServiceImpl implements ScheduleService {
                     }
                 }
 
-                String key = shiftId + "_" + workDate;
                 List<WeeklyScheduleView.AssignmentItem> items = assignmentMap.computeIfAbsent(key, ignored -> new ArrayList<>());
                 boolean alreadyListed = items.stream().anyMatch(item -> Objects.equals(item.getEmployeeId(), employeeId));
                 if (alreadyListed) {
-                    items.stream()
-                            .filter(item -> Objects.equals(item.getEmployeeId(), employeeId))
-                            .forEach(item -> item.setCanCancel(false));
                     continue;
                 }
                 boolean isCurrentStaff = currentEmpId != null && Objects.equals(currentEmpId, employeeId);

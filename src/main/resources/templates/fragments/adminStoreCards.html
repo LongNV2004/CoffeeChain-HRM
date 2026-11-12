@@ -12,15 +12,15 @@
     <div class="store-toolbar">
         <label class="store-search">
             <span class="sr-only">Tìm cửa hàng</span>
-            <input id="chainStoreSearch" type="search" placeholder="Tìm theo tên hoặc mã cửa hàng..." autocomplete="off">
+            <input id="chainStoreSearch" type="search" placeholder="Tìm theo tên cửa hàng..." autocomplete="off">
         </label>
     </div>
 
     <p class="chain-store-empty" th:if="${cards == null or #lists.isEmpty(cards)}">Chưa có cửa hàng nào.</p>
 
-    <div class="chain-store-grid" th:if="${cards != null and !#lists.isEmpty(cards)}">
+    <div class="chain-store-grid" data-paginate data-paginate-always data-paginate-label="cửa hàng" th:if="${cards != null and !#lists.isEmpty(cards)}">
         <article th:each="card : ${cards}" class="chain-store-card"
-                 th:attr="data-store-name=${card.storeName},data-store-code=${card.id}">
+                 th:attr="data-store-name=${card.storeName}">
             <div class="chain-store-card-top">
                 <div>
                     <p class="chain-store-kicker">Cửa hàng</p>

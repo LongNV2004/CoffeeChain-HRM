@@ -539,6 +539,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         return switch (ManagerContractAccess.assess(contracts == null ? List.of() : contracts, today)) {
             case NONE -> null;
             case NO_CONTRACT -> "Chưa có hợp đồng lao động";
+            case WAITING_START -> "Hợp đồng chưa đến ngày hiệu lực";
             case NOT_IN_FORCE -> "Hợp đồng chưa có hiệu lực, đã hết hạn hoặc đã chấm dứt";
         };
     }

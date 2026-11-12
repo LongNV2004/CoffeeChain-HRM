@@ -109,11 +109,11 @@
                 <button type="button" data-status-filter="inactive" aria-pressed="false">Ngừng hoạt động <span data-count="inactive">0</span></button>
             </div>
             <label class="store-search"><span class="sr-only">Tìm kiếm cửa hàng</span>
-                <input type="search" data-store-search placeholder="Tìm theo mã cửa hàng..." autocomplete="off">
+                <input type="search" data-store-search placeholder="Tìm theo tên cửa hàng..." autocomplete="off">
             </label>
         </div>
         <p class="store-empty branch-card-empty" th:if="${#lists.isEmpty(stores)}">Chưa có cửa hàng nào.</p>
-        <div class="branch-card-grid" th:unless="${#lists.isEmpty(stores)}">
+        <div class="branch-card-grid" data-paginate data-paginate-always data-paginate-label="cửa hàng" th:unless="${#lists.isEmpty(stores)}">
             <article th:each="store : ${stores}" class="branch-card store-data-row"
                      th:with="state=${store.stateKey != null ? store.stateKey : (store.isActive ? 'active' : 'inactive')}"
                      th:attr="data-state=${state},data-employee-count=${store.employeeCount},data-manager-assigned=${store.managerName != null}">

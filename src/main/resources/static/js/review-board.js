@@ -29,8 +29,7 @@
     var regCount = document.getElementById("rvRegCount");
     var pager = document.getElementById("rvPager");
     var pageInfo = document.getElementById("rvPageInfo");
-    var prevPage = document.getElementById("rvPrevPage");
-    var nextPage = document.getElementById("rvNextPage");
+    var pagesEl = document.getElementById("rvPages");
     var slotChip = document.getElementById("rvSlotChip");
     var slotChipText = document.getElementById("rvSlotChipText");
     var slotChipClear = document.getElementById("rvSlotChipClear");
@@ -146,19 +145,7 @@
         }
     }
 
-    // ---------- Phân trang ----------
-    if (prevPage) {
-        prevPage.addEventListener("click", function () {
-            state.page = Math.max(1, state.page - 1);
-            render();
-        });
-    }
-    if (nextPage) {
-        nextPage.addEventListener("click", function () {
-            state.page += 1;
-            render();
-        });
-    }
+    // ---------- Phân trang: Numbered Pagination dùng chung (CoffeePager.renderPages) ----------
 
     function render() {
         renderStaffing();
@@ -219,9 +206,13 @@
         }
         if (pager) {
             pager.hidden = pages <= 1;
-            pageInfo.textContent = "Trang " + state.page + "/" + pages;
-            prevPage.disabled = state.page <= 1;
-            nextPage.disabled = state.page >= pages;
+            pageInfo.textContent = "Trang " + state.page + "/" + pages + " · " + matched.length + " đơn";
+            if (window.CoffeePager) {
+                CoffeePager.renderPages(pagesEl, state.page, pages, function (target) {
+                    state.page = target;
+                    render();
+                });
+            }
         }
     }
 
@@ -578,10 +569,7 @@
                 refreshSelection();
             });
         }
-        var prev = document.getElementById("saPrev");
-        var next = document.getElementById("saNext");
-        if (prev) prev.addEventListener("click", function () { page -= 1; render(); });
-        if (next) next.addEventListener("click", function () { page += 1; render(); });
+        var pagesEl = document.getElementById("saPages");
 
         form.addEventListener("submit", function (event) {
             // Không phân bổ khi chưa chọn ai.
@@ -617,8 +605,10 @@
             if (pager) {
                 pager.hidden = pages <= 1;
                 if (pageInfo) pageInfo.textContent = "Trang " + page + "/" + pages + " · " + visible.length + " nhân viên";
-                if (prev) prev.disabled = page <= 1;
-                if (next) next.disabled = page >= pages;
+                // Numbered Pagination dùng chung (CoffeePager.renderPages).
+                if (window.CoffeePager) {
+                    CoffeePager.renderPages(pagesEl, page, pages, function (target) { page = target; render(); });
+                }
             }
         }
 

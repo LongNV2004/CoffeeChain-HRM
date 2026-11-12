@@ -170,7 +170,7 @@
         <p class="empty" id="histEmpty" th:if="${#lists.isEmpty(history.rows)}">Không có bản ghi trong khoảng thời gian này.</p>
         <p class="empty" id="histFilteredEmpty" hidden>Không có bản ghi khớp từ khóa.</p>
         <div class="table-wrap" th:if="${!#lists.isEmpty(history.rows)}">
-            <table class="hist-table">
+            <table data-paginate class="hist-table">
                 <thead>
                 <tr>
                     <th>Ngày</th>

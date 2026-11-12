@@ -73,7 +73,7 @@
         <h2>Các ca trong kỳ</h2>
         <p class="empty" th:if="${#lists.isEmpty(detail.shifts)}">Không có ca được phân công trong kỳ này.</p>
         <div class="salary-table-wrap" th:if="${!#lists.isEmpty(detail.shifts)}">
-            <table>
+            <table data-paginate>
                 <thead>
                 <tr>
                     <th>Ngày</th>

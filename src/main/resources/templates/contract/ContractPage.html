@@ -15,9 +15,6 @@
         body:has(.coffee-sidebar) main.contract-board.wrap .contract-table .link-btn {
             color: #B96D49; font-weight: 600; text-decoration: none; margin-right: 10px;
         }
-        body:has(.coffee-sidebar) main.contract-board.wrap .pagination { justify-content: space-between; margin: 0; }
-        body:has(.coffee-sidebar) main.contract-board.wrap .page-numbers { display: flex; gap: 8px; flex-wrap: wrap; }
-        body:has(.coffee-sidebar) main.contract-board.wrap .page-btn.disabled { opacity: .45; pointer-events: none; }
     </style>
 </head>
 <body>
@@ -136,23 +133,11 @@
             </table>
         </div>
 
-        <nav class="pagination" aria-label="Phân trang danh sách hợp đồng">
-            <span class="muted" th:if="${view.matchCount == 0}">Chưa có dữ liệu để phân trang</span>
-            <span class="muted" th:if="${view.matchCount > 0}"
-                  th:text="|Hiển thị ${view.fromIndex}–${view.toIndex} của ${view.matchCount}|"></span>
-            <div class="page-numbers" th:if="${view.totalPages > 0}">
-                <a th:if="${view.page > 1}" class="page-btn"
-                   th:href="@{${listPath}(page=${view.page - 1}, keyword=${view.keyword}, storeId=${view.storeId}, validity=${view.validity}, fromDate=${view.fromDate}, toDate=${view.toDate})}">Trang trước</a>
-                <span th:unless="${view.page > 1}" class="page-btn disabled">Trang trước</span>
-                <a th:each="p : ${#numbers.sequence(1, view.totalPages)}" class="page-btn"
-                   th:classappend="${p == view.page} ? ' active'"
-                   th:href="@{${listPath}(page=${p}, keyword=${view.keyword}, storeId=${view.storeId}, validity=${view.validity}, fromDate=${view.fromDate}, toDate=${view.toDate})}"
-                   th:text="${p}">1</a>
-                <a th:if="${view.page < view.totalPages}" class="page-btn"
-                   th:href="@{${listPath}(page=${view.page + 1}, keyword=${view.keyword}, storeId=${view.storeId}, validity=${view.validity}, fromDate=${view.fromDate}, toDate=${view.toDate})}">Trang tiếp theo</a>
-                <span th:unless="${view.page < view.totalPages}" class="page-btn disabled">Trang tiếp theo</span>
-            </div>
-        </nav>
+        <p class="muted" th:if="${view.matchCount == 0}">Chưa có dữ liệu để phân trang</p>
+        <nav th:replace="~{fragments/pager :: numbered(${view.page}, ${view.totalPages},
+                 |Hiển thị ${view.fromIndex}–${view.toIndex} của ${view.matchCount} hợp đồng|,
+                 @{${listPath}(page='__PAGE__', keyword=${view.keyword}, storeId=${view.storeId}, validity=${view.validity}, fromDate=${view.fromDate}, toDate=${view.toDate})},
+                 false)}"></nav>
     </section>
 </main>
 <script th:src="@{/js/EmployeeManagement.js}" defer></script>

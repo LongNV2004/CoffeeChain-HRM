@@ -82,14 +82,13 @@
                     <!-- Cùng kiểu thẻ tên với Lịch làm việc của nhân viên. Ca đã duyệt từ đăng ký không có nút xóa. -->
                     <div th:each="assign : ${cell.assignments}" class="emp-pill"
                          th:classappend="${!assign.canCancel} ? ' is-locked'"
-                         th:title="${!assign.canCancel} ? 'Lịch đã được duyệt — Quản lý không thể xóa' : ''">
+                         th:title="${!assign.canCancel} ? ${assign.employeeName} + ' — Lịch đã được duyệt, Quản lý không thể xóa' : ${assign.employeeName}">
                         <span class="emp-name" th:text="${assign.employeeName}">Nguyễn Văn A</span>
-                        <span class="emp-tag" th:if="${!assign.canCancel}" aria-label="Đã duyệt">✓</span>
                         <form th:if="${assign.canCancel and assign.assignmentId != null}"
                               th:action="@{/schedule/manager/cancel/{id}(id=${assign.assignmentId})}"
                               method="post" class="emp-pill-form">
                             <input type="hidden" name="currentWeek" th:value="${schedule.weekStartDate}">
-                            <button type="submit" class="del-btn" title="Hủy phân ca"
+                            <button type="submit" class="del-btn" title="Hủy phân ca" aria-label="Hủy phân ca"
                                     data-coffee-confirm="Bạn có chắc chắn muốn hủy phân công ca này không?"
                                     data-coffee-title="Hủy phân công"
                                     data-coffee-ok="Hủy phân công"
@@ -122,7 +121,7 @@
             Hiện không có yêu cầu đổi ca nào đang chờ duyệt.
         </p>
 
-        <table class="requests-table" th:if="${!#lists.isEmpty(schedule.pendingShiftChanges)}">
+        <table data-paginate class="requests-table" th:if="${!#lists.isEmpty(schedule.pendingShiftChanges)}">
             <thead>
             <tr>
                 <th>Nhân viên yêu cầu</th>

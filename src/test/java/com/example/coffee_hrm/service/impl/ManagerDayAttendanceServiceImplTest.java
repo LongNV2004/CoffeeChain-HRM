@@ -43,6 +43,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -346,5 +348,44 @@ class ManagerDayAttendanceServiceImplTest {
         assertTrue(slot.isHasCheckInPhoto());
         assertTrue(slot.isHasCheckOutPhoto());
         assertEquals("/attendance/training-photos", slot.getPhotoBase());
+    }
+
+    @Test
+    void staffMonthContainsOnlyTheLoggedInEmployee() {
+        LocalDate today = VietnamTime.today();
+        LocalDate start = today.withDayOfMonth(1);
+        LocalDate end = start.withDayOfMonth(start.lengthOfMonth());
+        Employee me = Employee.builder().id(3).fullName("Lê Thị Thu").store(store)
+                .status(EmployeeStatus.ACTIVE).build();
+        Employee colleague = Employee.builder().id(4).fullName("Phạm Đức Long").store(store)
+                .status(EmployeeStatus.ACTIVE).build();
+        Shift morning = Shift.builder().id(1).shiftName("Ca sáng").store(store)
+                .startTime(LocalTime.of(7, 0)).endTime(LocalTime.of(11, 0)).build();
+        ShiftAssignment mine = ShiftAssignment.builder()
+                .id(1).employee(me).shift(morning).workDate(start).isPublished(true)
+                .status(AssignmentStatus.ASSIGNED).build();
+        ShiftAssignment theirs = ShiftAssignment.builder()
+                .id(2).employee(colleague).shift(morning).workDate(start).isPublished(true)
+                .status(AssignmentStatus.ASSIGNED).build();
+        Attendance theirLate = Attendance.builder()
+                .id(31).employee(colleague).shift(morning).store(store).workDate(start)
+                .checkInTime(start.atTime(7, 30)).checkOutTime(start.atTime(11, 0))
+                .lateMinutes(30).earlyLeaveMinutes(0).status(AttendanceStatus.LATE).build();
+        when(employeeRepository.findByIdWithStore(3)).thenReturn(Optional.of(me));
+        when(shiftAssignmentRepository.findPublishedAssignedForStoreBetween(1, start, end, AssignmentStatus.ASSIGNED))
+                .thenReturn(List.of(mine, theirs));
+        when(attendanceRepository.findForMonthlyReport(1, start, end)).thenReturn(List.of(theirLate));
+        AuthenticatedUser staff = AuthenticatedUser.from(User.builder()
+                .id(5).username("thu").passwordHash("hash").role(Role.builder().id(3).roleName(RoleName.STAFF).build())
+                .employee(me).isActive(true).build());
+
+        ManagerMonthAttendanceView view = service.getOwnMonth(staff, null);
+
+        assertEquals(1, view.getEmployees().size());
+        assertEquals("Lê Thị Thu", view.getEmployees().getFirst().getEmployeeName());
+        assertEquals(1, view.getScheduledSlots());
+        assertEquals(0, view.getLateSlots());
+        assertTrue(view.getEmployees().getFirst().getDays().isEmpty());
+        verify(employeeRepository, never()).findByStoreIdWithAccount(any());
     }
 }

@@ -161,10 +161,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 row.append(actions);
                 tableBody.append(row);
             });
-            ids('mlResultCount').textContent = `${result.totalElements} đơn`;
-            ids('mlPageNumber').textContent = `Trang ${page + 1}/${pages}`;
-            ids('mlPrevious').disabled = page === 0;
-            ids('mlNext').disabled = page + 1 >= pages;
+            ids('mlResultCount').textContent = `Trang ${page + 1}/${pages} · ${result.totalElements} đơn`;
+            renderListPages();
         } catch (error) {
             if (version !== listVersion) return;
             tableBody.replaceChildren();
@@ -173,8 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
             cell.colSpan = 7;
             row.append(cell);
             tableBody.append(row);
-            ids('mlPrevious').disabled = true;
-            ids('mlNext').disabled = true;
+            ids('mlPages').replaceChildren();
             toast(error.message, true);
         }
     }
@@ -513,8 +510,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (searchTimer) clearTimeout(searchTimer);
         searchTimer = setTimeout(() => { page = 0; loadList(); }, 250);
     });
-    ids('mlPrevious').addEventListener('click', () => { if (page > 0) { page--; loadList(); } });
-    ids('mlNext').addEventListener('click', () => { if (page + 1 < pages) { page++; loadList(); } });
+    function renderListPages() {
+        // Numbered Pagination dùng chung (CoffeePager.renderPages); API tính trang từ 0.
+        if (window.CoffeePager) {
+            CoffeePager.renderPages(ids('mlPages'), page + 1, pages, target => { page = target - 1; loadList(); });
+        }
+    }
     ids('mlCloseDetail').addEventListener('click', closeAll);
     ids('mlCloseSuggestions').addEventListener('click', closeAll);
     ids('mlCloseSuggestionsFooter')?.addEventListener('click', closeAll);

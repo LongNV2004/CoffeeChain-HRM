@@ -117,6 +117,31 @@ class PayrollServiceImplTest {
     }
 
     @Test
+    void recalculatingFlushesOldLinesBeforeInsertingNewOnes() {
+        rememberSavedPayroll();
+        java.util.List<Integer> linesAtFlush = new java.util.ArrayList<>();
+        when(payrollRepository.saveAndFlush(any(MonthlyPayroll.class))).thenAnswer(invocation -> {
+            MonthlyPayroll payroll = invocation.getArgument(0);
+            linesAtFlush.add(payroll.getEmployeeLines().size());
+            return payroll;
+        });
+        stubOctoberShift(Attendance.builder()
+                .id(30).employee(staffEmployee).shift(morning()).store(store).workDate(LocalDate.of(2026, 10, 6))
+                .checkInTime(LocalDate.of(2026, 10, 6).atTime(8, 0))
+                .checkOutTime(LocalDate.of(2026, 10, 6).atTime(16, 0))
+                .lateMinutes(0).earlyLeaveMinutes(0).status(AttendanceStatus.ON_TIME).build(), new BigDecimal("30000"));
+
+        service.calculate(manager, 2026, 10);
+        saved.setId(3); // bảng lương đã lưu trong DB
+
+        service.calculate(manager, 2026, 10);
+
+        // Dòng cũ bị xóa (flush với danh sách rỗng) trước khi ghi dòng mới cho cùng nhân viên.
+        assertEquals(java.util.List.of(0), linesAtFlush);
+        assertEquals(1, saved.getEmployeeLines().size());
+    }
+
+    @Test
     void hourlyRateFollowsTheContractOfEachMonth() {
         rememberSavedPayroll();
         when(employeeRepository.getReferenceById(3)).thenReturn(staffEmployee);

@@ -82,7 +82,7 @@
     </dl>
 </section>
 
-<table th:fragment="activeTable(rows, link, emptyText)">
+<table data-paginate th:fragment="activeTable(rows, link, emptyText)">
     <thead>
     <tr>
         <th>Tên lớp</th>
@@ -117,7 +117,7 @@
     </tbody>
 </table>
 
-<table th:fragment="endedTable(rows, link, closedLabel)">
+<table data-paginate data-paginate-always data-paginate-label="lớp" th:fragment="endedTable(rows, link, closedLabel)">
     <thead>
     <tr>
         <th>Tên lớp</th>

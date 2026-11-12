@@ -211,7 +211,7 @@
             <h2>Ca làm việc của tôi trong tuần này</h2>
         </div>
 
-        <div class="my-shifts-grid">
+        <div class="my-shifts-grid" data-paginate data-paginate-item=".shift-card" data-paginate-label="ca">
             <th:block th:each="row : ${schedule.shiftRows}">
                 <th:block th:each="cell : ${row.dayCells}">
                     <th:block th:each="assign : ${cell.assignments}">
@@ -271,10 +271,10 @@
                     <td th:each="cell : ${row.dayCells}">
                         <div th:each="assign : ${cell.assignments}"
                              class="emp-pill"
-                             th:classappend="${assign.isCurrentStaff} ? 'me' : ''">
-                            <span th:text="${assign.employeeName}">Nguyễn Văn A</span>
-                            <span th:if="${assign.isCurrentStaff}"
-                                  style="font-size:10px;color:var(--caramel);font-weight:700;">(Tôi)</span>
+                             th:classappend="${assign.isCurrentStaff} ? 'me' : ''"
+                             th:title="${assign.employeeName}">
+                            <span class="emp-name" th:text="${assign.employeeName}">Nguyễn Văn A</span>
+                            <span class="emp-tag" th:if="${assign.isCurrentStaff}">Tôi</span>
                         </div>
                     </td>
                 </tr>
@@ -373,7 +373,7 @@
             Bạn chưa gửi yêu cầu đổi ca nào.
         </p>
 
-        <table class="data-table" th:if="${!#lists.isEmpty(schedule.pendingShiftChanges)}">
+        <table data-paginate class="data-table" th:if="${!#lists.isEmpty(schedule.pendingShiftChanges)}">
             <thead>
             <tr>
                 <th>Ca làm việc</th>

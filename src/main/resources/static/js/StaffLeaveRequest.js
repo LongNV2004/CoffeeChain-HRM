@@ -11,8 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const historyBody = document.getElementById('leaveHistoryBody');
     const filters = document.getElementById('leaveFilters');
     const statusFilter = document.getElementById('historyStatus');
-    const prev = document.getElementById('leavePrev');
-    const next = document.getElementById('leaveNext');
+    const pagesEl = document.getElementById('leavePages');
     const pageLabel = document.getElementById('leavePageLabel');
     const toastBox = document.getElementById('leaveToast');
     const detailOverlay = document.getElementById('leaveDetailOverlay');
@@ -306,8 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 historyBody.append(row);
             });
             pageLabel.textContent = `Trang ${page + 1}${totalPages ? '/' + totalPages : ''} · ${result.data.totalElements ?? items.length} đơn`;
-            prev.disabled = page === 0;
-            next.disabled = !result.data.hasMore;
+            renderHistoryPages();
         } catch (error) {
             historyBody.replaceChildren();
             const row = document.createElement('tr');
@@ -404,7 +402,11 @@ document.addEventListener('DOMContentLoaded', () => {
         page = 0;
         loadHistory();
     });
-    prev.addEventListener('click', () => { if (page > 0) { page -= 1; loadHistory(); } });
-    next.addEventListener('click', () => { page += 1; loadHistory(); });
+    function renderHistoryPages() {
+        // Numbered Pagination dùng chung (CoffeePager.renderPages): Trước 1 … 4 5 6 … Sau.
+        if (window.CoffeePager) {
+            CoffeePager.renderPages(pagesEl, page + 1, totalPages, target => { page = target - 1; loadHistory(); });
+        }
+    }
     loadHistory();
 });

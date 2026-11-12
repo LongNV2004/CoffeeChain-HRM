@@ -141,7 +141,14 @@ public class PayrollServiceImpl implements PayrollService {
         if (user.getUserId() != null) {
             payroll.setCalculatedBy(userRepository.getReferenceById(user.getUserId()));
         }
-        payroll.replaceEmployees(toLines(buildLive(store.getId(), selected)));
+        List<PayrollEmployeeLine> freshLines = toLines(buildLive(store.getId(), selected));
+        if (payroll.getId() != null && payroll.getEmployeeLines() != null && !payroll.getEmployeeLines().isEmpty()) {
+            // Tính lại: xóa hẳn các dòng cũ xuống DB trước. Hibernate chạy INSERT trước DELETE khi flush,
+            // nên nếu thay danh sách trong một lần sẽ vi phạm UX_PayrollEmployeeLines_PeriodEmployee.
+            payroll.replaceEmployees(List.of());
+            payrollRepository.saveAndFlush(payroll);
+        }
+        payroll.replaceEmployees(freshLines);
         payrollRepository.save(payroll);
     }
 
@@ -304,6 +311,11 @@ public class PayrollServiceImpl implements PayrollService {
                 .thenComparing(item -> item.row().getEmployeeName(), String.CASE_INSENSITIVE_ORDER)
                 .thenComparing(item -> item.row().getEmployeeId()));
         String statusFilter = normalizeStatus(status);
+        if (user.getRoleName() == RoleName.STAFF) {
+            // Nhân viên chỉ thấy dòng của chính mình: không lộ tên, số ca thiếu dữ liệu hay lương của người khác.
+            Integer self = requestedEmployee;
+            listed.removeIf(item -> !Objects.equals(self, item.row().getEmployeeId()));
+        }
         List<PayrollBoardView.EmployeeOption> employeeOptions = listed.stream()
                 .map(item -> PayrollBoardView.EmployeeOption.builder()
                         .id(item.row().getEmployeeId())

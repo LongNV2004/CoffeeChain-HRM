@@ -144,16 +144,9 @@
                 </tbody>
             </table>
         </div>
-        <div class="track-pager" th:if="${!#lists.isEmpty(board.slots)}">
-            <p id="dayCount">0 bản ghi</p>
-            <label>Số dòng mỗi trang
-                <select id="dayPageSize" aria-label="Số dòng mỗi trang">
-                    <option value="10">10</option>
-                    <option value="20">20</option>
-                    <option value="50">50</option>
-                </select>
-            </label>
-            <div class="track-pages" id="dayPages"></div>
+        <div class="track-pager coffee-pager" th:if="${!#lists.isEmpty(board.slots)}">
+            <p class="coffee-pager-count" id="dayCount">0 bản ghi</p>
+            <div class="track-pages coffee-pager-pages" id="dayPages"></div>
         </div>
     </section>
 </main>
@@ -197,7 +190,6 @@
     var employee = document.getElementById("dayEmployee");
     var status = document.getElementById("dayStatus");
     var reset = document.getElementById("dayReset");
-    var pageSize = document.getElementById("dayPageSize");
     var pages = document.getElementById("dayPages");
     var count = document.getElementById("dayCount");
     var empty = document.getElementById("dayFilteredEmpty");
@@ -228,7 +220,7 @@
     }
     function render() {
         var list = matched();
-        var size = Number(pageSize.value) || 10;
+        var size = 10;
         var totalPages = Math.max(1, Math.ceil(list.length / size));
         if (page > totalPages) {
             page = totalPages;
@@ -247,40 +239,14 @@
         count.textContent = list.length === 0
             ? "0 bản ghi"
             : from + "–" + to + " / " + list.length + " bản ghi";
-        pages.innerHTML = "";
-        var prev = document.createElement("button");
-        prev.type = "button";
-        prev.textContent = "Trước";
-        prev.disabled = page <= 1;
-        prev.addEventListener("click", function () { page -= 1; render(); });
-        pages.appendChild(prev);
-        for (var number = 1; number <= totalPages; number += 1) {
-            var button = document.createElement("button");
-            button.type = "button";
-            button.textContent = String(number);
-            if (number === page) {
-                button.className = "is-on";
-            }
-            button.addEventListener("click", function (event) {
-                page = Number(event.currentTarget.textContent);
-                render();
-            });
-            pages.appendChild(button);
-        }
-        var next = document.createElement("button");
-        next.type = "button";
-        next.textContent = "Sau";
-        next.disabled = page >= totalPages;
-        next.addEventListener("click", function () { page += 1; render(); });
-        pages.appendChild(next);
+        // Numbered Pagination dùng chung: Trước 1 … 4 5 6 … Sau.
+        CoffeePager.renderPages(pages, page, totalPages, function (target) { page = target; render(); });
     }
     employee.addEventListener("change", function () { page = 1; render(); });
     status.addEventListener("change", function () { page = 1; render(); });
-    pageSize.addEventListener("change", function () { page = 1; render(); });
     reset.addEventListener("click", function () {
         employee.value = "";
         status.value = "";
-        pageSize.value = "10";
         page = 1;
         render();
     });

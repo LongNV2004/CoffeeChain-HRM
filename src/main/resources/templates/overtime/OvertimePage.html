@@ -64,7 +64,7 @@
         <section class="panel">
             <h2 th:text="${navRole == 'manager'} ? 'Đơn chờ duyệt' : 'Đơn đang chờ duyệt'">Đơn chờ duyệt</h2>
             <p class="empty" th:if="${#lists.isEmpty(page.pending)}">Không có đơn tăng ca nào đang chờ duyệt.</p>
-            <div class="ot-grid" th:if="${!#lists.isEmpty(page.pending)}">
+            <div class="ot-grid" data-paginate data-paginate-label="đơn" th:if="${!#lists.isEmpty(page.pending)}">
                 <article class="ot-card is-pending" th:each="item : ${page.pending}">
                     <header class="ot-card-top">
                         <div>
@@ -112,7 +112,7 @@
             <h2>Lịch sử đơn tăng ca</h2>
             <p class="empty" th:if="${#lists.isEmpty(page.history)}">Chưa có đơn tăng ca đã xử lý.</p>
             <div class="table-scroll" th:if="${!#lists.isEmpty(page.history)}">
-                <table class="ot-table">
+                <table data-paginate class="ot-table">
                     <thead>
                     <tr>
                         <th th:if="${navRole == 'manager'}">Nhân viên</th>

@@ -77,11 +77,10 @@
                 </tbody>
             </table>
         </div>
-        <div class="form-actions" th:if="${report.totalPages > 1}">
-            <a th:if="${page > 0}" th:href="@{/admin/leaves(page=${page - 1},status=${selectedStatus},fromDate=${fromDate},toDate=${toDate})}">← Trước</a>
-            <span th:text="'Trang ' + ${page + 1} + '/' + ${report.totalPages} + ' · ' + ${report.totalElements} + ' đơn'">Trang 1</span>
-            <a th:if="${page + 1 < report.totalPages}" th:href="@{/admin/leaves(page=${page + 1},status=${selectedStatus},fromDate=${fromDate},toDate=${toDate})}">Sau →</a>
-        </div>
+        <nav th:replace="~{fragments/pager :: numbered(${page + 1}, ${report.totalPages},
+                 |Trang ${page + 1}/${report.totalPages} · ${report.totalElements} đơn|,
+                 @{/admin/leaves(page='__PAGE__', status=${selectedStatus}, fromDate=${fromDate}, toDate=${toDate})},
+                 true)}"></nav>
     </section>
 </main>
 </body>

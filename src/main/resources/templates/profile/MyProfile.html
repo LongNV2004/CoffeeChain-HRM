@@ -96,7 +96,7 @@
                     </div>
                     <div>
                         <dt>Số căn cước công dân (CCCD)</dt>
-                        <dd th:text="${profile.citizenIdMasked != null ? profile.citizenIdMasked : 'Chưa cập nhật'}">079******123</dd>
+                        <dd th:text="${profile.citizenId != null and !#strings.isEmpty(profile.citizenId) ? profile.citizenId : 'Chưa cập nhật'}">079203000123</dd>
                     </div>
                     <div>
                         <dt>Địa chỉ</dt>

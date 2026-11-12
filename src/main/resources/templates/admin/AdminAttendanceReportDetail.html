@@ -530,16 +530,10 @@
                 </div>
             </li>
         </ol>
-        <nav class="send-pager" th:if="${detail.versionPageCount > 1}" aria-label="Trang lần gửi">
-            <a th:if="${detail.versionPage > 1}"
-               th:href="@{/attendance/admin/reports/{id}#cac-lan-gui(id=${detail.reportId}, versionPage=${detail.versionPage - 1})}">Trước</a>
-            <a th:each="page : ${#numbers.sequence(1, detail.versionPageCount)}"
-               th:href="@{/attendance/admin/reports/{id}#cac-lan-gui(id=${detail.reportId}, versionPage=${page})}"
-               th:text="${page}"
-               th:classappend="${page == detail.versionPage} ? 'is-on'">1</a>
-            <a th:if="${detail.versionPage < detail.versionPageCount}"
-               th:href="@{/attendance/admin/reports/{id}#cac-lan-gui(id=${detail.reportId}, versionPage=${detail.versionPage + 1})}">Sau</a>
-        </nav>
+        <nav th:replace="~{fragments/pager :: numbered(${detail.versionPage}, ${detail.versionPageCount},
+                 |Trang ${detail.versionPage}/${detail.versionPageCount} lần gửi|,
+                 @{/attendance/admin/reports/{id}#cac-lan-gui(id=${detail.reportId}, versionPage='__PAGE__')},
+                 false)}"></nav>
     </section>
 
     <dialog class="delete-ask" id="deleteAsk" th:if="${detail != null}">

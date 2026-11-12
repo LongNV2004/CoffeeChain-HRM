@@ -4,7 +4,7 @@
 <div th:fragment="table(contracts, fileRole, manage)">
     <p class="empty" th:if="${contracts == null or #lists.isEmpty(contracts)}">Chưa có hợp đồng.</p>
     <div class="store-table-scroll" th:if="${contracts != null and !#lists.isEmpty(contracts)}">
-        <table class="store-table employee-contract-table" th:classappend="${manage} ? ' employee-contract-table--actions'">
+        <table data-paginate class="store-table employee-contract-table" th:classappend="${manage} ? ' employee-contract-table--actions'">
             <thead>
             <tr>
                 <th>Mã hợp đồng</th>

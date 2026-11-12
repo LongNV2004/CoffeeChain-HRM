@@ -595,13 +595,36 @@ class ScheduleServiceImplTest {
     }
 
     @Test
+    void cancelAssignmentRejectsApprovedShiftInSharedSchedule() {
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        ShiftAssignment assignment = ShiftAssignment.builder()
+                .id(101)
+                .shift(shiftMorning)
+                .employee(empTuan)
+                .workDate(VietnamTime.today().plusDays(1))
+                .status(AssignmentStatus.ASSIGNED)
+                .isPublished(true)
+                .build();
+        when(shiftAssignmentRepository.findByIdWithDetails(101)).thenReturn(Optional.of(assignment));
+
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> scheduleService.cancelAssignment(101, managerUser));
+
+        assertTrue(error.getMessage().contains("lịch làm việc chung"));
+        verify(shiftAssignmentRepository, never()).delete(any(ShiftAssignment.class));
+    }
+
+    @Test
     void cancelAssignmentCleansUpRelatedChangeRequests() {
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        // Ca nháp (chưa công bố lên lịch chung) vẫn được hủy.
         ShiftAssignment assignment = ShiftAssignment.builder()
                 .id(100)
                 .shift(shiftMorning)
                 .employee(empTuan)
                 .workDate(VietnamTime.today().plusDays(1))
+                .status(AssignmentStatus.ASSIGNED)
+                .isPublished(false)
                 .build();
         when(shiftAssignmentRepository.findByIdWithDetails(100)).thenReturn(Optional.of(assignment));
         ShiftChangeRequest related = ShiftChangeRequest.builder().id(50).assignment(assignment).build();

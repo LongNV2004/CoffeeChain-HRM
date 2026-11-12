@@ -54,7 +54,7 @@
         <p class="empty" th:if="${classDetail.students == null or #lists.isEmpty(classDetail.students)}">
             Chưa có học viên được ghi danh vào lớp này.
         </p>
-        <table th:if="${classDetail.students != null and !#lists.isEmpty(classDetail.students)}">
+        <table data-paginate th:if="${classDetail.students != null and !#lists.isEmpty(classDetail.students)}">
             <thead>
             <tr>
                 <th>Họ tên</th>

@@ -45,6 +45,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -174,6 +175,123 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
                 .build();
     }
 
+    /**
+     * "Theo dõi chấm công" của nhân viên: cùng cấu trúc bảng với Manager nhưng chỉ có ca, chấm công
+     * và buổi đào tạo của chính nhân viên đang đăng nhập.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public ManagerDayAttendanceView getOwnDayBoard(AuthenticatedUser user, LocalDate date) {
+        Employee self = requireSelf(user);
+        LocalDate day = date == null ? VietnamTime.today() : date;
+        if (day.isAfter(VietnamTime.today())) {
+            throw new BusinessException("Không thể xem lịch sử chấm công sau ngày hiện tại theo giờ Việt Nam.");
+        }
+        List<ShiftAssignment> assignments = shiftAssignmentRepository
+                .findAssignmentsForAttendance(self.getId(), day, day, AssignmentStatus.ASSIGNED)
+                .stream()
+                .filter(assignment -> assignment.getIsPublished() == null || Boolean.TRUE.equals(assignment.getIsPublished()))
+                .filter(assignment -> assignment.getShift() != null && belongsTo(assignment.getEmployee(), self))
+                .toList();
+        Map<Integer, Attendance> attendanceByShift = new LinkedHashMap<>();
+        for (Attendance attendance : attendanceRepository.findHistoryByEmployee(self.getId(), day, day)) {
+            if (attendance.getShift() == null || attendance.getShift().getId() == null
+                    || !belongsTo(attendance.getEmployee(), self)) {
+                continue;
+            }
+            attendanceByShift.putIfAbsent(attendance.getShift().getId(), attendance);
+        }
+        List<ManagerDayAttendanceView.Slot> slots = new ArrayList<>();
+        int checkedIn = 0;
+        int checkedOut = 0;
+        for (ShiftAssignment assignment : assignments) {
+            Attendance attendance = attendanceByShift.remove(assignment.getShift().getId());
+            slots.add(toSlot(assignment, attendance));
+            if (attendance != null && attendance.getCheckInTime() != null) {
+                checkedIn++;
+            }
+            if (attendance != null && attendance.getCheckOutTime() != null) {
+                checkedOut++;
+            }
+        }
+        // Bản ghi chấm công không còn ca phân công (ví dụ ca đã đổi) và buổi đào tạo vẫn hiện như trước.
+        for (Attendance attendance : attendanceByShift.values()) {
+            slots.add(fromOwnSlot(self, toOwnSlot(null, attendance)));
+            checkedIn += attendance.getCheckInTime() != null ? 1 : 0;
+            checkedOut += attendance.getCheckOutTime() != null ? 1 : 0;
+        }
+        for (StaffDayAttendanceView.Slot training : trainingSlots(self.getId(), day)) {
+            slots.add(fromOwnSlot(self, training));
+            checkedIn += "—".equals(training.getCheckInLabel()) ? 0 : 1;
+            checkedOut += "—".equals(training.getCheckOutLabel()) ? 0 : 1;
+        }
+        int lateCount = (int) slots.stream().filter(ManagerDayAttendanceView.Slot::isLate).count();
+        int missingCount = (int) slots.stream()
+                .filter(slot -> "missing-in".equals(slot.getStatusKey()) || "missing-out".equals(slot.getStatusKey()))
+                .count();
+        int violations = (int) slots.stream().filter(slot -> slot.isLate() || slot.isEarly()).count();
+        return ManagerDayAttendanceView.builder()
+                .workDate(day)
+                .dateLabel(dateLabel(day))
+                .storeName(self.getStore().getStoreName())
+                .assignedEmployees(slots.isEmpty() ? 0 : 1)
+                .checkedInCount(checkedIn)
+                .checkedOutCount(checkedOut)
+                .lateCount(lateCount)
+                .missingCount(missingCount)
+                .violationSlots(violations)
+                .slots(slots)
+                .build();
+    }
+
+    /** Chuyển dòng chấm công cá nhân (đào tạo / không còn ca) sang dòng bảng theo mẫu của Manager. */
+    private ManagerDayAttendanceView.Slot fromOwnSlot(Employee self, StaffDayAttendanceView.Slot own) {
+        String key = switch (own.getStatusKey() == null ? "" : own.getStatusKey()) {
+            case "done", "working" -> "on-time";
+            case "late", "early", "late-early" -> own.getStatusKey();
+            default -> "missing-in";
+        };
+        String schedule = own.getScheduleLabel() == null ? "—" : own.getScheduleLabel();
+        String[] parts = schedule.split("\\s*–\\s*");
+        String code = employeeCode(self.getId());
+        String name = self.getFullName() == null ? "—" : self.getFullName();
+        String late = own.getLateLabel() == null ? "0 phút" : own.getLateLabel();
+        String early = own.getEarlyLabel() == null ? "—" : own.getEarlyLabel();
+        String note = switch (key) {
+            case "late", "early", "late-early" -> (own.isLate() ? "Đi muộn " + late : "")
+                    + (own.isLate() && own.isEarly() ? ", " : "")
+                    + (own.isEarly() ? "Về sớm " + early : "");
+            case "missing-in" -> "absent".equals(own.getStatusKey()) ? "Vắng" : "Chưa có check-in";
+            default -> "—";
+        };
+        return ManagerDayAttendanceView.Slot.builder()
+                .employeeId(self.getId())
+                .employeeName(name)
+                .employeeCode(code)
+                .searchText((code + " " + self.getId() + " " + name).toLowerCase(Locale.ROOT))
+                .shiftId(own.getShiftId())
+                .shiftName(own.getShiftName())
+                .startLabel(parts.length == 2 ? parts[0] : "—")
+                .endLabel(parts.length == 2 ? parts[1] : "—")
+                .scheduleLabel(schedule)
+                .checkInLabel(own.getCheckInLabel())
+                .checkOutLabel(own.getCheckOutLabel())
+                .lateLabel(late)
+                .earlyLabel(early)
+                .late(own.isLate())
+                .early(own.isEarly())
+                .statusKey(key)
+                .statusLabel(statusLabel(key))
+                .paidHoursLabel(own.getWorkedLabel())
+                .workedLabel(own.getWorkedLabel())
+                .note(note)
+                .attendanceId(own.getAttendanceId())
+                .photoBase(own.getPhotoBase())
+                .hasCheckInPhoto(own.isHasCheckInPhoto())
+                .hasCheckOutPhoto(own.isHasCheckOutPhoto())
+                .build();
+    }
+
     @Override
     public StaffDayAttendanceView emptyOwnDay(LocalDate date) {
         LocalDate day = date == null ? VietnamTime.today() : date;
@@ -189,10 +307,43 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
     public ManagerMonthAttendanceView getMonth(AuthenticatedUser user, String monthValue) {
         Store store = storeRepository.findByManager_Id(user.getEmployeeId())
                 .orElseThrow(() -> new BusinessException("Bạn chưa được phân công quản lý cửa hàng nào."));
-        YearMonth selected = parseMonth(monthValue);
+        return buildMonth(store, parseMonth(monthValue), null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ManagerMonthAttendanceView getOwnMonth(AuthenticatedUser user, String monthValue) {
+        Employee self = requireSelf(user);
+        return buildMonth(self.getStore(), parseMonth(monthValue), self);
+    }
+
+    /** Nhân viên đang đăng nhập (kèm cửa hàng). Mọi dữ liệu "của tôi" chỉ lọc theo id này, không nhận id từ trình duyệt. */
+    private Employee requireSelf(AuthenticatedUser user) {
+        if (user == null || user.getEmployeeId() == null) {
+            throw new BusinessException("Bạn không có quyền xem lịch sử chấm công.");
+        }
+        Employee self = employeeRepository.findByIdWithStore(user.getEmployeeId())
+                .orElseThrow(() -> new BusinessException("Tài khoản chưa gắn nhân viên."));
+        if (self.getStore() == null || self.getStore().getId() == null) {
+            throw new BusinessException("Nhân viên chưa thuộc cửa hàng.");
+        }
+        return self;
+    }
+
+    private static boolean belongsTo(Employee employee, Employee only) {
+        return only == null || (employee != null && Objects.equals(employee.getId(), only.getId()));
+    }
+
+    /**
+     * Bảng chấm công tháng. {@code only == null}: cả cửa hàng (Manager);
+     * {@code only != null}: chỉ dữ liệu của đúng nhân viên đó (màn hình của nhân viên).
+     */
+    private ManagerMonthAttendanceView buildMonth(Store store, YearMonth selected, Employee only) {
         LocalDate start = selected.atDay(1);
         LocalDate end = selected.atEndOfMonth();
-        List<Employee> roster = employeeRepository.findByStoreIdWithAccount(store.getId()).stream()
+        List<Employee> roster = only != null
+                ? List.of(only)
+                : employeeRepository.findByStoreIdWithAccount(store.getId()).stream()
                 // Chỉ nhân viên đang làm việc (gồm đang nghỉ phép); bỏ người chờ hợp đồng và đã nghỉ việc.
                 .filter(employee -> employee.getStatus() == EmployeeStatus.ACTIVE
                         || employee.getStatus() == EmployeeStatus.ON_LEAVE)
@@ -205,7 +356,9 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
                 .toList();
         Map<Integer, Integer> scheduled = new LinkedHashMap<>();
         List<ShiftAssignment> assignments = shiftAssignmentRepository.findPublishedAssignedForStoreBetween(
-                store.getId(), start, end, AssignmentStatus.ASSIGNED);
+                store.getId(), start, end, AssignmentStatus.ASSIGNED).stream()
+                .filter(assignment -> belongsTo(assignment.getEmployee(), only))
+                .toList();
         for (ShiftAssignment assignment : assignments) {
             if (assignment.getEmployee() == null || assignment.getEmployee().getId() == null) {
                 continue;
@@ -215,7 +368,10 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
         Map<Integer, MonthStats> stats = new LinkedHashMap<>();
         Map<Integer, List<MonthLine>> lines = new LinkedHashMap<>();
         Set<String> recordedSlots = new HashSet<>();
-        List<Attendance> records = attendanceRepository.findForMonthlyReport(store.getId(), start, end);
+        List<Attendance> loadedRecords = attendanceRepository.findForMonthlyReport(store.getId(), start, end);
+        List<Attendance> records = loadedRecords == null ? null : loadedRecords.stream()
+                .filter(attendance -> belongsTo(attendance.getEmployee(), only))
+                .toList();
         if (records != null) {
             for (Attendance attendance : records) {
                 if (attendance.getEmployee() == null || attendance.getEmployee().getId() == null) {
@@ -277,8 +433,11 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
             stats.computeIfAbsent(assignment.getEmployee().getId(), ignored -> new MonthStats()).missingSlots++;
         }
         // Nghỉ phép đã duyệt: cùng nguồn PeriodLeave với báo cáo và bảng lương, không trùng ca làm/chấm công.
+        List<ShiftAssignment> leaveSource = shiftAssignmentRepository.findApprovedLeaveSlotsForStoreBetween(store.getId(), start, end);
         List<PeriodLeave.Slot> leaveSlots = PeriodLeave.collect(
-                shiftAssignmentRepository.findApprovedLeaveSlotsForStoreBetween(store.getId(), start, end),
+                leaveSource == null ? null : leaveSource.stream()
+                        .filter(assignment -> belongsTo(assignment.getEmployee(), only))
+                        .toList(),
                 assignments, records);
         Map<Integer, PeriodLeave.Summary> leaveByEmployee = PeriodLeave.byEmployee(leaveSlots);
         for (PeriodLeave.Slot slot : leaveSlots) {

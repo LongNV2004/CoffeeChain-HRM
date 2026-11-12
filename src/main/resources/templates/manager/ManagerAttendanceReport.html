@@ -129,7 +129,7 @@
             </div>
             <p class="note" th:unless="${payment.approved}">Admin thanh toán lương sau khi duyệt báo cáo.</p>
             <div class="table-wrap" th:if="${payment.approved and !#lists.isEmpty(payment.employees)}">
-                <table class="pay-table">
+                <table data-paginate data-paginate-always data-paginate-label="nhân viên" class="pay-table">
                     <thead>
                     <tr>
                         <th>Mã NV</th>

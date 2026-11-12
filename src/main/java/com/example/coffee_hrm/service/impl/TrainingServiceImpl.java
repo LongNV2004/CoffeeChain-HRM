@@ -50,6 +50,7 @@ import com.example.coffee_hrm.repository.TrainingSkillDocumentRepository;
 import com.example.coffee_hrm.repository.TrainingSkillRepository;
 import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
+import com.example.coffee_hrm.security.ManagerContractAccess;
 import com.example.coffee_hrm.service.NotificationService;
 import com.example.coffee_hrm.service.support.ManagementTrainingRules;
 import com.example.coffee_hrm.service.TrainingService;
@@ -280,8 +281,12 @@ public class TrainingServiceImpl implements TrainingService {
     @Override
     public List<TrainingEmployeeOption> listClassCandidates(AuthenticatedUser admin) {
         requireAdmin(admin, "Chỉ Admin mới được tạo lớp đào tạo.");
-        List<Employee> employees = employeeRepository.findByStatusWithStore(EmployeeStatus.ACTIVE);
         Set<Integer> managers = managerEmployeeIds();
+        List<Employee> employees = new ArrayList<>(employeeRepository.findByStatusWithStore(EmployeeStatus.ACTIVE));
+        // Manager mới có hợp đồng chờ hiệu lực ở trạng thái Chờ hoàn thiện hợp đồng nhưng vẫn được học chứng chỉ quản lý.
+        employeeRepository.findByStatusWithStore(EmployeeStatus.PENDING_CONTRACT).stream()
+                .filter(employee -> managers.contains(employee.getId()))
+                .forEach(employees::add);
         Set<Integer> admins = new HashSet<>(userRepository.findEmployeeIdsByRoleName(RoleName.ADMIN));
         Set<Integer> staff = new HashSet<>(userRepository.findEmployeeIdsByRoleName(RoleName.STAFF));
         Set<Integer> withoutInForceContract = employeeIdsWithoutInForceContract(employees);
@@ -298,13 +303,25 @@ public class TrainingServiceImpl implements TrainingService {
         Map<Integer, List<EmployeeOpenSkill>> openSkills = openSkillsByEmployee(candidates, null);
         Map<Integer, Map<Integer, SkillSnapshot>> snapshots = skillSnapshotsByEmployee(candidates);
         return candidates.stream()
-                .map(employee -> toEmployeeOption(
-                        employee,
-                        passedSkills,
-                        openSkills,
-                        snapshots,
-                        roleOfCandidate(employee.getId(), admins, managers)))
+                .map(employee -> {
+                    RoleName role = roleOfCandidate(employee.getId(), admins, managers);
+                    TrainingEmployeeOption option = toEmployeeOption(employee, passedSkills, openSkills, snapshots, role);
+                    if (role == RoleName.MANAGER) {
+                        option.setManagementBlockReason(managerTrainingBlockReason(employee));
+                    }
+                    return option;
+                })
                 .toList();
+    }
+
+    /** Lý do Manager chưa được ghi danh lớp chứng chỉ quản lý (null nếu đủ điều kiện), cùng quy tắc với ghi danh. */
+    private String managerTrainingBlockReason(Employee employee) {
+        try {
+            requireManagerTrainingContract(employee);
+            return null;
+        } catch (BusinessException ex) {
+            return ex.getMessage();
+        }
     }
 
     @Override
@@ -1346,7 +1363,10 @@ public class TrainingServiceImpl implements TrainingService {
                 .orElseThrow(() -> new BusinessException("Không tìm thấy nhân viên."));
         User account = userRepository.findByEmployee_Id(employeeId).orElse(null);
         ManagementTrainingRules.requireManagerAccount(account);
-        if (employee.getStatus() != EmployeeStatus.ACTIVE) {
+        boolean managerAccount = account.getRole().getRoleName() == RoleName.MANAGER;
+        if (managerAccount) {
+            requireManagerTrainingContract(employee);
+        } else if (employee.getStatus() != EmployeeStatus.ACTIVE) {
             throw new BusinessException("Chỉ được ghi danh Admin hoặc Manager đang làm việc.");
         }
         Integer maxParticipants = trainingClass.getMaxParticipants();
@@ -1367,6 +1387,28 @@ public class TrainingServiceImpl implements TrainingService {
                 .build());
         if (account != null && account.getId() != null) {
             notifyEnrolledEmployees(trainingClass, List.of(account));
+        }
+    }
+
+    /**
+     * Manager chỉ được tham gia đào tạo chứng chỉ quản lý khi đã có hợp đồng hợp lệ (đang hiệu lực
+     * hoặc chờ hiệu lực) thuộc chính Manager đó, và Manager đang được phân công đúng cửa hàng của mình.
+     * Manager chờ hợp đồng có hiệu lực (trạng thái Chờ hoàn thiện hợp đồng) vẫn được học.
+     */
+    private void requireManagerTrainingContract(Employee employee) {
+        String name = employee.getFullName() == null ? "này" : employee.getFullName();
+        if (employee.getStatus() != EmployeeStatus.ACTIVE && employee.getStatus() != EmployeeStatus.PENDING_CONTRACT) {
+            throw new BusinessException("Manager " + name + " không còn làm việc nên không thể ghi danh.");
+        }
+        Store store = employee.getStore();
+        Store managed = storeRepository.findByManager_Id(employee.getId()).orElse(null);
+        if (store == null || managed == null || !Objects.equals(store.getId(), managed.getId())) {
+            throw new BusinessException("Manager " + name + " chưa được phân công quản lý cửa hàng của mình.");
+        }
+        // Hợp đồng lấy theo đúng mã nhân viên nên luôn thuộc chính Manager này.
+        if (!ManagerContractAccess.allowsTraining(
+                employmentContractRepository.findByEmployeeId(employee.getId()), VietnamTime.today())) {
+            throw new BusinessException("Manager " + name + ": " + ManagerContractAccess.TRAINING_REQUIRES_CONTRACT);
         }
     }
 

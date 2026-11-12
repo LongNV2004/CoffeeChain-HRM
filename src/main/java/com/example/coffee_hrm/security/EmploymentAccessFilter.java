@@ -22,13 +22,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @RequiredArgsConstructor
 public class EmploymentAccessFilter extends OncePerRequestFilter {
 
-    private static final Pattern OWN_CONTRACT_FILE = Pattern.compile("^/manager/contract/(\\d+)/file$");
 
     private final ObjectProvider<UserRepository> userRepositories;
     private final ObjectProvider<EmploymentContractRepository> contractRepositories;
@@ -59,7 +56,8 @@ public class EmploymentAccessFilter extends OncePerRequestFilter {
                 request.setAttribute(ManagerContractAccess.REQUEST_LIMIT, limit);
                 String path = pathOf(request);
                 if (limit != ManagerContractAccess.Limit.NONE
-                        && !ManagerContractAccess.allowsWhenLimited(path, request.getMethod())
+                        && !ManagerContractAccess.allowsWhenLimited(path, request.getMethod(), limit,
+                                "true".equalsIgnoreCase(request.getParameter("self")))
                         && !ownsContractFile(path, request.getMethod(), user)) {
                     denyFormerStaff(request, response, ManagerContractAccess.message(limit),
                             ManagerContractAccess.PROFILE_REDIRECT);
@@ -106,22 +104,9 @@ public class EmploymentAccessFilter extends OncePerRequestFilter {
     }
 
     private boolean ownsContractFile(String path, String method, User user) {
-        boolean read = method == null || "GET".equalsIgnoreCase(method) || "HEAD".equalsIgnoreCase(method);
-        if (!read || user.getEmployee() == null || user.getEmployee().getId() == null) {
-            return false;
-        }
-        Matcher matcher = OWN_CONTRACT_FILE.matcher(path);
-        if (!matcher.matches()) {
-            return false;
-        }
-        EmploymentContractRepository contracts = contractRepositories.getIfAvailable();
-        if (contracts == null) {
-            return false;
-        }
-        EmploymentContract contract = contracts.findDetailById(Integer.valueOf(matcher.group(1))).orElse(null);
-        return contract != null
-                && contract.getEmployee() != null
-                && user.getEmployee().getId().equals(contract.getEmployee().getId());
+        return ManagerContractAccess.ownsContractFile(path, method,
+                user.getEmployee() == null ? null : user.getEmployee().getId(),
+                contractRepositories.getIfAvailable());
     }
 
     private void endSession(HttpServletRequest request, HttpServletResponse response, Authentication authentication) {

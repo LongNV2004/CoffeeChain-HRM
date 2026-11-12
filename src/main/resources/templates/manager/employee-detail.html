@@ -133,7 +133,7 @@
         <p>Các ca đã phân công từ hôm nay.</p>
         <p th:if="${#lists.isEmpty(detail.shifts)}" class="is-placeholder">Chưa có lịch làm việc sắp tới.</p>
         <div class="store-table-scroll" th:if="${!#lists.isEmpty(detail.shifts)}">
-            <table class="employee-related-table">
+            <table data-paginate class="employee-related-table">
                 <thead>
                 <tr>
                     <th>Ngày</th>
@@ -157,7 +157,7 @@
         <p>Các bản ghi chấm công gần nhất.</p>
         <p th:if="${#lists.isEmpty(detail.attendances)}" class="is-placeholder">Chưa có lịch sử chấm công.</p>
         <div class="store-table-scroll" th:if="${!#lists.isEmpty(detail.attendances)}">
-            <table class="employee-related-table">
+            <table data-paginate class="employee-related-table">
                 <thead>
                 <tr>
                     <th>Ngày</th>
@@ -184,7 +184,7 @@
         <h2 id="employee-training-title">Khóa đào tạo đã tham gia</h2>
         <p th:if="${#lists.isEmpty(detail.trainings)}" class="is-placeholder">Chưa tham gia khóa đào tạo.</p>
         <div class="store-table-scroll" th:if="${!#lists.isEmpty(detail.trainings)}">
-            <table class="employee-related-table">
+            <table data-paginate class="employee-related-table">
                 <thead>
                 <tr>
                     <th>Khóa học</th>
