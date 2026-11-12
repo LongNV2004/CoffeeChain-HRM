@@ -108,6 +108,10 @@ public class WeeklyScheduleView {
         private boolean canRequestChange;
         /** Ca bung từ đăng ký đã duyệt, chưa có bản ghi phân ca riêng. */
         private boolean appliedFromRegistration;
+        /** Danh sách assignmentId của đồng nghiệp có thể đổi chéo (không trùng cả 2 đầu), nối bằng dấu phẩy. */
+        private String compatibleSwapAssignmentIdsCsv;
+        /** Danh sách employeeId của đồng nghiệp có thể nhận ca thay (không trùng lịch), nối bằng dấu phẩy. */
+        private String compatibleTransferEmployeeIdsCsv;
     }
 
     @Getter

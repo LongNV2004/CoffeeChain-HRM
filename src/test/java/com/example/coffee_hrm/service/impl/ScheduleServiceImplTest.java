@@ -861,6 +861,121 @@ class ScheduleServiceImplTest {
         verify(reliabilityService).recordRescueShiftOnApproval(volunteered, empThu);
     }
 
+    @Test
+    void requestShiftChangeSwapRejectsConflictOnEitherEndImmediately() {
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(empTuan));
+
+        Shift shiftAfternoon = Shift.builder()
+                .id(2).shiftName("Ca Chiều").store(store)
+                .startTime(LocalTime.of(12, 0)).endTime(LocalTime.of(17, 0)).build();
+
+        LocalDate d1 = VietnamTime.today().plusDays(1);
+        LocalDate d2 = VietnamTime.today().plusDays(2);
+
+        ShiftAssignment myAssign = ShiftAssignment.builder()
+                .id(201).employee(empTuan).shift(shiftMorning).workDate(d1).status(AssignmentStatus.ASSIGNED).build();
+        ShiftAssignment colAssign = ShiftAssignment.builder()
+                .id(202).employee(empThu).shift(shiftAfternoon).workDate(d2).status(AssignmentStatus.ASSIGNED).build();
+
+        when(shiftAssignmentRepository.findByIdWithDetails(201)).thenReturn(Optional.of(myAssign));
+        when(shiftAssignmentRepository.findByIdWithDetails(202)).thenReturn(Optional.of(colAssign));
+        when(shiftChangeRequestRepository.existsByAssignment_IdAndStatus(201, ApprovalStatus.PENDING)).thenReturn(false);
+
+        // Đầu của Tuấn bị trùng: Tuấn đã có Ca Chiều ngày d2 rồi
+        when(shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus(30, 1, d1, AssignmentStatus.ASSIGNED))
+                .thenReturn(false);
+        when(shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus(20, 2, d2, AssignmentStatus.ASSIGNED))
+                .thenReturn(true);
+
+        CreateShiftChangeRequestDto dto = CreateShiftChangeRequestDto.builder()
+                .assignmentId(201)
+                .changeType("SWAP")
+                .targetAssignmentId(202)
+                .reason("Đổi ca")
+                .build();
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> scheduleService.requestShiftChange(dto, staffUser));
+        assertTrue(ex.getMessage().contains("Trần Văn Tuấn đã có ca làm việc này trên lịch rồi"));
+        verify(shiftChangeRequestRepository, never()).save(any());
+    }
+
+    @Test
+    void requestShiftChangeTransferRejectsWhenColleagueAlreadyHasShiftImmediately() {
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(empTuan));
+        when(employeeRepository.findById(30)).thenReturn(Optional.of(empThu));
+
+        LocalDate d1 = VietnamTime.today().plusDays(1);
+        ShiftAssignment myAssign = ShiftAssignment.builder()
+                .id(301).employee(empTuan).shift(shiftMorning).workDate(d1).status(AssignmentStatus.ASSIGNED).build();
+
+        when(shiftAssignmentRepository.findByIdWithDetails(301)).thenReturn(Optional.of(myAssign));
+        when(shiftChangeRequestRepository.existsByAssignment_IdAndStatus(301, ApprovalStatus.PENDING)).thenReturn(false);
+        when(shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus(30, 1, d1, AssignmentStatus.ASSIGNED))
+                .thenReturn(true);
+
+        CreateShiftChangeRequestDto dto = CreateShiftChangeRequestDto.builder()
+                .assignmentId(301)
+                .changeType("TRANSFER")
+                .targetEmployeeId(30)
+                .reason("Nhờ làm hộ")
+                .build();
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> scheduleService.requestShiftChange(dto, staffUser));
+        assertTrue(ex.getMessage().contains("Lê Thị Thu đã có ca làm việc này trên lịch rồi"));
+        verify(shiftChangeRequestRepository, never()).save(any());
+    }
+
+    @Test
+    void staffWeeklyScheduleComputesTwoWayCompatibleSwapAndTransferTargets() {
+        when(employeeRepository.findByIdWithStore(20)).thenReturn(Optional.of(empTuan));
+        Shift shiftAfternoon = Shift.builder()
+                .id(2).shiftName("Ca Chiều").store(store)
+                .startTime(LocalTime.of(12, 0)).endTime(LocalTime.of(17, 0)).build();
+        when(shiftRepository.findByStore_IdOrderByStartTimeAsc(1)).thenReturn(List.of(shiftMorning, shiftAfternoon));
+
+        Employee empDuc = Employee.builder().id(40).fullName("Phạm Minh Đức").store(store)
+                .status(EmployeeStatus.ACTIVE).certificationStatus(CertificationStatus.CERTIFIED).build();
+        when(employeeRepository.findByStore_IdAndStatus(1, EmployeeStatus.ACTIVE))
+                .thenReturn(List.of(empTuan, empThu, empDuc));
+
+        LocalDate nextMonday = VietnamTime.today().plusWeeks(1).with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
+        LocalDate nextTuesday = nextMonday.plusDays(1);
+
+        // Tuấn làm Ca Sáng Thứ 2 (id=501) và Ca Chiều Thứ 3 (id=502)
+        ShiftAssignment tuanMonMorning = ShiftAssignment.builder()
+                .id(501).employee(empTuan).shift(shiftMorning).workDate(nextMonday).status(AssignmentStatus.ASSIGNED).build();
+        ShiftAssignment tuanTueAfternoon = ShiftAssignment.builder()
+                .id(502).employee(empTuan).shift(shiftAfternoon).workDate(nextTuesday).status(AssignmentStatus.ASSIGNED).build();
+
+        // Thu cũng làm Ca Sáng Thứ 2 (id=503) và Ca Chiều Thứ 2 (id=504) -> Trùng đầu Thu ở Ca Sáng Thứ 2!
+        ShiftAssignment thuMonMorning = ShiftAssignment.builder()
+                .id(503).employee(empThu).shift(shiftMorning).workDate(nextMonday).status(AssignmentStatus.ASSIGNED).build();
+        ShiftAssignment thuMonAfternoon = ShiftAssignment.builder()
+                .id(504).employee(empThu).shift(shiftAfternoon).workDate(nextMonday).status(AssignmentStatus.ASSIGNED).build();
+
+        // Đức làm Ca Chiều Thứ 3 (id=505 -> trùng đầu Tuấn) và Ca Sáng Thứ 3 (id=506 -> KHÔNG trùng cả 2 đầu với 501 của Tuấn!)
+        ShiftAssignment ducTueAfternoon = ShiftAssignment.builder()
+                .id(505).employee(empDuc).shift(shiftAfternoon).workDate(nextTuesday).status(AssignmentStatus.ASSIGNED).build();
+        ShiftAssignment ducTueMorning = ShiftAssignment.builder()
+                .id(506).employee(empDuc).shift(shiftMorning).workDate(nextTuesday).status(AssignmentStatus.ASSIGNED).build();
+
+        when(shiftAssignmentRepository.findWeeklyAssignmentsForStore(1, nextMonday, nextMonday.plusDays(6), AssignmentStatus.ASSIGNED))
+                .thenReturn(List.of(tuanMonMorning, tuanTueAfternoon, thuMonMorning, thuMonAfternoon, ducTueAfternoon, ducTueMorning));
+
+        WeeklyScheduleView view = scheduleService.getWeeklyScheduleForStaff(staffUser, nextMonday);
+        WeeklyScheduleView.AssignmentItem tuanMonMorningItem = view.getShiftRows().getFirst().getDayCells().getFirst()
+                .getAssignments().stream().filter(a -> a.getAssignmentId().equals(501)).findFirst().orElseThrow();
+
+        // Xét Ca Sáng Thứ 2 (id=501) của Tuấn:
+        // - Swap: 503 (cùng ca), 504 (Thu đã có 503 sáng T2 -> trùng đầu Thu), 505 (Tuấn đã có 502 chiều T3 -> trùng đầu Tuấn),
+        //   chỉ có 506 (Đức làm Sáng T3: Đức rảnh Sáng T2, Tuấn rảnh Sáng T3) là hợp lệ!
+        assertEquals("506", tuanMonMorningItem.getCompatibleSwapAssignmentIdsCsv());
+        // - Transfer: Thu đã làm Sáng T2 (503) nên bị loại, chỉ còn Đức (id=40) rảnh Sáng T2!
+        assertEquals("40", tuanMonMorningItem.getCompatibleTransferEmployeeIdsCsv());
+    }
+
     private User buildUser(Integer id, String username, RoleName roleName, Employee employee) {
         Role role = Role.builder().id(roleName == RoleName.ADMIN ? 1 : (roleName == RoleName.MANAGER ? 2 : 3)).roleName(roleName).build();
         return User.builder()

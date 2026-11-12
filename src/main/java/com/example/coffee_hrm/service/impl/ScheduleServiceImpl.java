@@ -301,6 +301,7 @@ public class ScheduleServiceImpl implements ScheduleService {
                 throw new BusinessException("Hai ca làm việc cùng loại trong cùng một ngày, không thể hoán đổi.");
             }
             targetEmployee = targetAssignment.getEmployee();
+            validateSwapScheduleCompatibility(currentEmployee, targetEmployee, assignment, targetAssignment);
             reasonPrefix = "[Đổi chéo ca với: " + targetEmployee.getFullName() + " - " + targetAssignment.getShift().getShiftName() + " (" + targetAssignment.getWorkDate().format(DATE_FORMATTER) + ")] ";
         } else if ("TRANSFER".equalsIgnoreCase(changeType)) {
             if (request.getTargetEmployeeId() == null) {
@@ -313,7 +314,7 @@ public class ScheduleServiceImpl implements ScheduleService {
             if (!Objects.equals(targetEmployee.getStore().getId(), currentEmployee.getStore().getId())) {
                 throw new BusinessException("Đồng nghiệp được chọn không cùng cửa hàng.");
             }
-            requireCertifiedForSharedSchedule(targetEmployee);
+            validateTransferScheduleCompatibility(currentEmployee, targetEmployee, assignment);
             reasonPrefix = "[Chuyển ca cho: " + targetEmployee.getFullName() + " nhận thay] ";
         } else {
             reasonPrefix = "[Nhờ Quản lý sắp xếp người thay thế] ";
@@ -347,6 +348,18 @@ public class ScheduleServiceImpl implements ScheduleService {
         }
         changeRequest.setTargetAgreedAt(VietnamTime.now());
         if (agreed) {
+            if (changeRequest.getTargetAssignment() != null) {
+                validateSwapScheduleCompatibility(
+                        changeRequest.getEmployee(),
+                        currentEmployee,
+                        changeRequest.getAssignment(),
+                        changeRequest.getTargetAssignment());
+            } else if (changeRequest.getTargetEmployee() != null && changeRequest.getAssignment() != null) {
+                validateTransferScheduleCompatibility(
+                        changeRequest.getEmployee(),
+                        currentEmployee,
+                        changeRequest.getAssignment());
+            }
             changeRequest.setIsTargetAgreed(true);
         } else {
             changeRequest.setIsTargetAgreed(false);
@@ -683,6 +696,10 @@ public class ScheduleServiceImpl implements ScheduleService {
                             .build();
                 })
                 .toList();
+        if (!isManagerView && currentEmpId != null) {
+            populateCompatibleShiftChangeTargets(
+                    currentEmpId, assignments, shifts, assignmentMap, employeeOptions);
+        }
         List<WeeklyScheduleView.ShiftChangeItem> changeItems = requests.stream() .map(this::mapToShiftChangeItem) .toList();
         List<WeeklyScheduleView.ShiftChangeItem> incomingItems = incomingRequests != null ? incomingRequests.stream().map(this::mapToShiftChangeItem).toList() : List.of();
         List<ShiftChangeRequest> openRescueRaw = shiftChangeRequestRepository.findOpenRescueRequestsForStore(store.getId());
@@ -690,6 +707,8 @@ public class ScheduleServiceImpl implements ScheduleService {
                 .filter(req -> req.getAssignment() != null && req.getAssignment().getShift() != null
                         && isShiftStillUpcoming(req.getAssignment().getWorkDate(), req.getAssignment().getShift().getStartTime()))
                 .filter(req -> currentEmpId == null || !Objects.equals(req.getEmployee().getId(), currentEmpId))
+                .filter(req -> currentEmpId == null || !hasShiftOverlapInWeek(
+                        currentEmpId, req.getAssignment().getShift(), req.getAssignment().getWorkDate(), null, shifts, assignmentMap))
                 .map(this::mapToShiftChangeItem)
                 .toList();
         Employee currentStaffObj = currentEmpId == null ? null : activeEmployees.stream()
@@ -1064,5 +1083,245 @@ public class ScheduleServiceImpl implements ScheduleService {
             return !workDate.isBefore(VietnamTime.today());
         }
         return !VietnamTime.isBeforeNow(workDate, startTime);
+    }
+
+    /**
+     * Kiểm tra 2 ca làm việc có trùng mã ca hoặc giao thời gian trong ngày hay không.
+     */
+    private boolean shiftsOverlap(Shift a, Shift b) {
+        if (a == null || b == null) {
+            return false;
+        }
+        if (a.getId() != null && Objects.equals(a.getId(), b.getId())) {
+            return true;
+        }
+        if (a.getStartTime() == null || a.getEndTime() == null || b.getStartTime() == null || b.getEndTime() == null) {
+            return false;
+        }
+        return a.getStartTime().isBefore(b.getEndTime()) && a.getEndTime().isAfter(b.getStartTime());
+    }
+
+    /**
+     * Kiểm tra nhân viên đã có ca trùng giờ (bao gồm cả lịch đăng ký đã duyệt) vào ngày targetDate hay chưa,
+     * ngoại trừ ca excludedAssignmentId (nếu đang xét hoán đổi cùng ngày).
+     */
+    private boolean hasShiftOverlapInWeek(Integer employeeId,
+                                          Shift targetShift,
+                                          LocalDate targetDate,
+                                          Integer excludedAssignmentId,
+                                          List<Shift> storeShifts,
+                                          Map<String, List<WeeklyScheduleView.AssignmentItem>> assignmentMap) {
+        if (employeeId == null || targetShift == null || targetDate == null || storeShifts == null || assignmentMap == null) {
+            return false;
+        }
+        for (Shift s : storeShifts) {
+            if (!shiftsOverlap(s, targetShift)) {
+                continue;
+            }
+            String key = s.getId() + "_" + targetDate;
+            List<WeeklyScheduleView.AssignmentItem> cellItems = assignmentMap.get(key);
+            if (cellItems == null) {
+                continue;
+            }
+            for (WeeklyScheduleView.AssignmentItem item : cellItems) {
+                if (Objects.equals(item.getEmployeeId(), employeeId)
+                        && (excludedAssignmentId == null || !Objects.equals(item.getAssignmentId(), excludedAssignmentId))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Tính danh sách ca đồng nghiệp có thể đổi chéo (không trùng cả 2 đầu) và danh sách đồng nghiệp
+     * có thể nhận ca thay (không trùng lịch) cho từng ca làm việc của nhân viên hiện tại.
+     */
+    private void populateCompatibleShiftChangeTargets(
+            Integer currentEmpId,
+            List<ShiftAssignment> assignments,
+            List<Shift> shifts,
+            Map<String, List<WeeklyScheduleView.AssignmentItem>> assignmentMap,
+            List<WeeklyScheduleView.EmployeeOption> employeeOptions) {
+        if (assignments == null || assignments.isEmpty()) {
+            return;
+        }
+        List<ShiftAssignment> upcomingColleagueAssignments = assignments.stream()
+                .filter(sa -> sa.getEmployee() != null && sa.getShift() != null && sa.getWorkDate() != null)
+                .filter(sa -> !Objects.equals(sa.getEmployee().getId(), currentEmpId))
+                .filter(sa -> isShiftStillUpcoming(sa.getWorkDate(), sa.getShift().getStartTime()))
+                .toList();
+
+        for (ShiftAssignment mySa : assignments) {
+            if (mySa.getEmployee() == null || !Objects.equals(mySa.getEmployee().getId(), currentEmpId)
+                    || mySa.getShift() == null || mySa.getWorkDate() == null) {
+                continue;
+            }
+            if (!isShiftStillUpcoming(mySa.getWorkDate(), mySa.getShift().getStartTime())) {
+                continue;
+            }
+            String key = mySa.getShift().getId() + "_" + mySa.getWorkDate();
+            List<WeeklyScheduleView.AssignmentItem> cellItems = assignmentMap.get(key);
+            if (cellItems == null) {
+                continue;
+            }
+            List<String> swapIds = new ArrayList<>();
+            for (ShiftAssignment colSa : upcomingColleagueAssignments) {
+                Integer colEmpId = colSa.getEmployee().getId();
+                if (Objects.equals(mySa.getShift().getId(), colSa.getShift().getId())
+                        && Objects.equals(mySa.getWorkDate(), colSa.getWorkDate())) {
+                    continue;
+                }
+                // Đầu 1: đồng nghiệp nhận ca của tôi (mySa)
+                if (hasShiftOverlapInWeek(colEmpId, mySa.getShift(), mySa.getWorkDate(), colSa.getId(), shifts, assignmentMap)) {
+                    continue;
+                }
+                if (approvedLeaveCoverage != null
+                        && approvedLeaveCoverage.blocksShift(colEmpId, mySa.getShift().getId(), mySa.getWorkDate())) {
+                    continue;
+                }
+                // Đầu 2: tôi nhận ca của đồng nghiệp (colSa)
+                if (hasShiftOverlapInWeek(currentEmpId, colSa.getShift(), colSa.getWorkDate(), mySa.getId(), shifts, assignmentMap)) {
+                    continue;
+                }
+                if (approvedLeaveCoverage != null
+                        && approvedLeaveCoverage.blocksShift(currentEmpId, colSa.getShift().getId(), colSa.getWorkDate())) {
+                    continue;
+                }
+                swapIds.add(String.valueOf(colSa.getId()));
+            }
+
+            List<String> transferIds = new ArrayList<>();
+            if (employeeOptions != null) {
+                for (WeeklyScheduleView.EmployeeOption empOpt : employeeOptions) {
+                    Integer targetEmpId = empOpt.getEmployeeId();
+                    if (!empOpt.isCertified() || Objects.equals(targetEmpId, currentEmpId)) {
+                        continue;
+                    }
+                    if (hasShiftOverlapInWeek(targetEmpId, mySa.getShift(), mySa.getWorkDate(), null, shifts, assignmentMap)) {
+                        continue;
+                    }
+                    if (approvedLeaveCoverage != null
+                            && approvedLeaveCoverage.blocksShift(targetEmpId, mySa.getShift().getId(), mySa.getWorkDate())) {
+                        continue;
+                    }
+                    transferIds.add(String.valueOf(targetEmpId));
+                }
+            }
+
+            String swapCsv = String.join(",", swapIds);
+            String transferCsv = String.join(",", transferIds);
+            for (WeeklyScheduleView.AssignmentItem item : cellItems) {
+                if (Objects.equals(item.getAssignmentId(), mySa.getId())) {
+                    item.setCompatibleSwapAssignmentIdsCsv(swapCsv);
+                    item.setCompatibleTransferEmployeeIdsCsv(transferCsv);
+                }
+            }
+        }
+    }
+
+    /**
+     * Kiểm tra điều kiện không trùng lịch cả 2 đầu ngay khi nhân viên gửi yêu cầu hoặc đồng nghiệp đồng ý đổi chéo ca.
+     */
+    private void validateSwapScheduleCompatibility(Employee requester,
+                                                   Employee targetEmp,
+                                                   ShiftAssignment assignment,
+                                                   ShiftAssignment targetAssignment) {
+        if (assignment == null || targetAssignment == null || requester == null || targetEmp == null) {
+            return;
+        }
+        if (targetAssignment.getStatus() != AssignmentStatus.ASSIGNED) {
+            throw new BusinessException("Ca đổi chéo không còn hiệu lực.");
+        }
+        if (assignment.getShift() == null || targetAssignment.getShift() == null) {
+            return;
+        }
+        if (Objects.equals(assignment.getShift().getId(), targetAssignment.getShift().getId())
+                && Objects.equals(assignment.getWorkDate(), targetAssignment.getWorkDate())) {
+            throw new BusinessException("Hai ca làm việc cùng loại trong cùng một ngày, không thể hoán đổi.");
+        }
+        if (approvedLeaveCoverage != null) {
+            if (assignment.getWorkDate() != null
+                    && approvedLeaveCoverage.blocksShift(targetEmp.getId(), assignment.getShift().getId(), assignment.getWorkDate())) {
+                throw new BusinessException("Nhân viên " + targetEmp.getFullName()
+                        + " đã được duyệt nghỉ ca này ngày " + assignment.getWorkDate().format(DATE_FORMATTER) + ", không thể đổi chéo.");
+            }
+            if (targetAssignment.getWorkDate() != null
+                    && approvedLeaveCoverage.blocksShift(requester.getId(), targetAssignment.getShift().getId(), targetAssignment.getWorkDate())) {
+                throw new BusinessException("Nhân viên " + requester.getFullName()
+                        + " đã được duyệt nghỉ ca này ngày " + targetAssignment.getWorkDate().format(DATE_FORMATTER) + ", không thể đổi chéo.");
+            }
+        }
+        if (shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus(
+                targetEmp.getId(), assignment.getShift().getId(), assignment.getWorkDate(), AssignmentStatus.ASSIGNED)) {
+            throw new BusinessException("Nhân viên " + targetEmp.getFullName() + " đã có ca làm việc này trên lịch rồi.");
+        }
+        if (shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus(
+                requester.getId(), targetAssignment.getShift().getId(), targetAssignment.getWorkDate(), AssignmentStatus.ASSIGNED)) {
+            throw new BusinessException("Nhân viên " + requester.getFullName() + " đã có ca làm việc này trên lịch rồi.");
+        }
+        if (assignment.getWorkDate() != null) {
+            List<ShiftAssignment> targetExistingSameDay = shiftAssignmentRepository.findByEmployee_IdAndWorkDateAndStatus(
+                    targetEmp.getId(), assignment.getWorkDate(), AssignmentStatus.ASSIGNED);
+            for (ShiftAssignment existing : targetExistingSameDay == null ? List.<ShiftAssignment>of() : targetExistingSameDay) {
+                if (Objects.equals(existing.getId(), targetAssignment.getId())) {
+                    continue;
+                }
+                if (shiftsOverlap(assignment.getShift(), existing.getShift())) {
+                    throw new BusinessException("Nhân viên " + targetEmp.getFullName()
+                            + " bị trùng giờ ca làm việc khác trong ngày " + assignment.getWorkDate().format(DATE_FORMATTER) + ".");
+                }
+            }
+        }
+        if (targetAssignment.getWorkDate() != null) {
+            List<ShiftAssignment> reqExistingSameDay = shiftAssignmentRepository.findByEmployee_IdAndWorkDateAndStatus(
+                    requester.getId(), targetAssignment.getWorkDate(), AssignmentStatus.ASSIGNED);
+            for (ShiftAssignment existing : reqExistingSameDay == null ? List.<ShiftAssignment>of() : reqExistingSameDay) {
+                if (Objects.equals(existing.getId(), assignment.getId())) {
+                    continue;
+                }
+                if (shiftsOverlap(targetAssignment.getShift(), existing.getShift())) {
+                    throw new BusinessException("Nhân viên " + requester.getFullName()
+                            + " bị trùng giờ ca làm việc khác trong ngày " + targetAssignment.getWorkDate().format(DATE_FORMATTER) + ".");
+                }
+            }
+        }
+    }
+
+    /**
+     * Kiểm tra điều kiện không trùng lịch ngay khi nhân viên gửi yêu cầu hoặc đồng nghiệp đồng ý nhận ca thay.
+     */
+    private void validateTransferScheduleCompatibility(Employee requester,
+                                                       Employee targetEmp,
+                                                       ShiftAssignment assignment) {
+        if (targetEmp == null || assignment == null) {
+            return;
+        }
+        if (targetEmp.getStatus() != EmployeeStatus.ACTIVE) {
+            throw new BusinessException("Nhân viên thay thế hiện không ở trạng thái làm việc.");
+        }
+        requireContractCoversShift(targetEmp, assignment.getWorkDate());
+        requireCertifiedForSharedSchedule(targetEmp);
+        if (assignment.getShift() == null || assignment.getWorkDate() == null) {
+            return;
+        }
+        if (approvedLeaveCoverage != null
+                && approvedLeaveCoverage.blocksShift(targetEmp.getId(), assignment.getShift().getId(), assignment.getWorkDate())) {
+            throw new BusinessException("Nhân viên " + targetEmp.getFullName()
+                    + " đã được duyệt nghỉ ca này ngày " + assignment.getWorkDate().format(DATE_FORMATTER) + ", không thể xếp ca.");
+        }
+        if ((requester == null || !Objects.equals(targetEmp.getId(), requester.getId()))
+                && shiftAssignmentRepository.existsByEmployee_IdAndShift_IdAndWorkDateAndStatus(
+                        targetEmp.getId(), assignment.getShift().getId(), assignment.getWorkDate(), AssignmentStatus.ASSIGNED)) {
+            throw new BusinessException("Nhân viên " + targetEmp.getFullName() + " đã có ca làm việc này trên lịch rồi.");
+        }
+        List<ShiftAssignment> targetExistingSameDay = shiftAssignmentRepository.findByEmployee_IdAndWorkDateAndStatus(
+                targetEmp.getId(), assignment.getWorkDate(), AssignmentStatus.ASSIGNED);
+        for (ShiftAssignment existing : targetExistingSameDay == null ? List.<ShiftAssignment>of() : targetExistingSameDay) {
+            if (shiftsOverlap(assignment.getShift(), existing.getShift())) {
+                throw new BusinessException("Nhân viên " + targetEmp.getFullName()
+                        + " bị trùng giờ ca làm việc khác trong ngày " + assignment.getWorkDate().format(DATE_FORMATTER) + ".");
+            }
+        }
     }
 }

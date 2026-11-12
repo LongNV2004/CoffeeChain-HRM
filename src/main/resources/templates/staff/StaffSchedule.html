@@ -420,13 +420,14 @@
 
             <div class="form-group">
                 <label for="assignmentIdInput">Ca làm việc của bạn cần đổi *</label>
-                <select id="assignmentIdInput" name="assignmentId" class="form-control" required>
+                <select id="assignmentIdInput" name="assignmentId" class="form-control" required onchange="filterCompatibleTargets()">
                     <option value="">-- Chọn ca làm việc của bạn trong tuần --</option>
                     <th:block th:each="row : ${schedule.shiftRows}">
                         <th:block th:each="cell : ${row.dayCells}">
                             <th:block th:each="assign : ${cell.assignments}">
                                 <option th:if="${assign.isCurrentStaff and assign.canRequestChange}"
                                         th:value="${assign.assignmentId}"
+                                        th:attr="data-swap-ids=${assign.compatibleSwapAssignmentIdsCsv},data-transfer-ids=${assign.compatibleTransferEmployeeIdsCsv}"
                                         th:text="${row.shiftName + ' (' + row.formattedTime + ') — Ngày ' + #temporals.format(cell.date, 'dd/MM/yyyy')}">
                                     Ca Sáng (07:00 – 12:00) — Ngày 21/09/2026
                                 </option>
@@ -471,7 +472,7 @@
 
             <!-- Target Assignment Selector for SWAP -->
             <div class="form-group" id="swapTargetGroup">
-                <label for="swapSelect">Ca của đồng nghiệp muốn đổi cùng *</label>
+                <label for="swapSelect">Ca của đồng nghiệp muốn đổi cùng (chỉ hiện ca không trùng cả 2 đầu) *</label>
                 <select id="swapSelect" name="targetAssignmentId" class="form-control" required>
                     <option value="">-- Chọn ca của đồng nghiệp trong tuần --</option>
                     <option th:each="cs : ${schedule.colleagueShifts}"
@@ -480,15 +481,15 @@
                         Lê Thị Thu — Ca Chiều (12:00 – 17:00) ngày 22/09
                     </option>
                 </select>
-                <small th:if="${#lists.isEmpty(schedule.colleagueShifts)}" style="color:var(--clay);display:inline-flex;align-items:center;gap:4px;margin-top:6px;">
+                <small id="swapEmptyNotice" style="color:var(--clay);display:none;align-items:center;gap:4px;margin-top:6px;">
                     <i data-lucide="alert-triangle" style="width:14px;height:14px;flex-shrink:0;"></i>
-                    <span>Chưa có ca làm việc nào khác của đồng nghiệp trong tuần này. Bạn có thể chọn "Chuyển ca" hoặc "Nhờ Quản lý tự sắp xếp".</span>
+                    <span>Không có ca đồng nghiệp nào trong tuần thỏa mãn không trùng lịch cả 2 đầu với ca này. Bạn có thể chọn "Nhờ đồng nghiệp nhận thay" hoặc "Nhờ Quản lý tự sắp xếp".</span>
                 </small>
             </div>
 
             <!-- Target Employee Selector for TRANSFER -->
             <div class="form-group" id="transferTargetGroup" style="display:none;">
-                <label for="transferSelect">Đồng nghiệp nhận làm thay *</label>
+                <label for="transferSelect">Đồng nghiệp nhận làm thay (chỉ hiện người không trùng ca này) *</label>
                 <select id="transferSelect" name="targetEmployeeId" class="form-control">
                     <option value="">-- Chọn đồng nghiệp nhận ca --</option>
                     <option th:each="emp : ${schedule.storeEmployees}"
@@ -498,6 +499,10 @@
                         Lê Thị Thu (thult@fpt.edu.vn)
                     </option>
                 </select>
+                <small id="transferEmptyNotice" style="color:var(--clay);display:none;align-items:center;gap:4px;margin-top:6px;">
+                    <i data-lucide="alert-triangle" style="width:14px;height:14px;flex-shrink:0;"></i>
+                    <span>Tất cả đồng nghiệp đủ điều kiện đều đã có ca làm việc trùng giờ với ca này. Bạn có thể chọn "Nhờ Quản lý tự sắp xếp".</span>
+                </small>
             </div>
 
             <!-- Helper Text for MANAGER_ASSIGN -->
@@ -520,6 +525,100 @@
 </div>
 
 <script>
+    let masterSwapOptions = [];
+    let masterTransferOptions = [];
+
+    function initChangeModalOptions() {
+        const swapSelect = document.getElementById('swapSelect');
+        const transferSelect = document.getElementById('transferSelect');
+        if (swapSelect && masterSwapOptions.length === 0) {
+            masterSwapOptions = Array.from(swapSelect.querySelectorAll('option'))
+                .filter(opt => opt.value !== '')
+                .map(opt => ({ value: String(opt.value), text: opt.textContent.trim() }));
+        }
+        if (transferSelect && masterTransferOptions.length === 0) {
+            masterTransferOptions = Array.from(transferSelect.querySelectorAll('option'))
+                .filter(opt => opt.value !== '')
+                .map(opt => ({ value: String(opt.value), text: opt.textContent.trim() }));
+        }
+    }
+
+    function parseCsvSet(raw) {
+        if (!raw || !raw.trim()) return new Set();
+        return new Set(raw.split(',').map(s => s.trim()).filter(Boolean));
+    }
+
+    function filterCompatibleTargets() {
+        initChangeModalOptions();
+        const assignSelect = document.getElementById('assignmentIdInput');
+        const swapSelect = document.getElementById('swapSelect');
+        const transferSelect = document.getElementById('transferSelect');
+        const swapEmptyNotice = document.getElementById('swapEmptyNotice');
+        const transferEmptyNotice = document.getElementById('transferEmptyNotice');
+        if (!assignSelect || !swapSelect || !transferSelect) return;
+
+        const selectedOpt = assignSelect.options[assignSelect.selectedIndex];
+        const hasSelectedShift = selectedOpt && selectedOpt.value !== '';
+        const allowedSwaps = hasSelectedShift ? parseCsvSet(selectedOpt.getAttribute('data-swap-ids')) : null;
+        const allowedTransfers = hasSelectedShift ? parseCsvSet(selectedOpt.getAttribute('data-transfer-ids')) : null;
+
+        const prevSwapVal = swapSelect.value;
+        const filteredSwaps = !hasSelectedShift
+            ? masterSwapOptions
+            : masterSwapOptions.filter(item => allowedSwaps.has(item.value));
+
+        swapSelect.innerHTML = '';
+        const swapPlaceholder = document.createElement('option');
+        swapPlaceholder.value = '';
+        swapPlaceholder.textContent = filteredSwaps.length > 0
+            ? '-- Chọn ca của đồng nghiệp trong tuần --'
+            : '-- Không có ca đồng nghiệp phù hợp (trùng lịch) --';
+        swapSelect.appendChild(swapPlaceholder);
+        filteredSwaps.forEach(item => {
+            const opt = document.createElement('option');
+            opt.value = item.value;
+            opt.textContent = item.text;
+            swapSelect.appendChild(opt);
+        });
+        if (filteredSwaps.some(item => item.value === prevSwapVal)) {
+            swapSelect.value = prevSwapVal;
+        } else {
+            swapSelect.value = '';
+        }
+        if (swapEmptyNotice) {
+            swapEmptyNotice.style.display = (hasSelectedShift && filteredSwaps.length === 0) ? 'inline-flex' : 'none';
+        }
+
+        const prevTransferVal = transferSelect.value;
+        const filteredTransfers = !hasSelectedShift
+            ? masterTransferOptions
+            : masterTransferOptions.filter(item => allowedTransfers.has(item.value));
+
+        transferSelect.innerHTML = '';
+        const transferPlaceholder = document.createElement('option');
+        transferPlaceholder.value = '';
+        transferPlaceholder.textContent = filteredTransfers.length > 0
+            ? '-- Chọn đồng nghiệp nhận ca --'
+            : '-- Không có đồng nghiệp rảnh ở ca này --';
+        transferSelect.appendChild(transferPlaceholder);
+        filteredTransfers.forEach(item => {
+            const opt = document.createElement('option');
+            opt.value = item.value;
+            opt.textContent = item.text;
+            transferSelect.appendChild(opt);
+        });
+        if (filteredTransfers.some(item => item.value === prevTransferVal)) {
+            transferSelect.value = prevTransferVal;
+        } else {
+            transferSelect.value = '';
+        }
+        if (transferEmptyNotice) {
+            transferEmptyNotice.style.display = (hasSelectedShift && filteredTransfers.length === 0) ? 'inline-flex' : 'none';
+        }
+    }
+
+    initChangeModalOptions();
+
     function openChangeModal(assignmentId, shiftTitle) {
         const select = document.getElementById('assignmentIdInput');
         if (select) {
@@ -531,6 +630,7 @@
                 select.value = '';
             }
         }
+        filterCompatibleTargets();
         toggleChangeType('SWAP');
         document.getElementById('changeModal').classList.add('open');
     }
