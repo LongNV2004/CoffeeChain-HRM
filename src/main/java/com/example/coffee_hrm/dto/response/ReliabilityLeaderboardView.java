@@ -153,6 +153,8 @@ public class ReliabilityLeaderboardView {
         private String timeRange;
         private String changeTypeLabel;
         private boolean alreadyRewarded;
+        private boolean monthlyCapped;
+        private int rewardsCountThisMonth;
     }
 
     @Getter

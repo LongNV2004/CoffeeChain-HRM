@@ -390,6 +390,65 @@ class ReliabilityServiceImplTest {
     }
 
     @Test
+    void confirmSwappedShiftCompletionRejectsWhenMonthlyCapReached() {
+        when(storeRepository.findByManager_Id(1)).thenReturn(Optional.of(store));
+        ShiftAssignment assignment = ShiftAssignment.builder().id(504).employee(empRescuer).build();
+        ShiftChangeRequest approvedSwap = ShiftChangeRequest.builder()
+                .id(104)
+                .assignment(assignment)
+                .employee(empRequester)
+                .targetEmployee(empRescuer)
+                .status(ApprovalStatus.APPROVED)
+                .build();
+        when(shiftChangeRequestRepository.findByIdWithDetails(104)).thenReturn(Optional.of(approvedSwap));
+        when(reliabilityScoreLogRepository.existsByEmployee_IdAndActionTypeAndReferenceTypeAndReferenceId(
+                30, ReliabilityActionType.COMPLETE_SWAPPED_SHIFT.getDbValue(), "SHIFT_CHANGE", 104))
+                .thenReturn(false);
+        // Đã nhận 3 lần trong tháng
+        when(reliabilityScoreLogRepository.countByEmployee_IdAndActionTypeInAndCreatedAtBetween(
+                eq(30), any(), any(), any()))
+                .thenReturn(3L);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> reliabilityService.confirmSwappedShiftCompletion(104, managerUser));
+        assertTrue(ex.getMessage().contains("đã đạt giới hạn tối đa 3 lần thưởng hoàn thành ca đổi"));
+        verify(reliabilityScoreLogRepository, never()).save(any());
+    }
+
+    @Test
+    void completedSwappedShiftOnCheckoutSkipsWhenMonthlyCapReached() {
+        LocalDateTime shiftTime = VietnamTime.now().minusHours(4);
+        Shift shift = Shift.builder()
+                .id(5).shiftName("Ca Sáng").store(store)
+                .startTime(shiftTime.toLocalTime()).endTime(shiftTime.toLocalTime().plusHours(4)).build();
+        ShiftAssignment assignment = ShiftAssignment.builder()
+                .id(505).employee(empRescuer).shift(shift).workDate(shiftTime.toLocalDate()).status(AssignmentStatus.ASSIGNED).build();
+        ShiftChangeRequest approvedSwap = ShiftChangeRequest.builder()
+                .id(105).assignment(assignment).employee(empRequester).targetEmployee(empRescuer).status(ApprovalStatus.APPROVED).build();
+        Attendance attendance = Attendance.builder()
+                .id(900).employee(empRescuer).store(store).shift(shift).workDate(shiftTime.toLocalDate())
+                .lateMinutes(0).earlyLeaveMinutes(0).build();
+
+        when(shiftAssignmentRepository.findByEmployee_IdAndWorkDateAndStatus(30, shiftTime.toLocalDate(), AssignmentStatus.ASSIGNED))
+                .thenReturn(List.of(assignment));
+        when(shiftChangeRequestRepository.findAllByAssignmentId(505))
+                .thenReturn(List.of(approvedSwap));
+        when(reliabilityScoreLogRepository.existsByEmployee_IdAndActionTypeAndReferenceTypeAndReferenceId(
+                30, ReliabilityActionType.COMPLETE_SWAPPED_SHIFT.getDbValue(), "SHIFT_CHANGE", 105))
+                .thenReturn(false);
+        // Đã đạt 3 lần trong tháng
+        when(reliabilityScoreLogRepository.countByEmployee_IdAndActionTypeInAndCreatedAtBetween(
+                eq(30), any(), any(), any()))
+                .thenReturn(3L);
+
+        reliabilityService.recordCompletedSwappedShiftOnCheckout(attendance);
+
+        // Không cộng thêm điểm, vẫn giữ 100
+        assertEquals(100, empRescuer.getReliabilityScore());
+        verify(reliabilityScoreLogRepository, never()).save(any());
+    }
+
+    @Test
     void punctualityPenaltyTiersByMinutes() {
         assertEquals(0, ReliabilityServiceImpl.punctualityPenalty(0));
         assertEquals(-2, ReliabilityServiceImpl.punctualityPenalty(20));

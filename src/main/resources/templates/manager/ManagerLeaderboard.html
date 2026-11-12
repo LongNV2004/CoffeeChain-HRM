@@ -62,7 +62,7 @@
             <div class="lb-rule-icon plus-two">+2đ</div>
             <div class="lb-rule-text">
                 <strong>Hoàn thành tốt ca đổi</strong>
-                <span>Đi làm đúng giờ, không về sớm hoặc được Quản lý xác nhận hoàn thành.</span>
+                <span>Đi làm đúng giờ, không về sớm hoặc được Quản lý xác nhận (tối đa 3 lần/tháng, +6đ).</span>
             </div>
         </div>
         <div class="lb-rule-card">
@@ -373,7 +373,8 @@
                     </div>
                     <div>
                         <span th:if="${cand.alreadyRewarded}" class="lb-tier-pill tier-trusted">Đã cộng +2đ</span>
-                        <form th:unless="${cand.alreadyRewarded}"
+                        <span th:if="${!cand.alreadyRewarded and cand.monthlyCapped}" class="lb-tier-pill" style="background:#FEE2E2;color:#991B1B;">Đạt hạn mức (3/3 lần)</span>
+                        <form th:if="${!cand.alreadyRewarded and !cand.monthlyCapped}"
                               th:action="@{/schedule/manager/reliability/confirm-completed/{id}(id=${cand.requestId})}"
                               method="post" style="display:inline;">
                             <input type="hidden" name="month" th:value="${leaderboard.selectedMonth}">
