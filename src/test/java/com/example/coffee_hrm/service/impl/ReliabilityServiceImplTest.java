@@ -397,7 +397,7 @@ class ReliabilityServiceImplTest {
                 .id(202).assignment(a2).employee(empRequester).targetEmployee(empRescuer).status(ApprovalStatus.APPROVED).build();
         when(shiftChangeRequestRepository.findAllForStore(10)).thenReturn(List.of(r1, r2));
 
-        LocalDateTime monthStart = thisMonth.atDay(1).atStartOfDay();
+        LocalDateTime historyStart = thisMonth.minusMonths(5).atDay(1).atStartOfDay();
         LocalDateTime monthEnd = thisMonth.plusMonths(1).atDay(1).atStartOfDay();
         List<ReliabilityScoreLog> logs = List.of(
                 ReliabilityScoreLog.builder().id(1).employee(empRescuer).store(store)
@@ -425,11 +425,52 @@ class ReliabilityServiceImplTest {
         assertTrue(cand2.isMonthlyCapped());
         assertEquals(3, cand2.getRewardsCountThisMonth());
 
-        verify(reliabilityScoreLogRepository).findForStoreInRange(10, monthStart, monthEnd);
+        verify(reliabilityScoreLogRepository, times(1)).findForStoreInRange(10, historyStart, monthEnd);
         verify(reliabilityScoreLogRepository, never())
                 .countByEmployee_IdAndActionTypeInAndCreatedAtBetween(any(), any(), any(), any());
         verify(reliabilityScoreLogRepository, never())
                 .existsByEmployee_IdAndActionTypeAndReferenceTypeAndReferenceId(any(), any(), any(), any());
+    }
+
+    @Test
+    void leaderboardMarksPreviousMonthOvernightSwapAsAlreadyRewardedWhenLoggedNextMonth() {
+        when(storeRepository.findByManager_Id(1)).thenReturn(Optional.of(store));
+        when(employeeRepository.findByStore_IdAndStatus(10, EmployeeStatus.ACTIVE))
+                .thenReturn(List.of(empRescuer, empRequester));
+
+        YearMonth thisMonth = YearMonth.from(VietnamTime.now());
+        YearMonth lastMonth = thisMonth.minusMonths(1);
+        LocalDate endOfLastMonth = lastMonth.atEndOfMonth();
+
+        Shift nightShift = Shift.builder().id(9).shiftName("Ca Đêm").store(store)
+                .startTime(LocalTime.of(22, 0)).endTime(LocalTime.of(2, 0)).build();
+        ShiftAssignment overnightAssignment = ShiftAssignment.builder()
+                .id(699).employee(empRescuer).shift(nightShift).workDate(endOfLastMonth).status(AssignmentStatus.ASSIGNED).build();
+        ShiftChangeRequest overnightSwap = ShiftChangeRequest.builder()
+                .id(250).assignment(overnightAssignment).employee(empRequester).targetEmployee(empRescuer)
+                .status(ApprovalStatus.APPROVED).build();
+        when(shiftChangeRequestRepository.findAllForStore(10)).thenReturn(List.of(overnightSwap));
+
+        // Ca đêm ngày cuối tháng trước check-out rạng sáng ngày 01 tháng này -> log createdAt nằm ở đầu tháng này
+        ReliabilityScoreLog nextMonthCheckoutLog = ReliabilityScoreLog.builder()
+                .id(10).employee(empRescuer).store(store)
+                .actionType(ReliabilityActionType.COMPLETE_SWAPPED_SHIFT.getDbValue())
+                .pointsDelta(2).referenceType("SHIFT_CHANGE").referenceId(250)
+                .createdAt(thisMonth.atDay(1).atTime(2, 5)).build();
+        when(reliabilityScoreLogRepository.findForStoreInRange(eq(10), any(), any()))
+                .thenReturn(List.of(nextMonthCheckoutLog));
+
+        ReliabilityLeaderboardView viewLastMonth = reliabilityService.getLeaderboardForManager(managerUser, lastMonth);
+
+        assertEquals(1, viewLastMonth.getCompletedSwapCandidates().size());
+        ReliabilityLeaderboardView.CompletedSwapCandidate cand = viewLastMonth.getCompletedSwapCandidates().getFirst();
+        assertTrue(cand.isAlreadyRewarded());
+        assertEquals(0, cand.getRewardsCountThisMonth());
+
+        verify(reliabilityScoreLogRepository, times(1)).findForStoreInRange(
+                10,
+                lastMonth.minusMonths(5).atDay(1).atStartOfDay(),
+                lastMonth.plusMonths(2).atDay(1).atStartOfDay());
     }
 
     @Test

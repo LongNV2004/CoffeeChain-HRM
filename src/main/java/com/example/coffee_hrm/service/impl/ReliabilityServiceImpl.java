@@ -597,13 +597,24 @@ public class ReliabilityServiceImpl implements ReliabilityService {
         }
 
         // Điểm chuyên cần tính riêng từng tháng: mỗi tháng khởi đầu 100đ + tổng biến động trong tháng đó.
+        // Khi Quản lý xem tháng trước, lấy thêm log tháng kế tiếp để nhận diện ca đêm cuối tháng check-out sang ngày 01.
+        LocalDateTime historyEndExclusive = (isManagerView && targetMonth.isBefore(currentMonth))
+                ? targetMonth.plusMonths(2).atDay(1).atStartOfDay()
+                : monthEndExclusive;
         List<ReliabilityScoreLog> historyLogs = reliabilityScoreLogRepository.findForStoreInRange(
-                store.getId(), historyStartMonth.atDay(1).atStartOfDay(), monthEndExclusive);
+                store.getId(), historyStartMonth.atDay(1).atStartOfDay(), historyEndExclusive);
         List<ReliabilityScoreLog> monthlyLogs = historyLogs.stream()
                 .filter(l -> l.getCreatedAt() != null
                         && !l.getCreatedAt().isBefore(monthStart)
                         && l.getCreatedAt().isBefore(monthEndExclusive))
                 .toList();
+        List<ReliabilityScoreLog> nextMonthLogs = historyEndExclusive.isAfter(monthEndExclusive)
+                ? historyLogs.stream()
+                        .filter(l -> l.getCreatedAt() != null
+                                && !l.getCreatedAt().isBefore(monthEndExclusive)
+                                && l.getCreatedAt().isBefore(historyEndExclusive))
+                        .toList()
+                : List.of();
 
         Map<Integer, List<ReliabilityScoreLog>> logsByEmployee = new HashMap<>();
         for (ReliabilityScoreLog log : monthlyLogs) {
@@ -763,7 +774,7 @@ public class ReliabilityServiceImpl implements ReliabilityService {
 
         List<ReliabilityLeaderboardView.RescueShiftItem> openRescueShifts = buildOpenRescueShifts(store.getId(), currentStaff);
         List<ReliabilityLeaderboardView.CompletedSwapCandidate> swapCandidates = isManagerView
-                ? buildCompletedSwapCandidates(store.getId(), targetMonth)
+                ? buildCompletedSwapCandidates(store.getId(), targetMonth, monthlyLogs, nextMonthLogs)
                 : List.of();
 
         // "Điểm sau" của từng biến động = 100đ + lũy kế trong tháng (không dùng giá trị cộng dồn cũ trong DB).
@@ -1037,27 +1048,37 @@ public class ReliabilityServiceImpl implements ReliabilityService {
         return items;
     }
 
-    private List<ReliabilityLeaderboardView.CompletedSwapCandidate> buildCompletedSwapCandidates(Integer storeId, YearMonth targetMonth) {
+    private List<ReliabilityLeaderboardView.CompletedSwapCandidate> buildCompletedSwapCandidates(
+            Integer storeId,
+            YearMonth targetMonth,
+            List<ReliabilityScoreLog> monthlyLogs,
+            List<ReliabilityScoreLog> nextMonthLogs) {
         List<ShiftChangeRequest> allRequests = shiftChangeRequestRepository.findAllForStore(storeId);
         if (allRequests == null || allRequests.isEmpty()) {
             return List.of();
         }
         YearMonth selectedMonth = targetMonth != null ? targetMonth : YearMonth.from(VietnamTime.now());
-        LocalDateTime startOfMonth = selectedMonth.atDay(1).atStartOfDay();
-        LocalDateTime endOfMonth = selectedMonth.plusMonths(1).atDay(1).atStartOfDay();
 
-        List<ReliabilityScoreLog> monthLogs = reliabilityScoreLogRepository.findForStoreInRange(
-                storeId, startOfMonth, endOfMonth);
         String completeAction = ReliabilityActionType.COMPLETE_SWAPPED_SHIFT.getDbValue();
         Map<Integer, Long> rewardedCountsByEmp = new HashMap<>();
         Set<Integer> rewardedRequestIds = new HashSet<>();
-        if (monthLogs != null) {
-            for (ReliabilityScoreLog log : monthLogs) {
+        if (monthlyLogs != null) {
+            for (ReliabilityScoreLog log : monthlyLogs) {
                 if (log == null || !completeAction.equalsIgnoreCase(log.getActionType())) {
                     continue;
                 }
                 if (log.getEmployee() != null && log.getEmployee().getId() != null) {
                     rewardedCountsByEmp.merge(log.getEmployee().getId(), 1L, Long::sum);
+                }
+                if (REF_SHIFT_CHANGE.equalsIgnoreCase(log.getReferenceType()) && log.getReferenceId() != null) {
+                    rewardedRequestIds.add(log.getReferenceId());
+                }
+            }
+        }
+        if (nextMonthLogs != null) {
+            for (ReliabilityScoreLog log : nextMonthLogs) {
+                if (log == null || !completeAction.equalsIgnoreCase(log.getActionType())) {
+                    continue;
                 }
                 if (REF_SHIFT_CHANGE.equalsIgnoreCase(log.getReferenceType()) && log.getReferenceId() != null) {
                     rewardedRequestIds.add(log.getReferenceId());
