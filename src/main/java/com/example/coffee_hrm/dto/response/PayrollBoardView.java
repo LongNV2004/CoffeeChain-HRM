@@ -31,6 +31,10 @@ public class PayrollBoardView {
     private final int payableHours;
     private final String payableHoursLabel;
     private final String payrollFundLabel;
+    /** Quỹ lương ca thường + quỹ lương tăng ca = {@link #payrollFundLabel}. */
+    private final String regularFundLabel;
+    private final String overtimeFundLabel;
+    private final int overtimeShifts;
     private final int reviewShifts;
     @Builder.Default
     private final List<StoreOption> stores = List.of();
@@ -67,6 +71,10 @@ public class PayrollBoardView {
         private final int payableHours;
         private final String hourlyRateLabel;
         private final String expectedSalaryLabel;
+        /** Ca tăng ca trong kỳ (đã gồm trong {@link #assignedShifts}). */
+        private final int overtimeShifts;
+        private final String regularSalaryLabel;
+        private final String overtimeSalaryLabel;
         private final String statusKey;
         private final String statusLabel;
     }

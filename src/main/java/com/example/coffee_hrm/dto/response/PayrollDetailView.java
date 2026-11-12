@@ -29,6 +29,11 @@ public class PayrollDetailView {
     private final int payableHours;
     private final String hourlyRateLabel;
     private final String expectedSalaryLabel;
+    /** Tổng lương = lương ca thường + lương tăng ca. */
+    private final int overtimeShifts;
+    private final int overtimeHours;
+    private final String regularSalaryLabel;
+    private final String overtimeSalaryLabel;
     @Builder.Default
     private final List<ShiftRow> shifts = List.of();
 
@@ -46,5 +51,6 @@ public class PayrollDetailView {
         private final String shiftSalaryLabel;
         private final boolean payable;
         private final String unpaidReason;
+        private final boolean overtime;
     }
 }

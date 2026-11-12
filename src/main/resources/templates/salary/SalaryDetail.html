@@ -57,10 +57,19 @@
             <strong th:text="${detail.hourlyRateLabel}">—</strong>
         </article>
         <article>
+            <span>Lương ca thường</span>
+            <strong th:text="${detail.regularSalaryLabel}">0 đ</strong>
+        </article>
+        <article>
+            <span th:text="|Lương tăng ca (${detail.overtimeShifts} ca)|">Lương tăng ca (0 ca)</span>
+            <strong th:text="${detail.overtimeSalaryLabel}">0 đ</strong>
+        </article>
+        <article>
             <span>Tổng lương dự kiến</span>
             <strong th:text="${detail.expectedSalaryLabel}">0 đ</strong>
         </article>
     </section>
+    <p class="salary-note" th:if="${detail.overtimeShifts > 0}">Ca tăng ca được tính lương theo cùng quy tắc với ca thường (mức lương/giờ theo hợp đồng, trừ giờ đi muộn/về sớm). Tổng lương = Lương ca thường + Lương tăng ca.</p>
 
     <div class="salary-actions">
         <span class="salary-badge" th:classappend="${detail.statusKey}" th:text="${detail.statusLabel}">Chưa tính</span>
@@ -91,7 +100,8 @@
                 <tbody>
                 <tr th:each="shift : ${detail.shifts}" th:classappend="${shift.payable} ? 'is-paid' : 'is-unpaid'">
                     <td th:text="${shift.dateLabel}">01/10/2026</td>
-                    <td th:text="${shift.shiftName}">Ca sáng</td>
+                    <td><span th:text="${shift.shiftName}">Ca sáng</span>
+                        <span class="ot-tag" th:if="${shift.overtime}">Tăng ca</span></td>
                     <td th:text="${shift.scheduleLabel}">08:00 – 16:00</td>
                     <td th:text="${shift.checkInLabel}">08:00</td>
                     <td th:text="${shift.checkOutLabel}">16:00</td>

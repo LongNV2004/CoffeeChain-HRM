@@ -363,8 +363,9 @@
         </div>
     </section>
 
-    <!-- Overall Store Schedule (with direct "⇄ Đổi ca" button on current staff's shifts) -->
-    <section class="panel">
+    <!-- Overall Store Schedule (with direct "⇄ Đổi ca" button on current staff's shifts).
+         Chỉ hiện ở trang Đổi ca; trang Lịch làm việc đã có lưới chỉ xem ở trên — tránh hiển thị 2 lịch trùng nhau. -->
+    <section class="panel" th:if="${shiftChangePage}">
         <div class="panel-header" style="flex-wrap:wrap;gap:12px;">
             <div>
                 <h2>Lịch làm việc chung tại cửa hàng</h2>

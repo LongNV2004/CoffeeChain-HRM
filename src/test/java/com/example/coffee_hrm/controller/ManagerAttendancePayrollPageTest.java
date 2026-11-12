@@ -103,9 +103,20 @@ class ManagerAttendancePayrollPageTest {
                 .andExpect(content().string(containsString("Chấm công và lương")))
                 // Chấm công
                 .andExpect(content().string(containsString("Ca thiếu chấm công")))
-                .andExpect(content().string(containsString("Xem chấm công")))
+                // Cột Thao tác: một nút "Xem chi tiết" chứa 2 mục
+                .andExpect(content().string(containsString(">Xem chi tiết</button>")))
+                .andExpect(content().string(containsString(">Chi tiết chấm công</button>")))
+                .andExpect(content().string(containsString(">Chi tiết lương</a>")))
                 // Lương của từng nhân viên
-                .andExpect(content().string(containsString("<th>Lương dự kiến</th>")))
+                .andExpect(content().string(containsString(">Lương dự kiến</th>")))
+                // Gộp "Ca đi muộn" + "Ca về sớm", thêm cột "Tăng ca", bỏ "Thời gian có mặt"
+                .andExpect(content().string(containsString(">Ca đi muộn/về sớm</th>")))
+                .andExpect(content().string(containsString(">Tăng ca</th>")))
+                .andExpect(content().string(not(containsString(">Ca về sớm</th>"))))
+                .andExpect(content().string(not(containsString("Thời gian có mặt"))))
+                // Tổng lương = lương ca thường + lương tăng ca
+                .andExpect(content().string(containsString("Lương ca thường")))
+                .andExpect(content().string(containsString("Lương tăng ca")))
                 .andExpect(content().string(containsString("1.250.000 đ")))
                 .andExpect(content().string(containsString("25.000 đ/giờ")))
                 .andExpect(content().string(containsString("Tổng quỹ lương dự kiến")))
@@ -115,7 +126,7 @@ class ManagerAttendancePayrollPageTest {
                 .andExpect(content().string(not(containsString("employeeId=12"))))
                 .andExpect(content().string(containsString("người đã nghỉ việc hoặc chuyển cửa hàng vẫn có ca trong kỳ")))
                 // Cột nghỉ phép
-                .andExpect(content().string(containsString("<th>Nghỉ phép</th>")))
+                .andExpect(content().string(containsString(">Nghỉ phép</th>")))
                 // Tính lương ngay tại màn hình này; không còn xuất Excel
                 .andExpect(content().string(containsString("action=\"/manager/salary/calculate\"")))
                 .andExpect(content().string(containsString(">Tính lương</button>")))

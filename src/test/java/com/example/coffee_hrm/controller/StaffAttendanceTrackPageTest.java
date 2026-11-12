@@ -136,7 +136,11 @@ class StaffAttendanceTrackPageTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("<h1>Theo dõi chấm công</h1>")))
                 .andExpect(content().string(containsString("Chấm công và lương theo tháng")))
-                .andExpect(content().string(containsString("<th>Lương dự kiến</th>")))
+                .andExpect(content().string(containsString(">Lương dự kiến</th>")))
+                .andExpect(content().string(containsString(">Ca đi muộn/về sớm</th>")))
+                .andExpect(content().string(containsString(">Tăng ca</th>")))
+                .andExpect(content().string(not(containsString("Thời gian có mặt"))))
+                .andExpect(content().string(containsString("Lương ca thường")))
                 .andExpect(content().string(containsString("1.250.000 đ")))
                 .andExpect(content().string(containsString("href=\"/staff/salary/detail?year=2026&amp;month=10&amp;employeeId=11\"")))
                 // Không lộ dữ liệu hoặc thao tác vượt quyền

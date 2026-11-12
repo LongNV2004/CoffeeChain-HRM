@@ -1,5 +1,6 @@
 package com.example.coffee_hrm.service.impl;
 
+import com.example.coffee_hrm.common.enums.ApprovalStatus;
 import com.example.coffee_hrm.common.enums.AssignmentStatus;
 import com.example.coffee_hrm.common.enums.AttendanceStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
@@ -11,6 +12,7 @@ import com.example.coffee_hrm.dto.response.ManagerMonthAttendanceView;
 import com.example.coffee_hrm.dto.response.StaffDayAttendanceView;
 import com.example.coffee_hrm.entity.Attendance;
 import com.example.coffee_hrm.entity.Employee;
+import com.example.coffee_hrm.entity.OvertimeRequest;
 import com.example.coffee_hrm.entity.Shift;
 import com.example.coffee_hrm.entity.ShiftAssignment;
 import com.example.coffee_hrm.entity.Store;
@@ -19,12 +21,14 @@ import com.example.coffee_hrm.entity.TrainingClass;
 import com.example.coffee_hrm.entity.TrainingClassEnrollment;
 import com.example.coffee_hrm.repository.AttendanceRepository;
 import com.example.coffee_hrm.repository.EmployeeRepository;
+import com.example.coffee_hrm.repository.OvertimeRequestRepository;
 import com.example.coffee_hrm.repository.ShiftAssignmentRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.repository.TrainingAttendanceRepository;
 import com.example.coffee_hrm.repository.TrainingClassEnrollmentRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.ManagerDayAttendanceService;
+import com.example.coffee_hrm.service.support.OvertimeShifts;
 import com.example.coffee_hrm.service.support.PeriodLeave;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -62,6 +66,7 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
     private final TrainingAttendanceRepository trainingAttendanceRepository;
     private final TrainingClassEnrollmentRepository trainingClassEnrollmentRepository;
     private final EmployeeRepository employeeRepository;
+    private final OvertimeRequestRepository overtimeRequestRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -365,6 +370,22 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
             }
             scheduled.merge(assignment.getEmployee().getId(), 1, Integer::sum);
         }
+        // Ca tăng ca: ca phân công sinh từ đơn tăng ca đã duyệt (cùng cách nhận diện với bảng lương).
+        Set<Integer> overtimeIds = OvertimeShifts.assignmentIds(approvedOvertime(store, start, end, only), assignments);
+        Map<Integer, Integer> overtimeByEmployee = new LinkedHashMap<>();
+        Set<String> overtimeSlots = new HashSet<>();
+        for (ShiftAssignment assignment : assignments) {
+            if (assignment.getId() == null || !overtimeIds.contains(assignment.getId())
+                    || assignment.getEmployee() == null || assignment.getEmployee().getId() == null) {
+                continue;
+            }
+            overtimeByEmployee.merge(assignment.getEmployee().getId(), 1, Integer::sum);
+            String key = OvertimeShifts.key(assignment.getEmployee().getId(),
+                    assignment.getShift() == null ? null : assignment.getShift().getId(), assignment.getWorkDate());
+            if (key != null) {
+                overtimeSlots.add(key);
+            }
+        }
         Map<Integer, MonthStats> stats = new LinkedHashMap<>();
         Map<Integer, List<MonthLine>> lines = new LinkedHashMap<>();
         Set<String> recordedSlots = new HashSet<>();
@@ -379,7 +400,7 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
                 }
                 MonthStats row = stats.computeIfAbsent(attendance.getEmployee().getId(), ignored -> new MonthStats());
                 lines.computeIfAbsent(attendance.getEmployee().getId(), ignored -> new ArrayList<>())
-                        .add(toMonthLine(attendance));
+                        .add(toMonthLine(attendance, overtimeSlots));
                 if (attendance.getShift() != null && attendance.getShift().getId() != null && attendance.getWorkDate() != null) {
                     recordedSlots.add(slotDayKey(attendance.getEmployee().getId(), attendance.getShift().getId(), attendance.getWorkDate()));
                 }
@@ -418,6 +439,10 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
                     row.earlySlots++;
                     row.earlyMinutes += early;
                 }
+                // Gộp đi muộn/về sớm theo ca: vi phạm cả hai trong cùng một ca chỉ tính 1 ca.
+                if (late > 0 || early > 0) {
+                    row.lateOrEarlySlots++;
+                }
             }
         }
         for (ShiftAssignment assignment : assignments) {
@@ -449,14 +474,19 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
         int completedTotal = 0;
         int lateTotal = 0;
         int earlyTotal = 0;
+        int lateOrEarlyTotal = 0;
+        int overtimeTotal = 0;
         int missingTotal = 0;
         for (Employee employee : roster) {
             int scheduledSlots = scheduled.getOrDefault(employee.getId(), 0);
             scheduledTotal += scheduledSlots;
             MonthStats row = stats.getOrDefault(employee.getId(), new MonthStats());
+            int overtimeSlotCount = overtimeByEmployee.getOrDefault(employee.getId(), 0);
             completedTotal += row.completedSlots;
             lateTotal += row.lateSlots;
             earlyTotal += row.earlySlots;
+            lateOrEarlyTotal += row.lateOrEarlySlots;
+            overtimeTotal += overtimeSlotCount;
             missingTotal += row.missingSlots;
             PeriodLeave.Summary leave = leaveByEmployee.getOrDefault(employee.getId(), PeriodLeave.Summary.NONE);
             leaveTotal += leave.slots();
@@ -478,6 +508,9 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
                     .completedSlots(row.completedSlots)
                     .lateSlots(row.lateSlots)
                     .earlySlots(row.earlySlots)
+                    .lateOrEarlySlots(row.lateOrEarlySlots)
+                    .overtimeSlots(overtimeSlotCount)
+                    .overtime(overtimeSlotCount > 0)
                     .absentSlots(row.absentSlots)
                     .missingSlots(row.missingSlots)
                     .paidHoursLabel(minuteText(row.paidMinutes))
@@ -505,6 +538,8 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
                 .completedSlots(completedTotal)
                 .lateSlots(lateTotal)
                 .earlySlots(earlyTotal)
+                .lateOrEarlySlots(lateOrEarlyTotal)
+                .overtimeSlots(overtimeTotal)
                 .missingSlots(missingTotal)
                 .leaveSlots(leaveTotal)
                 .detailFrom(start.toString())
@@ -839,7 +874,19 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
         return name != null && !name.isBlank();
     }
 
-    private MonthLine toMonthLine(Attendance attendance) {
+    private List<OvertimeRequest> approvedOvertime(Store store, LocalDate start, LocalDate end, Employee only) {
+        if (overtimeRequestRepository == null) {
+            return List.of();
+        }
+        List<OvertimeRequest> approved = overtimeRequestRepository.findByStoreAndDateRangeAndStatuses(
+                store.getId(), start, end, List.of(ApprovalStatus.APPROVED));
+        if (approved == null) {
+            return List.of();
+        }
+        return approved.stream().filter(request -> belongsTo(request.getEmployee(), only)).toList();
+    }
+
+    private MonthLine toMonthLine(Attendance attendance, Set<String> overtimeSlots) {
         boolean checkedIn = attendance.getCheckInTime() != null;
         boolean checkedOut = attendance.getCheckOutTime() != null;
         int late = attendance.getLateMinutes() == null ? 0 : attendance.getLateMinutes();
@@ -878,6 +925,9 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
                 .late(late > 0)
                 .earlyLeave(checkedOut && early > 0)
                 .absent(absent)
+                .overtime(attendance.getEmployee() != null && attendance.getShift() != null
+                        && overtimeSlots.contains(OvertimeShifts.key(attendance.getEmployee().getId(),
+                        attendance.getShift().getId(), attendance.getWorkDate())))
                 .build();
         return new MonthLine(attendance.getWorkDate() == null ? LocalDate.MIN : attendance.getWorkDate(), start, line);
     }
@@ -997,6 +1047,7 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
         private int completedSlots;
         private int lateSlots;
         private int earlySlots;
+        private int lateOrEarlySlots;
         private int absentSlots;
         private int missingSlots;
         private int lateMinutes;
