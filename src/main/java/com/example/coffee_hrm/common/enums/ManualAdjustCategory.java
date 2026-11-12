@@ -10,10 +10,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum ManualAdjustCategory {
 
-    // Các hạng mục theo quy tắc ca làm & chuyên cần (+5đ, +2đ, -10đ, -3đ, -15đ, -2đ/-4đ/-6đ)
-    RESCUE_SHIFT_24H("Hỗ trợ ca gấp (<24h)", 5, ReliabilityActionType.RESCUE_SHIFT_24H),
-    COMPLETE_SWAPPED_SHIFT("Hoàn thành tốt ca đổi", 2, ReliabilityActionType.COMPLETE_SWAPPED_SHIFT),
-    LATE_SHIFT_CANCEL("Xin đổi/hủy ca sát giờ (<24h)", -10, ReliabilityActionType.LATE_SHIFT_CANCEL),
+    // Các hạng mục theo quy tắc ca làm & chuyên cần (các mục tự động +5đ, +2đ, -10đ đã do hệ thống tự xử lý)
     EMERGENCY_DECLINE_PENALTY("Từ chối lời mời hỗ trợ ca gấp (từ lần 3)", -3, ReliabilityActionType.EMERGENCY_DECLINE_PENALTY),
     ABANDONED_ACCEPTED_SHIFT("Nhận ca gấp rồi bỏ ca / vắng mặt", -15, ReliabilityActionType.ABANDONED_ACCEPTED_SHIFT),
     LATE_ARRIVAL_MINOR("Đi muộn / Về sớm (≤30 phút)", -2, ReliabilityActionType.LATE_ARRIVAL),

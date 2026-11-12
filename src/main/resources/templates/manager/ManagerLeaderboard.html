@@ -349,14 +349,14 @@
                 <div style="display:flex;align-items:center;gap:8px;">
                     <i data-lucide="check-circle" style="width:20px;height:20px;color:#15803D;"></i>
                     <div>
-                        <h2 style="margin:0;">Xác nhận hoàn thành tốt ca đổi (+2đ)</h2>
+                        <h2 style="margin:0;" th:text="'Xác nhận hoàn thành tốt ca đổi (+2đ) — ' + ${leaderboard.periodLabel}">Xác nhận hoàn thành tốt ca đổi (+2đ)</h2>
                         <small style="color:var(--ink-soft);">Hệ thống tự cộng +2đ khi nhân viên check-out đúng giờ, hoặc Quản lý có thể xác nhận trực tiếp tại đây.</small>
                     </div>
                 </div>
             </div>
 
             <p th:if="${#lists.isEmpty(leaderboard.completedSwapCandidates)}" style="color:var(--ink-soft);font-size:13.5px;margin:0;">
-                Chưa có đơn đổi ca đã duyệt nào tại cửa hàng.
+                Chưa có đơn đổi ca nào trong tháng này tại cửa hàng.
             </p>
 
             <div class="lb-log-list" th:if="${!#lists.isEmpty(leaderboard.completedSwapCandidates)}">
@@ -463,7 +463,7 @@
                     </optgroup>
                 </select>
                 <small style="color:var(--ink-soft);display:block;margin-top:4px;"
-                       th:text="'Các mục Ca làm &amp; Chuyên cần (+5đ, +2đ, -10đ, -3đ, -15đ, -2đ/-4đ/-6đ) không giới hạn số lần/tháng. Riêng nhóm Khen thưởng/Nhắc nhở khác giới hạn ±' + ${leaderboard.manualAdjustCap} + ' điểm/tháng mỗi nhân viên.'">Hạn mức</small>
+                       th:text="'Các mục Ca làm &amp; Chuyên cần (-3đ, -15đ, -2đ/-4đ/-6đ) không giới hạn số lần/tháng. Riêng nhóm Khen thưởng/Nhắc nhở khác giới hạn ±' + ${leaderboard.manualAdjustCap} + ' điểm/tháng mỗi nhân viên.'">Hạn mức</small>
             </div>
 
             <div class="lb-form-group">

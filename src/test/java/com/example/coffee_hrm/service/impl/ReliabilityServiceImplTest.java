@@ -39,7 +39,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.YearMonth;
 import java.util.List;
 import java.util.Optional;
@@ -134,15 +136,15 @@ class ReliabilityServiceImplTest {
         when(storeRepository.findByManager_Id(1)).thenReturn(Optional.of(store));
         when(employeeRepository.findByIdWithStore(30)).thenReturn(Optional.of(empRescuer));
 
-        reliabilityService.adjustScoreByManager(30, "RESCUE_SHIFT_24H", "Nhận ca gấp tối thứ 6", managerUser);
-        reliabilityService.adjustScoreByManager(30, "LATE_SHIFT_CANCEL", "Xin hủy ca sát giờ", managerUser);
+        reliabilityService.adjustScoreByManager(30, "ABANDONED_ACCEPTED_SHIFT", "Nhận ca gấp rồi bỏ ca", managerUser);
+        reliabilityService.adjustScoreByManager(30, "LATE_ARRIVAL_MINOR", "Đi muộn 15 phút", managerUser);
 
         ArgumentCaptor<ReliabilityScoreLog> logCaptor = ArgumentCaptor.forClass(ReliabilityScoreLog.class);
         verify(reliabilityScoreLogRepository, times(2)).save(logCaptor.capture());
-        assertEquals(ReliabilityActionType.RESCUE_SHIFT_24H.getDbValue(), logCaptor.getAllValues().get(0).getActionType());
-        assertEquals(5, logCaptor.getAllValues().get(0).getPointsDelta());
-        assertEquals(ReliabilityActionType.LATE_SHIFT_CANCEL.getDbValue(), logCaptor.getAllValues().get(1).getActionType());
-        assertEquals(-10, logCaptor.getAllValues().get(1).getPointsDelta());
+        assertEquals(ReliabilityActionType.ABANDONED_ACCEPTED_SHIFT.getDbValue(), logCaptor.getAllValues().get(0).getActionType());
+        assertEquals(-15, logCaptor.getAllValues().get(0).getPointsDelta());
+        assertEquals(ReliabilityActionType.LATE_ARRIVAL.getDbValue(), logCaptor.getAllValues().get(1).getActionType());
+        assertEquals(-2, logCaptor.getAllValues().get(1).getPointsDelta());
     }
 
     @Test
@@ -340,6 +342,36 @@ class ReliabilityServiceImplTest {
         reliabilityService.confirmSwappedShiftCompletion(104, managerUser);
 
         assertEquals(102, empRescuer.getReliabilityScore());
+    }
+
+    @Test
+    void leaderboardShowsOnlyCompletedSwapsForSelectedMonth() {
+        when(storeRepository.findByManager_Id(1)).thenReturn(Optional.of(store));
+        when(employeeRepository.findByStore_IdAndStatus(10, EmployeeStatus.ACTIVE))
+                .thenReturn(List.of(empRescuer, empRequester));
+
+        Shift shift = Shift.builder().id(4).shiftName("Ca Sáng").store(store)
+                .startTime(LocalTime.of(7, 0)).endTime(LocalTime.of(12, 0)).build();
+
+        ShiftAssignment assignNov = ShiftAssignment.builder()
+                .id(601).employee(empRescuer).shift(shift).workDate(LocalDate.of(2026, 11, 15)).status(AssignmentStatus.ASSIGNED).build();
+        ShiftChangeRequest swapNov = ShiftChangeRequest.builder()
+                .id(201).assignment(assignNov).employee(empRequester).targetEmployee(empRescuer).status(ApprovalStatus.APPROVED).build();
+
+        ShiftAssignment assignOct = ShiftAssignment.builder()
+                .id(602).employee(empRescuer).shift(shift).workDate(LocalDate.of(2026, 10, 25)).status(AssignmentStatus.ASSIGNED).build();
+        ShiftChangeRequest swapOct = ShiftChangeRequest.builder()
+                .id(202).assignment(assignOct).employee(empRequester).targetEmployee(empRescuer).status(ApprovalStatus.APPROVED).build();
+
+        when(shiftChangeRequestRepository.findAllForStore(10)).thenReturn(List.of(swapNov, swapOct));
+
+        ReliabilityLeaderboardView viewNov = reliabilityService.getLeaderboardForManager(managerUser, YearMonth.of(2026, 11));
+        assertEquals(1, viewNov.getCompletedSwapCandidates().size());
+        assertEquals(201, viewNov.getCompletedSwapCandidates().getFirst().getRequestId());
+
+        ReliabilityLeaderboardView viewOct = reliabilityService.getLeaderboardForManager(managerUser, YearMonth.of(2026, 10));
+        assertEquals(1, viewOct.getCompletedSwapCandidates().size());
+        assertEquals(202, viewOct.getCompletedSwapCandidates().getFirst().getRequestId());
     }
 
     @Test
