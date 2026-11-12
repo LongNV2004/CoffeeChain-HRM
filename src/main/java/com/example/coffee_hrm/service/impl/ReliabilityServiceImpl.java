@@ -402,19 +402,18 @@ public class ReliabilityServiceImpl implements ReliabilityService {
             throw new BusinessException("Đơn đổi ca này đã được cộng điểm hoàn thành tốt (+2đ) trước đó.");
         }
         ShiftAssignment assignment = request.getAssignment();
-        YearMonth targetMonth = assignment != null && assignment.getWorkDate() != null
-                ? YearMonth.from(assignment.getWorkDate())
-                : YearMonth.from(VietnamTime.now());
-        long rewardedThisMonth = reliabilityScoreLogRepository.countByEmployee_IdAndActionTypeInAndCreatedAtBetween(
-                targetEmp.getId(),
-                List.of(ReliabilityActionType.COMPLETE_SWAPPED_SHIFT.getDbValue()),
-                targetMonth.atDay(1).atStartOfDay(),
-                targetMonth.plusMonths(1).atDay(1).atStartOfDay());
+        YearMonth currentMonth = YearMonth.from(VietnamTime.now());
+        if (assignment == null || assignment.getWorkDate() == null
+                || !YearMonth.from(assignment.getWorkDate()).equals(currentMonth)) {
+            throw new BusinessException("Chỉ có thể xác nhận hoàn thành tốt cho các ca làm việc trong tháng hiện tại ("
+                    + currentMonth.getMonthValue() + "/" + currentMonth.getYear() + ").");
+        }
+        int rewardedThisMonth = countCompletedSwapsRewardedThisMonth(targetEmp.getId());
         if (rewardedThisMonth >= MAX_COMPLETED_SWAP_BONUS_PER_MONTH) {
             throw new BusinessException("Nhân viên " + targetEmp.getFullName()
                     + " đã đạt giới hạn tối đa " + MAX_COMPLETED_SWAP_BONUS_PER_MONTH
                     + " lần thưởng hoàn thành ca đổi (+6đ) trong tháng "
-                    + targetMonth.getMonthValue() + "/" + targetMonth.getYear() + ".");
+                    + currentMonth.getMonthValue() + "/" + currentMonth.getYear() + ".");
         }
         String shiftLabel = assignment != null && assignment.getShift() != null
                 ? assignment.getShift().getShiftName() + " ngày " + assignment.getWorkDate().format(DATE_FORMATTER)
@@ -897,6 +896,8 @@ public class ReliabilityServiceImpl implements ReliabilityService {
                 .minShiftsForAward(MIN_SHIFTS_FOR_AWARD)
                 .minScoreForAward(MIN_SCORE_FOR_AWARD)
                 .manualAdjustCap(MANUAL_ADJUST_MONTHLY_CAP)
+                .maxCompletedSwapsPerMonth(MAX_COMPLETED_SWAP_BONUS_PER_MONTH)
+                .completedSwapBonusPoints(COMPLETED_SWAP_BONUS)
                 .build();
     }
 
@@ -1050,6 +1051,7 @@ public class ReliabilityServiceImpl implements ReliabilityService {
         LocalDateTime startOfMonth = selectedMonth.atDay(1).atStartOfDay();
         LocalDateTime endOfMonth = selectedMonth.plusMonths(1).atDay(1).atStartOfDay();
 
+        Map<Integer, Long> rewardedCountsByEmp = new HashMap<>();
         List<ReliabilityLeaderboardView.CompletedSwapCandidate> list = new ArrayList<>();
         for (ShiftChangeRequest req : allRequests) {
             if (req.getStatus() != ApprovalStatus.APPROVED || req.getTargetEmployee() == null
@@ -1066,11 +1068,14 @@ public class ReliabilityServiceImpl implements ReliabilityService {
                     targetEmp.getId(), ReliabilityActionType.COMPLETE_SWAPPED_SHIFT.getDbValue(),
                     REF_SHIFT_CHANGE, req.getId());
 
-            long rewardedCount = reliabilityScoreLogRepository.countByEmployee_IdAndActionTypeInAndCreatedAtBetween(
-                    targetEmp.getId(),
-                    List.of(ReliabilityActionType.COMPLETE_SWAPPED_SHIFT.getDbValue()),
-                    startOfMonth,
-                    endOfMonth);
+            long rewardedCount = rewardedCountsByEmp.computeIfAbsent(targetEmp.getId(), empId ->
+                    selectedMonth.equals(YearMonth.from(VietnamTime.now()))
+                            ? (long) countCompletedSwapsRewardedThisMonth(empId)
+                            : reliabilityScoreLogRepository.countByEmployee_IdAndActionTypeInAndCreatedAtBetween(
+                                    empId,
+                                    List.of(ReliabilityActionType.COMPLETE_SWAPPED_SHIFT.getDbValue()),
+                                    startOfMonth,
+                                    endOfMonth));
             boolean monthlyCapped = rewardedCount >= MAX_COMPLETED_SWAP_BONUS_PER_MONTH;
 
             ShiftAssignment sa = req.getAssignment();

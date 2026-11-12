@@ -102,7 +102,7 @@
             <div class="lb-rule-icon plus-two">+2đ</div>
             <div class="lb-rule-text">
                 <strong>Hoàn thành tốt ca đổi</strong>
-                <span>Check-out đúng giờ hoặc được Quản lý xác nhận (tối đa 3 lần/tháng, +6đ).</span>
+                <span th:text="'Check-out đúng giờ hoặc được Quản lý xác nhận (tối đa ' + ${leaderboard.maxCompletedSwapsPerMonth} + ' lần/tháng, +' + (${leaderboard.maxCompletedSwapsPerMonth * leaderboard.completedSwapBonusPoints}) + 'đ).'">Check-out đúng giờ hoặc được Quản lý xác nhận (tối đa 3 lần/tháng, +6đ).</span>
             </div>
         </div>
         <div class="lb-rule-card">

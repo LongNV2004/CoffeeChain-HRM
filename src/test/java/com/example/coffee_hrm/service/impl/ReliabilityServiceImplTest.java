@@ -424,7 +424,7 @@ class ReliabilityServiceImplTest {
     @Test
     void confirmSwappedShiftCompletionRejectsWhenMonthlyCapReached() {
         when(storeRepository.findByManager_Id(1)).thenReturn(Optional.of(store));
-        ShiftAssignment assignment = ShiftAssignment.builder().id(504).employee(empRescuer).build();
+        ShiftAssignment assignment = ShiftAssignment.builder().id(504).employee(empRescuer).workDate(VietnamTime.today()).build();
         ShiftChangeRequest approvedSwap = ShiftChangeRequest.builder()
                 .id(104)
                 .assignment(assignment)
@@ -437,14 +437,52 @@ class ReliabilityServiceImplTest {
                 30, ReliabilityActionType.COMPLETE_SWAPPED_SHIFT.getDbValue(), "SHIFT_CHANGE", 104))
                 .thenReturn(false);
         // Đã nhận 3 lần trong tháng
+        YearMonth thisMonth = YearMonth.from(VietnamTime.now());
         when(reliabilityScoreLogRepository.countByEmployee_IdAndActionTypeInAndCreatedAtBetween(
-                eq(30), any(), any(), any()))
+                eq(30),
+                eq(List.of(ReliabilityActionType.COMPLETE_SWAPPED_SHIFT.getDbValue())),
+                eq(thisMonth.atDay(1).atStartOfDay()),
+                eq(thisMonth.plusMonths(1).atDay(1).atStartOfDay())))
                 .thenReturn(3L);
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> reliabilityService.confirmSwappedShiftCompletion(104, managerUser));
         assertTrue(ex.getMessage().contains("đã đạt giới hạn tối đa 3 lần thưởng hoàn thành ca đổi"));
         verify(reliabilityScoreLogRepository, never()).save(any());
+    }
+
+    @Test
+    void confirmSwappedShiftCompletionRejectsPastMonthShift() {
+        when(storeRepository.findByManager_Id(1)).thenReturn(Optional.of(store));
+        LocalDate pastDate = VietnamTime.today().minusMonths(1);
+        ShiftAssignment assignment = ShiftAssignment.builder().id(504).employee(empRescuer).workDate(pastDate).build();
+        ShiftChangeRequest approvedSwap = ShiftChangeRequest.builder()
+                .id(104)
+                .assignment(assignment)
+                .employee(empRequester)
+                .targetEmployee(empRescuer)
+                .status(ApprovalStatus.APPROVED)
+                .build();
+        when(shiftChangeRequestRepository.findByIdWithDetails(104)).thenReturn(Optional.of(approvedSwap));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> reliabilityService.confirmSwappedShiftCompletion(104, managerUser));
+        assertTrue(ex.getMessage().contains("Chỉ có thể xác nhận hoàn thành tốt cho các ca làm việc trong tháng hiện tại"));
+        verify(reliabilityScoreLogRepository, never()).save(any());
+    }
+
+    @Test
+    void countCompletedSwapsRewardedThisMonthReturnsCorrectCount() {
+        YearMonth thisMonth = YearMonth.from(VietnamTime.now());
+        when(reliabilityScoreLogRepository.countByEmployee_IdAndActionTypeInAndCreatedAtBetween(
+                eq(30),
+                eq(List.of(ReliabilityActionType.COMPLETE_SWAPPED_SHIFT.getDbValue())),
+                eq(thisMonth.atDay(1).atStartOfDay()),
+                eq(thisMonth.plusMonths(1).atDay(1).atStartOfDay())))
+                .thenReturn(2L);
+
+        assertEquals(2, reliabilityService.countCompletedSwapsRewardedThisMonth(30));
+        assertEquals(0, reliabilityService.countCompletedSwapsRewardedThisMonth(null));
     }
 
     @Test
@@ -469,8 +507,12 @@ class ReliabilityServiceImplTest {
                 30, ReliabilityActionType.COMPLETE_SWAPPED_SHIFT.getDbValue(), "SHIFT_CHANGE", 105))
                 .thenReturn(false);
         // Đã đạt 3 lần trong tháng
+        YearMonth thisMonth = YearMonth.from(VietnamTime.now());
         when(reliabilityScoreLogRepository.countByEmployee_IdAndActionTypeInAndCreatedAtBetween(
-                eq(30), any(), any(), any()))
+                eq(30),
+                eq(List.of(ReliabilityActionType.COMPLETE_SWAPPED_SHIFT.getDbValue())),
+                eq(thisMonth.atDay(1).atStartOfDay()),
+                eq(thisMonth.plusMonths(1).atDay(1).atStartOfDay())))
                 .thenReturn(3L);
 
         reliabilityService.recordCompletedSwappedShiftOnCheckout(attendance);
