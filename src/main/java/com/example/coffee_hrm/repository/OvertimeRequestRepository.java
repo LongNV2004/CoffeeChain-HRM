@@ -2,9 +2,7 @@ package com.example.coffee_hrm.repository;
 
 import com.example.coffee_hrm.common.enums.ApprovalStatus;
 import com.example.coffee_hrm.entity.OvertimeRequest;
-import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -17,46 +15,78 @@ public interface OvertimeRequestRepository extends JpaRepository<OvertimeRequest
 
     /** Id các ca phân công được tạo từ đơn tăng ca có trạng thái cho trước (vd. đã duyệt). */
     @Query("""
-            SELECT o.assignment.id FROM OvertimeRequest o
-            WHERE o.assignment.id IN :assignmentIds AND o.status = :status
+            SELECT o.createdAssignmentId FROM OvertimeRequest o
+            WHERE o.createdAssignmentId IN :assignmentIds AND o.status = :status
             """)
     List<Integer> findAssignmentIdsByStatus(@Param("assignmentIds") Collection<Integer> assignmentIds,
                                             @Param("status") ApprovalStatus status);
 
     @Query("""
-            SELECT o FROM OvertimeRequest o
-            JOIN FETCH o.employee e
-            JOIN FETCH o.shift s
-            LEFT JOIN FETCH o.resolvedBy rb
-            LEFT JOIN FETCH rb.employee
-            WHERE o.employee.id = :employeeId
-            ORDER BY o.workDate DESC, s.startTime DESC, o.id DESC
+            SELECT r FROM OvertimeRequest r
+            JOIN FETCH r.employee e
+            JOIN FETCH r.store st
+            JOIN FETCH r.shift s
+            LEFT JOIN FETCH r.reviewedBy rb
+            WHERE r.id = :id
             """)
-    List<OvertimeRequest> findByEmployee(@Param("employeeId") Integer employeeId);
+    Optional<OvertimeRequest> findByIdWithDetails(@Param("id") Integer id);
 
     @Query("""
-            SELECT o FROM OvertimeRequest o
-            JOIN FETCH o.employee e
-            JOIN FETCH o.shift s
-            LEFT JOIN FETCH o.resolvedBy rb
-            LEFT JOIN FETCH rb.employee
-            WHERE o.store.id = :storeId
-            ORDER BY o.createdAt DESC, o.id DESC
+            SELECT r FROM OvertimeRequest r
+            JOIN FETCH r.employee e
+            JOIN FETCH r.store st
+            JOIN FETCH r.shift s
+            LEFT JOIN FETCH r.reviewedBy rb
+            WHERE e.id = :employeeId
+            ORDER BY r.workDate DESC, s.startTime ASC, r.createdAt DESC
             """)
-    List<OvertimeRequest> findByStore(@Param("storeId") Integer storeId);
+    List<OvertimeRequest> findAllByEmployeeId(@Param("employeeId") Integer employeeId);
 
     @Query("""
-            SELECT o FROM OvertimeRequest o
-            JOIN FETCH o.shift s
-            WHERE o.employee.id = :employeeId
-              AND o.workDate = :workDate
-              AND o.status IN :statuses
+            SELECT r FROM OvertimeRequest r
+            JOIN FETCH r.employee e
+            JOIN FETCH r.store st
+            JOIN FETCH r.shift s
+            LEFT JOIN FETCH r.reviewedBy rb
+            WHERE st.id = :storeId
+            ORDER BY r.workDate DESC, s.startTime ASC, r.createdAt DESC
             """)
-    List<OvertimeRequest> findActiveOnDate(@Param("employeeId") Integer employeeId,
-                                           @Param("workDate") LocalDate workDate,
-                                           @Param("statuses") Collection<ApprovalStatus> statuses);
+    List<OvertimeRequest> findAllByStoreId(@Param("storeId") Integer storeId);
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT o FROM OvertimeRequest o WHERE o.id = :id")
-    Optional<OvertimeRequest> lockById(@Param("id") Integer id);
+    @Query("""
+            SELECT r FROM OvertimeRequest r
+            JOIN FETCH r.employee e
+            JOIN FETCH r.shift s
+            WHERE e.id = :employeeId
+              AND r.workDate BETWEEN :fromDate AND :toDate
+              AND r.status IN :statuses
+            ORDER BY r.workDate ASC, s.startTime ASC
+            """)
+    List<OvertimeRequest> findByEmployeeAndDateRangeAndStatuses(
+            @Param("employeeId") Integer employeeId,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate,
+            @Param("statuses") Collection<ApprovalStatus> statuses);
+
+    @Query("""
+            SELECT r FROM OvertimeRequest r
+            JOIN FETCH r.employee e
+            JOIN FETCH r.shift s
+            WHERE r.store.id = :storeId
+              AND r.workDate BETWEEN :fromDate AND :toDate
+              AND r.status IN :statuses
+            ORDER BY r.workDate ASC, s.startTime ASC
+            """)
+    List<OvertimeRequest> findByStoreAndDateRangeAndStatuses(
+            @Param("storeId") Integer storeId,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate,
+            @Param("statuses") Collection<ApprovalStatus> statuses);
+
+    boolean existsByEmployee_IdAndShift_IdAndWorkDateAndStatusIn(
+            Integer employeeId,
+            Integer shiftId,
+            LocalDate workDate,
+            Collection<ApprovalStatus> statuses);
 }
+

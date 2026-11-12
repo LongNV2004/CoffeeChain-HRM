@@ -189,7 +189,7 @@ public class ScheduleController {
         try {
             reliabilityService.confirmSwappedShiftCompletion(requestId, user);
             redirectAttributes.addFlashAttribute("successMessage",
-                    "Đã xác nhận nhân viên hoàn thành tốt ca đổi (+2 điểm chuyên cần).");
+                    "Đã xác nhận nhân viên hoàn thành tốt ca đổi (+" + ReliabilityService.COMPLETED_SWAP_BONUS + " điểm chuyên cần).");
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
         }
@@ -257,7 +257,7 @@ public class ScheduleController {
             @AuthenticationPrincipal AuthenticatedUser user,
             Model model) {
 
-        prepareStaffSchedule(user, date, model, true);
+        prepareStaffSchedule(user, date, model, false);
         return "staff/StaffSchedule";
     }
 
@@ -266,16 +266,19 @@ public class ScheduleController {
         model.addAttribute("schedule", scheduleView);
         model.addAttribute("currentEmployeeId", user.getEmployeeId());
         model.addAttribute("shiftChangePage", shiftChangePage);
-        model.addAttribute("schedulePath", shiftChangePage ? "/schedule/staff/shift-change" : "/schedule/staff");
+        model.addAttribute("schedulePath", "/schedule/staff");
         model.addAttribute("coverInvitations", shiftCoverInvitationService.getPendingForStaff(user));
+        model.addAttribute("completedSwapBonusPoints", ReliabilityService.COMPLETED_SWAP_BONUS);
+        model.addAttribute("maxCompletedSwapsPerMonth", ReliabilityService.MAX_COMPLETED_SWAP_BONUS_PER_MONTH);
+        model.addAttribute("rescueShiftBonusPoints", ReliabilityService.RESCUE_SHIFT_BONUS);
+        model.addAttribute("lateCancelPenaltyAbs", Math.abs(ReliabilityService.LATE_CANCEL_PENALTY));
         if (!model.containsAttribute("changeForm")) {
             model.addAttribute("changeForm", new CreateShiftChangeRequestDto());
         }
     }
 
     private String staffScheduleRedirect(String origin, LocalDate currentWeek) {
-        String path = "shift-change".equals(origin) ? "/schedule/staff/shift-change" : "/schedule/staff";
-        return "redirect:" + path + (currentWeek != null ? "?date=" + currentWeek : "");
+        return "redirect:/schedule/staff" + (currentWeek != null ? "?date=" + currentWeek : "");
     }
 
     @PostMapping("/staff/request-change")

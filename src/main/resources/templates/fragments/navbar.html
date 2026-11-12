@@ -249,7 +249,7 @@
                     <a th:href="@{/schedule/manager}" th:classappend="${active == 'schedule'} ? ' is-active'">Lịch làm việc</a>
                     <a th:href="@{/availability/manager}" th:classappend="${active == 'availability'} ? ' is-active'">Đăng kí lịch làm việc</a>
                     <a th:href="@{/availability/manager/limits}" th:classappend="${active == 'slot-limits'} ? ' is-active'">Quản lý ca làm việc</a>
-                    <a th:href="@{/schedule/manager/overtime}" th:classappend="${active == 'overtime'} ? ' is-active'">Đăng kí tăng ca</a>
+                    <a th:href="@{/schedule/manager/overtime}" th:classappend="${active == 'overtime'} ? ' is-active'">Duyệt đơn tăng ca</a>
                 </div>
             </div>
             <div class="coffee-menu-group"
@@ -331,8 +331,7 @@
                     <svg class="coffee-icon coffee-chevron coffee-side-label"><use href="#coffee-i-chevron"/></svg>
                 </button>
                 <div class="coffee-group-children">
-                    <a th:href="@{/schedule/staff}" th:classappend="${active == 'schedule'} ? ' is-active'">Lịch làm việc</a>
-                    <a th:href="@{/schedule/staff/shift-change}" th:classappend="${active == 'shift-change'} ? ' is-active'">Đổi ca</a>
+                    <a th:href="@{/schedule/staff}" th:classappend="${active == 'schedule' or active == 'shift-change'} ? ' is-active'">Lịch làm việc</a>
                     <a th:unless="${staffEmploymentEnded}" th:href="@{/availability}" th:classappend="${active == 'availability'} ? ' is-active'">Đăng kí lịch làm việc</a>
                     <a th:unless="${staffEmploymentEnded}" th:href="@{/schedule/staff/overtime}" th:classappend="${active == 'overtime'} ? ' is-active'">Đăng kí tăng ca</a>
                 </div>
@@ -435,7 +434,7 @@
             <span th:case="'salary'">Quản lý lương</span>
             <span th:case="'contract'">Hợp đồng</span>
             <span th:case="'transfer'">Điều chuyển nhân sự</span>
-            <span th:case="'overtime'">Đăng kí tăng ca</span>
+            <span th:case="'overtime'" th:text="${role == 'manager' ? 'Duyệt đơn tăng ca' : 'Đăng kí tăng ca'}">Đăng kí tăng ca</span>
             <span th:case="'profile'">Hồ sơ cá nhân</span>
             <span th:case="*">CoffeeHRM</span>
         </strong>

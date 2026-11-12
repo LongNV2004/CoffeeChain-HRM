@@ -75,7 +75,7 @@ class ShiftCoverInvitationServiceImplTest {
         duc = employee(40, "Phạm Minh Đức", CertificationStatus.CERTIFIED);
         uncertified = employee(50, "Nhân viên mới", CertificationStatus.NOTCERTIFIED);
 
-        LocalDateTime start = VietnamTime.now().plusHours(6).withSecond(0).withNano(0);
+        LocalDateTime start = VietnamTime.today().plusDays(1).atTime(14, 0);
         shift = Shift.builder().id(2).shiftName("Ca Chiều").store(store)
                 .startTime(start.toLocalTime()).endTime(start.toLocalTime().plusHours(3)).build();
         ShiftAssignment assignment = ShiftAssignment.builder().id(700).employee(requester).shift(shift)

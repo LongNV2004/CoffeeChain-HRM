@@ -22,10 +22,6 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-/**
- * Đơn tăng ca: nhân viên xin làm thêm một ca trong một ngày. Khi được duyệt, nhân viên được làm tối đa
- * {@code 3} ca/ngày (bình thường 2) và hệ thống tạo ca làm đã công bố gắn với đơn.
- */
 @Entity
 @Table(name = "OvertimeRequests")
 @Getter
@@ -34,7 +30,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-@ToString(exclude = {"employee", "store", "shift", "resolvedBy", "assignment"})
+@ToString(exclude = {"employee", "store", "shift", "reviewedBy"})
 public class OvertimeRequest {
 
     @Id
@@ -43,43 +39,46 @@ public class OvertimeRequest {
     @EqualsAndHashCode.Include
     private Integer id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "EmployeeId", nullable = false)
     private Employee employee;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "StoreId", nullable = false)
     private Store store;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "ShiftId", nullable = false)
     private Shift shift;
 
     @Column(name = "WorkDate", nullable = false)
     private LocalDate workDate;
 
-    @Column(name = "Reason", length = 255)
+    @Column(name = "ContractWeeklyQuota")
+    private Integer contractWeeklyQuota;
+
+    @Column(name = "Reason", nullable = false, length = 255)
     private String reason;
 
     @Column(name = "Status", nullable = false, length = 20)
     @Builder.Default
     private ApprovalStatus status = ApprovalStatus.PENDING;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "ReviewedByUserId")
+    private User reviewedBy;
+
+    @Column(name = "ReviewedAt")
+    private LocalDateTime reviewedAt;
+
+    @Column(name = "ReviewNote", length = 255)
+    private String reviewNote;
+
+    @Column(name = "CreatedAssignmentId")
+    private Integer createdAssignmentId;
+
     @CreationTimestamp
     @Column(name = "CreatedAt", nullable = false, updatable = false)
     private LocalDateTime createdAt;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "ResolvedBy")
-    private User resolvedBy;
-
-    @Column(name = "ResolvedAt")
-    private LocalDateTime resolvedAt;
-
-    @Column(name = "RejectReason", length = 500)
-    private String rejectReason;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "AssignmentId")
-    private ShiftAssignment assignment;
 }
+

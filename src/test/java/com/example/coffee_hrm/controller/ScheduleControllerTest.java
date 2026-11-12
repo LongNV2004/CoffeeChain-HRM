@@ -88,6 +88,73 @@ class ScheduleControllerTest {
     }
 
     @Test
+    void managerLeaderboardRendersDynamicCompletedSwapLimitsAndStatuses() throws Exception {
+        ReliabilityLeaderboardView currentView = sampleLeaderboard();
+        currentView.setCurrentMonth(true);
+        currentView.setMaxCompletedSwapsPerMonth(4);
+        currentView.setCompletedSwapBonusPoints(5);
+        currentView.setCompletedSwapCandidates(List.of(
+                ReliabilityLeaderboardView.CompletedSwapCandidate.builder()
+                        .requestId(1).assignmentId(11).replacementEmployeeId(30)
+                        .replacementEmployeeName("Lê Thị Thu").originalEmployeeName("Trần Văn Tuấn")
+                        .shiftName("Ca Sáng").formattedDate("12/11").timeRange("07:00 – 12:00")
+                        .changeTypeLabel("Đổi chéo ca").alreadyRewarded(true).monthlyCapped(false).rewardsCountThisMonth(1).build(),
+                ReliabilityLeaderboardView.CompletedSwapCandidate.builder()
+                        .requestId(2).assignmentId(12).replacementEmployeeId(31)
+                        .replacementEmployeeName("Phạm Minh Đức").originalEmployeeName("Trần Văn Tuấn")
+                        .shiftName("Ca Chiều").formattedDate("13/11").timeRange("12:00 – 17:00")
+                        .changeTypeLabel("Đổi chéo ca").alreadyRewarded(false).monthlyCapped(true).rewardsCountThisMonth(4).build(),
+                ReliabilityLeaderboardView.CompletedSwapCandidate.builder()
+                        .requestId(3).assignmentId(13).replacementEmployeeId(32)
+                        .replacementEmployeeName("Nguyễn Văn A").originalEmployeeName("Trần Văn Tuấn")
+                        .shiftName("Ca Tối").formattedDate("14/11").timeRange("17:00 – 22:00")
+                        .changeTypeLabel("Nhận ca thay / Hỗ trợ ca gấp").alreadyRewarded(false).monthlyCapped(false).rewardsCountThisMonth(2).build()
+        ));
+        when(reliabilityService.getLeaderboardForManager(any(), any())).thenReturn(currentView);
+
+        mockMvc.perform(get("/schedule/manager/leaderboard").with(user(manager())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("tối đa 4 lần/tháng, +20đ")))
+                .andExpect(content().string(containsString("Hoàn thành đổi (+5đ)")))
+                .andExpect(content().string(containsString("Xác nhận hoàn thành tốt ca đổi (+5đ)")))
+                .andExpect(content().string(containsString("Đã cộng +5đ")))
+                .andExpect(content().string(containsString("Đạt hạn mức (4/4 lần)")))
+                .andExpect(content().string(containsString("+5đ Hoàn thành tốt")));
+
+        currentView.setCurrentMonth(false);
+        mockMvc.perform(get("/schedule/manager/leaderboard").param("month", "2026-10").with(user(manager())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Đã qua tháng")));
+    }
+
+    @Test
+    void staffLeaderboardRendersDynamicSwapLimits() throws Exception {
+        ReliabilityLeaderboardView view = sampleLeaderboard();
+        view.setMaxCompletedSwapsPerMonth(4);
+        view.setCompletedSwapBonusPoints(5);
+        when(reliabilityService.getLeaderboardForStaff(any(), any())).thenReturn(view);
+
+        mockMvc.perform(get("/schedule/staff/leaderboard").with(user(staff())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("hoàn thành ca đổi (+5đ)")))
+                .andExpect(content().string(containsString("tối đa 4 lần/tháng, +20đ")))
+                .andExpect(content().string(containsString("Hoàn thành đổi (+5đ)")));
+    }
+
+    @Test
+    void staffScheduleRendersDynamicReliabilityRules() throws Exception {
+        when(scheduleService.getWeeklyScheduleForStaff(any(), any())).thenReturn(sampleWeek(null));
+        when(shiftCoverInvitationService.getPendingForStaff(any())).thenReturn(List.of());
+
+        mockMvc.perform(get("/schedule/staff").with(user(staff())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("trừ " + Math.abs(ReliabilityService.LATE_CANCEL_PENALTY) + " điểm chuyên cần")))
+                .andExpect(content().string(containsString("+" + ReliabilityService.COMPLETED_SWAP_BONUS + " điểm (tối đa "
+                        + ReliabilityService.MAX_COMPLETED_SWAP_BONUS_PER_MONTH + " lần/tháng, +"
+                        + (ReliabilityService.MAX_COMPLETED_SWAP_BONUS_PER_MONTH * ReliabilityService.COMPLETED_SWAP_BONUS) + "đ)")));
+    }
+
+    @Test
     void staffVolunteerRescueShiftRedirectsToLeaderboard() throws Exception {
         mockMvc.perform(post("/schedule/staff/requests/77/rescue")
                         .with(user(staff()))
@@ -136,7 +203,10 @@ class ScheduleControllerTest {
                 .andExpect(content().string(containsString("Lời mời hỗ trợ ca từ Quản lý")))
                 .andExpect(content().string(containsString("Thay Trần Văn Tuấn")))
                 .andExpect(content().string(containsString("từ chối lần này sẽ bị -3đ")))
-                .andExpect(content().string(containsString("/schedule/staff/invitations/900/decline")));
+                .andExpect(content().string(containsString("/schedule/staff/invitations/900/decline")))
+                .andExpect(content().string(containsString("Lịch làm việc chung tại cửa hàng")))
+                .andExpect(content().string(containsString("Lịch sử yêu cầu đổi ca của tôi")))
+                .andExpect(content().string(containsString("⇄ Đổi ca")));
     }
 
     @Test
@@ -151,16 +221,55 @@ class ScheduleControllerTest {
     }
 
     private WeeklyScheduleView sampleWeek(WeeklyScheduleView.ShiftChangeItem pending) {
-        java.time.LocalDate monday = java.time.LocalDate.of(2026, 11, 2);
+        java.time.LocalDate monday = java.time.LocalDate.of(2026, 11, 16);
+        String[] dayNames = {"Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"};
+        java.util.List<WeeklyScheduleView.DayHeader> days = new java.util.ArrayList<>();
+        for (int i = 0; i < 7; i++) {
+            java.time.LocalDate d = monday.plusDays(i);
+            days.add(WeeklyScheduleView.DayHeader.builder()
+                    .date(d).dayOfWeekName(dayNames[i])
+                    .formattedDate(String.format("%02d/%02d", d.getDayOfMonth(), d.getMonthValue()))
+                    .isToday(i == 1).build());
+        }
+        WeeklyScheduleView.AssignmentItem me = WeeklyScheduleView.AssignmentItem.builder()
+                .assignmentId(101).employeeId(30).employeeName("Lê Thị Thu")
+                .isCurrentStaff(true).canRequestChange(true).status("ASSIGNED").build();
+        WeeklyScheduleView.AssignmentItem tuan = WeeklyScheduleView.AssignmentItem.builder()
+                .assignmentId(102).employeeId(31).employeeName("Trần Văn Tuấn")
+                .isCurrentStaff(false).canRequestChange(false).status("ASSIGNED").build();
+        WeeklyScheduleView.AssignmentItem duc = WeeklyScheduleView.AssignmentItem.builder()
+                .assignmentId(103).employeeId(32).employeeName("Phạm Minh Đức")
+                .isCurrentStaff(false).canRequestChange(false).status("ASSIGNED").build();
+
+        java.util.List<WeeklyScheduleView.DayCell> morningCells = new java.util.ArrayList<>();
+        java.util.List<WeeklyScheduleView.DayCell> afternoonCells = new java.util.ArrayList<>();
+        java.util.List<WeeklyScheduleView.DayCell> eveningCells = new java.util.ArrayList<>();
+        for (int i = 0; i < 7; i++) {
+            java.time.LocalDate d = monday.plusDays(i);
+            morningCells.add(WeeklyScheduleView.DayCell.builder().date(d).shiftId(1)
+                    .assignments(i == 0 ? java.util.List.of(duc, tuan) : (i < 6 ? java.util.List.of(me, tuan) : java.util.List.of()))
+                    .build());
+            afternoonCells.add(WeeklyScheduleView.DayCell.builder().date(d).shiftId(2)
+                    .assignments(i < 5 ? java.util.List.of(tuan, me, duc) : (i == 5 ? java.util.List.of(me) : java.util.List.of()))
+                    .build());
+            eveningCells.add(WeeklyScheduleView.DayCell.builder().date(d).shiftId(3)
+                    .assignments(i == 0 ? java.util.List.of(me) : (i < 4 ? java.util.List.of(duc) : java.util.List.of()))
+                    .build());
+        }
+        java.util.List<WeeklyScheduleView.ShiftRow> rows = java.util.List.of(
+                WeeklyScheduleView.ShiftRow.builder().shiftId(1).shiftName("Ca Sáng").formattedTime("07:00 – 12:00").dayCells(morningCells).build(),
+                WeeklyScheduleView.ShiftRow.builder().shiftId(2).shiftName("Ca Chiều").formattedTime("12:00 – 17:00").dayCells(afternoonCells).build(),
+                WeeklyScheduleView.ShiftRow.builder().shiftId(3).shiftName("Ca Tối").formattedTime("17:00 – 22:00").dayCells(eveningCells).build()
+        );
         return WeeklyScheduleView.builder()
-                .storeId(10).storeName("CoffeeHRM").storeAddress("123")
+                .storeId(10).storeName("The Coffee House - Cầu Giấy").storeAddress("122 Cầu Giấy, Hà Nội")
                 .weekStartDate(monday).weekEndDate(monday.plusDays(6))
                 .prevWeekDate(monday.minusWeeks(1)).nextWeekDate(monday.plusWeeks(1))
-                .days(java.util.List.of()).shiftRows(java.util.List.of())
+                .days(days).shiftRows(rows)
                 .storeEmployees(java.util.List.of()).colleagueShifts(java.util.List.of())
                 .pendingShiftChanges(pending == null ? java.util.List.of() : java.util.List.of(pending))
                 .incomingRequests(java.util.List.of()).openRescueRequests(java.util.List.of())
-                .currentStaffReliabilityScore(100).currentStaffTierLabel("Ổn định")
+                .currentStaffReliabilityScore(97).currentStaffTierLabel("Ổn định")
                 .build();
     }
 
@@ -273,6 +382,8 @@ class ScheduleControllerTest {
                 .openRescueShifts(List.of(rescueItem))
                 .completedSwapCandidates(List.of())
                 .recentLogs(List.of())
+                .maxCompletedSwapsPerMonth(ReliabilityService.MAX_COMPLETED_SWAP_BONUS_PER_MONTH)
+                .completedSwapBonusPoints(ReliabilityService.COMPLETED_SWAP_BONUS)
                 .build();
     }
 

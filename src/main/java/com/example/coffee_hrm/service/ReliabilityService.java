@@ -19,6 +19,8 @@ public interface ReliabilityService {
     int INITIAL_SCORE = 100;
     int RESCUE_SHIFT_BONUS = 5;
     int COMPLETED_SWAP_BONUS = 2;
+    /** Giới hạn số lần cộng điểm hoàn thành tốt ca đổi mỗi nhân viên mỗi tháng (tối đa 3 lần = +6đ/tháng). */
+    int MAX_COMPLETED_SWAP_BONUS_PER_MONTH = 3;
     int LATE_CANCEL_PENALTY = -10;
 
     /** Từ chối / để hết hạn lời mời hỗ trợ ca gấp của Quản lý: 2 lần đầu mỗi tháng miễn trừ, từ lần 3 trừ 3đ. */
@@ -77,9 +79,12 @@ public interface ReliabilityService {
 
     /**
      * Tự động cộng điểm (+2đ) khi nhân viên hoàn thành tốt (check-out đúng giờ, không đi muộn/về sớm)
-     * một ca nhận đổi hoặc ca thay thế.
+     * một ca nhận đổi hoặc ca thay thế. Tối đa 3 lần/tháng (+6đ).
      */
     void recordCompletedSwappedShiftOnCheckout(Attendance attendance);
+
+    /** Số lần nhân viên đã được cộng điểm hoàn thành tốt ca đổi trong tháng hiện tại. */
+    int countCompletedSwapsRewardedThisMonth(Integer employeeId);
 
     /**
      * Trừ điểm chuyên cần khi check-out nếu ca đó đi muộn và/hoặc về sớm (theo bậc số phút).
