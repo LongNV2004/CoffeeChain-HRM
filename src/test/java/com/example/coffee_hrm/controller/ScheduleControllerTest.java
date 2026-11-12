@@ -88,6 +88,73 @@ class ScheduleControllerTest {
     }
 
     @Test
+    void managerLeaderboardRendersDynamicCompletedSwapLimitsAndStatuses() throws Exception {
+        ReliabilityLeaderboardView currentView = sampleLeaderboard();
+        currentView.setCurrentMonth(true);
+        currentView.setMaxCompletedSwapsPerMonth(4);
+        currentView.setCompletedSwapBonusPoints(5);
+        currentView.setCompletedSwapCandidates(List.of(
+                ReliabilityLeaderboardView.CompletedSwapCandidate.builder()
+                        .requestId(1).assignmentId(11).replacementEmployeeId(30)
+                        .replacementEmployeeName("Lê Thị Thu").originalEmployeeName("Trần Văn Tuấn")
+                        .shiftName("Ca Sáng").formattedDate("12/11").timeRange("07:00 – 12:00")
+                        .changeTypeLabel("Đổi chéo ca").alreadyRewarded(true).monthlyCapped(false).rewardsCountThisMonth(1).build(),
+                ReliabilityLeaderboardView.CompletedSwapCandidate.builder()
+                        .requestId(2).assignmentId(12).replacementEmployeeId(31)
+                        .replacementEmployeeName("Phạm Minh Đức").originalEmployeeName("Trần Văn Tuấn")
+                        .shiftName("Ca Chiều").formattedDate("13/11").timeRange("12:00 – 17:00")
+                        .changeTypeLabel("Đổi chéo ca").alreadyRewarded(false).monthlyCapped(true).rewardsCountThisMonth(4).build(),
+                ReliabilityLeaderboardView.CompletedSwapCandidate.builder()
+                        .requestId(3).assignmentId(13).replacementEmployeeId(32)
+                        .replacementEmployeeName("Nguyễn Văn A").originalEmployeeName("Trần Văn Tuấn")
+                        .shiftName("Ca Tối").formattedDate("14/11").timeRange("17:00 – 22:00")
+                        .changeTypeLabel("Nhận ca thay / Hỗ trợ ca gấp").alreadyRewarded(false).monthlyCapped(false).rewardsCountThisMonth(2).build()
+        ));
+        when(reliabilityService.getLeaderboardForManager(any(), any())).thenReturn(currentView);
+
+        mockMvc.perform(get("/schedule/manager/leaderboard").with(user(manager())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("tối đa 4 lần/tháng, +20đ")))
+                .andExpect(content().string(containsString("Hoàn thành đổi (+5đ)")))
+                .andExpect(content().string(containsString("Xác nhận hoàn thành tốt ca đổi (+5đ)")))
+                .andExpect(content().string(containsString("Đã cộng +5đ")))
+                .andExpect(content().string(containsString("Đạt hạn mức (4/4 lần)")))
+                .andExpect(content().string(containsString("+5đ Hoàn thành tốt")));
+
+        currentView.setCurrentMonth(false);
+        mockMvc.perform(get("/schedule/manager/leaderboard").param("month", "2026-10").with(user(manager())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Đã qua tháng")));
+    }
+
+    @Test
+    void staffLeaderboardRendersDynamicSwapLimits() throws Exception {
+        ReliabilityLeaderboardView view = sampleLeaderboard();
+        view.setMaxCompletedSwapsPerMonth(4);
+        view.setCompletedSwapBonusPoints(5);
+        when(reliabilityService.getLeaderboardForStaff(any(), any())).thenReturn(view);
+
+        mockMvc.perform(get("/schedule/staff/leaderboard").with(user(staff())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("hoàn thành ca đổi (+5đ)")))
+                .andExpect(content().string(containsString("tối đa 4 lần/tháng, +20đ")))
+                .andExpect(content().string(containsString("Hoàn thành đổi (+5đ)")));
+    }
+
+    @Test
+    void staffScheduleRendersDynamicReliabilityRules() throws Exception {
+        when(scheduleService.getWeeklyScheduleForStaff(any(), any())).thenReturn(sampleWeek(null));
+        when(shiftCoverInvitationService.getPendingForStaff(any())).thenReturn(List.of());
+
+        mockMvc.perform(get("/schedule/staff").with(user(staff())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("trừ " + Math.abs(ReliabilityService.LATE_CANCEL_PENALTY) + " điểm chuyên cần")))
+                .andExpect(content().string(containsString("+" + ReliabilityService.COMPLETED_SWAP_BONUS + " điểm (tối đa "
+                        + ReliabilityService.MAX_COMPLETED_SWAP_BONUS_PER_MONTH + " lần/tháng, +"
+                        + (ReliabilityService.MAX_COMPLETED_SWAP_BONUS_PER_MONTH * ReliabilityService.COMPLETED_SWAP_BONUS) + "đ)")));
+    }
+
+    @Test
     void staffVolunteerRescueShiftRedirectsToLeaderboard() throws Exception {
         mockMvc.perform(post("/schedule/staff/requests/77/rescue")
                         .with(user(staff()))
@@ -315,6 +382,8 @@ class ScheduleControllerTest {
                 .openRescueShifts(List.of(rescueItem))
                 .completedSwapCandidates(List.of())
                 .recentLogs(List.of())
+                .maxCompletedSwapsPerMonth(ReliabilityService.MAX_COMPLETED_SWAP_BONUS_PER_MONTH)
+                .completedSwapBonusPoints(ReliabilityService.COMPLETED_SWAP_BONUS)
                 .build();
     }
 

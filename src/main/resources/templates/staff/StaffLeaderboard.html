@@ -32,7 +32,7 @@
                 <span>Điểm chuyên cần &amp; Hỗ trợ ca gấp</span>
             </div>
             <h1 th:text="'Nhân viên xuất sắc — ' + ${leaderboard.storeName}">Nhân viên xuất sắc</h1>
-            <p th:text="${leaderboard.storeAddress + ' • Mỗi tháng khởi đầu 100 điểm • Nhận hỗ trợ ca (+5đ), hoàn thành ca đổi (+2đ), ưu tiên chọn lịch tuần sau'}">
+            <p th:text="${leaderboard.storeAddress + ' • Mỗi tháng khởi đầu 100 điểm • Nhận hỗ trợ ca (+5đ), hoàn thành ca đổi (+' + leaderboard.completedSwapBonusPoints + 'đ), ưu tiên chọn lịch tuần sau'}">
                 Địa chỉ cửa hàng
             </p>
         </div>
@@ -99,7 +99,7 @@
             </div>
         </div>
         <div class="lb-rule-card">
-            <div class="lb-rule-icon plus-two">+2đ</div>
+            <div class="lb-rule-icon plus-two" th:text="'+' + ${leaderboard.completedSwapBonusPoints} + 'đ'">+2đ</div>
             <div class="lb-rule-text">
                 <strong>Hoàn thành tốt ca đổi</strong>
                 <span th:text="'Check-out đúng giờ hoặc được Quản lý xác nhận (tối đa ' + ${leaderboard.maxCompletedSwapsPerMonth} + ' lần/tháng, +' + (${leaderboard.maxCompletedSwapsPerMonth * leaderboard.completedSwapBonusPoints}) + 'đ).'">Check-out đúng giờ hoặc được Quản lý xác nhận (tối đa 3 lần/tháng, +6đ).</span>
@@ -155,11 +155,11 @@
                         </strong>
                         <span th:if="${rescue.urgentWithin24h}"
                               class="lb-tier-pill" style="background:#FEE2E2;color:#991B1B;border:1px solid #FECACA;display:inline-flex;align-items:center;gap:4px;">
-                            <i data-lucide="flame" style="width:13px;height:13px;"></i> Khẩn cấp (&lt;24h) • Hỗ trợ ca gấp +5đ
+                            <i data-lucide="flame" style="width:13px;height:13px;"></i> Khẩn cấp (&lt;24h) • Hỗ trợ ca gấp <span th:text="'+' + ${rescue.rescueBonusPoints} + 'đ'">+5đ</span>
                         </span>
                         <span th:unless="${rescue.urgentWithin24h}"
                               class="lb-tier-pill tier-standard">
-                            Hỗ trợ đồng nghiệp • Hoàn thành +2đ
+                            Hỗ trợ đồng nghiệp • Hoàn thành <span th:text="'+' + ${leaderboard.completedSwapBonusPoints} + 'đ'">+2đ</span>
                         </span>
                     </div>
                     <div style="font-size:13px;color:var(--ink-soft);margin-top:4px;">
@@ -258,7 +258,7 @@
                     <th>Danh hiệu</th>
                     <th>Biến động tháng</th>
                     <th>Hỗ trợ ca gấp (+5đ)</th>
-                    <th>Hoàn thành đổi (+2đ)</th>
+                    <th th:text="'Hoàn thành đổi (+' + ${leaderboard.completedSwapBonusPoints} + 'đ)'">Hoàn thành đổi (+2đ)</th>
                     <th>Đi muộn / Về sớm</th>
                     <th>Quyền lợi KPI &amp; Lịch</th>
                 </tr>

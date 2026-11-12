@@ -59,7 +59,7 @@
             </div>
         </div>
         <div class="lb-rule-card">
-            <div class="lb-rule-icon plus-two">+2đ</div>
+            <div class="lb-rule-icon plus-two" th:text="'+' + ${leaderboard.completedSwapBonusPoints} + 'đ'">+2đ</div>
             <div class="lb-rule-text">
                 <strong>Hoàn thành tốt ca đổi</strong>
                 <span th:text="'Đi làm đúng giờ, không về sớm hoặc được Quản lý xác nhận (tối đa ' + ${leaderboard.maxCompletedSwapsPerMonth} + ' lần/tháng, +' + (${leaderboard.maxCompletedSwapsPerMonth * leaderboard.completedSwapBonusPoints}) + 'đ).'">Đi làm đúng giờ, không về sớm hoặc được Quản lý xác nhận (tối đa 3 lần/tháng, +6đ).</span>
@@ -185,7 +185,7 @@
                     <th>Danh hiệu</th>
                     <th>Biến động tháng</th>
                     <th>Hỗ trợ ca gấp (+5đ)</th>
-                    <th>Hoàn thành đổi (+2đ)</th>
+                    <th th:text="'Hoàn thành đổi (+' + ${leaderboard.completedSwapBonusPoints} + 'đ)'">Hoàn thành đổi (+2đ)</th>
                     <th>Sát giờ / Từ chối lời mời</th>
                     <th>Đi muộn / Về sớm</th>
                     <th>Đề xuất Thưởng KPI &amp; Lịch</th>
@@ -349,8 +349,8 @@
                 <div style="display:flex;align-items:center;gap:8px;">
                     <i data-lucide="check-circle" style="width:20px;height:20px;color:#15803D;"></i>
                     <div>
-                        <h2 style="margin:0;" th:text="'Xác nhận hoàn thành tốt ca đổi (+2đ) — ' + ${leaderboard.periodLabel}">Xác nhận hoàn thành tốt ca đổi (+2đ)</h2>
-                        <small style="color:var(--ink-soft);">Hệ thống tự cộng +2đ khi nhân viên check-out đúng giờ, hoặc Quản lý có thể xác nhận trực tiếp tại đây.</small>
+                        <h2 style="margin:0;" th:text="'Xác nhận hoàn thành tốt ca đổi (+' + ${leaderboard.completedSwapBonusPoints} + 'đ) — ' + ${leaderboard.periodLabel}">Xác nhận hoàn thành tốt ca đổi (+2đ)</h2>
+                        <small style="color:var(--ink-soft);" th:text="'Hệ thống tự cộng +' + ${leaderboard.completedSwapBonusPoints} + 'đ khi nhân viên check-out đúng giờ, hoặc Quản lý có thể xác nhận trực tiếp tại đây.'">Hệ thống tự cộng +2đ khi nhân viên check-out đúng giờ, hoặc Quản lý có thể xác nhận trực tiếp tại đây.</small>
                     </div>
                 </div>
             </div>
@@ -372,7 +372,7 @@
                         </div>
                     </div>
                     <div>
-                        <span th:if="${cand.alreadyRewarded}" class="lb-tier-pill tier-trusted">Đã cộng +2đ</span>
+                        <span th:if="${cand.alreadyRewarded}" class="lb-tier-pill tier-trusted" th:text="'Đã cộng +' + ${leaderboard.completedSwapBonusPoints} + 'đ'">Đã cộng +2đ</span>
                         <span th:if="${!cand.alreadyRewarded and !leaderboard.currentMonth}" class="lb-tier-pill" style="background:#F3F4F6;color:#6B7280;">Đã qua tháng</span>
                         <span th:if="${!cand.alreadyRewarded and leaderboard.currentMonth and cand.monthlyCapped}" class="lb-tier-pill" style="background:#FEE2E2;color:#991B1B;"
                               th:text="'Đạt hạn mức (' + ${cand.rewardsCountThisMonth} + '/' + ${leaderboard.maxCompletedSwapsPerMonth} + ' lần)'">Đạt hạn mức (3/3 lần)</span>
@@ -380,7 +380,7 @@
                               th:action="@{/schedule/manager/reliability/confirm-completed/{id}(id=${cand.requestId})}"
                               method="post" style="display:inline;">
                             <input type="hidden" name="month" th:value="${leaderboard.selectedMonth}">
-                            <button type="submit" class="lb-btn lb-btn-green">+2đ Hoàn thành tốt</button>
+                            <button type="submit" class="lb-btn lb-btn-green" th:text="'+' + ${leaderboard.completedSwapBonusPoints} + 'đ Hoàn thành tốt'">+2đ Hoàn thành tốt</button>
                         </form>
                     </div>
                 </div>

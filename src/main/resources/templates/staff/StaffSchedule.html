@@ -163,12 +163,12 @@
                         <span class="badge-type"
                               th:if="${rescue.urgentWithin24h}"
                               style="background:#FEE2E2;color:#991B1B;font-weight:700;display:inline-flex;align-items:center;gap:4px;">
-                            <i data-lucide="flame" style="width:13px;height:13px;"></i> Khẩn cấp (&lt;24h) • Hỗ trợ ca gấp +5đ
+                            <i data-lucide="flame" style="width:13px;height:13px;"></i> Khẩn cấp (&lt;24h) • Hỗ trợ ca gấp <span th:text="'+' + ${rescueShiftBonusPoints} + 'đ'">+5đ</span>
                         </span>
                         <span class="badge-type"
                               th:unless="${rescue.urgentWithin24h}"
                               style="background:#E0F2FE;color:#075985;">
-                            Hỗ trợ đồng nghiệp • Hoàn thành +2đ
+                            Hỗ trợ đồng nghiệp • Hoàn thành <span th:text="'+' + ${completedSwapBonusPoints} + 'đ'">+2đ</span>
                         </span>
                     </div>
                     <span class="incoming-date" th:text="${rescue.requestDate}">21/09/2026 09:30</span>
@@ -197,7 +197,7 @@
                                 data-coffee-title="Nhận hỗ trợ ca gấp"
                                 data-coffee-ok="Nhận hỗ trợ ca">
                             <i data-lucide="shield-check" style="width:14px;height:14px;vertical-align:middle;margin-right:2px;"></i> Nhận hỗ trợ ca gấp
-                            <span th:text="${rescue.urgentWithin24h} ? '(+5đ)' : '(+2đ)'">(+5đ)</span>
+                            <span th:text="${rescue.urgentWithin24h} ? ('(+' + ${rescueShiftBonusPoints} + 'đ)') : ('(+' + ${completedSwapBonusPoints} + 'đ)')">(+5đ)</span>
                         </button>
                     </form>
                 </div>
@@ -437,7 +437,7 @@
                 </select>
                 <div style="background:#FFF8E1;border:1px solid #FDE68A;border-radius:6px;padding:8px 12px;font-size:12px;color:#92400E;margin-top:6px;display:flex;align-items:flex-start;gap:6px;">
                     <i data-lucide="alert-triangle" style="width:15px;height:15px;flex-shrink:0;color:#D97706;margin-top:1px;"></i>
-                    <span><strong>Quy tắc Điểm chuyên cần:</strong> Xin hủy/đổi ca sát giờ (trong vòng 24h trước giờ làm) sẽ bị <strong>trừ 10 điểm chuyên cần</strong>. Hoàn thành tốt ca đổi được <strong>+2 điểm (tối đa 3 lần/tháng, +6đ)</strong>.</span>
+                    <span><strong>Quy tắc Điểm chuyên cần:</strong> Xin hủy/đổi ca sát giờ (trong vòng 24h trước giờ làm) sẽ bị <strong th:text="'trừ ' + ${lateCancelPenaltyAbs} + ' điểm chuyên cần'">trừ 10 điểm chuyên cần</strong>. Hoàn thành tốt ca đổi được <strong th:text="'+' + ${completedSwapBonusPoints} + ' điểm (tối đa ' + ${maxCompletedSwapsPerMonth} + ' lần/tháng, +' + (${maxCompletedSwapsPerMonth} * ${completedSwapBonusPoints}) + 'đ)'">+2 điểm (tối đa 3 lần/tháng, +6đ)</strong>.</span>
                 </div>
             </div>
 

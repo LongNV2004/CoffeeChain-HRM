@@ -189,7 +189,7 @@ public class ScheduleController {
         try {
             reliabilityService.confirmSwappedShiftCompletion(requestId, user);
             redirectAttributes.addFlashAttribute("successMessage",
-                    "Đã xác nhận nhân viên hoàn thành tốt ca đổi (+2 điểm chuyên cần).");
+                    "Đã xác nhận nhân viên hoàn thành tốt ca đổi (+" + ReliabilityService.COMPLETED_SWAP_BONUS + " điểm chuyên cần).");
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
         }
@@ -268,6 +268,10 @@ public class ScheduleController {
         model.addAttribute("shiftChangePage", shiftChangePage);
         model.addAttribute("schedulePath", "/schedule/staff");
         model.addAttribute("coverInvitations", shiftCoverInvitationService.getPendingForStaff(user));
+        model.addAttribute("completedSwapBonusPoints", ReliabilityService.COMPLETED_SWAP_BONUS);
+        model.addAttribute("maxCompletedSwapsPerMonth", ReliabilityService.MAX_COMPLETED_SWAP_BONUS_PER_MONTH);
+        model.addAttribute("rescueShiftBonusPoints", ReliabilityService.RESCUE_SHIFT_BONUS);
+        model.addAttribute("lateCancelPenaltyAbs", Math.abs(ReliabilityService.LATE_CANCEL_PENALTY));
         if (!model.containsAttribute("changeForm")) {
             model.addAttribute("changeForm", new CreateShiftChangeRequestDto());
         }

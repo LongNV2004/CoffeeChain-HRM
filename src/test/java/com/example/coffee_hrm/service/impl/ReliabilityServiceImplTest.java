@@ -372,6 +372,64 @@ class ReliabilityServiceImplTest {
         ReliabilityLeaderboardView viewOct = reliabilityService.getLeaderboardForManager(managerUser, YearMonth.of(2026, 10));
         assertEquals(1, viewOct.getCompletedSwapCandidates().size());
         assertEquals(202, viewOct.getCompletedSwapCandidates().getFirst().getRequestId());
+        verify(reliabilityScoreLogRepository, never())
+                .countByEmployee_IdAndActionTypeInAndCreatedAtBetween(any(), any(), any(), any());
+        verify(reliabilityScoreLogRepository, never())
+                .existsByEmployee_IdAndActionTypeAndReferenceTypeAndReferenceId(any(), any(), any(), any());
+    }
+
+    @Test
+    void leaderboardComputesSwapCandidateStatusFromStoreLogsWithoutPerRequestQueries() {
+        when(storeRepository.findByManager_Id(1)).thenReturn(Optional.of(store));
+        when(employeeRepository.findByStore_IdAndStatus(10, EmployeeStatus.ACTIVE))
+                .thenReturn(List.of(empRescuer, empRequester));
+
+        YearMonth thisMonth = YearMonth.from(VietnamTime.now());
+        Shift shift = Shift.builder().id(4).shiftName("Ca Sáng").store(store)
+                .startTime(LocalTime.of(7, 0)).endTime(LocalTime.of(12, 0)).build();
+        ShiftAssignment a1 = ShiftAssignment.builder()
+                .id(601).employee(empRescuer).shift(shift).workDate(thisMonth.atDay(5)).status(AssignmentStatus.ASSIGNED).build();
+        ShiftAssignment a2 = ShiftAssignment.builder()
+                .id(602).employee(empRescuer).shift(shift).workDate(thisMonth.atDay(10)).status(AssignmentStatus.ASSIGNED).build();
+        ShiftChangeRequest r1 = ShiftChangeRequest.builder()
+                .id(201).assignment(a1).employee(empRequester).targetEmployee(empRescuer).status(ApprovalStatus.APPROVED).build();
+        ShiftChangeRequest r2 = ShiftChangeRequest.builder()
+                .id(202).assignment(a2).employee(empRequester).targetEmployee(empRescuer).status(ApprovalStatus.APPROVED).build();
+        when(shiftChangeRequestRepository.findAllForStore(10)).thenReturn(List.of(r1, r2));
+
+        LocalDateTime monthStart = thisMonth.atDay(1).atStartOfDay();
+        LocalDateTime monthEnd = thisMonth.plusMonths(1).atDay(1).atStartOfDay();
+        List<ReliabilityScoreLog> logs = List.of(
+                ReliabilityScoreLog.builder().id(1).employee(empRescuer).store(store)
+                        .actionType(ReliabilityActionType.COMPLETE_SWAPPED_SHIFT.getDbValue())
+                        .pointsDelta(2).referenceType("SHIFT_CHANGE").referenceId(201)
+                        .createdAt(thisMonth.atDay(5).atTime(12, 0)).build(),
+                ReliabilityScoreLog.builder().id(2).employee(empRescuer).store(store)
+                        .actionType(ReliabilityActionType.COMPLETE_SWAPPED_SHIFT.getDbValue())
+                        .pointsDelta(2).referenceType("SHIFT_CHANGE").referenceId(198)
+                        .createdAt(thisMonth.atDay(3).atTime(12, 0)).build(),
+                ReliabilityScoreLog.builder().id(3).employee(empRescuer).store(store)
+                        .actionType(ReliabilityActionType.COMPLETE_SWAPPED_SHIFT.getDbValue())
+                        .pointsDelta(2).referenceType("SHIFT_CHANGE").referenceId(199)
+                        .createdAt(thisMonth.atDay(1).atTime(12, 0)).build()
+        );
+        when(reliabilityScoreLogRepository.findForStoreInRange(eq(10), any(), any())).thenReturn(logs);
+
+        ReliabilityLeaderboardView view = reliabilityService.getLeaderboardForManager(managerUser, thisMonth);
+
+        assertEquals(2, view.getCompletedSwapCandidates().size());
+        ReliabilityLeaderboardView.CompletedSwapCandidate cand1 = view.getCompletedSwapCandidates().get(0);
+        ReliabilityLeaderboardView.CompletedSwapCandidate cand2 = view.getCompletedSwapCandidates().get(1);
+        assertTrue(cand1.isAlreadyRewarded());
+        assertFalse(cand2.isAlreadyRewarded());
+        assertTrue(cand2.isMonthlyCapped());
+        assertEquals(3, cand2.getRewardsCountThisMonth());
+
+        verify(reliabilityScoreLogRepository).findForStoreInRange(10, monthStart, monthEnd);
+        verify(reliabilityScoreLogRepository, never())
+                .countByEmployee_IdAndActionTypeInAndCreatedAtBetween(any(), any(), any(), any());
+        verify(reliabilityScoreLogRepository, never())
+                .existsByEmployee_IdAndActionTypeAndReferenceTypeAndReferenceId(any(), any(), any(), any());
     }
 
     @Test
@@ -520,6 +578,47 @@ class ReliabilityServiceImplTest {
         // Không cộng thêm điểm, vẫn giữ 100
         assertEquals(100, empRescuer.getReliabilityScore());
         verify(reliabilityScoreLogRepository, never()).save(any());
+    }
+
+    @Test
+    void completedSwappedShiftOnCheckoutCountsCapInRecordingMonthForPreviousMonthWorkDate() {
+        YearMonth thisMonth = YearMonth.from(VietnamTime.now());
+        LocalDate lastDayOfPrevMonth = thisMonth.minusMonths(1).atEndOfMonth();
+        Shift shift = Shift.builder()
+                .id(5).shiftName("Ca Đêm").store(store)
+                .startTime(LocalTime.of(22, 0)).endTime(LocalTime.of(2, 0)).build();
+        ShiftAssignment assignment = ShiftAssignment.builder()
+                .id(506).employee(empRescuer).shift(shift).workDate(lastDayOfPrevMonth).status(AssignmentStatus.ASSIGNED).build();
+        ShiftChangeRequest approvedSwap = ShiftChangeRequest.builder()
+                .id(106).assignment(assignment).employee(empRequester).targetEmployee(empRescuer).status(ApprovalStatus.APPROVED).build();
+        Attendance attendance = Attendance.builder()
+                .id(901).employee(empRescuer).store(store).shift(shift).workDate(lastDayOfPrevMonth)
+                .lateMinutes(0).earlyLeaveMinutes(0).build();
+
+        when(shiftAssignmentRepository.findByEmployee_IdAndWorkDateAndStatus(30, lastDayOfPrevMonth, AssignmentStatus.ASSIGNED))
+                .thenReturn(List.of(assignment));
+        when(shiftChangeRequestRepository.findAllByAssignmentId(506))
+                .thenReturn(List.of(approvedSwap));
+        when(reliabilityScoreLogRepository.existsByEmployee_IdAndActionTypeAndReferenceTypeAndReferenceId(
+                30, ReliabilityActionType.COMPLETE_SWAPPED_SHIFT.getDbValue(), "SHIFT_CHANGE", 106))
+                .thenReturn(false);
+        // Tháng ghi điểm (tháng hiện tại) đã đạt 3 lần -> dù workDate thuộc tháng trước vẫn phải chặn
+        when(reliabilityScoreLogRepository.countByEmployee_IdAndActionTypeInAndCreatedAtBetween(
+                eq(30),
+                eq(List.of(ReliabilityActionType.COMPLETE_SWAPPED_SHIFT.getDbValue())),
+                eq(thisMonth.atDay(1).atStartOfDay()),
+                eq(thisMonth.plusMonths(1).atDay(1).atStartOfDay())))
+                .thenReturn(3L);
+
+        reliabilityService.recordCompletedSwappedShiftOnCheckout(attendance);
+
+        assertEquals(100, empRescuer.getReliabilityScore());
+        verify(reliabilityScoreLogRepository, never()).save(any());
+        verify(reliabilityScoreLogRepository).countByEmployee_IdAndActionTypeInAndCreatedAtBetween(
+                eq(30),
+                eq(List.of(ReliabilityActionType.COMPLETE_SWAPPED_SHIFT.getDbValue())),
+                eq(thisMonth.atDay(1).atStartOfDay()),
+                eq(thisMonth.plusMonths(1).atDay(1).atStartOfDay()));
     }
 
     @Test
