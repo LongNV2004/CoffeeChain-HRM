@@ -139,4 +139,12 @@ public interface TrainingAttendanceRepository extends JpaRepository<TrainingAtte
 
         java.time.LocalDateTime getChangedAt();
     }
+
+    /** Toàn bộ bản ghi điểm danh của một lớp (dùng cho cột Điểm danh ở trang Thông tin lớp). */
+    @Query("""
+            SELECT ta FROM TrainingAttendance ta
+            JOIN FETCH ta.employee e
+            WHERE ta.trainingClass.id = :classId
+            """)
+    List<TrainingAttendance> findByClassIdWithEmployee(@Param("classId") Integer classId);
 }

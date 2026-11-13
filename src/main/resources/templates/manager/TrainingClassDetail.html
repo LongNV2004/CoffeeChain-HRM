@@ -47,8 +47,6 @@
                 <p th:if="${classDetail.ended and classDetail.evaluable and (classDetail.trainingType == null or classDetail.trainingType.name() != 'MANAGEMENT_TRAINING')}">Lớp đã kết thúc. Hãy đánh giá từng học viên.</p>
                 <p th:if="${!classDetail.ended}">Chỉ được đánh giá sau khi thời điểm kết thúc của lớp đã qua.</p>
             </div>
-            <button class="primary-btn" type="button" id="open-add-students"
-                    th:if="${classDetail.evaluable and !classDetail.ended}">Thêm nhân viên</button>
         </div>
         <p class="muted" th:if="${classDetail.maxParticipants != null}">
             Sĩ số tối đa: <span th:text="${classDetail.maxParticipants}">20</span>.
@@ -63,6 +61,7 @@
                 <th>Họ tên</th>
                 <th>Email</th>
                 <th>Số điện thoại</th>
+                <th>Điểm danh</th>
                 <th>Kết quả</th>
                 <th>Chứng chỉ</th>
                 <th></th>
@@ -73,6 +72,7 @@
                 <td th:text="${student.fullName}">Name</td>
                 <td th:text="${student.email} ?: '—'">email</td>
                 <td th:text="${student.phone} ?: '—'">phone</td>
+                <td th:replace="~{fragments/trainingClassView :: attendanceCell(${student})}">Có mặt</td>
                 <td>
                     <span class="badge"
                           th:classappend="${student.resultLabel == 'Đạt'} ? ' badge-ok' : (${student.resultLabel == 'Không đạt'} ? ' badge-off' : ' badge-wait')"
@@ -102,54 +102,6 @@
         </table>
     </section>
 </main>
-
-<div class="modal" id="addStudentsModal">
-    <div class="modal-dialog modal-wide">
-        <div class="modal-header">
-            <h2>Thêm nhân viên</h2>
-            <button class="close-btn" type="button" id="close-add-students" aria-label="Đóng">×</button>
-        </div>
-        <form id="add-students-form" th:action="@{/training/classes/{id}/students(id=${classDetail.id})}" method="post">
-            <p class="muted" style="margin-top:0;">Kết quả đạt sẽ cấp Chứng chỉ nhân viên. Kết quả không đạt thì nhân viên chưa có chứng chỉ. Không còn chứng chỉ riêng cho từng kỹ năng.</p>
-            <p class="flash error" id="add-students-error" hidden>Vui lòng chọn ít nhất một nhân viên.</p>
-            <p class="empty" th:if="${availableEmployees == null or #lists.isEmpty(availableEmployees)}">
-                Không còn nhân viên nào của cửa hàng để thêm vào lớp.
-            </p>
-            <div class="enroll-list" th:if="${availableEmployees != null and !#lists.isEmpty(availableEmployees)}">
-                <div class="enroll-head">
-                    <span></span>
-                    <span>Nhân viên</span>
-                    <span>Cửa hàng</span>
-                    <span>Chứng chỉ</span>
-                    <span>Lần gần nhất</span>
-                    <span>Trạng thái</span>
-                </div>
-                <label class="enroll-row" th:each="employee : ${availableEmployees}"
-                       th:classappend="${employee.studyingSameSkill} ? ' is-blocked' : (${employee.hasCertificate} ? ' is-retake' : '')">
-                    <input type="checkbox" name="employeeIds" th:value="${employee.employeeId}"
-                           th:disabled="${employee.studyingSameSkill}">
-                    <span class="enroll-name" th:text="${employee.fullName}">Nhân viên</span>
-                    <span class="enroll-store" th:text="${employee.storeName} ?: '—'">Cửa hàng</span>
-                    <span class="enroll-cert" th:text="${employee.certificationLabel} ?: 'Chưa có Chứng chỉ nhân viên'">Chưa có Chứng chỉ nhân viên</span>
-                    <span class="enroll-latest">
-                        <span class="skill-line" th:each="skill : ${employee.skillStatuses}"
-                              th:text="${skill.latestSummary}">Pha chế: PASS · 01/10/2026</span>
-                    </span>
-                    <span class="enroll-state">
-                        <span class="badge"
-                              th:classappend="${employee.eligibilityLabel == 'Có thể học lại'} ? ' badge-cert' : (${employee.eligibilityLabel == 'Không thể đăng ký'} ? ' badge-off' : ' badge-ok')"
-                              th:text="${employee.eligibilityLabel} ?: 'Có thể đăng ký'">Có thể đăng ký</span>
-                    </span>
-                </label>
-            </div>
-            <div class="modal-footer">
-                <button class="secondary-btn" type="button" id="cancel-add-students">Hủy</button>
-                <button class="primary-btn" type="submit"
-                        th:disabled="${availableEmployees == null or #lists.isEmpty(availableEmployees)}">Thêm vào lớp</button>
-            </div>
-        </form>
-    </div>
-</div>
 
 <div class="modal" id="evaluateModal">
     <div class="modal-dialog">
@@ -187,9 +139,6 @@
 <script th:src="@{/js/ManagerDashboard.js}"></script>
 <script>
     (function () {
-        var addModal = document.getElementById('addStudentsModal');
-        var addForm = document.getElementById('add-students-form');
-        var addError = document.getElementById('add-students-error');
         var evaluateModal = document.getElementById('evaluateModal');
         var evaluateForm = document.getElementById('evaluateForm');
 
@@ -199,41 +148,6 @@
 
         function closeModal(modal) {
             modal.classList.remove('open');
-        }
-
-        var openAdd = document.getElementById('open-add-students');
-        if (openAdd) {
-        openAdd.addEventListener('click', function () {
-            if (addError) {
-                addError.hidden = true;
-            }
-            openModal(addModal);
-        });
-        }
-        document.getElementById('close-add-students').addEventListener('click', function () {
-            closeModal(addModal);
-        });
-        document.getElementById('cancel-add-students').addEventListener('click', function () {
-            closeModal(addModal);
-        });
-        addModal.addEventListener('click', function (event) {
-            if (event.target === addModal) {
-                closeModal(addModal);
-            }
-        });
-        if (addForm) {
-            addForm.addEventListener('submit', function (event) {
-                if (!addForm.querySelector('input[name="employeeIds"]:checked:not(:disabled)')) {
-                    event.preventDefault();
-                    if (addError) {
-                        addError.hidden = false;
-                        var studyingBlocked = addForm.querySelector('label.is-blocked input[name="employeeIds"]');
-                        addError.textContent = studyingBlocked
-                            ? 'Nhân viên đang học kỹ năng này ở lớp còn hiệu lực không thể đăng ký vào lớp khác.'
-                            : 'Vui lòng chọn ít nhất một nhân viên.';
-                    }
-                }
-            });
         }
 
         document.querySelectorAll('.evaluate-student').forEach(function (button) {

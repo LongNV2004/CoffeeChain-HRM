@@ -15,15 +15,6 @@ public class AttendancePolicyProperties {
 
     private int lateThresholdMinutes = 20;
 
-    /**
-     * true: cho Check-out sớm và lưu số phút thiếu.
-     * false: không cho Check-out trước giờ kết thúc ca.
-     */
-    private boolean allowEarlyCheckout = true;
-
-    /** Số phút sau giờ vào ca thì nhân viên mới được Check-out. */
-    private int minimumShiftMinutesBeforeCheckout = 120;
-
     /** Check-out sau giờ kết thúc ca từ số phút này thì tính check-out muộn. */
     private int lateCheckoutThresholdMinutes = 120;
 
@@ -36,5 +27,13 @@ public class AttendancePolicyProperties {
     /** Đào tạo: Check-out mở trước giờ kết thúc buổi số phút này. */
     private int trainingCheckoutLeadMinutes = 5;
 
-    private int radiusMeters = 500;
+    /**
+     * Máy chủ đặt trong mạng cửa hàng (chạy local/LAN): request đến từ IP nội bộ hoặc loopback thì người dùng
+     * đang ở cùng mạng với máy chủ, nên IP mạng của họ chính là IP public của máy chủ. true: dùng IP public của
+     * máy chủ để so khớp với danh sách IP cửa hàng. Không áp dụng khi request đi qua proxy/tunnel (có forwarding header).
+     */
+    private boolean localNetworkUsesServerPublicIp = true;
+
+    /** Thời gian lưu tạm IP public của máy chủ (giây) trước khi tra lại. */
+    private int serverPublicIpCacheSeconds = 300;
 }

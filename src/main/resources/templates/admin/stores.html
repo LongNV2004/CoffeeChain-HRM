@@ -123,7 +123,7 @@
                             <p class="chain-store-kicker">Chi nhánh</p>
                             <h3 th:text="${store.storeName}">Tên cửa hàng</h3>
                             <small>Mã cửa hàng: <span th:text="${store.id}">1</span></small>
-                            <small th:if="${store.latitude == null or store.longitude == null}">Chưa có vị trí chấm công</small>
+                            <small th:if="${#lists.isEmpty(store.allowedIps)}">Chưa cấu hình IP chấm công</small>
                         </div>
                     </div>
                     <span class="store-badge"
@@ -213,7 +213,8 @@
 </section>
 <script th:src="@{/js/AdminDashboard.js}"></script>
 <script th:src="@{/js/store-form.js}" defer></script>
-<script th:src="@{/js/store-location.js}" defer></script>
+<!-- Form sửa mở trong modal (nạp bằng fetch, script của trang sửa không chạy): nút "Lấy IP mạng hiện tại" cần script này. -->
+<script th:src="@{/js/store-ip.js}" defer></script>
 <script th:src="@{/js/StoreManagement.js}" defer></script>
 </body>
 </html>

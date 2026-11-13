@@ -9,7 +9,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Entity
 @Table(name = "Stores")
@@ -19,7 +21,7 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-@ToString(exclude = {"manager", "employees", "operatingHours", "shifts", "trainingCourses"})
+@ToString(exclude = {"manager", "employees", "operatingHours", "shifts", "trainingCourses", "allowedIps"})
 public class Store {
 
     @Id
@@ -58,6 +60,10 @@ public class Store {
     @Column(name = "OpeningDate")
     private LocalDate openingDate;
 
+    /*
+     * Tọa độ cũ của cơ chế chấm công GPS. Không còn dùng để chấm công và không hiển thị trên giao diện;
+     * giữ lại để bảo toàn dữ liệu đã lưu trong database.
+     */
     @Column(name = "Latitude", precision = 10, scale = 7)
     private BigDecimal latitude;
 
@@ -66,6 +72,16 @@ public class Store {
 
     @Column(name = "LocationUpdatedAt")
     private LocalDateTime locationUpdatedAt;
+
+    /**
+     * Địa chỉ IP mạng được phép chấm công (đã chuẩn hóa). Chỉ Admin thay đổi qua form thông tin cửa hàng.
+     * Rỗng = không ai chấm công được tại cửa hàng này.
+     */
+    @Builder.Default
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "StoreAllowedIps", joinColumns = @JoinColumn(name = "StoreId"))
+    @Column(name = "IpAddress", nullable = false, length = 45)
+    private Set<String> allowedIps = new LinkedHashSet<>();
 
     @CreationTimestamp
     @Column(name = "CreatedAt", nullable = false, updatable = false)

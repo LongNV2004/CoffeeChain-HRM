@@ -1,7 +1,6 @@
 package com.example.coffee_hrm.controller;
 
 import com.example.coffee_hrm.common.exception.BusinessException;
-import com.example.coffee_hrm.dto.request.AddTrainingClassStudentsRequest;
 import com.example.coffee_hrm.dto.request.EvaluateTrainingStudentRequest;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.TrainingService;
@@ -64,7 +63,6 @@ public class TrainingController {
             model.addAttribute("storeName", user.getStoreName());
             model.addAttribute("viewerEmployeeId", user.getEmployeeId());
             model.addAttribute("classDetail", trainingService.getApprovedClassDetailForManager(id, user));
-            model.addAttribute("availableEmployees", trainingService.listAvailableEmployeesForClass(id, user));
             return "manager/TrainingClassDetail";
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
@@ -111,27 +109,7 @@ public class TrainingController {
         return "manager/Training";
     }
 
-    @PostMapping("/classes/{id}/students")
-    public String addStudents(@PathVariable Integer id,
-                              @Valid @ModelAttribute("addStudentsForm") AddTrainingClassStudentsRequest addStudentsForm,
-                              BindingResult bindingResult,
-                              @AuthenticationPrincipal AuthenticatedUser user,
-                              RedirectAttributes redirectAttributes) {
-        String redirect = "redirect:/training/classes/" + id;
-        if (bindingResult.hasErrors()) {
-            redirectAttributes.addFlashAttribute("errorMessage",
-                    validationMessage(bindingResult, "Vui lòng chọn ít nhất một nhân viên."));
-            return redirect;
-        }
-        try {
-            int added = trainingService.addStudentsToClass(id, addStudentsForm, user);
-            redirectAttributes.addFlashAttribute("successMessage",
-                    added == 1 ? "Đã thêm nhân viên vào lớp đào tạo." : "Đã thêm " + added + " nhân viên vào lớp đào tạo.");
-        } catch (BusinessException ex) {
-            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
-        }
-        return redirect;
-    }
+    // Manager không còn thêm học viên vào lớp đào tạo; học viên do Admin ghi danh khi tạo lớp.
 
     @PostMapping("/classes/{id}/students/{employeeId}/evaluation")
     public String evaluateStudent(@PathVariable Integer id,

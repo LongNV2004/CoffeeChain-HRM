@@ -5,9 +5,8 @@ import com.example.coffee_hrm.common.enums.AttendanceStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
-import com.example.coffee_hrm.common.geo.GeoDistance;
 import com.example.coffee_hrm.common.time.VietnamTime;
-import com.example.coffee_hrm.dto.request.AttendanceLocation;
+import com.example.coffee_hrm.dto.request.AttendanceNetwork;
 import com.example.coffee_hrm.dto.response.AttendanceClockView;
 import com.example.coffee_hrm.entity.Attendance;
 import com.example.coffee_hrm.entity.Employee;
@@ -21,6 +20,7 @@ import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.AttendancePolicyProperties;
 import com.example.coffee_hrm.service.AttendanceService;
+import com.example.coffee_hrm.service.support.AttendanceNetworkRule;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
@@ -47,12 +47,10 @@ public class AttendanceServiceImpl implements AttendanceService {
     static final String ALREADY_IN = "Bạn đã Check-in cho ca làm việc này.";
     static final String NOT_CHECKED_IN = "Bạn chưa Check-in cho ca làm việc này.";
     static final String ALREADY_OUT = "Bạn đã Check-out cho ca làm việc này.";
-    static final String EARLY_CHECKOUT_BLOCKED = "Chưa đến giờ kết thúc ca. Không thể Check-out sớm.";
-    static final String CHECKOUT_TOO_SOON = "Chưa đủ 2 tiếng kể từ giờ vào ca. Chưa thể Check-out.";
     static final String PHOTO_REQUIRED = "Hãy chụp ảnh nhân viên trước khi lưu.";
-    static final String OUTSIDE_RADIUS = "Bạn đang ở ngoài phạm vi chấm công của cửa hàng.";
-    static final String LOCATION_UNKNOWN = "Không thể xác định vị trí của bạn.";
-    static final String STORE_LOCATION_MISSING = "Cửa hàng chưa được thiết lập vị trí chấm công.";
+    static final String IP_NOT_ALLOWED = AttendanceNetworkRule.IP_NOT_ALLOWED;
+    static final String IP_UNKNOWN = AttendanceNetworkRule.IP_UNKNOWN;
+    static final String STORE_IP_MISSING = AttendanceNetworkRule.STORE_IP_MISSING;
     static final String MANAGER_ALREADY_IN = "Bạn đã Check-in trong ngày hôm nay.";
     static final String MANAGER_ALREADY_OUT = "Bạn đã Check-out trong ngày hôm nay.";
     static final String MANAGER_NOT_IN = "Bạn chưa Check-in trong ngày hôm nay.";
@@ -63,7 +61,6 @@ public class AttendanceServiceImpl implements AttendanceService {
 
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-    private static final double DISTANCE_TOLERANCE_METERS = 0.01;
 
     private final AttendanceRepository attendanceRepository;
     private final ShiftAssignmentRepository shiftAssignmentRepository;
@@ -83,66 +80,66 @@ public class AttendanceServiceImpl implements AttendanceService {
 
     @Override
     @Transactional
-    public void checkIn(AuthenticatedUser user, AttendanceLocation location) {
-        checkIn(user, location, VietnamTime.now(), null);
+    public void checkIn(AuthenticatedUser user, AttendanceNetwork network) {
+        checkIn(user, network, VietnamTime.now(), null);
     }
 
     @Override
     @Transactional
-    public void checkOut(AuthenticatedUser user, AttendanceLocation location) {
-        checkOut(user, location, VietnamTime.now(), null);
+    public void checkOut(AuthenticatedUser user, AttendanceNetwork network) {
+        checkOut(user, network, VietnamTime.now(), null);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public void previewCheckIn(AuthenticatedUser user, AttendanceLocation location) {
-        previewCheckIn(user, location, VietnamTime.now(), null);
+    public void previewCheckIn(AuthenticatedUser user, AttendanceNetwork network) {
+        previewCheckIn(user, network, VietnamTime.now(), null);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public void previewCheckOut(AuthenticatedUser user, AttendanceLocation location) {
-        previewCheckOut(user, location, VietnamTime.now(), null);
+    public void previewCheckOut(AuthenticatedUser user, AttendanceNetwork network) {
+        previewCheckOut(user, network, VietnamTime.now(), null);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public void previewCheckIn(AuthenticatedUser user, AttendanceLocation location, Integer assignmentId) {
-        previewCheckIn(user, location, VietnamTime.now(), assignmentId);
+    public void previewCheckIn(AuthenticatedUser user, AttendanceNetwork network, Integer assignmentId) {
+        previewCheckIn(user, network, VietnamTime.now(), assignmentId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public void previewCheckOut(AuthenticatedUser user, AttendanceLocation location, Integer assignmentId) {
-        previewCheckOut(user, location, VietnamTime.now(), assignmentId);
+    public void previewCheckOut(AuthenticatedUser user, AttendanceNetwork network, Integer assignmentId) {
+        previewCheckOut(user, network, VietnamTime.now(), assignmentId);
     }
 
     @Override
     @Transactional
-    public void checkInWithPhoto(AuthenticatedUser user, AttendanceLocation location, byte[] photo) {
+    public void checkInWithPhoto(AuthenticatedUser user, AttendanceNetwork network, byte[] photo) {
         requirePhoto(photo);
-        checkIn(user, location, VietnamTime.now(), photo, null);
+        checkIn(user, network, VietnamTime.now(), photo, null);
     }
 
     @Override
     @Transactional
-    public void checkOutWithPhoto(AuthenticatedUser user, AttendanceLocation location, byte[] photo) {
+    public void checkOutWithPhoto(AuthenticatedUser user, AttendanceNetwork network, byte[] photo) {
         requirePhoto(photo);
-        checkOut(user, location, VietnamTime.now(), photo, null);
+        checkOut(user, network, VietnamTime.now(), photo, null);
     }
 
     @Override
     @Transactional
-    public void checkInWithPhoto(AuthenticatedUser user, AttendanceLocation location, byte[] photo, Integer assignmentId) {
+    public void checkInWithPhoto(AuthenticatedUser user, AttendanceNetwork network, byte[] photo, Integer assignmentId) {
         requirePhoto(photo);
-        checkIn(user, location, VietnamTime.now(), photo, assignmentId);
+        checkIn(user, network, VietnamTime.now(), photo, assignmentId);
     }
 
     @Override
     @Transactional
-    public void checkOutWithPhoto(AuthenticatedUser user, AttendanceLocation location, byte[] photo, Integer assignmentId) {
+    public void checkOutWithPhoto(AuthenticatedUser user, AttendanceNetwork network, byte[] photo, Integer assignmentId) {
         requirePhoto(photo);
-        checkOut(user, location, VietnamTime.now(), photo, assignmentId);
+        checkOut(user, network, VietnamTime.now(), photo, assignmentId);
     }
 
     @Override
@@ -164,90 +161,90 @@ public class AttendanceServiceImpl implements AttendanceService {
         markAbsences(workDate, VietnamTime.now());
     }
 
-    void checkIn(AuthenticatedUser user, AttendanceLocation location, LocalDateTime rawNow) {
-        checkIn(user, location, rawNow, null);
+    void checkIn(AuthenticatedUser user, AttendanceNetwork network, LocalDateTime rawNow) {
+        checkIn(user, network, rawNow, null);
     }
 
-    void checkIn(AuthenticatedUser user, AttendanceLocation location, LocalDateTime rawNow, byte[] photo) {
-        checkIn(user, location, rawNow, photo, null);
+    void checkIn(AuthenticatedUser user, AttendanceNetwork network, LocalDateTime rawNow, byte[] photo) {
+        checkIn(user, network, rawNow, photo, null);
     }
 
-    void checkIn(AuthenticatedUser user, AttendanceLocation location, LocalDateTime rawNow,
+    void checkIn(AuthenticatedUser user, AttendanceNetwork network, LocalDateTime rawNow,
                  byte[] photo, Integer assignmentId) {
         rejectIfEmploymentEnded(user);
         Employee employee = resolveCheckEmployee(user);
         LocalDateTime now = exactTime(rawNow);
         if (user.getRoleName() == RoleName.MANAGER) {
-            checkInManager(user, employee, location, now, photo);
+            checkInManager(user, employee, network, now, photo);
             return;
         }
         if (assignmentId == null) {
-            checkInStaff(user, employee, location, now, photo);
+            checkInStaff(user, employee, network, now, photo);
             return;
         }
-        checkInStaffSlot(user, employee, assignmentId, location, now, photo);
+        checkInStaffSlot(user, employee, assignmentId, network, now, photo);
     }
 
-    void previewCheckIn(AuthenticatedUser user, AttendanceLocation location, LocalDateTime rawNow) {
-        previewCheckIn(user, location, rawNow, null);
+    void previewCheckIn(AuthenticatedUser user, AttendanceNetwork network, LocalDateTime rawNow) {
+        previewCheckIn(user, network, rawNow, null);
     }
 
-    void previewCheckIn(AuthenticatedUser user, AttendanceLocation location, LocalDateTime rawNow,
+    void previewCheckIn(AuthenticatedUser user, AttendanceNetwork network, LocalDateTime rawNow,
                         Integer assignmentId) {
         Employee employee = resolveCheckEmployee(user);
         LocalDateTime now = truncate(rawNow);
         if (user.getRoleName() == RoleName.MANAGER) {
-            planManagerCheckIn(user, employee, location, now);
+            planManagerCheckIn(user, employee, network, now);
             return;
         }
         if (assignmentId == null) {
-            planStaffCheckIn(user, employee, location, now);
+            planStaffCheckIn(user, employee, network, now);
             return;
         }
-        planStaffSlot(user, employee, assignmentId, location, now);
+        planStaffSlot(user, employee, assignmentId, network, now);
     }
 
-    void checkOut(AuthenticatedUser user, AttendanceLocation location, LocalDateTime rawNow) {
-        checkOut(user, location, rawNow, null, null);
+    void checkOut(AuthenticatedUser user, AttendanceNetwork network, LocalDateTime rawNow) {
+        checkOut(user, network, rawNow, null, null);
     }
 
-    void checkOut(AuthenticatedUser user, AttendanceLocation location, LocalDateTime rawNow, byte[] photo) {
-        checkOut(user, location, rawNow, photo, null);
+    void checkOut(AuthenticatedUser user, AttendanceNetwork network, LocalDateTime rawNow, byte[] photo) {
+        checkOut(user, network, rawNow, photo, null);
     }
 
-    void checkOut(AuthenticatedUser user, AttendanceLocation location, LocalDateTime rawNow,
+    void checkOut(AuthenticatedUser user, AttendanceNetwork network, LocalDateTime rawNow,
                   byte[] photo, Integer assignmentId) {
         rejectIfEmploymentEnded(user);
         Employee employee = resolveCheckEmployee(user);
         LocalDateTime now = exactTime(rawNow);
         if (user.getRoleName() == RoleName.MANAGER) {
-            checkOutManager(employee, location, now, photo);
+            checkOutManager(employee, network, now, photo);
             return;
         }
         if (assignmentId == null) {
-            checkOutStaff(employee, location, now, photo);
+            checkOutStaff(employee, network, now, photo);
             return;
         }
-        checkOutStaffSlot(user, employee, assignmentId, location, now, photo);
+        checkOutStaffSlot(user, employee, assignmentId, network, now, photo);
     }
 
-    void previewCheckOut(AuthenticatedUser user, AttendanceLocation location, LocalDateTime rawNow) {
-        previewCheckOut(user, location, rawNow, null);
+    void previewCheckOut(AuthenticatedUser user, AttendanceNetwork network, LocalDateTime rawNow) {
+        previewCheckOut(user, network, rawNow, null);
     }
 
-    void previewCheckOut(AuthenticatedUser user, AttendanceLocation location, LocalDateTime rawNow,
+    void previewCheckOut(AuthenticatedUser user, AttendanceNetwork network, LocalDateTime rawNow,
                          Integer assignmentId) {
         Employee employee = resolveCheckEmployee(user);
         LocalDateTime now = truncate(rawNow);
         if (user.getRoleName() == RoleName.MANAGER) {
-            assertCheckoutReady(locateManagerCheckout(employee, now), now, location);
+            assertCheckoutReady(locateManagerCheckout(employee, now), now, network);
             return;
         }
         if (assignmentId == null) {
-            assertCheckoutReady(locateStaffCheckout(employee, now), now, location);
+            assertCheckoutReady(locateStaffCheckout(employee, now), now, network);
             return;
         }
-        assertCheckoutReady(locateStaffSlot(user, employee, assignmentId), now, location);
+        assertCheckoutReady(locateStaffSlot(user, employee, assignmentId), now, network);
     }
 
     void markAbsences(LocalDate workDate, LocalDateTime rawNow) {
@@ -293,8 +290,8 @@ public class AttendanceServiceImpl implements AttendanceService {
     }
 
     private void checkInStaff(AuthenticatedUser user, Employee employee,
-                              AttendanceLocation location, LocalDateTime now, byte[] photo) {
-        StaffCheckInPlan plan = planStaffCheckIn(user, employee, location, now);
+                              AttendanceNetwork network, LocalDateTime now, byte[] photo) {
+        StaffCheckInPlan plan = planStaffCheckIn(user, employee, network, now);
         Attendance attendance = Attendance.builder()
                 .employee(employee)
                 .store(plan.store())
@@ -304,8 +301,6 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .scheduledStartTime(plan.chosen().assignment().getShift().getStartTime())
                 .scheduledEndTime(plan.chosen().assignment().getShift().getEndTime())
                 .checkInTime(now)
-                .checkInLatitude(location.latitude())
-                .checkInLongitude(location.longitude())
                 .lateMinutes(plan.lateMinutes())
                 .earlyLeaveMinutes(0)
                 .status(plan.lateMinutes() > 0 ? AttendanceStatus.LATE : AttendanceStatus.PRESENT)
@@ -314,20 +309,20 @@ public class AttendanceServiceImpl implements AttendanceService {
     }
 
     private StaffCheckInPlan planStaffCheckIn(AuthenticatedUser user, Employee employee,
-                                              AttendanceLocation location, LocalDateTime now) {
+                                              AttendanceNetwork network, LocalDateTime now) {
         List<ShiftWindow> windows = loadWindows(employee.getId(), now.toLocalDate());
         ShiftWindow chosen = selectCheckInWindow(windows, now, employee.getId());
         if (findAttendance(employee.getId(), chosen).isPresent()) {
             throw new BusinessException(ALREADY_IN);
         }
         Store store = storeForShift(user, employee, chosen.assignment().getShift());
-        assertInsideStore(store, location);
+        assertOnStoreNetwork(store, network);
         return new StaffCheckInPlan(chosen, store, lateMinutes(chosen.shiftStart(), now));
     }
 
     private void checkInStaffSlot(AuthenticatedUser user, Employee employee, Integer assignmentId,
-                                  AttendanceLocation location, LocalDateTime now, byte[] photo) {
-        StaffCheckInPlan plan = planStaffSlot(user, employee, assignmentId, location, now);
+                                  AttendanceNetwork network, LocalDateTime now, byte[] photo) {
+        StaffCheckInPlan plan = planStaffSlot(user, employee, assignmentId, network, now);
         ShiftAssignment assignment = plan.chosen().assignment();
         Attendance attendance = Attendance.builder()
                 .employee(employee)
@@ -338,8 +333,6 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .scheduledStartTime(assignment.getShift().getStartTime())
                 .scheduledEndTime(assignment.getShift().getEndTime())
                 .checkInTime(now)
-                .checkInLatitude(location.latitude())
-                .checkInLongitude(location.longitude())
                 .lateMinutes(plan.lateMinutes())
                 .earlyLeaveMinutes(0)
                 .status(plan.lateMinutes() > 0 ? AttendanceStatus.LATE : AttendanceStatus.PRESENT)
@@ -348,7 +341,7 @@ public class AttendanceServiceImpl implements AttendanceService {
     }
 
     private StaffCheckInPlan planStaffSlot(AuthenticatedUser user, Employee employee, Integer assignmentId,
-                                           AttendanceLocation location, LocalDateTime now) {
+                                           AttendanceNetwork network, LocalDateTime now) {
         ShiftWindow chosen = requireStaffSlot(employee, assignmentId);
         if (now.isBefore(chosen.windowOpen())) {
             throw new BusinessException(TOO_EARLY);
@@ -360,20 +353,18 @@ public class AttendanceServiceImpl implements AttendanceService {
             throw new BusinessException(ALREADY_IN);
         }
         Store store = storeForShift(user, employee, chosen.assignment().getShift());
-        assertInsideStore(store, location);
+        assertOnStoreNetwork(store, network);
         return new StaffCheckInPlan(chosen, store, lateMinutes(chosen.shiftStart(), now));
     }
 
     private void checkInManager(AuthenticatedUser user, Employee employee,
-                                AttendanceLocation location, LocalDateTime now, byte[] photo) {
-        Store store = planManagerCheckIn(user, employee, location, now);
+                                AttendanceNetwork network, LocalDateTime now, byte[] photo) {
+        Store store = planManagerCheckIn(user, employee, network, now);
         Attendance attendance = Attendance.builder()
                 .employee(employee)
                 .store(store)
                 .workDate(now.toLocalDate())
                 .checkInTime(now)
-                .checkInLatitude(location.latitude())
-                .checkInLongitude(location.longitude())
                 .lateMinutes(0)
                 .earlyLeaveMinutes(0)
                 .status(AttendanceStatus.PRESENT)
@@ -382,20 +373,20 @@ public class AttendanceServiceImpl implements AttendanceService {
     }
 
     private Store planManagerCheckIn(AuthenticatedUser user, Employee employee,
-                                     AttendanceLocation location, LocalDateTime now) {
+                                     AttendanceNetwork network, LocalDateTime now) {
         assertManagerCanCheckIn(employee.getId(), now.toLocalDate());
-        Store store = latestStore(resolveManagedStore(user).getId(), STORE_LOCATION_MISSING);
-        assertInsideStore(store, location);
+        Store store = latestStore(resolveManagedStore(user).getId(), STORE_IP_MISSING);
+        assertOnStoreNetwork(store, network);
         return store;
     }
 
-    private void checkOutStaff(Employee employee, AttendanceLocation location, LocalDateTime now, byte[] photo) {
-        completeCheckout(locateStaffCheckout(employee, now), now, location, photo);
+    private void checkOutStaff(Employee employee, AttendanceNetwork network, LocalDateTime now, byte[] photo) {
+        completeCheckout(locateStaffCheckout(employee, now), now, network, photo);
     }
 
     private void checkOutStaffSlot(AuthenticatedUser user, Employee employee, Integer assignmentId,
-                                   AttendanceLocation location, LocalDateTime now, byte[] photo) {
-        completeCheckout(locateStaffSlot(user, employee, assignmentId), now, location, photo);
+                                   AttendanceNetwork network, LocalDateTime now, byte[] photo) {
+        completeCheckout(locateStaffSlot(user, employee, assignmentId), now, network, photo);
     }
 
     private Attendance locateStaffSlot(AuthenticatedUser user, Employee employee, Integer assignmentId) {
@@ -449,8 +440,8 @@ public class AttendanceServiceImpl implements AttendanceService {
         throw new BusinessException(NOT_CHECKED_IN);
     }
 
-    private void checkOutManager(Employee employee, AttendanceLocation location, LocalDateTime now, byte[] photo) {
-        completeCheckout(locateManagerCheckout(employee, now), now, location, photo);
+    private void checkOutManager(Employee employee, AttendanceNetwork network, LocalDateTime now, byte[] photo) {
+        completeCheckout(locateManagerCheckout(employee, now), now, network, photo);
     }
 
     private Attendance locateManagerCheckout(Employee employee, LocalDateTime now) {
@@ -482,8 +473,8 @@ public class AttendanceServiceImpl implements AttendanceService {
         }
     }
 
-    private void completeCheckout(Attendance attendance, LocalDateTime now, AttendanceLocation location, byte[] photo) {
-        assertCheckoutReady(attendance, now, location);
+    private void completeCheckout(Attendance attendance, LocalDateTime now, AttendanceNetwork network, byte[] photo) {
+        assertCheckoutReady(attendance, now, network);
         int earlyMinutes = 0;
         int lateCheckoutMinutes = 0;
         LocalDateTime scheduledEnd = scheduledEnd(attendance);
@@ -499,8 +490,6 @@ public class AttendanceServiceImpl implements AttendanceService {
         int workingMinutes = (int) Math.max(0, ChronoUnit.MINUTES.between(checkIn, now));
         int lateMinutes = attendance.getLateMinutes() == null ? 0 : attendance.getLateMinutes();
         attendance.setCheckOutTime(now);
-        attendance.setCheckOutLatitude(location.latitude());
-        attendance.setCheckOutLongitude(location.longitude());
         attendance.setWorkingMinutes(workingMinutes);
         attendance.setEarlyLeaveMinutes(Math.max(earlyMinutes, 0));
         attendance.setStatus(resolveStatus(lateMinutes, earlyMinutes, lateCheckoutMinutes));
@@ -514,39 +503,24 @@ public class AttendanceServiceImpl implements AttendanceService {
         }
     }
 
-    private void assertCheckoutReady(Attendance attendance, LocalDateTime now, AttendanceLocation location) {
+    /**
+     * Đã Check-in thì được Check-out bất cứ lúc nào: không giới hạn thời gian. Vẫn kiểm tra chưa Check-out
+     * và IP mạng cửa hàng; Check-out trước giờ kết thúc ca vẫn được ghi số phút về sớm như trước.
+     */
+    private void assertCheckoutReady(Attendance attendance, LocalDateTime now, AttendanceNetwork network) {
         if (attendance.getCheckOutTime() != null) {
             throw new BusinessException(attendance.getShift() == null ? MANAGER_ALREADY_OUT : ALREADY_OUT);
         }
-        if (!checkoutAllowed(attendance, now)) {
-            throw new BusinessException(CHECKOUT_TOO_SOON);
-        }
         Store store = storeOf(attendance, attendance.getEmployee());
-        assertInsideStore(store, location);
-        if (!policy.isAllowEarlyCheckout()) {
-            LocalDateTime scheduledEnd = scheduledEnd(attendance);
-            if (scheduledEnd != null && now.isBefore(scheduledEnd)) {
-                throw new BusinessException(EARLY_CHECKOUT_BLOCKED);
-            }
-        }
+        assertOnStoreNetwork(store, network);
     }
 
-    private void assertInsideStore(Store store, AttendanceLocation location) {
-        if (store == null
-                || !GeoDistance.isValidLatitude(store.getLatitude())
-                || !GeoDistance.isValidLongitude(store.getLongitude())) {
-            throw new BusinessException(STORE_LOCATION_MISSING);
+    /** Chỉ cho chấm công khi IP thực tế của request thuộc danh sách IP của cửa hàng. */
+    private void assertOnStoreNetwork(Store store, AttendanceNetwork network) {
+        if (store == null || store.getId() == null) {
+            throw new BusinessException(STORE_IP_MISSING);
         }
-        if (location == null
-                || !GeoDistance.isValidLatitude(location.latitude())
-                || !GeoDistance.isValidLongitude(location.longitude())) {
-            throw new BusinessException(LOCATION_UNKNOWN);
-        }
-        double distance = GeoDistance.meters(
-                store.getLatitude(), store.getLongitude(), location.latitude(), location.longitude());
-        if (distance > radiusMeters() + DISTANCE_TOLERANCE_METERS) {
-            throw new BusinessException(OUTSIDE_RADIUS);
-        }
+        AttendanceNetworkRule.assertAllowed(storeRepository.findAllowedIps(store.getId()), network);
     }
 
     private AttendanceClockView buildClock(AuthenticatedUser user, LocalDateTime rawNow) {
@@ -574,14 +548,9 @@ public class AttendanceServiceImpl implements AttendanceService {
             List<Attendance> openRecords = attendanceRepository.findOpenByEmployeeId(employee.getId());
             if (!openRecords.isEmpty()) {
                 Attendance open = openRecords.getFirst();
-                canCheckOut = checkoutAllowed(open, now);
+                canCheckOut = true;
                 canCheckIn = false;
-                checkInNotice = canCheckOut
-                        ? ALREADY_IN
-                        : "Bạn đã Check-in. Check-out mở sau 2 tiếng kể từ giờ vào ca.";
-                if (!canCheckOut) {
-                    checkOutNotice = "Check-out mở sau 2 tiếng kể từ giờ vào ca.";
-                }
+                checkInNotice = ALREADY_IN;
                 shiftName = open.getScheduledShiftName();
                 workDateLabel = formatDate(open.getWorkDate());
                 startLabel = formatTime(open.getScheduledStartTime());
@@ -703,16 +672,13 @@ public class AttendanceServiceImpl implements AttendanceService {
                 checkInNotice = ALREADY_IN;
             }
         }
-        boolean canCheckOut = checkedIn && !checkedOut && checkoutAllowed(attendance, now);
+        // Đã Check-in và chưa Check-out thì được Check-out ngay, không giới hạn thời gian.
+        boolean canCheckOut = checkedIn && !checkedOut;
         String checkOutNotice = null;
-        if (!canCheckOut) {
-            if (!checkedIn) {
-                checkOutNotice = NOT_CHECKED_IN;
-            } else if (checkedOut) {
-                checkOutNotice = ALREADY_OUT;
-            } else {
-                checkOutNotice = "Check-out mở sau 2 tiếng kể từ giờ vào ca.";
-            }
+        if (!checkedIn) {
+            checkOutNotice = NOT_CHECKED_IN;
+        } else if (checkedOut) {
+            checkOutNotice = ALREADY_OUT;
         }
         String statusKey;
         String statusLabel;
@@ -869,7 +835,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         Integer storeId = attendance.getStore() != null
                 ? attendance.getStore().getId()
                 : (employee.getStore() != null ? employee.getStore().getId() : null);
-        return latestStore(storeId, STORE_LOCATION_MISSING);
+        return latestStore(storeId, STORE_IP_MISSING);
     }
 
     private Store latestStore(Integer storeId, String missingMessage) {
@@ -968,25 +934,6 @@ public class AttendanceServiceImpl implements AttendanceService {
         return Math.max(policy.getLateCheckoutThresholdMinutes(), 0);
     }
 
-    private boolean checkoutAllowed(Attendance attendance, LocalDateTime now) {
-        LocalDateTime shiftStart = scheduledStart(attendance);
-        if (shiftStart == null) {
-            return true;
-        }
-        return !now.isBefore(shiftStart.plusMinutes(minimumShiftMinutes()));
-    }
-
-    private int minimumShiftMinutes() {
-        return Math.max(policy.getMinimumShiftMinutesBeforeCheckout(), 0);
-    }
-
-    private LocalDateTime scheduledStart(Attendance attendance) {
-        if (attendance.getWorkDate() == null || attendance.getScheduledStartTime() == null) {
-            return null;
-        }
-        return truncate(LocalDateTime.of(attendance.getWorkDate(), attendance.getScheduledStartTime()));
-    }
-
     private LocalDateTime scheduledEnd(Attendance attendance) {
         if (attendance.getWorkDate() == null
                 || attendance.getScheduledStartTime() == null
@@ -1039,10 +986,6 @@ public class AttendanceServiceImpl implements AttendanceService {
 
     private int lateThreshold() {
         return Math.max(policy.getLateThresholdMinutes(), 0);
-    }
-
-    private double radiusMeters() {
-        return Math.max(policy.getRadiusMeters(), 0);
     }
 
     private LocalDateTime exactTime(LocalDateTime value) {

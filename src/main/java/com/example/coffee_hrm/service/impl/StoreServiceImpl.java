@@ -4,7 +4,7 @@ import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.enums.StoreStatus;
 import com.example.coffee_hrm.common.exception.BusinessException;
-import com.example.coffee_hrm.common.geo.GeoDistance;
+import com.example.coffee_hrm.common.net.IpAddresses;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.CreateStoreRequest;
 import com.example.coffee_hrm.dto.request.UpdateStoreRequest;
@@ -21,10 +21,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -37,8 +38,8 @@ public class StoreServiceImpl implements StoreService {
     public static final String STORE_NAME_EXISTS = "Tên cửa hàng đã tồn tại";
     public static final String STORE_NAME_REQUIRED = "Vui lòng nhập tên cửa hàng";
     public static final String ADDRESS_REQUIRED = "Vui lòng nhập địa chỉ";
-    public static final String INVALID_COORDINATES = "Tọa độ cửa hàng không hợp lệ.";
-    public static final String LOCATION_REQUIRED = "Vui lòng thiết lập vị trí chấm công của cửa hàng.";
+    /** Tiền tố thông báo lỗi khi danh sách IP chấm công không hợp lệ. */
+    public static final String INVALID_IP_PREFIX = "Danh sách IP chấm công chưa hợp lệ. ";
     public static final String OPENING_DATE_REQUIRED = "Vui lòng chọn ngày khai trương";
     public static final String STATUS_ACTION_INVALID = "Thao tác trạng thái không hợp lệ.";
     public static final String ALREADY_INACTIVE = "Cửa hàng đã ngừng hoạt động.";
@@ -84,7 +85,7 @@ public class StoreServiceImpl implements StoreService {
         LocalDate openingDate = requireOpeningDate(request.getOpeningDate());
         StoreStatus status = StoreStatus.fromOpeningDate(openingDate, VietnamTime.today());
         // Cửa hàng mới chưa có nhân viên và chưa chỉ định Manager; phân công thực hiện ở Nhân sự & đào tạo.
-        // Ca, số chỗ và vị trí chấm công được gắn ngay để nhân viên check-in được.
+        // Ca, số chỗ và IP mạng chấm công được gắn ngay để nhân viên check-in được.
         Store store = Store.builder()
                 .storeName(storeName)
                 .address(address)
@@ -95,7 +96,7 @@ public class StoreServiceImpl implements StoreService {
         if (request.getTotalLeaveSlots() != null) {
             store.setTotalLeaveSlots(request.getTotalLeaveSlots());
         }
-        applyLocation(store, request.getLatitude(), request.getLongitude(), true);
+        applyAllowedIps(store, request.getAllowedIps());
         Store saved = storeRepository.save(store);
         storeOpeningSetup.ensureOpeningShifts(saved);
         return toStoreResponse(saved, 0L);
@@ -119,7 +120,7 @@ public class StoreServiceImpl implements StoreService {
         } else {
             store.assignStatus(StoreStatus.INACTIVE);
         }
-        applyLocation(store, request.getLatitude(), request.getLongitude(), false);
+        applyAllowedIps(store, request.getAllowedIps());
         return toStoreResponse(store, countMembers(storeId));
     }
 
@@ -149,38 +150,23 @@ public class StoreServiceImpl implements StoreService {
         return toStoreResponse(store, countMembers(storeId));
     }
 
-    private void applyLocation(Store store, String latitudeText, String longitudeText, boolean required) {
-        BigDecimal latitude = parseCoordinate(latitudeText);
-        BigDecimal longitude = parseCoordinate(longitudeText);
-        if (latitude == null && longitude == null) {
-            if (required) {
-                throw new BusinessException(LOCATION_REQUIRED);
-            }
-            return;
-        }
-        if (!GeoDistance.isValidLatitude(latitude) || !GeoDistance.isValidLongitude(longitude)) {
-            throw new BusinessException(INVALID_COORDINATES);
-        }
-        boolean changed = store.getLatitude() == null
-                || store.getLongitude() == null
-                || store.getLatitude().compareTo(latitude) != 0
-                || store.getLongitude().compareTo(longitude) != 0;
-        store.setLatitude(latitude);
-        store.setLongitude(longitude);
-        if (changed) {
-            store.setLocationUpdatedAt(VietnamTime.now());
-        }
-    }
-
-    private BigDecimal parseCoordinate(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return null;
-        }
+    /**
+     * Thay toàn bộ danh sách IP chấm công bằng nội dung ô nhập của Admin (đã chuẩn hóa, bỏ trùng).
+     * Ô trống = cửa hàng không có IP nào, nên không ai chấm công được tại cửa hàng.
+     * Không đụng tới Latitude/Longitude cũ để giữ nguyên dữ liệu đã lưu.
+     */
+    private void applyAllowedIps(Store store, String text) {
+        Set<String> parsed;
         try {
-            return new BigDecimal(raw.trim());
-        } catch (NumberFormatException ex) {
-            throw new BusinessException(INVALID_COORDINATES);
+            parsed = IpAddresses.parseList(text);
+        } catch (IllegalArgumentException ex) {
+            throw new BusinessException(INVALID_IP_PREFIX + ex.getMessage());
         }
+        if (store.getAllowedIps() == null) {
+            store.setAllowedIps(new LinkedHashSet<>());
+        }
+        store.getAllowedIps().retainAll(parsed);
+        store.getAllowedIps().addAll(parsed);
     }
 
     private long countMembers(Integer storeId) {
@@ -243,9 +229,8 @@ public class StoreServiceImpl implements StoreService {
                 .managerAssignmentLabel(manager != null ? "Đã phân công" : "Chưa phân công")
                 .managerCredentialsPending(managerAccount != null
                         && Boolean.TRUE.equals(managerAccount.getMustChangePassword()))
-                .latitude(store.getLatitude())
-                .longitude(store.getLongitude())
-                .locationUpdatedAt(store.getLocationUpdatedAt())
+                .allowedIps(store.getAllowedIps() == null ? List.of()
+                        : store.getAllowedIps().stream().sorted().toList())
                 .build();
     }
 

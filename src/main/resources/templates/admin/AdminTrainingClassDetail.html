@@ -60,6 +60,7 @@
                 <th>Họ tên</th>
                 <th>Email</th>
                 <th>Số điện thoại</th>
+                <th>Điểm danh</th>
                 <th>Kết quả</th>
                 <th>Chứng chỉ</th>
                 <th></th>
@@ -70,6 +71,7 @@
                 <td th:text="${student.fullName}">Name</td>
                 <td th:text="${student.email} ?: '—'">email</td>
                 <td th:text="${student.phone} ?: '—'">phone</td>
+                <td th:replace="~{fragments/trainingClassView :: attendanceCell(${student})}">Có mặt</td>
                 <td>
                     <span class="badge"
                           th:classappend="${student.resultLabel == 'Đạt'} ? ' badge-ok' : (${student.resultLabel == 'Không đạt'} ? ' badge-off' : ' badge-wait')"

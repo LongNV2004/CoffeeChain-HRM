@@ -31,6 +31,13 @@ public class TrainingClassStudentResponse {
     private String evaluationNote;
     private LocalDateTime evaluatedAt;
 
+    /** Điểm danh (trang Thông tin lớp): present / absent / pending (chưa đến buổi học). */
+    private String attendanceKey;
+    /** Có mặt / Vắng mặt / Chưa đến buổi học. */
+    private String attendanceLabel;
+    private int attendedSessions;
+    private int elapsedSessions;
+
     /** Chứng chỉ và lần đào tạo gần nhất của từng kỹ năng đang xét. */
     @Builder.Default
     private List<EmployeeSkillStatusLine> skillStatuses = List.of();

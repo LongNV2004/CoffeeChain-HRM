@@ -1,9 +1,10 @@
 package com.example.coffee_hrm.controller;
 
 import com.example.coffee_hrm.common.exception.BusinessException;
-import com.example.coffee_hrm.dto.request.AttendanceLocation;
+import com.example.coffee_hrm.common.net.AttendanceNetworkResolver;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.TrainingAttendanceService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +30,7 @@ import java.util.Map;
 public class TrainingAttendanceController {
 
     private final TrainingAttendanceService trainingAttendanceService;
+    private final AttendanceNetworkResolver networkResolver;
 
     @GetMapping("/staff/choose")
     @PreAuthorize("hasRole('STAFF')")
@@ -63,23 +65,19 @@ public class TrainingAttendanceController {
     @ResponseBody
     public ResponseEntity<Map<String, String>> staffCheckInPreview(@AuthenticationPrincipal AuthenticatedUser user,
                                                                    @RequestParam(required = false) Integer classId,
-                                                                   @RequestParam(required = false) String latitude,
-                                                                   @RequestParam(required = false) String longitude,
-                                                                   @RequestParam(required = false) String accuracy) {
+                                                                   HttpServletRequest request) {
         return preview(() -> trainingAttendanceService.previewCheckIn(
-                user, classId, AttendanceLocation.parse(latitude, longitude, accuracy)));
+                user, classId, networkResolver.resolve(request)));
     }
 
     @PostMapping("/staff/training/check-in")
     @PreAuthorize("hasRole('STAFF')")
     public String staffCheckIn(@AuthenticationPrincipal AuthenticatedUser user,
                                @RequestParam(required = false) Integer classId,
-                               @RequestParam(required = false) String latitude,
-                               @RequestParam(required = false) String longitude,
-                               @RequestParam(required = false) String accuracy,
+                               HttpServletRequest request,
                                @RequestParam(required = false) MultipartFile photo,
                                RedirectAttributes redirectAttributes) {
-        return submitCheckIn(user, classId, latitude, longitude, accuracy, photo, redirectAttributes,
+        return submitCheckIn(user, classId, request, photo, redirectAttributes,
                 "redirect:/attendance/staff/training");
     }
 
@@ -88,23 +86,19 @@ public class TrainingAttendanceController {
     @ResponseBody
     public ResponseEntity<Map<String, String>> staffCheckOutPreview(@AuthenticationPrincipal AuthenticatedUser user,
                                                                     @RequestParam(required = false) Integer classId,
-                                                                    @RequestParam(required = false) String latitude,
-                                                                    @RequestParam(required = false) String longitude,
-                                                                    @RequestParam(required = false) String accuracy) {
+                                                                    HttpServletRequest request) {
         return preview(() -> trainingAttendanceService.previewCheckOut(
-                user, classId, AttendanceLocation.parse(latitude, longitude, accuracy)));
+                user, classId, networkResolver.resolve(request)));
     }
 
     @PostMapping("/staff/training/check-out")
     @PreAuthorize("hasRole('STAFF')")
     public String staffCheckOut(@AuthenticationPrincipal AuthenticatedUser user,
                                 @RequestParam(required = false) Integer classId,
-                                @RequestParam(required = false) String latitude,
-                                @RequestParam(required = false) String longitude,
-                                @RequestParam(required = false) String accuracy,
+                                HttpServletRequest request,
                                 @RequestParam(required = false) MultipartFile photo,
                                 RedirectAttributes redirectAttributes) {
-        return submitCheckOut(user, classId, latitude, longitude, accuracy, photo, redirectAttributes,
+        return submitCheckOut(user, classId, request, photo, redirectAttributes,
                 "redirect:/attendance/staff/training");
     }
 
@@ -119,23 +113,19 @@ public class TrainingAttendanceController {
     @ResponseBody
     public ResponseEntity<Map<String, String>> managerCheckInPreview(@AuthenticationPrincipal AuthenticatedUser user,
                                                                      @RequestParam(required = false) Integer classId,
-                                                                     @RequestParam(required = false) String latitude,
-                                                                     @RequestParam(required = false) String longitude,
-                                                                     @RequestParam(required = false) String accuracy) {
+                                                                     HttpServletRequest request) {
         return preview(() -> trainingAttendanceService.previewCheckIn(
-                user, classId, AttendanceLocation.parse(latitude, longitude, accuracy)));
+                user, classId, networkResolver.resolve(request)));
     }
 
     @PostMapping("/manager/training/check-in")
     @PreAuthorize("hasRole('MANAGER')")
     public String managerCheckIn(@AuthenticationPrincipal AuthenticatedUser user,
                                  @RequestParam(required = false) Integer classId,
-                                 @RequestParam(required = false) String latitude,
-                                 @RequestParam(required = false) String longitude,
-                                 @RequestParam(required = false) String accuracy,
+                                 HttpServletRequest request,
                                  @RequestParam(required = false) MultipartFile photo,
                                  RedirectAttributes redirectAttributes) {
-        return submitCheckIn(user, classId, latitude, longitude, accuracy, photo, redirectAttributes,
+        return submitCheckIn(user, classId, request, photo, redirectAttributes,
                 "redirect:/attendance/manager/training");
     }
 
@@ -144,23 +134,19 @@ public class TrainingAttendanceController {
     @ResponseBody
     public ResponseEntity<Map<String, String>> managerCheckOutPreview(@AuthenticationPrincipal AuthenticatedUser user,
                                                                       @RequestParam(required = false) Integer classId,
-                                                                      @RequestParam(required = false) String latitude,
-                                                                      @RequestParam(required = false) String longitude,
-                                                                      @RequestParam(required = false) String accuracy) {
+                                                                      HttpServletRequest request) {
         return preview(() -> trainingAttendanceService.previewCheckOut(
-                user, classId, AttendanceLocation.parse(latitude, longitude, accuracy)));
+                user, classId, networkResolver.resolve(request)));
     }
 
     @PostMapping("/manager/training/check-out")
     @PreAuthorize("hasRole('MANAGER')")
     public String managerCheckOut(@AuthenticationPrincipal AuthenticatedUser user,
                                   @RequestParam(required = false) Integer classId,
-                                  @RequestParam(required = false) String latitude,
-                                  @RequestParam(required = false) String longitude,
-                                  @RequestParam(required = false) String accuracy,
+                                  HttpServletRequest request,
                                   @RequestParam(required = false) MultipartFile photo,
                                   RedirectAttributes redirectAttributes) {
-        return submitCheckOut(user, classId, latitude, longitude, accuracy, photo, redirectAttributes,
+        return submitCheckOut(user, classId, request, photo, redirectAttributes,
                 "redirect:/attendance/manager/training");
     }
 
@@ -204,15 +190,13 @@ public class TrainingAttendanceController {
 
     private String submitCheckIn(AuthenticatedUser user,
                                  Integer classId,
-                                 String latitude,
-                                 String longitude,
-                                 String accuracy,
+                                 HttpServletRequest request,
                                  MultipartFile photo,
                                  RedirectAttributes redirectAttributes,
                                  String redirect) {
         try {
             trainingAttendanceService.checkInWithPhoto(
-                    user, classId, AttendanceLocation.parse(latitude, longitude, accuracy), photoBytes(photo));
+                    user, classId, networkResolver.resolve(request), photoBytes(photo));
             redirectAttributes.addFlashAttribute("pageMessage", "Check-in thành công.");
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("pageError", ex.getMessage());
@@ -222,15 +206,13 @@ public class TrainingAttendanceController {
 
     private String submitCheckOut(AuthenticatedUser user,
                                   Integer classId,
-                                  String latitude,
-                                  String longitude,
-                                  String accuracy,
+                                  HttpServletRequest request,
                                   MultipartFile photo,
                                   RedirectAttributes redirectAttributes,
                                   String redirect) {
         try {
             trainingAttendanceService.checkOutWithPhoto(
-                    user, classId, AttendanceLocation.parse(latitude, longitude, accuracy), photoBytes(photo));
+                    user, classId, networkResolver.resolve(request), photoBytes(photo));
             redirectAttributes.addFlashAttribute("pageMessage", "Check-out thành công.");
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("pageError", ex.getMessage());

@@ -1,6 +1,8 @@
 package com.example.coffee_hrm.controller;
 
 import com.example.coffee_hrm.common.exception.BusinessException;
+import com.example.coffee_hrm.common.net.AttendanceNetworkResolver;
+import com.example.coffee_hrm.common.net.IpAddresses;
 import com.example.coffee_hrm.dto.request.CreateStoreRequest;
 import com.example.coffee_hrm.dto.request.UpdateStoreRequest;
 import com.example.coffee_hrm.dto.response.StoreResponse;
@@ -8,6 +10,7 @@ import com.example.coffee_hrm.entity.Store;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.StoreService;
 import com.example.coffee_hrm.service.impl.StoreServiceImpl;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.propertyeditors.StringTrimmerEditor;
@@ -31,7 +34,6 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -48,6 +50,7 @@ public class StoreController {
     private static final String SYSTEM_ERROR_MESSAGE = "Unable to process the request. Please try again later.";
 
     private final StoreService storeService;
+    private final AttendanceNetworkResolver networkResolver;
 
     @InitBinder
     public void trimStrings(WebDataBinder binder) {
@@ -83,7 +86,7 @@ public class StoreController {
                     "Đã tạo cửa hàng " + created.getStoreName() + " (Store #" + created.getId()
                             + "). Trạng thái: " + created.getStatusLabel()
                             + ". Manager: Chưa chỉ định."
-                            + locationSuffix(created));
+                            + ipSuffix(created));
             return STORE_LIST_REDIRECT;
         } catch (BusinessException ex) {
             exposeBusinessError(bindingResult, ex);
@@ -107,8 +110,7 @@ public class StoreController {
                     .totalLeaveSlots(store.getTotalLeaveSlots())
                     .totalLeaveDays(store.getTotalLeaveDays())
                     .openingDate(store.getOpeningDate())
-                    .latitude(plainCoordinate(store.getLatitude()))
-                    .longitude(plainCoordinate(store.getLongitude()))
+                    .allowedIps(String.join(", ", store.getAllowedIps()))
                     .build());
             return STORE_EDIT_VIEW;
         } catch (BusinessException ex) {
@@ -172,7 +174,7 @@ public class StoreController {
         if (updated.getStatusLabel() != null) {
             message = message + " Trạng thái: " + updated.getStatusLabel() + ".";
         }
-        return message + locationSuffix(updated);
+        return message + ipSuffix(updated);
     }
 
     private void exposeBusinessError(BindingResult bindingResult, BusinessException ex) {
@@ -184,26 +186,45 @@ public class StoreController {
             bindingResult.rejectValue("address", "business", message);
         } else if (StoreServiceImpl.OPENING_DATE_REQUIRED.equals(message)) {
             bindingResult.rejectValue("openingDate", "business", message);
-        } else if (StoreServiceImpl.LOCATION_REQUIRED.equals(message)
-                || StoreServiceImpl.INVALID_COORDINATES.equals(message)) {
-            bindingResult.rejectValue("latitude", "business", message);
-            bindingResult.rejectValue("longitude", "business", message);
+        } else if (message != null && message.startsWith(StoreServiceImpl.INVALID_IP_PREFIX)) {
+            bindingResult.rejectValue("allowedIps", "business", message);
         }
     }
 
-    private String locationSuffix(StoreResponse store) {
-        if (store.getLatitude() == null || store.getLongitude() == null) {
-            return "";
+    /**
+     * "Lấy IP mạng hiện tại" trong ô cấu hình IP. Chỉ trả về IP mà máy chủ thực sự nhận được từ kết nối
+     * ({@link IpAddresses#clientIp}), không đọc tham số hay header do trình duyệt gửi. Không lưu gì:
+     * trình duyệt chỉ điền IP vào ô để Admin kiểm tra rồi tự bấm lưu. IP nội bộ/loopback không được trả
+     * về như IP hợp lệ để tránh cấu hình nhầm.
+     */
+    @GetMapping("/current-ip")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> currentIp(HttpServletRequest request) {
+        // Cùng cách xác định với lúc Staff/Manager chấm công, nên IP lấy được chính là IP sẽ được so khớp.
+        String ip = networkResolver.effectiveIp(request);
+        if (ip == null) {
+            return ResponseEntity.ok(Map.of(
+                    "ok", false,
+                    "message", "Không xác định được IP mạng hiện tại. Vui lòng nhập IP thủ công."));
         }
-        return " Vị trí chấm công: "
-                + store.getLatitude().stripTrailingZeros().toPlainString()
-                + ", "
-                + store.getLongitude().stripTrailingZeros().toPlainString()
-                + ".";
+        if (!IpAddresses.isPublic(ip)) {
+            return ResponseEntity.ok(Map.of(
+                    "ok", false,
+                    "ip", ip,
+                    "message", "Máy chủ đang nhận IP nội bộ " + ip + ", không phải IP mạng Internet công khai. "
+                            + "Không thể tự động lấy IP an toàn; vui lòng nhập IP mạng của cửa hàng thủ công."));
+        }
+        return ResponseEntity.ok(Map.of(
+                "ok", true,
+                "ip", ip,
+                "message", "Đã thêm IP " + ip + " vào danh sách. Hãy kiểm tra và bấm lưu để áp dụng."));
     }
 
-    private String plainCoordinate(BigDecimal value) {
-        return value == null ? null : value.stripTrailingZeros().toPlainString();
+    private String ipSuffix(StoreResponse store) {
+        if (store.getAllowedIps() == null || store.getAllowedIps().isEmpty()) {
+            return " Chưa cấu hình IP chấm công: nhân viên chưa thể chấm công tại cửa hàng này.";
+        }
+        return " IP chấm công: " + String.join(", ", store.getAllowedIps()) + ".";
     }
 
     @ExceptionHandler(DataAccessException.class)

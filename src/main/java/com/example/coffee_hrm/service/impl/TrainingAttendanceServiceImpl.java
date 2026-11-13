@@ -6,9 +6,8 @@ import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.enums.TrainingClassStatus;
 import com.example.coffee_hrm.common.enums.TrainingType;
 import com.example.coffee_hrm.common.exception.BusinessException;
-import com.example.coffee_hrm.common.geo.GeoDistance;
 import com.example.coffee_hrm.common.time.VietnamTime;
-import com.example.coffee_hrm.dto.request.AttendanceLocation;
+import com.example.coffee_hrm.dto.request.AttendanceNetwork;
 import com.example.coffee_hrm.dto.response.TrainingClockView;
 import com.example.coffee_hrm.entity.Employee;
 import com.example.coffee_hrm.entity.Store;
@@ -22,6 +21,7 @@ import com.example.coffee_hrm.repository.TrainingClassEnrollmentRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.AttendancePolicyProperties;
 import com.example.coffee_hrm.service.TrainingAttendanceService;
+import com.example.coffee_hrm.service.support.AttendanceNetworkRule;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -53,13 +53,12 @@ public class TrainingAttendanceServiceImpl implements TrainingAttendanceService 
     static final String NOT_CHECKED_IN = "Bạn chưa Check-in cho buổi đào tạo này.";
     static final String ALREADY_OUT = "Bạn đã Check-out cho buổi đào tạo này.";
     static final String OPEN_RECORD = "Bạn chưa Check-out bản ghi chấm công đang mở.";
-    static final String LOCATION_UNKNOWN = "Không thể xác định vị trí của bạn.";
-    static final String OUTSIDE_RADIUS = "Bạn đang ở ngoài phạm vi chấm công của cửa hàng.";
-    static final String STORE_UNRESOLVED = "Không xác định được cửa hàng để kiểm tra vị trí chấm công.";
-    static final String STORE_LOCATION_MISSING = "Cửa hàng chưa được thiết lập vị trí chấm công.";
+    static final String IP_UNKNOWN = AttendanceNetworkRule.IP_UNKNOWN;
+    static final String IP_NOT_ALLOWED = AttendanceNetworkRule.IP_NOT_ALLOWED;
+    static final String STORE_UNRESOLVED = "Không xác định được cửa hàng để kiểm tra mạng chấm công.";
+    static final String STORE_IP_MISSING = AttendanceNetworkRule.STORE_IP_MISSING;
     static final String CHECKOUT_NOT_OPEN = "Không được Check-out sớm. Chỉ được Check-out từ 5 phút trước khi buổi đào tạo kết thúc.";
     static final String PHOTO_REQUIRED = "Hãy chụp ảnh nhân viên trước khi lưu.";
-    private static final double DISTANCE_TOLERANCE_METERS = 0.01;
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
 
@@ -108,40 +107,40 @@ public class TrainingAttendanceServiceImpl implements TrainingAttendanceService 
 
     @Override
     @Transactional
-    public void checkIn(AuthenticatedUser user, Integer classId, AttendanceLocation location) {
-        checkIn(user, classId, location, VietnamTime.now(), null);
+    public void checkIn(AuthenticatedUser user, Integer classId, AttendanceNetwork network) {
+        checkIn(user, classId, network, VietnamTime.now(), null);
     }
 
     @Override
     @Transactional
-    public void checkOut(AuthenticatedUser user, Integer classId, AttendanceLocation location) {
-        checkOut(user, classId, location, VietnamTime.now(), null);
+    public void checkOut(AuthenticatedUser user, Integer classId, AttendanceNetwork network) {
+        checkOut(user, classId, network, VietnamTime.now(), null);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public void previewCheckIn(AuthenticatedUser user, Integer classId, AttendanceLocation location) {
-        planCheckIn(user, classId, location, VietnamTime.now());
+    public void previewCheckIn(AuthenticatedUser user, Integer classId, AttendanceNetwork network) {
+        planCheckIn(user, classId, network, VietnamTime.now());
     }
 
     @Override
     @Transactional(readOnly = true)
-    public void previewCheckOut(AuthenticatedUser user, Integer classId, AttendanceLocation location) {
-        planCheckOut(user, classId, location, VietnamTime.now());
+    public void previewCheckOut(AuthenticatedUser user, Integer classId, AttendanceNetwork network) {
+        planCheckOut(user, classId, network, VietnamTime.now());
     }
 
     @Override
     @Transactional
-    public void checkInWithPhoto(AuthenticatedUser user, Integer classId, AttendanceLocation location, byte[] photo) {
+    public void checkInWithPhoto(AuthenticatedUser user, Integer classId, AttendanceNetwork network, byte[] photo) {
         requirePhoto(photo);
-        checkIn(user, classId, location, VietnamTime.now(), photo);
+        checkIn(user, classId, network, VietnamTime.now(), photo);
     }
 
     @Override
     @Transactional
-    public void checkOutWithPhoto(AuthenticatedUser user, Integer classId, AttendanceLocation location, byte[] photo) {
+    public void checkOutWithPhoto(AuthenticatedUser user, Integer classId, AttendanceNetwork network, byte[] photo) {
         requirePhoto(photo);
-        checkOut(user, classId, location, VietnamTime.now(), photo);
+        checkOut(user, classId, network, VietnamTime.now(), photo);
     }
 
     @Override
@@ -157,13 +156,13 @@ public class TrainingAttendanceServiceImpl implements TrainingAttendanceService 
         return photoStore.read(name);
     }
 
-    void checkIn(AuthenticatedUser user, Integer classId, AttendanceLocation location, LocalDateTime rawNow) {
-        checkIn(user, classId, location, rawNow, null);
+    void checkIn(AuthenticatedUser user, Integer classId, AttendanceNetwork network, LocalDateTime rawNow) {
+        checkIn(user, classId, network, rawNow, null);
     }
 
-    void checkIn(AuthenticatedUser user, Integer classId, AttendanceLocation location, LocalDateTime rawNow, byte[] photo) {
+    void checkIn(AuthenticatedUser user, Integer classId, AttendanceNetwork network, LocalDateTime rawNow, byte[] photo) {
         rejectIfEmploymentEnded(user);
-        CheckInPlan plan = planCheckIn(user, classId, location, rawNow);
+        CheckInPlan plan = planCheckIn(user, classId, network, rawNow);
         TrainingAttendance attendance = TrainingAttendance.builder()
                 .employee(plan.employee())
                 .trainingClass(plan.trainingClass())
@@ -173,8 +172,6 @@ public class TrainingAttendanceServiceImpl implements TrainingAttendanceService 
                 .scheduledStartTime(plan.trainingClass().getStartTime())
                 .scheduledEndTime(plan.trainingClass().getEndTime())
                 .checkInTime(plan.now())
-                .checkInLatitude(location.latitude())
-                .checkInLongitude(location.longitude())
                 .lateMinutes(plan.lateMinutes())
                 .earlyLeaveMinutes(0)
                 .status(plan.status())
@@ -187,20 +184,18 @@ public class TrainingAttendanceServiceImpl implements TrainingAttendanceService 
         attachPhoto(attendance, true, photo);
     }
 
-    void checkOut(AuthenticatedUser user, Integer classId, AttendanceLocation location, LocalDateTime rawNow) {
-        checkOut(user, classId, location, rawNow, null);
+    void checkOut(AuthenticatedUser user, Integer classId, AttendanceNetwork network, LocalDateTime rawNow) {
+        checkOut(user, classId, network, rawNow, null);
     }
 
-    void checkOut(AuthenticatedUser user, Integer classId, AttendanceLocation location, LocalDateTime rawNow, byte[] photo) {
+    void checkOut(AuthenticatedUser user, Integer classId, AttendanceNetwork network, LocalDateTime rawNow, byte[] photo) {
         rejectIfEmploymentEnded(user);
-        CheckOutPlan plan = planCheckOut(user, classId, location, rawNow);
+        CheckOutPlan plan = planCheckOut(user, classId, network, rawNow);
         TrainingAttendance attendance = plan.attendance();
         LocalDateTime checkIn = attendance.getCheckInTime() == null ? plan.now() : attendance.getCheckInTime();
         int workingMinutes = (int) Math.max(0, ChronoUnit.MINUTES.between(checkIn, plan.now()));
         int lateMinutes = attendance.getLateMinutes() == null ? 0 : attendance.getLateMinutes();
         attendance.setCheckOutTime(plan.now());
-        attendance.setCheckOutLatitude(location.latitude());
-        attendance.setCheckOutLongitude(location.longitude());
         attendance.setWorkingMinutes(workingMinutes);
         attendance.setEarlyLeaveMinutes(0);
         attendance.setStatus(resolveStatus(attendance.getStatus(), lateMinutes, 0));
@@ -208,7 +203,7 @@ public class TrainingAttendanceServiceImpl implements TrainingAttendanceService 
         attachPhoto(attendance, false, photo);
     }
 
-    private CheckInPlan planCheckIn(AuthenticatedUser user, Integer classId, AttendanceLocation location, LocalDateTime rawNow) {
+    private CheckInPlan planCheckIn(AuthenticatedUser user, Integer classId, AttendanceNetwork network, LocalDateTime rawNow) {
         Employee employee = resolveEmployee(user);
         LocalDateTime now = exactTime(rawNow);
         LocalDate today = now.toLocalDate();
@@ -235,14 +230,14 @@ public class TrainingAttendanceServiceImpl implements TrainingAttendanceService 
         if (!now.isBefore(end)) {
             throw new BusinessException(SESSION_ENDED);
         }
-        Store store = resolveGpsStore(trainingClass, employee);
-        assertInsideStore(store, location);
+        Store store = resolveAttendanceStore(trainingClass, employee);
+        assertOnStoreNetwork(store, network);
         long minutesAfterStart = Math.max(0, ChronoUnit.MINUTES.between(start, now));
         return new CheckInPlan(employee, trainingClass, store, today, now,
                 storedLateMinutes(minutesAfterStart), checkInStatus(minutesAfterStart));
     }
 
-    private CheckOutPlan planCheckOut(AuthenticatedUser user, Integer classId, AttendanceLocation location, LocalDateTime rawNow) {
+    private CheckOutPlan planCheckOut(AuthenticatedUser user, Integer classId, AttendanceNetwork network, LocalDateTime rawNow) {
         Employee employee = resolveEmployee(user);
         LocalDateTime now = exactTime(rawNow);
         TrainingClass trainingClass = requireAssignedClass(user, employee, classId);
@@ -265,8 +260,8 @@ public class TrainingAttendanceServiceImpl implements TrainingAttendanceService 
         if (!checkoutOpen(scheduledEnd, now)) {
             throw new BusinessException(CHECKOUT_NOT_OPEN);
         }
-        Store store = resolveGpsStore(trainingClass, employee);
-        assertInsideStore(store, location);
+        Store store = resolveAttendanceStore(trainingClass, employee);
+        assertOnStoreNetwork(store, network);
         return new CheckOutPlan(attendance, now, scheduledEnd);
     }
 
@@ -444,7 +439,8 @@ public class TrainingAttendanceServiceImpl implements TrainingAttendanceService 
         return open;
     }
 
-    private Store resolveGpsStore(TrainingClass trainingClass, Employee employee) {
+    /** Cửa hàng có mạng dùng để chấm công buổi đào tạo. */
+    private Store resolveAttendanceStore(TrainingClass trainingClass, Employee employee) {
         if (trainingClass.getTrainingType() == TrainingType.CENTRALIZED_TRAINING) {
             Store home = employee.getStore();
             boolean participating = home != null
@@ -464,25 +460,13 @@ public class TrainingAttendanceServiceImpl implements TrainingAttendanceService 
     }
 
     private Store latestStore(Integer storeId) {
-        Store store = storeRepository.findById(storeId)
+        return storeRepository.findById(storeId)
                 .orElseThrow(() -> new BusinessException(STORE_UNRESOLVED));
-        if (!GeoDistance.isValidLatitude(store.getLatitude()) || !GeoDistance.isValidLongitude(store.getLongitude())) {
-            throw new BusinessException(STORE_LOCATION_MISSING);
-        }
-        return store;
     }
 
-    private void assertInsideStore(Store store, AttendanceLocation location) {
-        if (location == null
-                || !GeoDistance.isValidLatitude(location.latitude())
-                || !GeoDistance.isValidLongitude(location.longitude())) {
-            throw new BusinessException(LOCATION_UNKNOWN);
-        }
-        double distance = GeoDistance.meters(
-                store.getLatitude(), store.getLongitude(), location.latitude(), location.longitude());
-        if (distance > radiusMeters() + DISTANCE_TOLERANCE_METERS) {
-            throw new BusinessException(OUTSIDE_RADIUS);
-        }
+    /** Chỉ cho chấm công khi IP thực tế của request thuộc danh sách IP của cửa hàng. */
+    private void assertOnStoreNetwork(Store store, AttendanceNetwork network) {
+        AttendanceNetworkRule.assertAllowed(storeRepository.findAllowedIps(store.getId()), network);
     }
 
     private boolean covers(TrainingClass trainingClass, LocalDate day) {
@@ -671,10 +655,6 @@ public class TrainingAttendanceServiceImpl implements TrainingAttendanceService 
         int absent = Math.max(policy.getTrainingAbsentThresholdMinutes(), 0);
         int late = trainingLateThreshold();
         return absent < late ? late : absent;
-    }
-
-    private double radiusMeters() {
-        return Math.max(policy.getRadiusMeters(), 0);
     }
 
     private LocalDateTime exactTime(LocalDateTime value) {

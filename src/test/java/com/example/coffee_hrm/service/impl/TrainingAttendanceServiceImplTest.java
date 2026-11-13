@@ -6,9 +6,9 @@ import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.enums.TrainingClassStatus;
 import com.example.coffee_hrm.common.enums.TrainingType;
 import com.example.coffee_hrm.common.exception.BusinessException;
-import com.example.coffee_hrm.common.geo.GeoDistance;
+
 import com.example.coffee_hrm.common.time.VietnamTime;
-import com.example.coffee_hrm.dto.request.AttendanceLocation;
+import com.example.coffee_hrm.dto.request.AttendanceNetwork;
 import com.example.coffee_hrm.entity.Employee;
 import com.example.coffee_hrm.entity.Role;
 import com.example.coffee_hrm.entity.Store;
@@ -40,8 +40,11 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -51,6 +54,8 @@ class TrainingAttendanceServiceImplTest {
 
     private static final BigDecimal LAT = new BigDecimal("21.0285110");
     private static final BigDecimal LNG = new BigDecimal("105.8048170");
+    private static final String STORE_IP = "203.113.10.20";
+    private static final String OTHER_IP = "14.160.5.6";
 
     @Mock
     private TrainingAttendanceRepository trainingAttendanceRepository;
@@ -80,8 +85,6 @@ class TrainingAttendanceServiceImplTest {
         AttendancePolicyProperties policy = new AttendancePolicyProperties();
         policy.setCheckInLeadMinutes(60);
         policy.setLateThresholdMinutes(20);
-        policy.setAllowEarlyCheckout(true);
-        policy.setRadiusMeters(200);
         service = new TrainingAttendanceServiceImpl(
                 trainingAttendanceRepository,
                 trainingClassEnrollmentRepository,
@@ -91,6 +94,8 @@ class TrainingAttendanceServiceImplTest {
                 policy);
         store = Store.builder().id(1).storeName("Cửa hàng 1").latitude(LAT).longitude(LNG).build();
         otherStore = Store.builder().id(2).storeName("Cửa hàng 2").latitude(LAT).longitude(LNG).build();
+        lenient().when(storeRepository.findAllowedIps(1)).thenReturn(List.of(STORE_IP));
+        lenient().when(storeRepository.findAllowedIps(2)).thenReturn(List.of(STORE_IP));
         staffEmployee = Employee.builder()
                 .id(20).fullName("Trần Văn Tuấn").store(store).status(EmployeeStatus.ACTIVE).build();
         managerEmployee = Employee.builder()
@@ -111,7 +116,7 @@ class TrainingAttendanceServiceImplTest {
         stubNoExistingRecord(20, 7);
         when(trainingAttendanceRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        service.checkIn(staffUser, 7, here(10), today.atTime(8, 0));
+        service.checkIn(staffUser, 7, storeNetwork(), today.atTime(8, 0));
 
         ArgumentCaptor<TrainingAttendance> captor = ArgumentCaptor.forClass(TrainingAttendance.class);
         verify(trainingAttendanceRepository).saveAndFlush(captor.capture());
@@ -123,7 +128,7 @@ class TrainingAttendanceServiceImplTest {
         assertEquals(LocalTime.of(12, 0), saved.getScheduledEndTime());
         assertEquals(0, saved.getLateMinutes());
         assertEquals(AttendanceStatus.PRESENT, saved.getStatus());
-        assertEquals(LAT, saved.getCheckInLatitude());
+        assertNull(saved.getCheckInLatitude());
     }
 
     @Test
@@ -134,7 +139,7 @@ class TrainingAttendanceServiceImplTest {
         when(trainingClassEnrollmentRepository.findByClassAndEmployee(7, 20)).thenReturn(Optional.empty());
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.checkIn(staffUser, 7, here(10), today.atTime(8, 0)));
+                () -> service.checkIn(staffUser, 7, storeNetwork(), today.atTime(8, 0)));
 
         assertEquals(TrainingAttendanceServiceImpl.NOT_ASSIGNED, ex.getMessage());
         verify(trainingAttendanceRepository, never()).saveAndFlush(any());
@@ -148,11 +153,11 @@ class TrainingAttendanceServiceImplTest {
         stubNoExistingRecord(10, 7);
         when(trainingAttendanceRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        service.checkIn(managerUser, 7, here(10), today.atTime(8, 0));
+        service.checkIn(managerUser, 7, storeNetwork(), today.atTime(8, 0));
         verify(trainingAttendanceRepository).saveAndFlush(any());
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.checkIn(otherManagerUser, 7, here(10), today.atTime(8, 0)));
+                () -> service.checkIn(otherManagerUser, 7, storeNetwork(), today.atTime(8, 0)));
         assertEquals(TrainingAttendanceServiceImpl.NOT_ASSIGNED, ex.getMessage());
     }
 
@@ -164,7 +169,7 @@ class TrainingAttendanceServiceImplTest {
         when(trainingAttendanceRepository.findClassForAttendance(7)).thenReturn(Optional.of(trainingClass));
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.checkIn(staffUser, 7, here(10), today.atTime(8, 0)));
+                () -> service.checkIn(staffUser, 7, storeNetwork(), today.atTime(8, 0)));
 
         assertEquals(TrainingAttendanceServiceImpl.NOT_APPROVED, ex.getMessage());
         verify(trainingAttendanceRepository, never()).saveAndFlush(any());
@@ -178,7 +183,7 @@ class TrainingAttendanceServiceImplTest {
         stubStaff(trainingClass);
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.checkIn(staffUser, 7, here(10), today.atTime(8, 0)));
+                () -> service.checkIn(staffUser, 7, storeNetwork(), today.atTime(8, 0)));
 
         assertEquals(TrainingAttendanceServiceImpl.OUTSIDE_DATES, ex.getMessage());
     }
@@ -189,7 +194,7 @@ class TrainingAttendanceServiceImplTest {
         missing.setEndTime(null);
         stubStaff(missing);
         BusinessException missingHours = assertThrows(BusinessException.class,
-                () -> service.checkIn(staffUser, 7, here(10), today.atTime(8, 0)));
+                () -> service.checkIn(staffUser, 7, storeNetwork(), today.atTime(8, 0)));
         assertEquals(TrainingAttendanceServiceImpl.BAD_SCHEDULE, missingHours.getMessage());
 
         TrainingClass backwards = approvedClass(8, trainer);
@@ -197,7 +202,7 @@ class TrainingAttendanceServiceImplTest {
         backwards.setEndTime(LocalTime.of(8, 0));
         stubStaff(backwards);
         BusinessException invalid = assertThrows(BusinessException.class,
-                () -> service.checkIn(staffUser, 8, here(10), today.atTime(12, 0)));
+                () -> service.checkIn(staffUser, 8, storeNetwork(), today.atTime(12, 0)));
         assertEquals(TrainingAttendanceServiceImpl.BAD_SCHEDULE, invalid.getMessage());
         verify(trainingAttendanceRepository, never()).saveAndFlush(any());
     }
@@ -213,7 +218,7 @@ class TrainingAttendanceServiceImplTest {
         stubStore();
         when(trainingAttendanceRepository.findOpenByEmployeeAndClass(20, 7)).thenReturn(List.of(open));
 
-        service.checkOut(staffUser, 7, here(10), today.atTime(11, 55));
+        service.checkOut(staffUser, 7, storeNetwork(), today.atTime(11, 55));
 
         assertEquals(today.atTime(11, 55), open.getCheckOutTime());
         assertEquals(235, open.getWorkingMinutes());
@@ -233,11 +238,11 @@ class TrainingAttendanceServiceImplTest {
         when(trainingAttendanceRepository.findOpenByEmployeeAndClass(20, 7)).thenReturn(List.of(open));
 
         BusinessException tooSoon = assertThrows(BusinessException.class,
-                () -> service.checkOut(staffUser, 7, here(10), today.atTime(11, 54)));
+                () -> service.checkOut(staffUser, 7, storeNetwork(), today.atTime(11, 54)));
         assertEquals(TrainingAttendanceServiceImpl.CHECKOUT_NOT_OPEN, tooSoon.getMessage());
         assertEquals(null, open.getCheckOutTime());
 
-        service.checkOut(staffUser, 7, here(10), today.atTime(11, 55));
+        service.checkOut(staffUser, 7, storeNetwork(), today.atTime(11, 55));
         assertEquals(today.atTime(11, 55), open.getCheckOutTime());
         assertEquals(AttendanceStatus.PRESENT, open.getStatus());
     }
@@ -251,7 +256,7 @@ class TrainingAttendanceServiceImplTest {
                 .thenReturn(Optional.empty());
 
         BusinessException missing = assertThrows(BusinessException.class,
-                () -> service.checkOut(staffUser, 7, here(10), today.atTime(11, 0)));
+                () -> service.checkOut(staffUser, 7, storeNetwork(), today.atTime(11, 0)));
         assertEquals(TrainingAttendanceServiceImpl.NOT_CHECKED_IN, missing.getMessage());
 
         TrainingAttendance finished = openRecord(trainingClass, today.atTime(8, 0));
@@ -259,7 +264,7 @@ class TrainingAttendanceServiceImplTest {
         when(trainingAttendanceRepository.findByEmployee_IdAndTrainingClass_IdAndWorkDate(20, 7, today))
                 .thenReturn(Optional.of(finished));
         BusinessException again = assertThrows(BusinessException.class,
-                () -> service.checkOut(staffUser, 7, here(10), today.atTime(12, 30)));
+                () -> service.checkOut(staffUser, 7, storeNetwork(), today.atTime(12, 30)));
         assertEquals(TrainingAttendanceServiceImpl.ALREADY_OUT, again.getMessage());
         verify(trainingAttendanceRepository, never()).save(any());
     }
@@ -274,7 +279,7 @@ class TrainingAttendanceServiceImplTest {
                 .thenThrow(new DataIntegrityViolationException("duplicate"));
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.checkIn(staffUser, 7, here(10), today.atTime(8, 0)));
+                () -> service.checkIn(staffUser, 7, storeNetwork(), today.atTime(8, 0)));
 
         assertEquals(TrainingAttendanceServiceImpl.ALREADY_IN, ex.getMessage());
     }
@@ -292,42 +297,39 @@ class TrainingAttendanceServiceImplTest {
         stubNoExistingRecord(20, 8);
         when(trainingAttendanceRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        service.checkIn(staffUser, 7, here(10), today.atTime(8, 0));
-        service.checkIn(staffUser, 8, here(10), today.atTime(13, 0));
+        service.checkIn(staffUser, 7, storeNetwork(), today.atTime(8, 0));
+        service.checkIn(staffUser, 8, storeNetwork(), today.atTime(13, 0));
 
         verify(trainingAttendanceRepository, org.mockito.Mockito.times(2)).saveAndFlush(any());
     }
 
     @Test
-    void accuracyAndDistanceBoundariesAreEnforced() {
+    void onlyTheStoreNetworkCanCheckIn() {
         TrainingClass trainingClass = approvedClass(7, trainer);
         stubStaff(trainingClass);
         stubStore();
         stubNoExistingRecord(20, 7);
         when(trainingAttendanceRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        service.checkIn(staffUser, 7, north(199, 50), today.atTime(8, 0));
-        service.checkIn(staffUser, 7, north(200, 50), today.atTime(8, 5));
-        service.checkIn(staffUser, 7, here(107), today.atTime(8, 10));
+        service.checkIn(staffUser, 7, storeNetwork(), today.atTime(8, 0));
 
-        BusinessException tooFar = assertThrows(BusinessException.class,
-                () -> service.checkIn(staffUser, 7, north(201, 10), today.atTime(8, 0)));
-        assertEquals(TrainingAttendanceServiceImpl.OUTSIDE_RADIUS, tooFar.getMessage());
+        BusinessException otherNetwork = assertThrows(BusinessException.class,
+                () -> service.checkIn(staffUser, 7, otherNetwork(), today.atTime(8, 0)));
+        assertTrue(otherNetwork.getMessage().startsWith(TrainingAttendanceServiceImpl.IP_NOT_ALLOWED));
     }
 
     @Test
-    void missingStoreCoordinatesAreRejected() {
-        store.setLatitude(null);
-        store.setLongitude(null);
+    void storeWithoutIpConfigurationIsRejected() {
+        when(storeRepository.findAllowedIps(1)).thenReturn(List.of());
         TrainingClass trainingClass = approvedClass(7, trainer);
         stubStaff(trainingClass);
         stubStore();
         stubNoExistingRecord(20, 7);
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.checkIn(staffUser, 7, here(10), today.atTime(8, 0)));
+                () -> service.checkIn(staffUser, 7, storeNetwork(), today.atTime(8, 0)));
 
-        assertEquals(TrainingAttendanceServiceImpl.STORE_LOCATION_MISSING, ex.getMessage());
+        assertEquals(TrainingAttendanceServiceImpl.STORE_IP_MISSING, ex.getMessage());
         verify(trainingAttendanceRepository, never()).saveAndFlush(any());
     }
 
@@ -342,7 +344,7 @@ class TrainingAttendanceServiceImplTest {
         stubNoExistingRecord(20, 7);
         when(trainingAttendanceRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        service.checkIn(staffUser, 7, here(10), today.atTime(8, 0));
+        service.checkIn(staffUser, 7, storeNetwork(), today.atTime(8, 0));
 
         ArgumentCaptor<TrainingAttendance> captor = ArgumentCaptor.forClass(TrainingAttendance.class);
         verify(trainingAttendanceRepository).saveAndFlush(captor.capture());
@@ -359,7 +361,7 @@ class TrainingAttendanceServiceImplTest {
         stubNoExistingRecord(20, 7);
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.checkIn(staffUser, 7, here(10), today.atTime(8, 0)));
+                () -> service.checkIn(staffUser, 7, storeNetwork(), today.atTime(8, 0)));
 
         assertEquals(TrainingAttendanceServiceImpl.STORE_UNRESOLVED, ex.getMessage());
     }
@@ -373,7 +375,7 @@ class TrainingAttendanceServiceImplTest {
         when(trainingAttendanceRepository.findOpenByEmployee(20)).thenReturn(List.of(open));
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.checkIn(staffUser, 7, here(10), today.atTime(8, 0)));
+                () -> service.checkIn(staffUser, 7, storeNetwork(), today.atTime(8, 0)));
 
         assertEquals(TrainingAttendanceServiceImpl.OPEN_RECORD, ex.getMessage());
         verify(trainingAttendanceRepository, never()).saveAndFlush(any());
@@ -384,7 +386,7 @@ class TrainingAttendanceServiceImplTest {
         AuthenticatedUser admin = AuthenticatedUser.from(buildUser(1, "admin", RoleName.ADMIN, null));
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.checkIn(admin, 7, here(10), today.atTime(8, 0)));
+                () -> service.checkIn(admin, 7, storeNetwork(), today.atTime(8, 0)));
 
         assertEquals("Bạn không có quyền chấm công.", ex.getMessage());
         verify(employeeRepository, never()).findByIdWithStore(any());
@@ -398,10 +400,10 @@ class TrainingAttendanceServiceImplTest {
         stubNoExistingRecord(20, 7);
         when(trainingAttendanceRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        service.checkIn(staffUser, 7, here(10), today.atTime(8, 9));
-        service.checkIn(staffUser, 7, here(10), today.atTime(8, 10));
-        service.checkIn(staffUser, 7, here(10), today.atTime(8, 19));
-        service.checkIn(staffUser, 7, here(10), today.atTime(8, 20));
+        service.checkIn(staffUser, 7, storeNetwork(), today.atTime(8, 9));
+        service.checkIn(staffUser, 7, storeNetwork(), today.atTime(8, 10));
+        service.checkIn(staffUser, 7, storeNetwork(), today.atTime(8, 19));
+        service.checkIn(staffUser, 7, storeNetwork(), today.atTime(8, 20));
 
         ArgumentCaptor<TrainingAttendance> captor = ArgumentCaptor.forClass(TrainingAttendance.class);
         verify(trainingAttendanceRepository, org.mockito.Mockito.times(4)).saveAndFlush(captor.capture());
@@ -424,7 +426,7 @@ class TrainingAttendanceServiceImplTest {
         stubStore();
         when(trainingAttendanceRepository.findOpenByEmployeeAndClass(20, 7)).thenReturn(List.of(open));
 
-        service.checkOut(staffUser, 7, here(10), today.atTime(12, 0));
+        service.checkOut(staffUser, 7, storeNetwork(), today.atTime(12, 0));
 
         assertEquals(AttendanceStatus.NOT_PARTICIPATED, open.getStatus());
         assertEquals(0, open.getEarlyLeaveMinutes());
@@ -444,7 +446,7 @@ class TrainingAttendanceServiceImplTest {
         });
         when(photoStore.saveTraining(44, "in", jpeg)).thenReturn("t44-in.jpg");
 
-        service.checkIn(staffUser, 7, here(10), today.atTime(8, 0), jpeg);
+        service.checkIn(staffUser, 7, storeNetwork(), today.atTime(8, 0), jpeg);
 
         ArgumentCaptor<TrainingAttendance> captor = ArgumentCaptor.forClass(TrainingAttendance.class);
         verify(trainingAttendanceRepository).save(captor.capture());
@@ -454,7 +456,7 @@ class TrainingAttendanceServiceImplTest {
     @Test
     void webCheckInWithoutPhotoIsRejected() {
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.checkInWithPhoto(staffUser, 7, here(10), null));
+                () -> service.checkInWithPhoto(staffUser, 7, storeNetwork(), null));
 
         assertEquals(TrainingAttendanceServiceImpl.PHOTO_REQUIRED, ex.getMessage());
         verify(trainingAttendanceRepository, never()).saveAndFlush(any());
@@ -519,13 +521,14 @@ class TrainingAttendanceServiceImplTest {
                 .build();
     }
 
-    private AttendanceLocation here(double accuracyMeters) {
-        return new AttendanceLocation(LAT, LNG, accuracyMeters);
+    /** Request đến từ mạng của cửa hàng. */
+    private AttendanceNetwork storeNetwork() {
+        return new AttendanceNetwork(STORE_IP);
     }
 
-    private AttendanceLocation north(double meters, double accuracyMeters) {
-        double delta = Math.toDegrees(meters / GeoDistance.EARTH_RADIUS_METERS);
-        return new AttendanceLocation(BigDecimal.valueOf(LAT.doubleValue() + delta), LNG, accuracyMeters);
+    /** Request đến từ một mạng khác mạng của cửa hàng. */
+    private AttendanceNetwork otherNetwork() {
+        return new AttendanceNetwork(OTHER_IP);
     }
 
     private User buildUser(Integer id, String username, RoleName roleName, Employee employee) {

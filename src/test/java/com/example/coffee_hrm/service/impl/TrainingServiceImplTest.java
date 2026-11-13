@@ -789,7 +789,7 @@ class TrainingServiceImplTest {
     }
 
     @Test
-    void adminWhoDidNotCreateOrTrainTheClassCannotSeeTheRoster() {
+    void anyAdminSeesTheRosterAndRollCallButOnlyTheTrainerEvaluates() {
         Store store = Store.builder().id(5).storeName("Store A").build();
         TrainingClass trainingClass = approvedClass(store, VietnamTime.today().minusDays(1));
         trainingClass.setTrainer(user(9, RoleName.MANAGER, 90));
@@ -800,7 +800,8 @@ class TrainingServiceImplTest {
         var detail = trainingService.getApprovedClassDetailForAdmin(10, admin);
 
         assertFalse(detail.isEvaluable());
-        assertFalse(detail.isRosterVisible());
+        // Admin xem được danh sách học viên và điểm danh của mọi lớp.
+        assertTrue(detail.isRosterVisible());
     }
 
     @Test

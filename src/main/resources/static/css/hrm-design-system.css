@@ -583,7 +583,7 @@ body:has(.coffee-sidebar) .info-list div,
 body:has(.coffee-sidebar) .detail-list div { border-bottom-color: rgba(92, 60, 46, .08); }
 body:has(.coffee-sidebar) .gender-pills span,
 body:has(.coffee-sidebar) .status-pills a { border-radius: 999px; }
-body:has(.coffee-sidebar) .gps-dialog { border-radius: 22px; }
+body:has(.coffee-sidebar) .clock-dialog { border-radius: 22px; }
 body:has(.coffee-sidebar) .notif-open-link {
     border: 0;
     padding: 0;

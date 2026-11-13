@@ -27,7 +27,9 @@ import org.mockito.quality.Strictness;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -137,9 +139,11 @@ class StoreServiceImplTest {
         assertEquals(StoreStatus.ACTIVE, saved.getStatus());
         assertTrue(saved.getIsActive());
         assertNull(saved.getManager());
-        assertEquals(0, new BigDecimal("21.028511").compareTo(saved.getLatitude()));
-        assertEquals(0, new BigDecimal("105.854167").compareTo(saved.getLongitude()));
-        assertNotNull(saved.getLocationUpdatedAt());
+        assertEquals(Set.of("203.113.10.20"), saved.getAllowedIps());
+        assertEquals(List.of("203.113.10.20"), result.getAllowedIps());
+        // Không còn ghi tọa độ khi tạo cửa hàng.
+        assertNull(saved.getLatitude());
+        assertNull(saved.getLocationUpdatedAt());
         assertEquals(7, result.getId());
         assertEquals(0L, result.getEmployeeCount());
         assertNull(result.getManagerName());
@@ -176,17 +180,29 @@ class StoreServiceImplTest {
     }
 
     @Test
-    void createStoreRejectsMissingCoordinates() {
+    void createStoreRejectsAnInvalidIpWithoutSaving() {
         CreateStoreRequest request = createRequest("Store C", "C", 12, VietnamTime.today());
-        request.setLatitude(" ");
-        request.setLongitude(null);
+        request.setAllowedIps("203.113.10.20\n192.168.1.300, cuahang.local");
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> storeService.createStore(admin, request));
 
-        assertEquals(StoreServiceImpl.LOCATION_REQUIRED, ex.getMessage());
+        assertTrue(ex.getMessage().startsWith(StoreServiceImpl.INVALID_IP_PREFIX));
+        assertTrue(ex.getMessage().contains("192.168.1.300"));
+        assertTrue(ex.getMessage().contains("cuahang.local"));
         verify(storeRepository, never()).save(any());
         verify(storeOpeningSetup, never()).ensureOpeningShifts(any());
+    }
+
+    @Test
+    void createStoreWithoutIpIsAllowedButHasNoAttendanceNetwork() {
+        when(storeRepository.save(any(Store.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        CreateStoreRequest request = createRequest("Store C", "C", 12, VietnamTime.today());
+        request.setAllowedIps("  ");
+
+        StoreResponse result = storeService.createStore(admin, request);
+
+        assertTrue(result.getAllowedIps().isEmpty());
     }
 
     @Test
@@ -227,62 +243,63 @@ class StoreServiceImplTest {
     }
 
     @Test
-    void adminSavesValidStoreCoordinates() {
-        StoreResponse result = storeService.updateStore(admin, 1,
-                request("Store A", "A", 12, VietnamTime.today(), "21.028511", "105.854167"));
+    void adminSavesSeveralIpsSeparatedByNewlinesAndCommasNormalizedAndDeduplicated() {
+        StoreResponse result = storeService.updateStore(admin, 1, request("Store A", "A", 12, VietnamTime.today(),
+                " 203.113.10.20 \n113.161.1.1, 203.113.10.20\n2001:0DB8:0:0:0:0:0:0010"));
 
-        assertEquals(0, new BigDecimal("21.028511").compareTo(store.getLatitude()));
-        assertEquals(0, new BigDecimal("105.854167").compareTo(store.getLongitude()));
-        assertNotNull(store.getLocationUpdatedAt());
-        assertEquals(0, store.getLatitude().compareTo(result.getLatitude()));
+        assertEquals(Set.of("203.113.10.20", "113.161.1.1", "2001:db8:0:0:0:0:0:10"), store.getAllowedIps());
+        assertEquals(List.of("113.161.1.1", "2001:db8:0:0:0:0:0:10", "203.113.10.20"), result.getAllowedIps());
     }
 
     @Test
-    void invalidStoreCoordinatesAreRejected() {
-        store.setLatitude(new BigDecimal("10.5"));
-        store.setLongitude(new BigDecimal("106.5"));
+    void invalidIpIsRejectedAndTheStoredListIsKept() {
+        store.getAllowedIps().add("203.113.10.20");
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> storeService.updateStore(admin, 1, request("Store A", "A", 12, VietnamTime.today(), "91", "106.5")));
+                () -> storeService.updateStore(admin, 1,
+                        request("Store A", "A", 12, VietnamTime.today(), "203.113.10.20, 10.0.0.0/24")));
 
-        assertEquals(StoreServiceImpl.INVALID_COORDINATES, ex.getMessage());
-        assertEquals(0, new BigDecimal("10.5").compareTo(store.getLatitude()));
+        assertTrue(ex.getMessage().startsWith(StoreServiceImpl.INVALID_IP_PREFIX));
+        assertEquals(Set.of("203.113.10.20"), store.getAllowedIps());
     }
 
     @Test
-    void blankCoordinatesKeepTheStoredLocation() {
+    void tooManyIpsAreRejected() {
+        StringBuilder many = new StringBuilder();
+        for (int i = 1; i <= 21; i++) {
+            many.append("203.113.10.").append(i).append('\n');
+        }
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> storeService.updateStore(admin, 1, request("Store A", "A", 12, VietnamTime.today(), many.toString())));
+
+        assertTrue(ex.getMessage().contains("tối đa 20"));
+    }
+
+    @Test
+    void blankIpFieldRemovesAllIpsAndKeepsTheOldCoordinates() {
         store.setLatitude(new BigDecimal("10.5"));
         store.setLongitude(new BigDecimal("106.5"));
+        store.getAllowedIps().addAll(Set.of("203.113.10.20", "113.161.1.1"));
 
-        storeService.updateStore(admin, 1, request("Store B", "A", 12, VietnamTime.today(), "  ", null));
+        storeService.updateStore(admin, 1, request("Store B", "A", 12, VietnamTime.today(), "  "));
 
+        assertTrue(store.getAllowedIps().isEmpty());
+        // Dữ liệu vị trí cũ trong database không bị xóa.
         assertEquals(0, new BigDecimal("10.5").compareTo(store.getLatitude()));
-        assertNull(store.getLocationUpdatedAt());
+        assertEquals(0, new BigDecimal("106.5").compareTo(store.getLongitude()));
     }
 
     @Test
-    void sameCoordinatesDoNotRefreshTheUpdateTime() {
-        LocalDateTime updatedAt = LocalDateTime.of(2026, 10, 1, 8, 0);
-        store.setLatitude(new BigDecimal("21.028511"));
-        store.setLongitude(new BigDecimal("105.854167"));
-        store.setLocationUpdatedAt(updatedAt);
-
-        storeService.updateStore(admin, 1, request("Store A", "A", 12, VietnamTime.today(), "21.028511", "105.854167"));
-
-        assertEquals(updatedAt, store.getLocationUpdatedAt());
-    }
-
-    @Test
-    void managerAndStaffCannotChangeStoreCoordinates() {
-        store.setLatitude(new BigDecimal("10.5"));
-        store.setLongitude(new BigDecimal("106.5"));
+    void managerAndStaffCannotChangeStoreIps() {
+        store.getAllowedIps().add("203.113.10.20");
         for (RoleName role : new RoleName[]{RoleName.MANAGER, RoleName.STAFF}) {
             BusinessException ex = assertThrows(BusinessException.class,
                     () -> storeService.updateStore(actor(role), 1,
-                            request("Store A", "A", 12, VietnamTime.today(), "21.028511", "105.854167")));
+                            request("Store A", "A", 12, VietnamTime.today(), "1.2.3.4")));
             assertEquals(StoreServiceImpl.ACCESS_DENIED, ex.getMessage());
         }
-        assertEquals(0, new BigDecimal("10.5").compareTo(store.getLatitude()));
+        assertEquals(Set.of("203.113.10.20"), store.getAllowedIps());
         verify(storeRepository, never()).findByIdWithManager(any());
     }
 
@@ -337,24 +354,22 @@ class StoreServiceImplTest {
                 .address(address)
                 .totalLeaveSlots(totalLeaveDays)
                 .openingDate(openingDate)
-                .latitude("21.028511")
-                .longitude("105.854167")
+                .allowedIps("203.113.10.20")
                 .build();
     }
 
     private UpdateStoreRequest request(String storeName, String address, int totalLeaveDays, LocalDate openingDate) {
-        return request(storeName, address, totalLeaveDays, openingDate, null, null);
+        return request(storeName, address, totalLeaveDays, openingDate, null);
     }
 
     private UpdateStoreRequest request(String storeName, String address, int totalLeaveDays, LocalDate openingDate,
-                                      String latitude, String longitude) {
+                                      String allowedIps) {
         return UpdateStoreRequest.builder()
                 .storeName(storeName)
                 .address(address)
                 .totalLeaveSlots(totalLeaveDays)
                 .openingDate(openingDate)
-                .latitude(latitude)
-                .longitude(longitude)
+                .allowedIps(allowedIps)
                 .build();
     }
 

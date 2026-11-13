@@ -77,4 +77,8 @@ public interface StoreRepository extends JpaRepository<Store, Integer> {
 
     @Query(value = "SELECT Status FROM Stores WHERE StoreId = :id", nativeQuery = true)
     String findStatusCodeById(@Param("id") Integer id);
+
+    /** Địa chỉ IP được phép chấm công của cửa hàng (đọc thẳng, không phụ thuộc lazy loading). */
+    @Query("SELECT ip FROM Store s JOIN s.allowedIps ip WHERE s.id = :storeId")
+    List<String> findAllowedIps(@Param("storeId") Integer storeId);
 }
