@@ -39,3 +39,6 @@
 .salary-badge.DA_THANH_TOAN{background:#E5F3EA;color:#24683E;}
 .salary-sub{display:block;color:#6B5A52;font-size:12px;margin-top:2px;}
 .salary-pay{display:block;font-size:13px;white-space:nowrap;}
+/* Nhãn ca tăng ca trong chi tiết lương */
+.ot-tag{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:700;
+  background:#EFE7FB;color:#5B2E91;vertical-align:middle;white-space:nowrap;}

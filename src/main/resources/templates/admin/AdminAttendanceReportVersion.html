@@ -66,7 +66,7 @@
         </div>
         <p class="day-empty" th:if="${version.employees.isEmpty()}">Bản gửi này không có nhân viên.</p>
         <p class="day-empty" id="reportFilteredEmpty" hidden>Không có người khớp bộ lọc.</p>
-        <div class="slot-list" th:if="${!version.employees.isEmpty()}">
+        <div class="slot-list" data-paginate data-paginate-label="nhân viên" th:if="${!version.employees.isEmpty()}">
             <article class="slot-card month-card" th:each="employee : ${version.employees}"
                      th:attr="data-search=${#strings.toLowerCase(employee.fullName + ' ' + employee.code)},data-role=${employee.roleKey}">
                 <h3 th:text="${employee.fullName}">Nguyễn Minh Anh</h3>

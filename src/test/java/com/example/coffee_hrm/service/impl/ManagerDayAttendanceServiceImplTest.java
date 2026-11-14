@@ -1,5 +1,6 @@
 package com.example.coffee_hrm.service.impl;
 
+import com.example.coffee_hrm.common.enums.ApprovalStatus;
 import com.example.coffee_hrm.common.enums.AssignmentStatus;
 import com.example.coffee_hrm.common.enums.AttendanceStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
@@ -10,6 +11,7 @@ import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.response.ManagerDayAttendanceView;
 import com.example.coffee_hrm.entity.Attendance;
 import com.example.coffee_hrm.entity.Employee;
+import com.example.coffee_hrm.entity.OvertimeRequest;
 import com.example.coffee_hrm.entity.Role;
 import com.example.coffee_hrm.entity.Shift;
 import com.example.coffee_hrm.entity.ShiftAssignment;
@@ -22,6 +24,7 @@ import com.example.coffee_hrm.dto.response.ManagerMonthAttendanceView;
 import com.example.coffee_hrm.dto.response.StaffDayAttendanceView;
 import com.example.coffee_hrm.repository.AttendanceRepository;
 import com.example.coffee_hrm.repository.EmployeeRepository;
+import com.example.coffee_hrm.repository.OvertimeRequestRepository;
 import com.example.coffee_hrm.repository.ShiftAssignmentRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.repository.TrainingAttendanceRepository;
@@ -43,6 +46,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -61,6 +66,8 @@ class ManagerDayAttendanceServiceImplTest {
     private TrainingClassEnrollmentRepository trainingClassEnrollmentRepository;
     @Mock
     private EmployeeRepository employeeRepository;
+    @Mock
+    private OvertimeRequestRepository overtimeRequestRepository;
 
     @InjectMocks
     private ManagerDayAttendanceServiceImpl service;
@@ -213,6 +220,67 @@ class ManagerDayAttendanceServiceImplTest {
         assertEquals(1, second.getScheduledSlots());
         assertEquals(0, second.getWorkedSlots());
         assertEquals(0, second.getAbsentSlots());
+        // Ca vừa đi muộn vừa về sớm chỉ tính 1 ca vi phạm.
+        assertEquals(1, first.getLateOrEarlySlots());
+        assertEquals(1, view.getLateOrEarlySlots());
+    }
+
+    @Test
+    void monthBoardMergesLateAndEarlyPerShiftAndCountsOvertime() {
+        LocalDate today = VietnamTime.today();
+        LocalDate start = today.withDayOfMonth(1);
+        LocalDate end = start.withDayOfMonth(start.lengthOfMonth());
+        Employee employee = Employee.builder().id(3).fullName("Lê Thị Thu").store(store)
+                .status(EmployeeStatus.ACTIVE).build();
+        Shift morning = Shift.builder().id(1).shiftName("Ca sáng").store(store)
+                .startTime(LocalTime.of(7, 0)).endTime(LocalTime.of(11, 0)).build();
+        Shift afternoon = Shift.builder().id(2).shiftName("Ca chiều").store(store)
+                .startTime(LocalTime.of(13, 0)).endTime(LocalTime.of(17, 0)).build();
+        Shift evening = Shift.builder().id(3).shiftName("Ca tối").store(store)
+                .startTime(LocalTime.of(18, 0)).endTime(LocalTime.of(22, 0)).build();
+        ShiftAssignment regularA = ShiftAssignment.builder().id(1).employee(employee).shift(morning)
+                .workDate(today).isPublished(true).status(AssignmentStatus.ASSIGNED).build();
+        ShiftAssignment regularB = ShiftAssignment.builder().id(2).employee(employee).shift(afternoon)
+                .workDate(today).isPublished(true).status(AssignmentStatus.ASSIGNED).build();
+        ShiftAssignment overtime = ShiftAssignment.builder().id(3).employee(employee).shift(evening)
+                .workDate(today).isPublished(true).status(AssignmentStatus.ASSIGNED).build();
+        Attendance lateAndEarly = Attendance.builder().id(30).employee(employee).shift(morning).store(store)
+                .workDate(today).checkInTime(today.atTime(7, 10)).checkOutTime(today.atTime(10, 50))
+                .lateMinutes(10).earlyLeaveMinutes(10).status(AttendanceStatus.LATE_AND_EARLY).build();
+        Attendance earlyOnly = Attendance.builder().id(31).employee(employee).shift(afternoon).store(store)
+                .workDate(today).checkInTime(today.atTime(13, 0)).checkOutTime(today.atTime(16, 40))
+                .lateMinutes(0).earlyLeaveMinutes(20).status(AttendanceStatus.EARLY_LEAVE).build();
+        Attendance overtimeWorked = Attendance.builder().id(32).employee(employee).shift(evening).store(store)
+                .workDate(today).checkInTime(today.atTime(18, 0)).checkOutTime(today.atTime(22, 0))
+                .lateMinutes(0).earlyLeaveMinutes(0).status(AttendanceStatus.ON_TIME).build();
+        OvertimeRequest approved = OvertimeRequest.builder().id(70).employee(employee).store(store).shift(evening)
+                .workDate(today).reason("Tăng ca").status(ApprovalStatus.APPROVED).createdAssignmentId(3).build();
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        when(employeeRepository.findByStoreIdWithAccount(1)).thenReturn(List.of(employee));
+        when(shiftAssignmentRepository.findPublishedAssignedForStoreBetween(1, start, end, AssignmentStatus.ASSIGNED))
+                .thenReturn(List.of(regularA, regularB, overtime));
+        when(attendanceRepository.findForMonthlyReport(1, start, end))
+                .thenReturn(List.of(lateAndEarly, earlyOnly, overtimeWorked));
+        when(overtimeRequestRepository.findByStoreAndDateRangeAndStatuses(1, start, end, List.of(ApprovalStatus.APPROVED)))
+                .thenReturn(List.of(approved));
+
+        ManagerMonthAttendanceView view = service.getMonth(manager, null);
+
+        ManagerMonthAttendanceView.EmployeeMonth row = view.getEmployees().get(0);
+        assertEquals(1, row.getLateSlots());
+        assertEquals(2, row.getEarlySlots());
+        // 2 ca vi phạm (không phải 3): ca sáng muộn + sớm chỉ tính 1.
+        assertEquals(2, row.getLateOrEarlySlots());
+        assertEquals(2, view.getLateOrEarlySlots());
+        // Ca tăng ca vẫn là ca được phân công; chỉ đánh dấu thêm là tăng ca.
+        assertEquals(3, row.getScheduledSlots());
+        assertEquals(1, row.getOvertimeSlots());
+        assertEquals(1, view.getOvertimeSlots());
+        assertTrue(row.isOvertime());
+        assertTrue(row.getDays().stream().filter(line -> "Ca tối".equals(line.getShiftName()))
+                .allMatch(ManagerMonthAttendanceView.DayLine::isOvertime));
+        assertTrue(row.getDays().stream().filter(line -> !"Ca tối".equals(line.getShiftName()))
+                .noneMatch(ManagerMonthAttendanceView.DayLine::isOvertime));
     }
 
     @Test
@@ -346,5 +414,44 @@ class ManagerDayAttendanceServiceImplTest {
         assertTrue(slot.isHasCheckInPhoto());
         assertTrue(slot.isHasCheckOutPhoto());
         assertEquals("/attendance/training-photos", slot.getPhotoBase());
+    }
+
+    @Test
+    void staffMonthContainsOnlyTheLoggedInEmployee() {
+        LocalDate today = VietnamTime.today();
+        LocalDate start = today.withDayOfMonth(1);
+        LocalDate end = start.withDayOfMonth(start.lengthOfMonth());
+        Employee me = Employee.builder().id(3).fullName("Lê Thị Thu").store(store)
+                .status(EmployeeStatus.ACTIVE).build();
+        Employee colleague = Employee.builder().id(4).fullName("Phạm Đức Long").store(store)
+                .status(EmployeeStatus.ACTIVE).build();
+        Shift morning = Shift.builder().id(1).shiftName("Ca sáng").store(store)
+                .startTime(LocalTime.of(7, 0)).endTime(LocalTime.of(11, 0)).build();
+        ShiftAssignment mine = ShiftAssignment.builder()
+                .id(1).employee(me).shift(morning).workDate(start).isPublished(true)
+                .status(AssignmentStatus.ASSIGNED).build();
+        ShiftAssignment theirs = ShiftAssignment.builder()
+                .id(2).employee(colleague).shift(morning).workDate(start).isPublished(true)
+                .status(AssignmentStatus.ASSIGNED).build();
+        Attendance theirLate = Attendance.builder()
+                .id(31).employee(colleague).shift(morning).store(store).workDate(start)
+                .checkInTime(start.atTime(7, 30)).checkOutTime(start.atTime(11, 0))
+                .lateMinutes(30).earlyLeaveMinutes(0).status(AttendanceStatus.LATE).build();
+        when(employeeRepository.findByIdWithStore(3)).thenReturn(Optional.of(me));
+        when(shiftAssignmentRepository.findPublishedAssignedForStoreBetween(1, start, end, AssignmentStatus.ASSIGNED))
+                .thenReturn(List.of(mine, theirs));
+        when(attendanceRepository.findForMonthlyReport(1, start, end)).thenReturn(List.of(theirLate));
+        AuthenticatedUser staff = AuthenticatedUser.from(User.builder()
+                .id(5).username("thu").passwordHash("hash").role(Role.builder().id(3).roleName(RoleName.STAFF).build())
+                .employee(me).isActive(true).build());
+
+        ManagerMonthAttendanceView view = service.getOwnMonth(staff, null);
+
+        assertEquals(1, view.getEmployees().size());
+        assertEquals("Lê Thị Thu", view.getEmployees().getFirst().getEmployeeName());
+        assertEquals(1, view.getScheduledSlots());
+        assertEquals(0, view.getLateSlots());
+        assertTrue(view.getEmployees().getFirst().getDays().isEmpty());
+        verify(employeeRepository, never()).findByStoreIdWithAccount(any());
     }
 }

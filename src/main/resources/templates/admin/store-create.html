@@ -103,27 +103,22 @@
                 </div>
             </section>
 
-            <section class="store-create-card" aria-labelledby="store-location-title">
-                <h2 id="store-location-title">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>
-                    Vị trí cửa hàng
+            <section class="store-create-card" aria-labelledby="store-ip-title">
+                <h2 id="store-ip-title">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5a10 10 0 0 1 14 0"/><path d="M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/><path d="M1.5 9a15 15 0 0 1 21 0"/></svg>
+                    Địa chỉ IP mạng được phép chấm công
                 </h2>
-                <p class="store-create-lead">Vĩ độ và kinh độ dùng để kiểm tra nhân viên có đang ở cửa hàng khi check-in và check-out.</p>
+                <p class="store-create-lead">Chỉ cho phép nhân viên chấm công khi kết nối địa chỉ IP đã cấu hình.</p>
                 <div class="store-create-fields">
-                    <button type="button" class="logout-btn store-create-locate" data-fill-location>Lấy vị trí hiện tại</button>
-                    <p class="store-form-note" data-location-status role="status"></p>
-                    <div class="two-col">
-                        <label>Vĩ độ <span class="req" aria-hidden="true">*</span>
-                            <input type="text" th:field="*{latitude}" inputmode="decimal" maxlength="20" required
-                                   placeholder="Ví dụ: 21.028511" autocomplete="off">
-                            <span class="field-error" th:if="${#fields.hasErrors('latitude')}" th:errors="*{latitude}">Error</span>
-                        </label>
-                        <label>Kinh độ <span class="req" aria-hidden="true">*</span>
-                            <input type="text" th:field="*{longitude}" inputmode="decimal" maxlength="20" required
-                                   placeholder="Ví dụ: 105.854167" autocomplete="off">
-                            <span class="field-error" th:if="${#fields.hasErrors('longitude')}" th:errors="*{longitude}">Error</span>
-                        </label>
-                    </div>
+                    <label>Địa chỉ IP mạng được phép chấm công
+                        <input type="text" th:field="*{allowedIps}" maxlength="2000" spellcheck="false" autocomplete="off"
+                               inputmode="text" placeholder="Nhập các địa chỉ IP được phép chấm công">
+                        <span class="field-error" th:if="${#fields.hasErrors('allowedIps')}" th:errors="*{allowedIps}">Error</span>
+                    </label>
+                    <p class="store-form-note">Nhiều IP phân cách bằng dấu phẩy. Chưa có IP thì nhân viên không chấm công được.</p>
+                    <button type="button" class="logout-btn store-create-locate" data-fill-ip
+                            th:attr="data-ip-url=@{/admin/stores/current-ip}">Lấy IP mạng hiện tại</button>
+                    <p class="store-form-note" data-ip-status role="status"></p>
                 </div>
             </section>
         </div>
@@ -164,9 +159,9 @@
                             th:text="${storeForm.totalLeaveSlots != null} ? ${storeForm.totalLeaveSlots + ' ca'} : 'Chưa nhập'">Chưa nhập</dd>
                     </div>
                     <div>
-                        <dt>Vị trí chấm công</dt>
-                        <dd data-preview-coords
-                            th:text="${storeForm.latitude != null and storeForm.longitude != null and !#strings.isEmpty(storeForm.latitude) and !#strings.isEmpty(storeForm.longitude)} ? (${storeForm.latitude} + ', ' + ${storeForm.longitude}) : 'Chưa có tọa độ'">Chưa có tọa độ</dd>
+                        <dt>IP chấm công</dt>
+                        <dd data-preview-ips
+                            th:text="${storeForm.allowedIps != null and !#strings.isEmpty(storeForm.allowedIps)} ? ${storeForm.allowedIps} : 'Chưa cấu hình IP'">Chưa cấu hình IP</dd>
                     </div>
                     <div>
                         <dt>Manager</dt>
@@ -187,7 +182,7 @@
     </form>
 </main>
 <script th:src="@{/js/AdminDashboard.js}"></script>
-<script th:src="@{/js/store-location.js}" defer></script>
+<script th:src="@{/js/store-ip.js}" defer></script>
 <script th:src="@{/js/store-form.js}" defer></script>
 </body>
 </html>

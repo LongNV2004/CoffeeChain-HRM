@@ -38,6 +38,37 @@ public record PayrollEmployeeDraft(
         public boolean leave() {
             return attendanceId == null && PeriodLeave.isLeaveLabel(attendanceStatus);
         }
+
+        /** Ca đi làm sinh từ đơn tăng ca đã duyệt (xem {@link OvertimeShifts}). */
+        public boolean overtime(Set<Integer> overtimeAssignmentIds) {
+            return !leave() && assignmentId != null
+                    && overtimeAssignmentIds != null && overtimeAssignmentIds.contains(assignmentId);
+        }
+    }
+
+    /** Số ca tăng ca trong kỳ (đã nằm trong {@link #assignedShifts()}). */
+    public int overtimeShifts(Set<Integer> overtimeAssignmentIds) {
+        return (int) shifts.stream().filter(shift -> shift.overtime(overtimeAssignmentIds)).count();
+    }
+
+    public int overtimeHours(Set<Integer> overtimeAssignmentIds) {
+        return shifts.stream().filter(shift -> shift.overtime(overtimeAssignmentIds)).mapToInt(Shift::payableHours).sum();
+    }
+
+    /**
+     * Lương các ca tăng ca: mỗi ca đã được tính theo đúng quy tắc ca thường (đơn giá hợp đồng, trừ đi muộn/về sớm...).
+     * Đây là một phần của {@link #expectedSalary()}, không cộng thêm.
+     */
+    public BigDecimal overtimeSalary(Set<Integer> overtimeAssignmentIds) {
+        return shifts.stream()
+                .filter(shift -> shift.overtime(overtimeAssignmentIds))
+                .map(Shift::shiftSalary)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /** Lương các ca thông thường (gồm nghỉ phép hưởng lương) = tổng lương − lương tăng ca. */
+    public BigDecimal regularSalary(Set<Integer> overtimeAssignmentIds) {
+        return expectedSalary().subtract(overtimeSalary(overtimeAssignmentIds));
     }
 
     /** Ca được phân công đi làm (không gồm ca nghỉ phép). */

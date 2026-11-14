@@ -1,5 +1,6 @@
 package com.example.coffee_hrm.service.impl;
 
+import com.example.coffee_hrm.common.enums.ApprovalStatus;
 import com.example.coffee_hrm.common.enums.AssignmentStatus;
 import com.example.coffee_hrm.common.enums.AttendanceReportStatus;
 import com.example.coffee_hrm.common.enums.PayrollStatus;
@@ -13,6 +14,7 @@ import com.example.coffee_hrm.entity.Employee;
 import com.example.coffee_hrm.entity.MonthlyAttendanceReport;
 import com.example.coffee_hrm.entity.EmploymentContract;
 import com.example.coffee_hrm.entity.MonthlyPayroll;
+import com.example.coffee_hrm.entity.OvertimeRequest;
 import com.example.coffee_hrm.entity.PayrollEmployeeLine;
 import com.example.coffee_hrm.entity.PayrollShiftLine;
 import com.example.coffee_hrm.entity.Shift;
@@ -23,6 +25,7 @@ import com.example.coffee_hrm.repository.EmployeeRepository;
 import com.example.coffee_hrm.repository.EmploymentContractRepository;
 import com.example.coffee_hrm.repository.MonthlyAttendanceReportRepository;
 import com.example.coffee_hrm.repository.MonthlyPayrollRepository;
+import com.example.coffee_hrm.repository.OvertimeRequestRepository;
 import com.example.coffee_hrm.repository.ShiftAssignmentRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.repository.UserRepository;
@@ -30,6 +33,7 @@ import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.PayrollService;
 import com.example.coffee_hrm.service.impl.ContractValidityRules;
 import com.example.coffee_hrm.service.support.PayrollCalculator;
+import com.example.coffee_hrm.service.support.OvertimeShifts;
 import com.example.coffee_hrm.service.support.PayrollEmployeeDraft;
 import com.example.coffee_hrm.service.support.PeriodLeave;
 import lombok.RequiredArgsConstructor;
@@ -55,6 +59,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -71,6 +76,7 @@ public class PayrollServiceImpl implements PayrollService {
     private final EmployeeRepository employeeRepository;
     private final UserRepository userRepository;
     private final MonthlyAttendanceReportRepository reportRepository;
+    private final OvertimeRequestRepository overtimeRequestRepository;
 
     static final String REPORT_SENT_MESSAGE =
             "Báo cáo cửa hàng kỳ này đã gửi Admin. Chỉ được tính lại lương khi Admin trả lại báo cáo.";
@@ -114,7 +120,7 @@ public class PayrollServiceImpl implements PayrollService {
                 .filter(row -> employeeId.equals(row.employeeId()))
                 .findFirst()
                 .orElseThrow(() -> new BusinessException("Nhân viên không có lịch phân ca trong kỳ này."));
-        return toDetail(user, selected, store, snapshot.status(), draft);
+        return toDetail(user, selected, store, snapshot.status(), draft, snapshot.overtimeIds());
     }
 
     @Override
@@ -141,7 +147,14 @@ public class PayrollServiceImpl implements PayrollService {
         if (user.getUserId() != null) {
             payroll.setCalculatedBy(userRepository.getReferenceById(user.getUserId()));
         }
-        payroll.replaceEmployees(toLines(buildLive(store.getId(), selected)));
+        List<PayrollEmployeeLine> freshLines = toLines(buildLive(store.getId(), selected));
+        if (payroll.getId() != null && payroll.getEmployeeLines() != null && !payroll.getEmployeeLines().isEmpty()) {
+            // Tính lại: xóa hẳn các dòng cũ xuống DB trước. Hibernate chạy INSERT trước DELETE khi flush,
+            // nên nếu thay danh sách trong một lần sẽ vi phạm UX_PayrollEmployeeLines_PeriodEmployee.
+            payroll.replaceEmployees(List.of());
+            payrollRepository.saveAndFlush(payroll);
+        }
+        payroll.replaceEmployees(freshLines);
         payrollRepository.save(payroll);
     }
 
@@ -294,9 +307,10 @@ public class PayrollServiceImpl implements PayrollService {
         for (PeriodSnapshot snapshot : snapshots) {
             for (PayrollEmployeeDraft draft : snapshot.employees()) {
                 listed.add(new Listed(
-                        toRow(snapshot.store(), snapshot.status(), draft),
-                        toDetail(user, selected, snapshot.store(), snapshot.status(), draft),
+                        toRow(snapshot.store(), snapshot.status(), draft, snapshot.overtimeIds()),
+                        toDetail(user, selected, snapshot.store(), snapshot.status(), draft, snapshot.overtimeIds()),
                         draft.expectedSalary(),
+                        draft.overtimeSalary(snapshot.overtimeIds()),
                         draft.reviewShifts()));
             }
         }
@@ -304,6 +318,11 @@ public class PayrollServiceImpl implements PayrollService {
                 .thenComparing(item -> item.row().getEmployeeName(), String.CASE_INSENSITIVE_ORDER)
                 .thenComparing(item -> item.row().getEmployeeId()));
         String statusFilter = normalizeStatus(status);
+        if (user.getRoleName() == RoleName.STAFF) {
+            // Nhân viên chỉ thấy dòng của chính mình: không lộ tên, số ca thiếu dữ liệu hay lương của người khác.
+            Integer self = requestedEmployee;
+            listed.removeIf(item -> !Objects.equals(self, item.row().getEmployeeId()));
+        }
         List<PayrollBoardView.EmployeeOption> employeeOptions = listed.stream()
                 .map(item -> PayrollBoardView.EmployeeOption.builder()
                         .id(item.row().getEmployeeId())
@@ -313,6 +332,7 @@ public class PayrollServiceImpl implements PayrollService {
         List<PayrollBoardView.Row> shown = new ArrayList<>();
         List<PayrollDetailView> shownDetails = new ArrayList<>();
         BigDecimal fund = BigDecimal.ZERO;
+        BigDecimal overtimeFund = BigDecimal.ZERO;
         int review = 0;
         for (Listed item : listed) {
             review += item.reviewShifts();
@@ -325,8 +345,10 @@ public class PayrollServiceImpl implements PayrollService {
             shown.add(item.row());
             shownDetails.add(item.detail());
             fund = fund.add(item.salary() == null ? BigDecimal.ZERO : item.salary());
+            overtimeFund = overtimeFund.add(item.overtimeSalary() == null ? BigDecimal.ZERO : item.overtimeSalary());
         }
         int hours = shown.stream().mapToInt(PayrollBoardView.Row::getPayableHours).sum();
+        int overtimeShifts = shown.stream().mapToInt(PayrollBoardView.Row::getOvertimeShifts).sum();
         PayrollStatus singleStatus = queried.size() == 1 ? snapshots.getFirst().status() : null;
         boolean locked = singleStatus == PayrollStatus.DA_CHOT;
         boolean reportLocked = user.getRoleName() == RoleName.MANAGER && queried.size() == 1
@@ -345,6 +367,9 @@ public class PayrollServiceImpl implements PayrollService {
                 .payableHours(hours)
                 .payableHoursLabel(hours + " giờ")
                 .payrollFundLabel(money(fund))
+                .regularFundLabel(money(fund.subtract(overtimeFund)))
+                .overtimeFundLabel(money(overtimeFund))
+                .overtimeShifts(overtimeShifts)
                 .reviewShifts(review)
                 .stores(dropdown.stream()
                         .map(store -> PayrollBoardView.StoreOption.builder()
@@ -385,11 +410,34 @@ public class PayrollServiceImpl implements PayrollService {
     private PeriodSnapshot load(Store store, YearMonth selected) {
         Optional<MonthlyPayroll> found = payrollRepository.findPeriod(
                 store.getId(), selected.getYear(), selected.getMonthValue());
+        Set<Integer> overtimeIds = overtimeAssignmentIds(store.getId(), selected);
         if (found == null || found.isEmpty()) {
-            return new PeriodSnapshot(store, null, buildLive(store.getId(), selected));
+            return new PeriodSnapshot(store, null, buildLive(store.getId(), selected), overtimeIds);
         }
         MonthlyPayroll payroll = found.get();
-        return new PeriodSnapshot(store, payroll.getStatus(), fromSaved(payroll));
+        return new PeriodSnapshot(store, payroll.getStatus(), fromSaved(payroll), overtimeIds);
+    }
+
+    /**
+     * Ca tăng ca của kỳ. Ca tăng ca đã duyệt là ca phân công đã công bố nên đã được {@link #buildLive} tính lương
+     * một lần theo quy tắc ca thường; ở đây chỉ nhận diện để tách "lương tăng ca" khỏi tổng, không cộng thêm.
+     */
+    private Set<Integer> overtimeAssignmentIds(Integer storeId, YearMonth selected) {
+        if (overtimeRequestRepository == null) {
+            return Set.of();
+        }
+        LocalDate start = selected.atDay(1);
+        LocalDate end = selected.atEndOfMonth();
+        List<OvertimeRequest> approved = overtimeRequestRepository.findByStoreAndDateRangeAndStatuses(
+                storeId, start, end, List.of(ApprovalStatus.APPROVED));
+        if (approved == null || approved.isEmpty()) {
+            return Set.of();
+        }
+        // Chỉ đơn cũ chưa lưu id ca mới cần tra danh sách ca để khớp theo nhân viên + ca + ngày.
+        List<ShiftAssignment> assignments = OvertimeShifts.needsAssignmentLookup(approved)
+                ? shiftAssignmentRepository.findPublishedAssignedForStoreBetween(storeId, start, end, AssignmentStatus.ASSIGNED)
+                : null;
+        return OvertimeShifts.assignmentIds(approved, assignments);
     }
 
     private List<PayrollEmployeeDraft> buildLive(Integer storeId, YearMonth selected) {
@@ -638,7 +686,7 @@ public class PayrollServiceImpl implements PayrollService {
         return true;
     }
 
-    private PayrollBoardView.Row toRow(Store store, PayrollStatus status, PayrollEmployeeDraft draft) {
+    private PayrollBoardView.Row toRow(Store store, PayrollStatus status, PayrollEmployeeDraft draft, Set<Integer> overtimeIds) {
         return PayrollBoardView.Row.builder()
                 .employeeId(draft.employeeId())
                 .storeId(store.getId())
@@ -651,6 +699,9 @@ public class PayrollServiceImpl implements PayrollService {
                 .payableHours(draft.payableHours())
                 .hourlyRateLabel(rateLabel(draft))
                 .expectedSalaryLabel(money(draft.expectedSalary()))
+                .overtimeShifts(draft.overtimeShifts(overtimeIds))
+                .regularSalaryLabel(money(draft.regularSalary(overtimeIds)))
+                .overtimeSalaryLabel(money(draft.overtimeSalary(overtimeIds)))
                 .statusKey(status == null ? "CHUA_TINH" : status.name())
                 .statusLabel(status == null ? "Chưa tính" : status.label())
                 .build();
@@ -660,7 +711,8 @@ public class PayrollServiceImpl implements PayrollService {
                                        YearMonth selected,
                                        Store store,
                                        PayrollStatus status,
-                                       PayrollEmployeeDraft draft) {
+                                       PayrollEmployeeDraft draft,
+                                       Set<Integer> overtimeIds) {
         List<PayrollDetailView.ShiftRow> shifts = new ArrayList<>();
         for (PayrollEmployeeDraft.Shift shift : draft.shifts()) {
             shifts.add(PayrollDetailView.ShiftRow.builder()
@@ -675,6 +727,7 @@ public class PayrollServiceImpl implements PayrollService {
                     .shiftSalaryLabel(money(shift.shiftSalary()))
                     .payable(shift.payable())
                     .unpaidReason(shift.unpaidReason() == null || shift.unpaidReason().isBlank() ? "—" : shift.unpaidReason())
+                    .overtime(shift.overtime(overtimeIds))
                     .build());
         }
         return PayrollDetailView.builder()
@@ -698,6 +751,10 @@ public class PayrollServiceImpl implements PayrollService {
                 .payableHours(draft.payableHours())
                 .hourlyRateLabel(rateLabel(draft))
                 .expectedSalaryLabel(money(draft.expectedSalary()))
+                .overtimeShifts(draft.overtimeShifts(overtimeIds))
+                .overtimeHours(draft.overtimeHours(overtimeIds))
+                .regularSalaryLabel(money(draft.regularSalary(overtimeIds)))
+                .overtimeSalaryLabel(money(draft.overtimeSalary(overtimeIds)))
                 .shifts(shifts)
                 .build();
     }
@@ -889,7 +946,10 @@ public class PayrollServiceImpl implements PayrollService {
         return left.compareTo(right) == 0;
     }
 
-    private record PeriodSnapshot(Store store, PayrollStatus status, List<PayrollEmployeeDraft> employees) {
+    private record PeriodSnapshot(Store store,
+                                  PayrollStatus status,
+                                  List<PayrollEmployeeDraft> employees,
+                                  Set<Integer> overtimeIds) {
     }
 
     private record Prepared(PayrollBoardView board, List<PayrollDetailView> details) {
@@ -898,6 +958,7 @@ public class PayrollServiceImpl implements PayrollService {
     private record Listed(PayrollBoardView.Row row,
                           PayrollDetailView detail,
                           BigDecimal salary,
+                          BigDecimal overtimeSalary,
                           int reviewShifts) {
     }
 }

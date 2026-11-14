@@ -583,7 +583,7 @@ body:has(.coffee-sidebar) .info-list div,
 body:has(.coffee-sidebar) .detail-list div { border-bottom-color: rgba(92, 60, 46, .08); }
 body:has(.coffee-sidebar) .gender-pills span,
 body:has(.coffee-sidebar) .status-pills a { border-radius: 999px; }
-body:has(.coffee-sidebar) .gps-dialog { border-radius: 22px; }
+body:has(.coffee-sidebar) .clock-dialog { border-radius: 22px; }
 body:has(.coffee-sidebar) .notif-open-link {
     border: 0;
     padding: 0;
@@ -1420,7 +1420,220 @@ html body:has(.coffee-sidebar) :is(.danger-btn, .btn-danger, .ml-btn-danger, .rv
 html body:has(.coffee-sidebar) :is(.danger-btn, .btn-danger, .ml-btn-danger, .rv-btn-danger, .ms-btn-danger, .del-btn):hover {
     border-color: #9F3B32;
 }
+/* Thẻ tên nhân viên trong bảng lịch (Lịch làm việc Manager/Staff, Duyệt đăng ký):
+   cùng tông với .assign-card — nền kem, viền nâu nhạt, bo 10px, vạch màu bên trái theo trạng thái. */
+html body:has(.coffee-sidebar) :is(.emp-pill, .rv-person) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    width: 100%;
+    min-width: 0;
+    min-height: 34px;
+    margin: 0 0 6px;
+    padding: 6px 6px 6px 10px;
+    border: 1px solid #E5D8C8;
+    border-left: 3px solid #D9C7B2;
+    border-radius: 10px;
+    background: #FFFCF7;
+    color: #26170F;
+    font-family: 'Be Vietnam Pro', 'Inter', Arial, sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.3;
+    text-align: left;
+    box-shadow: 0 1px 2px rgba(43, 27, 18, .04);
+    transition: border-color .15s, background .15s;
+}
+html body:has(.coffee-sidebar) :is(.emp-pill, .rv-person):hover {
+    border-color: #D9C7B2;
+    background: #FAF4EC;
+}
+html body:has(.coffee-sidebar) :is(.emp-pill .emp-name, .rv-person .rv-pname) {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+/* Lịch làm việc: luôn hiện đủ họ tên (xuống dòng theo từ, không cắt "…"). */
+html body:has(.coffee-sidebar) .emp-pill .emp-name {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: normal;
+    word-break: keep-all;
+}
+html body:has(.coffee-sidebar) :is(.emp-pill .emp-tag, .rv-person .rv-ptag) {
+    flex: none;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: #F3EBE1;
+    color: #6F3F27;
+    font-size: 10.5px;
+    font-weight: 700;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+/* Ca đã duyệt (Quản lý không xóa được) và đăng ký đã duyệt: vạch xanh. */
+html body:has(.coffee-sidebar) :is(.emp-pill.is-locked, .rv-person.is-approved) { border-left-color: #2F6B45; }
+html body:has(.coffee-sidebar) :is(.emp-pill.is-locked .emp-tag, .rv-person.is-approved .rv-ptag) {
+    background: #E5F3EA;
+    color: #2F6B45;
+}
+/* Ca của chính nhân viên đang xem. */
+html body:has(.coffee-sidebar) .emp-pill.me {
+    border-color: #E9CFAF;
+    border-left-color: #B88752;
+    background: #FBF1E4;
+    font-weight: 600;
+}
+html body:has(.coffee-sidebar) .emp-pill.me .emp-tag { background: #F8E7D4; color: #8C5E32; }
+html body:has(.coffee-sidebar) .rv-person.is-pending { border-left-color: #A2561C; }
+html body:has(.coffee-sidebar) .rv-person.is-pending .rv-ptag { background: #FBEBD7; color: #A2561C; }
+html body:has(.coffee-sidebar) .rv-person.is-rejected { border-left-color: #E3B5AE; color: #7A6A5C; }
+html body:has(.coffee-sidebar) .rv-person.is-rejected .rv-pname { text-decoration: line-through; }
+html body:has(.coffee-sidebar) .rv-person.is-rejected .rv-ptag { background: #F8E4E1; color: #9F3B32; }
+/* Nút xóa trong thẻ: icon tròn nhỏ, chỉ đỏ khi rê chuột (ghi đè kiểu nút nguy hiểm chung). */
+html body:has(.coffee-sidebar) .emp-pill .emp-pill-form { display: inline-flex; flex: none; margin: 0; }
+html body:has(.coffee-sidebar) .emp-pill .del-btn {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    min-height: 22px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: #A8998B;
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1;
+}
+html body:has(.coffee-sidebar) .emp-pill .del-btn:hover,
+html body:has(.coffee-sidebar) .emp-pill .del-btn:focus-visible {
+    background: #F8E4E1;
+    color: #9F3B32;
+}
+/* Nút "+ Thêm NV" cùng bo góc với thẻ. */
+html body:has(.coffee-sidebar) .quick-add-btn {
+    min-height: 30px;
+    margin-top: 2px;
+    border: 1px dashed #D9C7B2;
+    border-radius: 10px;
+    background: transparent;
+    color: #7A6A5C;
+    font-family: 'Be Vietnam Pro', 'Inter', Arial, sans-serif;
+    font-size: 12px;
+}
+html body:has(.coffee-sidebar) .quick-add-btn:hover {
+    border-color: #8C5335;
+    background: #FAF4EC;
+    color: #8C5335;
+}
+
 /* Thẻ <summary> dùng làm nút (ví dụ "Thanh toán toàn bộ"). */
 html body:has(.coffee-sidebar) summary:is(.primary-btn, .secondary-btn) {
     list-style: none;
 }
+
+/* ===== Phân trang dùng chung (CoffeePager.js, thuộc tính data-paginate) ===== */
+.pg-off { display: none !important; }
+.coffee-pager {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    margin: 14px 0 4px;
+    font-family: 'Be Vietnam Pro', 'Inter', Arial, sans-serif;
+    font-size: 13px;
+}
+.coffee-pager[hidden] { display: none !important; }
+.coffee-pager-count { margin: 0; color: #6B5A52; }
+.coffee-pager label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    color: #5C3C2E;
+}
+.coffee-pager select {
+    min-height: 36px;
+    padding: 0 10px;
+    border: 1px solid rgba(92, 60, 46, .16);
+    border-radius: 10px;
+    background: #fff;
+    color: #1A1715;
+    font: inherit;
+}
+.coffee-pager-pages { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.coffee-pager-pages button {
+    min-width: 36px;
+    min-height: 36px;
+    padding: 0 10px;
+    border: 1px solid rgba(92, 60, 46, .16);
+    border-radius: 10px;
+    background: #fff;
+    color: #5C3C2E;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+.coffee-pager-pages button:hover:not(:disabled) { border-color: #8C5335; background: #FAF6F0; }
+.coffee-pager-pages button.is-on { background: #5C3C2E; border-color: #5C3C2E; color: #FBF8F5; }
+.coffee-pager-pages button:disabled { opacity: .45; cursor: default; }
+.coffee-pager-gap { padding: 0 2px; color: #8A7A70; }
+@media (max-width: 640px) {
+    .coffee-pager { flex-direction: column; align-items: stretch; }
+    .coffee-pager-pages { justify-content: center; }
+}
+/* Numbered Pagination phía server (fragments/pager.html): cùng hình dạng với nút của CoffeePager. */
+.coffee-pager-pages a,
+.coffee-pager-pages span.is-disabled {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    min-height: 36px;
+    padding: 0 10px;
+    border: 1px solid rgba(92, 60, 46, .16);
+    border-radius: 10px;
+    background: #fff;
+    color: #5C3C2E;
+    font: inherit;
+    font-weight: 600;
+    text-decoration: none;
+    box-sizing: border-box;
+}
+.coffee-pager-pages a:hover { border-color: #8C5335; background: #FAF6F0; }
+.coffee-pager-pages a.is-on { background: #5C3C2E; border-color: #5C3C2E; color: #FBF8F5; }
+.coffee-pager-pages span.is-disabled { opacity: .45; cursor: default; }
+/* Giữ giao diện Numbered Pagination thống nhất kể cả khi CSS riêng của trang có quy tắc cho
+   .employee-pagination, .ml-pagination, .rv-pager, .sa-pager, .track-pager… */
+html body .coffee-pager .coffee-pager-pages {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+html body .coffee-pager .coffee-pager-count { margin: 0; color: #6B5A52; font-size: 13px; }
+html body .coffee-pager .coffee-pager-pages button {
+    min-width: 36px;
+    min-height: 36px;
+    height: auto;
+    padding: 0 10px;
+    border: 1px solid rgba(92, 60, 46, .16);
+    border-radius: 10px;
+    background: #fff;
+    color: #5C3C2E;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: none;
+    cursor: pointer;
+}
+html body .coffee-pager .coffee-pager-pages button:hover:not(:disabled) { border-color: #8C5335; background: #FAF6F0; }
+html body .coffee-pager .coffee-pager-pages button.is-on { background: #5C3C2E; border-color: #5C3C2E; color: #FBF8F5; }
+html body .coffee-pager .coffee-pager-pages button:disabled { opacity: .45; cursor: default; }

@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/AttendanceHistory.css}">
 </head>
-<body data-gps-manual="true">
+<body>
 <th:block th:if="${navbarRole == 'manager'}">
 <header th:replace="~{fragments/navbar :: manager('attendance')}"></header>
 </th:block>
@@ -50,31 +50,25 @@
                     </div>
                 </div>
                 <div class="clock-actions">
-                    <form class="gps-form" th:if="${lesson.canCheckIn}"
+                    <form class="clock-form" th:if="${lesson.canCheckIn}"
                           th:action="@{|${actionBase}/check-in|}" method="post"
                           enctype="multipart/form-data"
                           th:data-preview-url="@{|${actionBase}/check-in/preview|}"
                           data-require-photo="true">
                         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                         <input type="hidden" name="classId" th:value="${lesson.classId}">
-                        <input type="hidden" name="latitude">
-                        <input type="hidden" name="longitude">
-                        <input type="hidden" name="accuracy">
                         <input type="file" name="photo" accept="image/jpeg" hidden>
                         <button class="primary-btn" type="submit">Check-in</button>
                     </form>
                     <button class="primary-btn" type="button" th:if="${!lesson.canCheckIn}"
                             th:attr="data-check-notice=${lesson.checkInNotice}">Check-in</button>
-                    <form class="gps-form" th:if="${lesson.canCheckOut}"
+                    <form class="clock-form" th:if="${lesson.canCheckOut}"
                           th:action="@{|${actionBase}/check-out|}" method="post"
                           enctype="multipart/form-data"
                           th:data-preview-url="@{|${actionBase}/check-out/preview|}"
                           data-require-photo="true">
                         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                         <input type="hidden" name="classId" th:value="${lesson.classId}">
-                        <input type="hidden" name="latitude">
-                        <input type="hidden" name="longitude">
-                        <input type="hidden" name="accuracy">
                         <input type="file" name="photo" accept="image/jpeg" hidden>
                         <button class="secondary-btn" type="submit">Check-out</button>
                     </form>
@@ -88,6 +82,6 @@
     <a class="link-btn" th:href="@{${chooseUrl}}">Chọn loại chấm công</a>
     <a class="link-btn" th:if="${navbarRole != 'staff'}" th:href="@{${historyUrl}}">Xem lịch sử</a>
 </main>
-<script th:src="@{/js/attendance-gps.js(v=9)}"></script>
+<script th:src="@{/js/attendance-check.js(v=1)}"></script>
 </body>
 </html>

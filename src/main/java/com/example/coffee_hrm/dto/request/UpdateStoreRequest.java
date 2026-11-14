@@ -44,7 +44,7 @@ public class UpdateStoreRequest {
     @Valid
     private List<StoreOperatingHourRequest> operatingHours;
 
-    private String latitude;
-
-    private String longitude;
+    /** Địa chỉ IP mạng được phép chấm công: nhiều IP, phân cách bằng xuống dòng hoặc dấu phẩy. Rỗng = xóa hết. */
+    @Size(max = 2000, message = "Danh sách địa chỉ IP tối đa 2000 ký tự")
+    private String allowedIps;
 }

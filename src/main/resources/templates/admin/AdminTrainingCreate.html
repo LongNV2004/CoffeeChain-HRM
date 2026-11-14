@@ -71,7 +71,7 @@
                         <span>Trạng thái</span>
                     </div>
                     <label class="enroll-row" th:each="employee : ${employees}"
-                           th:attr="data-store-id=${employee.storeId},data-role=${employee.roleName},data-staff-certified=${employee.hasCertificate},data-management-certified=${employee.managementCertified}">
+                           th:attr="data-store-id=${employee.storeId},data-role=${employee.roleName},data-staff-certified=${employee.hasCertificate},data-management-certified=${employee.managementCertified},data-management-block=${employee.managementBlockReason != null ? employee.managementBlockReason : ''}">
                         <input type="checkbox" name="employeeIds" th:value="${employee.employeeId}"
                                th:checked="${classForm.employeeIds != null and classForm.employeeIds.contains(employee.employeeId)}">
                         <span class="enroll-name" th:text="${employee.fullName}">Nhân viên</span>

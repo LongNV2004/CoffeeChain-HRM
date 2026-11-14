@@ -14,8 +14,10 @@
 
 <main class="wrap dash-main manager-home">
     <p class="flash error" th:if="${managerOperationsAllowed == false}"
-       style="margin: 0 0 16px;">Bạn cần hoàn thành đào tạo và đạt Chứng chỉ quản lý để sử dụng chức năng này.
-        Hiện bạn chỉ xem được <a th:href="@{/training}">lớp đang hoạt động</a>.</p>
+       style="margin: 0 0 16px;">Bạn cần hoàn thành đào tạo và đạt Chứng chỉ quản lý để sử dụng nghiệp vụ quản lý cửa hàng.
+        Trong thời gian chờ, bạn vẫn dùng được <a th:href="@{/profile}">hồ sơ và hợp đồng</a>,
+        <a th:href="@{/attendance/manager/history(self=true)}">chấm công cá nhân</a> và
+        <a th:href="@{/training}">lớp đào tạo</a> của mình.</p>
     <header class="mgr-page-head">
         <div>
             <h1>Tổng quan cửa hàng</h1>

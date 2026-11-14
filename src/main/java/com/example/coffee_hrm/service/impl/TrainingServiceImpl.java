@@ -44,13 +44,17 @@ import com.example.coffee_hrm.repository.EmployeeRepository;
 import com.example.coffee_hrm.repository.EmploymentContractRepository;
 import com.example.coffee_hrm.repository.NotificationRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
+import com.example.coffee_hrm.repository.TrainingAttendanceRepository;
 import com.example.coffee_hrm.repository.TrainingClassEnrollmentRepository;
 import com.example.coffee_hrm.repository.TrainingClassRepository;
 import com.example.coffee_hrm.repository.TrainingSkillDocumentRepository;
 import com.example.coffee_hrm.repository.TrainingSkillRepository;
 import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
+import com.example.coffee_hrm.security.ManagerContractAccess;
+import com.example.coffee_hrm.service.AttendancePolicyProperties;
 import com.example.coffee_hrm.service.NotificationService;
+import com.example.coffee_hrm.service.support.TrainingRollCall;
 import com.example.coffee_hrm.service.support.ManagementTrainingRules;
 import com.example.coffee_hrm.service.TrainingService;
 import lombok.RequiredArgsConstructor;
@@ -94,6 +98,8 @@ public class TrainingServiceImpl implements TrainingService {
     private final TrainingSkillDocumentRepository trainingSkillDocumentRepository;
     private final SkillDocumentStore skillDocumentStore;
     private final EmploymentContractRepository employmentContractRepository;
+    private final TrainingAttendanceRepository trainingAttendanceRepository;
+    private final AttendancePolicyProperties attendancePolicy;
 
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final String TRAINING_CLASS_REF = "TRAINING_CLASS";
@@ -280,8 +286,12 @@ public class TrainingServiceImpl implements TrainingService {
     @Override
     public List<TrainingEmployeeOption> listClassCandidates(AuthenticatedUser admin) {
         requireAdmin(admin, "Chỉ Admin mới được tạo lớp đào tạo.");
-        List<Employee> employees = employeeRepository.findByStatusWithStore(EmployeeStatus.ACTIVE);
         Set<Integer> managers = managerEmployeeIds();
+        List<Employee> employees = new ArrayList<>(employeeRepository.findByStatusWithStore(EmployeeStatus.ACTIVE));
+        // Manager mới có hợp đồng chờ hiệu lực ở trạng thái Chờ hoàn thiện hợp đồng nhưng vẫn được học chứng chỉ quản lý.
+        employeeRepository.findByStatusWithStore(EmployeeStatus.PENDING_CONTRACT).stream()
+                .filter(employee -> managers.contains(employee.getId()))
+                .forEach(employees::add);
         Set<Integer> admins = new HashSet<>(userRepository.findEmployeeIdsByRoleName(RoleName.ADMIN));
         Set<Integer> staff = new HashSet<>(userRepository.findEmployeeIdsByRoleName(RoleName.STAFF));
         Set<Integer> withoutInForceContract = employeeIdsWithoutInForceContract(employees);
@@ -298,13 +308,25 @@ public class TrainingServiceImpl implements TrainingService {
         Map<Integer, List<EmployeeOpenSkill>> openSkills = openSkillsByEmployee(candidates, null);
         Map<Integer, Map<Integer, SkillSnapshot>> snapshots = skillSnapshotsByEmployee(candidates);
         return candidates.stream()
-                .map(employee -> toEmployeeOption(
-                        employee,
-                        passedSkills,
-                        openSkills,
-                        snapshots,
-                        roleOfCandidate(employee.getId(), admins, managers)))
+                .map(employee -> {
+                    RoleName role = roleOfCandidate(employee.getId(), admins, managers);
+                    TrainingEmployeeOption option = toEmployeeOption(employee, passedSkills, openSkills, snapshots, role);
+                    if (role == RoleName.MANAGER) {
+                        option.setManagementBlockReason(managerTrainingBlockReason(employee));
+                    }
+                    return option;
+                })
                 .toList();
+    }
+
+    /** Lý do Manager chưa được ghi danh lớp chứng chỉ quản lý (null nếu đủ điều kiện), cùng quy tắc với ghi danh. */
+    private String managerTrainingBlockReason(Employee employee) {
+        try {
+            requireManagerTrainingContract(employee);
+            return null;
+        } catch (BusinessException ex) {
+            return ex.getMessage();
+        }
     }
 
     @Override
@@ -817,12 +839,10 @@ public class TrainingServiceImpl implements TrainingService {
         }
         List<TrainingClassEnrollment> enrollments = trainingClassEnrollmentRepository.findByClassIdWithEmployee(classId);
         boolean trainer = isTrainer(trainingClass, admin);
-        boolean creator = trainingClass.getCreatedBy() != null
-                && admin.getUserId() != null
-                && admin.getUserId().equals(trainingClass.getCreatedBy().getId());
+        // Admin xem được danh sách học viên và điểm danh của mọi lớp; chỉ người đào tạo mới đánh giá được.
         return toClassResponse(trainingClass, enrollments).toBuilder()
                 .evaluable(trainer)
-                .rosterVisible(trainer || creator)
+                .rosterVisible(true)
                 .materials(trainer ? materialsOf(trainingClass) : List.of())
                 .build();
     }
@@ -1346,7 +1366,10 @@ public class TrainingServiceImpl implements TrainingService {
                 .orElseThrow(() -> new BusinessException("Không tìm thấy nhân viên."));
         User account = userRepository.findByEmployee_Id(employeeId).orElse(null);
         ManagementTrainingRules.requireManagerAccount(account);
-        if (employee.getStatus() != EmployeeStatus.ACTIVE) {
+        boolean managerAccount = account.getRole().getRoleName() == RoleName.MANAGER;
+        if (managerAccount) {
+            requireManagerTrainingContract(employee);
+        } else if (employee.getStatus() != EmployeeStatus.ACTIVE) {
             throw new BusinessException("Chỉ được ghi danh Admin hoặc Manager đang làm việc.");
         }
         Integer maxParticipants = trainingClass.getMaxParticipants();
@@ -1367,6 +1390,28 @@ public class TrainingServiceImpl implements TrainingService {
                 .build());
         if (account != null && account.getId() != null) {
             notifyEnrolledEmployees(trainingClass, List.of(account));
+        }
+    }
+
+    /**
+     * Manager chỉ được tham gia đào tạo chứng chỉ quản lý khi đã có hợp đồng hợp lệ (đang hiệu lực
+     * hoặc chờ hiệu lực) thuộc chính Manager đó, và Manager đang được phân công đúng cửa hàng của mình.
+     * Manager chờ hợp đồng có hiệu lực (trạng thái Chờ hoàn thiện hợp đồng) vẫn được học.
+     */
+    private void requireManagerTrainingContract(Employee employee) {
+        String name = employee.getFullName() == null ? "này" : employee.getFullName();
+        if (employee.getStatus() != EmployeeStatus.ACTIVE && employee.getStatus() != EmployeeStatus.PENDING_CONTRACT) {
+            throw new BusinessException("Manager " + name + " không còn làm việc nên không thể ghi danh.");
+        }
+        Store store = employee.getStore();
+        Store managed = storeRepository.findByManager_Id(employee.getId()).orElse(null);
+        if (store == null || managed == null || !Objects.equals(store.getId(), managed.getId())) {
+            throw new BusinessException("Manager " + name + " chưa được phân công quản lý cửa hàng của mình.");
+        }
+        // Hợp đồng lấy theo đúng mã nhân viên nên luôn thuộc chính Manager này.
+        if (!ManagerContractAccess.allowsTraining(
+                employmentContractRepository.findByEmployeeId(employee.getId()), VietnamTime.today())) {
+            throw new BusinessException("Manager " + name + ": " + ManagerContractAccess.TRAINING_REQUIRES_CONTRACT);
         }
     }
 
@@ -2158,8 +2203,9 @@ public class TrainingServiceImpl implements TrainingService {
         if (enrollments == null || enrollments.isEmpty()) {
             return List.of();
         }
-        Map<Integer, Map<Integer, SkillSnapshot>> snapshots = skillSnapshotsByEmployeeIds(
-                enrollments.stream().map(enrollment -> enrollment.getEmployee().getId()).toList());
+        List<Integer> employeeIds = enrollments.stream().map(enrollment -> enrollment.getEmployee().getId()).toList();
+        Map<Integer, Map<Integer, SkillSnapshot>> snapshots = skillSnapshotsByEmployeeIds(employeeIds);
+        Map<Integer, TrainingRollCall.Summary> rollCall = rollCall(trainingClass, employeeIds);
         List<TrainingSkill> classSkills = sortedSkills(trainingClass);
         return enrollments.stream()
                 .map(enrollment -> {
@@ -2185,9 +2231,36 @@ public class TrainingServiceImpl implements TrainingService {
                                     : employeeCertificateLabel(employee))
                             .evaluationNote(enrollment.getEvaluationNote())
                             .evaluatedAt(enrollment.getEvaluatedAt())
+                            .attendanceKey(attendanceOf(rollCall, employee.getId()).key())
+                            .attendanceLabel(attendanceOf(rollCall, employee.getId()).label())
+                            .attendedSessions(attendanceOf(rollCall, employee.getId()).attendedSessions())
+                            .elapsedSessions(attendanceOf(rollCall, employee.getId()).elapsedSessions())
                             .build();
                 })
                 .toList();
+    }
+
+    /** Điểm danh từng học viên của lớp: Có mặt / Vắng mặt theo buổi gần nhất đã diễn ra. */
+    private Map<Integer, TrainingRollCall.Summary> rollCall(TrainingClass trainingClass, List<Integer> employeeIds) {
+        if (trainingAttendanceRepository == null || trainingClass.getId() == null) {
+            return Map.of();
+        }
+        int absentThreshold = attendancePolicy == null ? 20 : attendancePolicy.getTrainingAbsentThresholdMinutes();
+        return TrainingRollCall.summarize(
+                employeeIds,
+                trainingAttendanceRepository.findByClassIdWithEmployee(trainingClass.getId()),
+                trainingClass.getStartDate(),
+                trainingClass.getEndDate(),
+                trainingClass.getStartTime(),
+                VietnamTime.now(),
+                absentThreshold);
+    }
+
+    private static TrainingRollCall.Summary attendanceOf(Map<Integer, TrainingRollCall.Summary> rollCall,
+                                                         Integer employeeId) {
+        TrainingRollCall.Summary summary = rollCall.get(employeeId);
+        return summary != null ? summary
+                : new TrainingRollCall.Summary(TrainingRollCall.PENDING, "Chưa đến buổi học", 0, 0);
     }
 
     private TrainingEmployeeOption toEmployeeOption(Employee employee,

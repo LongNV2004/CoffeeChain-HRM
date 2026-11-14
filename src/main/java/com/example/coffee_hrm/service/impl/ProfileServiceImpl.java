@@ -101,6 +101,7 @@ public class ProfileServiceImpl implements ProfileService {
                 .username(user.getUsername())
                 .email(employee.getEmail())
                 .phone(employee.getPhone())
+                .citizenId(employee.getCitizenId())
                 .citizenIdMasked(CitizenIds.mask(employee.getCitizenId()))
                 .address(employee.getAddress())
                 .avatarUrl(employee.getAvatarUrl())

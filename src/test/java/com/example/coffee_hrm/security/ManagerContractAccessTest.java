@@ -29,12 +29,15 @@ class ManagerContractAccessTest {
         assertFalse(ManagerContractAccess.allowsWhenLimited("/schedule/manager", "GET"));
         assertFalse(ManagerContractAccess.allowsWhenLimited("/attendance/manager/choose", "GET"));
         assertFalse(ManagerContractAccess.allowsWhenLimited("/manager/salary", "GET"));
-        assertFalse(ManagerContractAccess.allowsWhenLimited("/training", "GET"));
+        // Chưa có hợp đồng vẫn xem được thông tin cơ bản của lớp đào tạo nhưng không được tham gia.
+        assertTrue(ManagerContractAccess.allowsWhenLimited("/training", "GET"));
+        assertFalse(ManagerContractAccess.allowsWhenLimited("/attendance/manager/training", "GET"));
+        assertFalse(ManagerContractAccess.allowsWhenLimited("/attendance/manager/training/check-in", "POST"));
         assertFalse(ManagerContractAccess.allowsWhenLimited("/manager/recruitment", "POST"));
     }
 
     @Test
-    void contractWaitingToStartDoesNotGrantAccess() {
+    void contractWaitingToStartAllowsTrainingButNotStoreWork() {
         EmploymentContract waiting = EmploymentContract.builder()
                 .id(2)
                 .previousContract(EmploymentContract.builder().id(1).build())
@@ -42,19 +45,19 @@ class ManagerContractAccessTest {
                 .endDate(today.plusMonths(12))
                 .build();
 
-        assertEquals(ManagerContractAccess.Limit.NOT_IN_FORCE,
+        assertEquals(ManagerContractAccess.Limit.WAITING_START,
                 ManagerContractAccess.assess(List.of(waiting), today));
     }
 
     @Test
-    void futureFirstContractIsNotGrantedFromTheInForceLabelAlone() {
+    void futureFirstContractOnlyAllowsTraining() {
         EmploymentContract future = EmploymentContract.builder()
                 .id(3)
                 .startDate(today.plusDays(1))
                 .endDate(today.plusMonths(12))
                 .build();
 
-        assertEquals(ManagerContractAccess.Limit.NOT_IN_FORCE,
+        assertEquals(ManagerContractAccess.Limit.WAITING_START,
                 ManagerContractAccess.assess(List.of(future), today));
     }
 
@@ -117,7 +120,7 @@ class ManagerContractAccessTest {
     }
 
     @Test
-    void renewedSourceDoesNotGrantAccessAfterItEndsAndBeforeTheNewContractStarts() {
+    void renewedSourceOnlyAllowsTrainingAfterItEndsAndBeforeTheNewContractStarts() {
         EmploymentContract source = EmploymentContract.builder()
                 .id(6)
                 .startDate(today.minusMonths(12))
@@ -130,7 +133,7 @@ class ManagerContractAccessTest {
                 .endDate(today.plusMonths(12))
                 .build();
 
-        assertEquals(ManagerContractAccess.Limit.NOT_IN_FORCE,
+        assertEquals(ManagerContractAccess.Limit.WAITING_START,
                 ManagerContractAccess.assess(List.of(source, renewal), today));
     }
 
@@ -165,5 +168,41 @@ class ManagerContractAccessTest {
                 ManagerContractAccess.assess(List.of(declined), today));
         assertEquals(ManagerContractAccess.Limit.NOT_IN_FORCE,
                 ManagerContractAccess.assess(List.of(ended), today));
+    }
+
+    @Test
+    void personalPagesStayOpenWhileWaitingAndTrainingOpensWithAContract() {
+        ManagerContractAccess.Limit waiting = ManagerContractAccess.Limit.WAITING_START;
+        ManagerContractAccess.Limit none = ManagerContractAccess.Limit.NO_CONTRACT;
+        // Chấm công cá nhân: chỉ trang của chính mình (?self=true), không phải lịch sử cả cửa hàng.
+        assertTrue(ManagerContractAccess.allowsWhenLimited("/attendance/manager/history", "GET", none, true));
+        assertFalse(ManagerContractAccess.allowsWhenLimited("/attendance/manager/history", "GET", none, false));
+        assertTrue(ManagerContractAccess.allowsWhenLimited("/profile/contracts", "GET", none, false));
+        // Tham gia đào tạo chỉ khi đã có hợp đồng (kể cả chờ hiệu lực).
+        assertFalse(ManagerContractAccess.allowsWhenLimited("/attendance/manager/training/check-in", "POST", none, false));
+        assertTrue(ManagerContractAccess.allowsWhenLimited("/attendance/manager/training/check-in", "POST", waiting, false));
+        assertTrue(ManagerContractAccess.allowsWhenLimited("/attendance/manager/training", "GET", waiting, false));
+        assertTrue(ManagerContractAccess.allowsWhenLimited("/training/classes/3/documents/9", "GET", waiting, false));
+        // Hợp đồng hết hạn: không tham gia đào tạo.
+        assertFalse(ManagerContractAccess.allowsWhenLimited("/attendance/manager/training", "GET",
+                ManagerContractAccess.Limit.NOT_IN_FORCE, false));
+        // Nghiệp vụ cửa hàng vẫn đóng khi hợp đồng chưa hiệu lực.
+        assertFalse(ManagerContractAccess.allowsWhenLimited("/schedule/manager", "GET", waiting, false));
+        assertFalse(ManagerContractAccess.allowsWhenLimited("/manager/employees", "GET", waiting, false));
+        assertFalse(ManagerContractAccess.allowsWhenLimited("/attendance/manager/day", "GET", waiting, false));
+    }
+
+    @Test
+    void trainingNeedsAContractThatIsInForceOrWaitingToStart() {
+        assertFalse(ManagerContractAccess.allowsTraining(List.of(), today));
+        assertTrue(ManagerContractAccess.allowsTraining(List.of(EmploymentContract.builder()
+                .id(20).startDate(today.plusDays(3)).endDate(today.plusMonths(12)).build()), today));
+        assertTrue(ManagerContractAccess.allowsTraining(List.of(EmploymentContract.builder()
+                .id(21).startDate(today.minusMonths(1)).endDate(today.plusMonths(11)).build()), today));
+        assertFalse(ManagerContractAccess.allowsTraining(List.of(EmploymentContract.builder()
+                .id(22).startDate(today.minusMonths(12)).endDate(today.minusDays(1)).build()), today));
+        assertFalse(ManagerContractAccess.allowsTraining(List.of(EmploymentContract.builder()
+                .id(23).startDate(today.minusMonths(3)).endDate(today.plusMonths(9))
+                .terminatedDate(today.minusDays(2)).build()), today));
     }
 }

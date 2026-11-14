@@ -13,6 +13,14 @@ import java.util.Optional;
 
 public interface OvertimeRequestRepository extends JpaRepository<OvertimeRequest, Integer> {
 
+    /** Id các ca phân công được tạo từ đơn tăng ca có trạng thái cho trước (vd. đã duyệt). */
+    @Query("""
+            SELECT o.createdAssignmentId FROM OvertimeRequest o
+            WHERE o.createdAssignmentId IN :assignmentIds AND o.status = :status
+            """)
+    List<Integer> findAssignmentIdsByStatus(@Param("assignmentIds") Collection<Integer> assignmentIds,
+                                            @Param("status") ApprovalStatus status);
+
     @Query("""
             SELECT r FROM OvertimeRequest r
             JOIN FETCH r.employee e

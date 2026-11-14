@@ -20,4 +20,10 @@ public interface ManagerDayAttendanceService {
     StaffDayAttendanceView getOwnDay(AuthenticatedUser user, LocalDate date);
 
     StaffDayAttendanceView emptyOwnDay(LocalDate date);
+
+    /** "Theo dõi chấm công" theo ngày của nhân viên — cùng mẫu bảng với Manager, chỉ dữ liệu của chính mình. */
+    ManagerDayAttendanceView getOwnDayBoard(AuthenticatedUser user, LocalDate date);
+
+    /** Chấm công theo tháng của chính nhân viên (một dòng duy nhất). */
+    ManagerMonthAttendanceView getOwnMonth(AuthenticatedUser user, String monthValue);
 }

@@ -57,6 +57,8 @@ class AdminPagesRenderTest {
     @MockitoBean
     private StoreService storeService;
     @MockitoBean
+    private com.example.coffee_hrm.common.net.AttendanceNetworkResolver networkResolver;
+    @MockitoBean
     private EmployeeService employeeService;
     @MockitoBean
     private RecruitmentRequestService recruitmentRequestService;

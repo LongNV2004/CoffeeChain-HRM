@@ -97,14 +97,14 @@
         <div class="store-toolbar" th:if="${!#lists.isEmpty(list.rows)}">
             <label class="store-search">
                 <span class="sr-only">Tìm cửa hàng</span>
-                <input id="chainStoreSearch" type="search" placeholder="Tìm nhanh theo tên hoặc mã cửa hàng..." autocomplete="off">
+                <input id="chainStoreSearch" type="search" placeholder="Tìm nhanh theo tên cửa hàng..." autocomplete="off">
             </label>
         </div>
         <p class="chain-store-empty" th:if="${#lists.isEmpty(list.rows)}">Không có báo cáo khớp bộ lọc.</p>
 
-        <div class="chain-store-grid" th:if="${!#lists.isEmpty(list.rows)}">
+        <div class="chain-store-grid" data-paginate data-paginate-always data-paginate-label="cửa hàng" th:if="${!#lists.isEmpty(list.rows)}">
             <article class="chain-store-card report-card" th:each="row : ${list.rows}"
-                     th:attr="data-store-name=${row.storeName},data-store-code=${row.storeId}">
+                     th:attr="data-store-name=${row.storeName}">
                 <div class="chain-store-card-top">
                     <div>
                         <p class="chain-store-kicker">Cửa hàng</p>

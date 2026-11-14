@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<body>
+<!--
+  Numbered Pagination phía server, cùng giao diện với CoffeePager.js (class coffee-pager).
+  Trước 1 2 3 4 5 Sau (tối đa 5 số trang)
+
+  Tham số:
+    current   trang đang xem, tính từ 1
+    total     tổng số trang
+    summary   dòng đếm bên trái (vd. "Hiển thị 1–10 của 35"), có thể null
+    url       đường dẫn đã gắn sẵn các bộ lọc, chứa chuỗi __PAGE__ ở vị trí số trang
+    zeroBased true nếu tham số trang trên URL tính từ 0 (vd. Báo cáo nghỉ phép)
+
+  Ví dụ:
+    <nav th:replace="~{fragments/pager :: numbered(${view.page}, ${view.totalPages}, ${summary},
+         @{/contracts(page='__PAGE__', keyword=${view.keyword})}, false)}"></nav>
+-->
+<nav th:fragment="numbered(current, total, summary, url, zeroBased)"
+     class="coffee-pager coffee-pager--server"
+     th:if="${total != null and total > 0}"
+     th:with="shift=${zeroBased ? 1 : 0},
+              winEnd=${T(java.lang.Math).min(total, T(java.lang.Math).max(1, current - 2) + 4)},
+              winStart=${T(java.lang.Math).max(1, winEnd - 4)}"
+     aria-label="Phân trang">
+    <p class="coffee-pager-count" th:text="${summary != null ? summary : ('Trang ' + current + '/' + total)}">Trang 1/1</p>
+    <div class="coffee-pager-pages">
+        <a th:if="${current > 1}" th:href="${#strings.replace(url, '__PAGE__', '' + (current - 1 - shift))}">Trước</a>
+        <span th:unless="${current > 1}" class="is-disabled" aria-disabled="true">Trước</span>
+        <!-- Tối đa 5 số trang liên tiếp, trượt theo trang hiện tại: 1 2 3 4 5 → 4 5 6 7 8. -->
+        <a th:each="p : ${#numbers.sequence(winStart, winEnd)}"
+           th:href="${#strings.replace(url, '__PAGE__', '' + (p - shift))}"
+           th:classappend="${p == current} ? 'is-on'"
+           th:attr="aria-current=${p == current} ? 'page' : null"
+           th:text="${p}">1</a>
+        <a th:if="${current < total}" th:href="${#strings.replace(url, '__PAGE__', '' + (current + 1 - shift))}">Sau</a>
+        <span th:unless="${current < total}" class="is-disabled" aria-disabled="true">Sau</span>
+    </div>
+</nav>
+</body>
+</html>

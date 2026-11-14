@@ -41,8 +41,10 @@ public class SecurityConfig {
     }
 
     @Bean
-    public ManagerCertificateFilter managerCertificateFilter(ObjectProvider<UserRepository> userRepositories) {
-        return new ManagerCertificateFilter(userRepositories);
+    public ManagerCertificateFilter managerCertificateFilter(
+            ObjectProvider<UserRepository> userRepositories,
+            ObjectProvider<EmploymentContractRepository> contractRepositories) {
+        return new ManagerCertificateFilter(userRepositories, contractRepositories);
     }
 
     @Bean

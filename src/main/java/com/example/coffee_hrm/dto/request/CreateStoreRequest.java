@@ -39,11 +39,7 @@ public class CreateStoreRequest {
     @DateTimeFormat(pattern = "dd/MM/yyyy")
     private LocalDate openingDate;
 
-    @NotBlank(message = "Vui lòng nhập vĩ độ")
-    @Size(max = 20, message = "Vĩ độ tối đa 20 ký tự")
-    private String latitude;
-
-    @NotBlank(message = "Vui lòng nhập kinh độ")
-    @Size(max = 20, message = "Kinh độ tối đa 20 ký tự")
-    private String longitude;
+    /** Địa chỉ IP mạng được phép chấm công: nhiều IP, phân cách bằng xuống dòng hoặc dấu phẩy. */
+    @Size(max = 2000, message = "Danh sách địa chỉ IP tối đa 2000 ký tự")
+    private String allowedIps;
 }

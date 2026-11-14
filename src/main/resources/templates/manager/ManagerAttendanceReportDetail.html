@@ -61,7 +61,7 @@
         <h2>B. Bảng tổng hợp chấm công theo nhân viên</h2>
         <p class="note">Bấm xem chi tiết để mở lịch từng ngày trong tháng của nhân viên đó.</p>
         <div class="table-wrap">
-            <table>
+            <table data-paginate>
                 <thead>
                 <tr>
                     <th>Nhân viên</th>
@@ -111,7 +111,7 @@
            th:text="${'Các bản ghi ca làm trong tháng ' + report.periodLabel + '. Ngày không có bản ghi không hiện ở đây.'}">Tháng</p>
         <p class="empty" th:if="${report.historyKind != 'training' and report.days.isEmpty()}">Không có bản ghi chấm công ca làm trong tháng này.</p>
         <div class="table-wrap" th:if="${report.historyKind != 'training' and !report.days.isEmpty()}">
-            <table>
+            <table data-paginate>
                 <thead>
                 <tr>
                     <th>Ngày</th>
@@ -161,7 +161,7 @@
            th:text="${'Các buổi đào tạo trong tháng ' + report.periodLabel + '. Ngày không có bản ghi không hiện ở đây.'}">Tháng</p>
         <p class="empty" th:if="${report.historyKind != 'shift' and report.trainingDays.isEmpty()}">Không có bản ghi chấm công đào tạo trong tháng này.</p>
         <div class="table-wrap" th:if="${report.historyKind != 'shift' and !report.trainingDays.isEmpty()}">
-            <table>
+            <table data-paginate>
                 <thead>
                 <tr>
                     <th>Ngày</th>

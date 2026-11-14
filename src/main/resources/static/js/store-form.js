@@ -93,17 +93,12 @@
         const leave = fieldValue(form, 'totalLeaveSlots');
         const opening = (form.querySelector('[data-opening-date]') || {}).value;
         const openingText = (opening || '').trim();
-        const latitude = fieldValue(form, 'latitude');
-        const longitude = fieldValue(form, 'longitude');
+        const ips = fieldValue(form, 'allowedIps').split(/[,;\s]+/).filter(Boolean);
         setPreview(form, '[data-preview-name]', name, 'Chưa nhập tên');
         setPreview(form, '[data-preview-address]', address, 'Chưa nhập địa chỉ');
         setPreview(form, '[data-preview-opening]', openingText, 'Chưa chọn');
         setPreview(form, '[data-preview-leave]', leave === '' ? '' : leave + ' ca', 'Chưa nhập');
-        if (latitude && longitude) {
-            setPreview(form, '[data-preview-coords]', latitude + ', ' + longitude, 'Chưa có tọa độ');
-        } else {
-            setPreview(form, '[data-preview-coords]', '', (latitude || longitude) ? 'Chưa đủ tọa độ' : 'Chưa có tọa độ');
-        }
+        setPreview(form, '[data-preview-ips]', ips.join(', '), 'Chưa cấu hình IP');
         const mark = form.querySelector('[data-preview-monogram]');
         if (mark) mark.textContent = monogram(name);
     }
@@ -118,8 +113,6 @@
             if (field.name === 'address') return 'Vui lòng nhập địa chỉ';
             if (field.name === 'openingDate') return 'Vui lòng chọn ngày khai trương';
             if (field.name === 'totalLeaveSlots') return 'Vui lòng nhập số ca phép';
-            if (field.name === 'latitude') return 'Vui lòng nhập vĩ độ';
-            if (field.name === 'longitude') return 'Vui lòng nhập kinh độ';
         }
         if (field.validity.typeMismatch && field.name === 'email') return 'Email không đúng định dạng';
         if (field.validity.patternMismatch && field.name === 'phone') return 'Số điện thoại gồm 9 đến 15 chữ số';

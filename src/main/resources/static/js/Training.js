@@ -459,6 +459,26 @@ function renderCertificateRow(row, kind) {
   if (cert) {
     cert.textContent = certified ? 'Đã có ' + label : 'Chưa có ' + label;
   }
+  // Manager chưa có hợp đồng hợp lệ (hoặc chưa được phân công cửa hàng) không được ghi danh lớp chứng chỉ quản lý.
+  var blocked = kind === 'MANAGEMENT' ? (row.getAttribute('data-management-block') || '') : '';
+  if (blocked) {
+    setEligibilityBadge(badge, 'Chưa có hợp đồng hợp lệ', 'badge-wait');
+    if (badge) {
+      badge.title = blocked;
+    }
+    row.classList.add('is-blocked');
+    row.classList.remove('is-retake');
+    row.title = blocked;
+    if (input) {
+      input.checked = false;
+      input.disabled = true;
+    }
+    return;
+  }
+  row.removeAttribute('title');
+  if (badge) {
+    badge.removeAttribute('title');
+  }
   setEligibilityBadge(badge, certified ? 'Có thể học lại' : 'Có thể đăng ký', certified ? 'badge-cert' : 'badge-ok');
   row.classList.remove('is-blocked');
   row.classList.toggle('is-retake', certified);

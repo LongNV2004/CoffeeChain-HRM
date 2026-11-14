@@ -2,6 +2,7 @@ package com.example.coffee_hrm.controller;
 
 import com.example.coffee_hrm.common.enums.AttendanceHistoryKind;
 import com.example.coffee_hrm.common.enums.AttendanceStatus;
+import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.AttendanceHistoryQuery;
@@ -29,6 +30,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 @Controller
@@ -46,14 +48,33 @@ public class AttendanceHistoryController {
                                @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
                                @AuthenticationPrincipal AuthenticatedUser user,
                                Model model) {
+        // Cùng mẫu với "Danh sách chấm công và lương" của Manager, nhưng dữ liệu chỉ của chính nhân viên.
         try {
-            model.addAttribute("board", managerDayAttendanceService.getOwnDay(user, date));
+            model.addAttribute("board", managerDayAttendanceService.getOwnDayBoard(user, date));
             model.addAttribute("pageError", null);
         } catch (BusinessException ex) {
-            model.addAttribute("board", managerDayAttendanceService.emptyOwnDay(date));
+            model.addAttribute("board", managerDayAttendanceService.empty(date));
             model.addAttribute("pageError", ex.getMessage());
         }
         return "staff/StaffAttendance";
+    }
+
+    @GetMapping("/staff/history/month")
+    @PreAuthorize("hasRole('STAFF')")
+    public String staffMonth(@RequestParam(value = "month", required = false) String month,
+                             @AuthenticationPrincipal AuthenticatedUser user,
+                             Model model) {
+        ManagerMonthAttendanceView board;
+        try {
+            board = managerDayAttendanceService.getOwnMonth(user, month);
+            model.addAttribute("pageError", null);
+        } catch (BusinessException ex) {
+            board = managerDayAttendanceService.emptyMonth();
+            model.addAttribute("pageError", ex.getMessage());
+        }
+        model.addAttribute("board", board);
+        addPayroll(user, board, model);
+        return "staff/StaffMonthAttendance";
     }
 
     @GetMapping("/manager/history")
@@ -142,6 +163,9 @@ public class AttendanceHistoryController {
                 listed.add(card.getEmployeeId());
             }
             for (PayrollBoardView.Row row : payroll.getRows()) {
+                if (user.getRoleName() == RoleName.STAFF && !Objects.equals(row.getEmployeeId(), user.getEmployeeId())) {
+                    continue; // phòng thủ thêm: nhân viên không bao giờ nhận dòng lương của người khác
+                }
                 byEmployee.put(row.getEmployeeId(), row);
                 if (!listed.contains(row.getEmployeeId())) {
                     // Đã nghỉ hoặc chuyển cửa hàng nhưng vẫn có ca trong tháng: vẫn phải trả lương.

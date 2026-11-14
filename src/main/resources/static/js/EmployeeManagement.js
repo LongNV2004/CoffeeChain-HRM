@@ -12,10 +12,9 @@
     const sort = document.getElementById('employeeSort');
     const noMatch = document.getElementById('employeeNoMatch');
     const pageInfo = document.getElementById('employeePageInfo');
-    const prev = document.getElementById('employeePreviousPage');
-    const next = document.getElementById('employeeNextPage');
+    const pagesEl = document.getElementById('employeePages');
 
-    const PAGE_SIZE = 20;
+    const PAGE_SIZE = 10;
     let currentPage = 1;
 
     function normal(value) {
@@ -75,8 +74,13 @@
             ? `Hiển thị ${start + 1}–${start + visible.length} trong ${result.length} nhân viên`
             : '';
 
-        prev.disabled = currentPage <= 1;
-        next.disabled = currentPage >= totalPages || result.length === 0;
+        // Numbered Pagination dùng chung: Trước 1 … 4 5 6 … Sau.
+        if (window.CoffeePager) {
+            CoffeePager.renderPages(pagesEl, currentPage, totalPages, target => {
+                currentPage = target;
+                renderTable();
+            });
+        }
     }
 
     function resetFilter() {
@@ -89,21 +93,6 @@
     if (statusFilter) statusFilter.addEventListener('change', resetFilter);
     if (contractFilter) contractFilter.addEventListener('change', resetFilter);
     if (sort) sort.addEventListener('change', resetFilter);
-
-    prev.addEventListener('click', () => {
-        if (currentPage > 1) {
-            currentPage--;
-            renderTable();
-        }
-    });
-
-    next.addEventListener('click', () => {
-        const totalPages = Math.ceil(filteredRows().length / PAGE_SIZE);
-        if (currentPage < totalPages) {
-            currentPage++;
-            renderTable();
-        }
-    });
 
     renderTable();
 })();
@@ -128,9 +117,8 @@
         const query = normal(search.value.trim());
         let visible = 0;
         cards.forEach(card => {
-            const matches = !query
-                || normal(card.dataset.storeName).includes(query)
-                || normal(card.dataset.storeCode).includes(query);
+            // Chỉ tìm theo tên cửa hàng (không tìm theo mã/id).
+            const matches = !query || normal(card.dataset.storeName).includes(query);
             card.hidden = !matches;
             if (matches) visible++;
         });

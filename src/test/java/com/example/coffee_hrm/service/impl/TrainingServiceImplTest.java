@@ -789,7 +789,7 @@ class TrainingServiceImplTest {
     }
 
     @Test
-    void adminWhoDidNotCreateOrTrainTheClassCannotSeeTheRoster() {
+    void anyAdminSeesTheRosterAndRollCallButOnlyTheTrainerEvaluates() {
         Store store = Store.builder().id(5).storeName("Store A").build();
         TrainingClass trainingClass = approvedClass(store, VietnamTime.today().minusDays(1));
         trainingClass.setTrainer(user(9, RoleName.MANAGER, 90));
@@ -800,7 +800,8 @@ class TrainingServiceImplTest {
         var detail = trainingService.getApprovedClassDetailForAdmin(10, admin);
 
         assertFalse(detail.isEvaluable());
-        assertFalse(detail.isRosterVisible());
+        // Admin xem được danh sách học viên và điểm danh của mọi lớp.
+        assertTrue(detail.isRosterVisible());
     }
 
     @Test
@@ -2197,6 +2198,9 @@ class TrainingServiceImplTest {
         when(trainingClassRepository.findById(21)).thenReturn(Optional.of(trainingClass));
         when(employeeRepository.findByIdWithStore(30)).thenReturn(Optional.of(learner));
         when(userRepository.findByEmployee_Id(30)).thenReturn(Optional.of(account));
+        when(storeRepository.findByManager_Id(30)).thenReturn(Optional.of(store));
+        when(employmentContractRepository.findByEmployeeId(30)).thenReturn(List.of(contract(
+                learner, VietnamTime.today().minusMonths(1), VietnamTime.today().plusMonths(6))));
 
         trainingService.enrollManagerInManagementClass(21, 30, admin);
 
@@ -2207,6 +2211,84 @@ class TrainingServiceImplTest {
                 eq(NotificationType.TRAINING_CLASS_ENROLLED),
                 eq("TRAINING_CLASS"),
                 eq(21));
+    }
+
+    @Test
+    void managerWithoutContractCannotJoinManagementTraining() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        Employee learner = employee(31, "Manager Mới", store, EmployeeStatus.ACTIVE);
+        TrainingClass trainingClass = managementClass(22);
+        when(trainingClassRepository.findById(22)).thenReturn(Optional.of(trainingClass));
+        when(employeeRepository.findByIdWithStore(31)).thenReturn(Optional.of(learner));
+        when(userRepository.findByEmployee_Id(31)).thenReturn(Optional.of(user(7, RoleName.MANAGER, 31)));
+        when(storeRepository.findByManager_Id(31)).thenReturn(Optional.of(store));
+        when(employmentContractRepository.findByEmployeeId(31)).thenReturn(List.of());
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> trainingService.enrollManagerInManagementClass(22, 31, admin));
+
+        assertTrue(ex.getMessage().contains("hợp đồng lao động đang hiệu lực hoặc chờ hiệu lực"));
+        verify(trainingClassEnrollmentRepository, never()).save(any());
+    }
+
+    @Test
+    void managerWithExpiredContractCannotJoinManagementTraining() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        Employee learner = employee(32, "Manager Cũ", store, EmployeeStatus.ACTIVE);
+        when(trainingClassRepository.findById(23)).thenReturn(Optional.of(managementClass(23)));
+        when(employeeRepository.findByIdWithStore(32)).thenReturn(Optional.of(learner));
+        when(userRepository.findByEmployee_Id(32)).thenReturn(Optional.of(user(8, RoleName.MANAGER, 32)));
+        when(storeRepository.findByManager_Id(32)).thenReturn(Optional.of(store));
+        when(employmentContractRepository.findByEmployeeId(32)).thenReturn(List.of(contract(
+                learner, VietnamTime.today().minusMonths(12), VietnamTime.today().minusDays(1))));
+
+        assertThrows(BusinessException.class,
+                () -> trainingService.enrollManagerInManagementClass(23, 32, admin));
+        verify(trainingClassEnrollmentRepository, never()).save(any());
+    }
+
+    @Test
+    void managerWithContractWaitingToStartCanJoinManagementTraining() {
+        Store store = Store.builder().id(5).storeName("Store A").build();
+        // Hợp đồng chờ hiệu lực: hệ thống để nhân viên ở trạng thái Chờ hoàn thiện hợp đồng.
+        Employee learner = employee(33, "Manager Chờ", store, EmployeeStatus.PENDING_CONTRACT);
+        when(trainingClassRepository.findById(24)).thenReturn(Optional.of(managementClass(24)));
+        when(employeeRepository.findByIdWithStore(33)).thenReturn(Optional.of(learner));
+        when(userRepository.findByEmployee_Id(33)).thenReturn(Optional.of(user(9, RoleName.MANAGER, 33)));
+        when(storeRepository.findByManager_Id(33)).thenReturn(Optional.of(store));
+        when(employmentContractRepository.findByEmployeeId(33)).thenReturn(List.of(contract(
+                learner, VietnamTime.today().plusDays(10), VietnamTime.today().plusMonths(12))));
+
+        trainingService.enrollManagerInManagementClass(24, 33, admin);
+
+        verify(trainingClassEnrollmentRepository).save(any());
+    }
+
+    @Test
+    void managerOfAnotherStoreCannotJoinManagementTraining() {
+        Store own = Store.builder().id(5).storeName("Store A").build();
+        Store other = Store.builder().id(6).storeName("Store B").build();
+        Employee learner = employee(34, "Manager Lệch", own, EmployeeStatus.ACTIVE);
+        when(trainingClassRepository.findById(25)).thenReturn(Optional.of(managementClass(25)));
+        when(employeeRepository.findByIdWithStore(34)).thenReturn(Optional.of(learner));
+        when(userRepository.findByEmployee_Id(34)).thenReturn(Optional.of(user(10, RoleName.MANAGER, 34)));
+        when(storeRepository.findByManager_Id(34)).thenReturn(Optional.of(other));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> trainingService.enrollManagerInManagementClass(25, 34, admin));
+
+        assertTrue(ex.getMessage().contains("chưa được phân công quản lý cửa hàng"));
+    }
+
+    private TrainingClass managementClass(int id) {
+        return TrainingClass.builder()
+                .id(id)
+                .className("Đào tạo quản lý " + id)
+                .trainingType(TrainingType.MANAGEMENT_TRAINING)
+                .status(TrainingClassStatus.APPROVED)
+                .endDate(VietnamTime.today().plusDays(1))
+                .endTime(LocalTime.of(18, 0))
+                .build();
     }
 
     @Test

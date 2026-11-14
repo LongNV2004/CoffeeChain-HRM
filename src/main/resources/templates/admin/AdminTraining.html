@@ -67,21 +67,10 @@
 
         <table th:replace="~{fragments/trainingClassView :: activeTable(${classes}, '/admin/training/classes/{id}', 'Không có lớp đào tạo phù hợp.')}"></table>
 
-        <nav class="pagination" th:if="${totalPages > 0}" aria-label="Phân trang danh sách lớp đang hoạt động">
-            <a class="page-btn"
-               th:classappend="${classPage.first} ? ' disabled'"
-               th:href="${classPage.first} ? '#' : @{/admin/training(page=${currentPage - 1}, skillId=${skillId}, date=${date}, keyword=${keyword}, sortDir=${sortDir})}">Trang trước</a>
-            <span class="page-numbers">
-                <a th:each="p : ${#numbers.sequence(1, totalPages)}"
-                   class="page-btn"
-                   th:classappend="${p == currentPage} ? ' active'"
-                   th:href="@{/admin/training(page=${p}, skillId=${skillId}, date=${date}, keyword=${keyword}, sortDir=${sortDir})}"
-                   th:text="${p}">1</a>
-            </span>
-            <a class="page-btn"
-               th:classappend="${classPage.last} ? ' disabled'"
-               th:href="${classPage.last} ? '#' : @{/admin/training(page=${currentPage + 1}, skillId=${skillId}, date=${date}, keyword=${keyword}, sortDir=${sortDir})}">Trang tiếp theo</a>
-        </nav>
+        <nav th:replace="~{fragments/pager :: numbered(${currentPage}, ${totalPages},
+                 |Trang ${currentPage}/${totalPages} · ${classPage.totalElements} lớp|,
+                 @{/admin/training(page='__PAGE__', skillId=${skillId}, date=${date}, keyword=${keyword}, sortDir=${sortDir})},
+                 false)}"></nav>
     </section>
 
     <section class="panel" style="margin-top:16px;">

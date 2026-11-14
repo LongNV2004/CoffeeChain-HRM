@@ -143,11 +143,10 @@
                 </tbody>
             </table>
         </div>
-        <div class="leave-history-footer">
-            <span id="leavePageLabel">Trang 1</span>
-            <button class="leave-btn leave-btn-outline" id="leavePrev" type="button">Trước</button>
-            <button class="leave-btn leave-btn-outline" id="leaveNext" type="button">Sau</button>
-        </div>
+        <nav class="coffee-pager leave-history-footer" aria-label="Phân trang lịch sử nghỉ phép">
+            <p class="coffee-pager-count" id="leavePageLabel">Trang 1</p>
+            <div class="coffee-pager-pages" id="leavePages"></div>
+        </nav>
         <p class="leave-toast" id="leaveToast" hidden role="status"></p>
     </section>
 </main>

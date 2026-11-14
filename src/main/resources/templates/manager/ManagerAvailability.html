@@ -182,8 +182,9 @@
                                                 th:classappend="${'is-' + item.statusKey}"
                                                 th:attr="data-reg-id=${item.registrationKey != null ? 'k:' + item.registrationKey : 'a:' + item.availabilityId}"
                                                 th:title="${(item.employeeName != null ? item.employeeName : 'Nhân viên') + ' · ' + item.statusLabel}">
-                                            <span class="rv-dot" aria-hidden="true"></span>
                                             <span class="rv-pname" th:text="${item.employeeName != null ? item.employeeName : 'Nhân viên'}">Nguyễn Văn A</span>
+                                            <span class="rv-ptag"
+                                                  th:text="${item.statusKey == 'approved' ? 'Đã duyệt' : (item.statusKey == 'pending' ? 'Chờ duyệt' : 'Từ chối')}">Đã duyệt</span>
                                         </button>
                                     </li>
                                 </ul>
@@ -319,10 +320,9 @@
                         </tbody>
                     </table>
                     <p class="rv-empty" id="rvRegEmpty" hidden>Không có đơn đăng ký nào khớp bộ lọc.</p>
-                    <nav class="rv-pager" id="rvPager" aria-label="Phân trang" hidden>
-                        <button type="button" class="rv-btn rv-btn-ghost" id="rvPrevPage">Trước</button>
-                        <span id="rvPageInfo">Trang 1/1</span>
-                        <button type="button" class="rv-btn rv-btn-ghost" id="rvNextPage">Sau</button>
+                    <nav class="rv-pager coffee-pager" id="rvPager" aria-label="Phân trang" hidden>
+                        <p class="coffee-pager-count" id="rvPageInfo">Trang 1/1</p>
+                        <div class="coffee-pager-pages" id="rvPages"></div>
                     </nav>
                 </div>
             </section>

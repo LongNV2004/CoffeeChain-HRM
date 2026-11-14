@@ -82,7 +82,7 @@
     </dl>
 </section>
 
-<table th:fragment="activeTable(rows, link, emptyText)">
+<table data-paginate th:fragment="activeTable(rows, link, emptyText)">
     <thead>
     <tr>
         <th>Tên lớp</th>
@@ -117,7 +117,7 @@
     </tbody>
 </table>
 
-<table th:fragment="endedTable(rows, link, closedLabel)">
+<table data-paginate data-paginate-always data-paginate-label="lớp" th:fragment="endedTable(rows, link, closedLabel)">
     <thead>
     <tr>
         <th>Tên lớp</th>
@@ -155,6 +155,15 @@
         </li>
     </ul>
 </section>
+
+<!-- Ô Điểm danh của một học viên (trang Thông tin lớp): Có mặt / Vắng mặt theo buổi gần nhất đã diễn ra. -->
+<td th:fragment="attendanceCell(student)">
+    <span class="badge"
+          th:classappend="${student.attendanceKey == 'present'} ? ' badge-ok' : (${student.attendanceKey == 'absent'} ? ' badge-off' : ' badge-wait')"
+          th:text="${student.attendanceLabel} ?: 'Chưa đến buổi học'">Có mặt</span>
+    <div class="muted" th:if="${student.elapsedSessions > 1}"
+         th:text="|Có mặt ${student.attendedSessions}/${student.elapsedSessions} buổi|">Có mặt 2/3 buổi</div>
+</td>
 
 </body>
 </html>

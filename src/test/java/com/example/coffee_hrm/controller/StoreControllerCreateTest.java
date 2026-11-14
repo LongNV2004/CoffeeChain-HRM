@@ -28,6 +28,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasProperty;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -41,6 +42,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -55,6 +57,8 @@ class StoreControllerCreateTest {
 
     @MockitoBean
     private StoreService storeService;
+    @MockitoBean
+    private com.example.coffee_hrm.common.net.AttendanceNetworkResolver networkResolver;
     @MockitoBean
     private DatabaseUserDetailsService userDetailsService;
     @MockitoBean
@@ -76,7 +80,61 @@ class StoreControllerCreateTest {
                         hasProperty("openingDate", nullValue()))))
                 .andExpect(content().string(containsString("Tạo cửa hàng mới")))
                 .andExpect(content().string(containsString("Ngày khai trương")))
-                .andExpect(content().string(containsString("Chưa chỉ định")));
+                .andExpect(content().string(containsString("Chưa chỉ định")))
+                // Trường Vị trí cửa hàng được thay bằng trường IP mạng chấm công.
+                .andExpect(content().string(containsString("Địa chỉ IP mạng được phép chấm công")))
+                .andExpect(content().string(containsString("placeholder=\"Nhập các địa chỉ IP được phép chấm công\"")))
+                .andExpect(content().string(containsString("Chỉ cho phép nhân viên chấm công khi kết nối địa chỉ IP đã cấu hình.")))
+                .andExpect(content().string(containsString("Lấy IP mạng hiện tại")))
+                .andExpect(content().string(not(containsString("Vị trí cửa hàng"))))
+                .andExpect(content().string(not(containsString("name=\"latitude\""))))
+                .andExpect(content().string(not(containsString("name=\"longitude\""))));
+    }
+
+    @Test
+    void currentIpReturnsTheSameIpThatCheckInWillBeMatchedAgainst() throws Exception {
+        when(networkResolver.effectiveIp(any())).thenReturn("183.80.74.80");
+
+        mockMvc.perform(get("/admin/stores/current-ip").with(user(actor(RoleName.ADMIN))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.ip").value("183.80.74.80"));
+        verify(storeService, never()).updateStore(any(), any(), any());
+    }
+
+    @Test
+    void currentIpDoesNotOfferAnInternalAddressWhenThePublicIpIsUnknown() throws Exception {
+        for (String internal : new String[]{"192.168.1.10", "127.0.0.1", "0:0:0:0:0:0:0:1"}) {
+            when(networkResolver.effectiveIp(any())).thenReturn(internal);
+            mockMvc.perform(get("/admin/stores/current-ip").with(user(actor(RoleName.ADMIN))))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.ok").value(false))
+                    .andExpect(jsonPath("$.message").value(containsString("nhập IP mạng của cửa hàng thủ công")));
+        }
+    }
+
+    @Test
+    void onlyAdminCanReadTheCurrentIp() throws Exception {
+        mockMvc.perform(get("/admin/stores/current-ip").with(user(actor(RoleName.MANAGER))))
+                .andExpect(redirectedUrl("/dashboard/manager"));
+        mockMvc.perform(get("/admin/stores/current-ip").with(user(actor(RoleName.STAFF))))
+                .andExpect(redirectedUrl("/dashboard/staff"));
+    }
+
+    @Test
+    void invalidIpIsShownOnTheIpField() throws Exception {
+        when(storeService.createStore(any(), any())).thenThrow(new BusinessException(
+                com.example.coffee_hrm.service.impl.StoreServiceImpl.INVALID_IP_PREFIX + "Địa chỉ IP không hợp lệ: abc."));
+
+        mockMvc.perform(post("/admin/stores/create").with(user(actor(RoleName.ADMIN))).with(csrf())
+                        .param("storeName", "Store A")
+                        .param("address", "X")
+                        .param("totalLeaveSlots", "12")
+                        .param("openingDate", "20/10/2026")
+                        .param("allowedIps", "abc"))
+                .andExpect(status().isOk())
+                .andExpect(model().attributeHasFieldErrors("storeForm", "allowedIps"))
+                .andExpect(content().string(containsString("Địa chỉ IP không hợp lệ: abc.")));
     }
 
     @Test
@@ -128,8 +186,7 @@ class StoreControllerCreateTest {
                         .param("address", "  12 Nguyễn Trãi ")
                         .param("totalLeaveSlots", "12")
                         .param("openingDate", "20/10/2026")
-                        .param("latitude", " 21.028511 ")
-                        .param("longitude", " 105.854167 "))
+                        .param("allowedIps", " 203.113.10.20\n113.161.1.1 "))
                 .andExpect(redirectedUrl("/admin/stores"))
                 .andExpect(flash().attribute("successMessage", containsString("Coffee Nguyễn Trãi")));
 
@@ -137,8 +194,7 @@ class StoreControllerCreateTest {
         verify(storeService).createStore(any(AuthenticatedUser.class), captor.capture());
         assertEquals("Coffee Nguyễn Trãi", captor.getValue().getStoreName());
         assertEquals("12 Nguyễn Trãi", captor.getValue().getAddress());
-        assertEquals("21.028511", captor.getValue().getLatitude());
-        assertEquals("105.854167", captor.getValue().getLongitude());
+        assertEquals("203.113.10.20\n113.161.1.1", captor.getValue().getAllowedIps());
         assertEquals(java.time.LocalDate.of(2026, 10, 20), captor.getValue().getOpeningDate());
     }
 
@@ -177,8 +233,7 @@ class StoreControllerCreateTest {
                         .param("address", "X")
                         .param("totalLeaveSlots", "12")
                         .param("openingDate", "20/10/2026")
-                        .param("latitude", "21.028511")
-                        .param("longitude", "105.854167"))
+                        .param("allowedIps", "203.113.10.20"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("admin/store-create"))
                 .andExpect(model().attribute("errorMessage", "Tên cửa hàng đã tồn tại"));
@@ -191,8 +246,7 @@ class StoreControllerCreateTest {
                         .param("storeName", "Store A")
                         .param("address", "12 Nguyễn Trãi")
                         .param("totalLeaveSlots", "12")
-                        .param("latitude", "21.028511")
-                        .param("longitude", "105.854167"))
+                        .param("allowedIps", "203.113.10.20"))
                 .andExpect(status().isOk())
                 .andExpect(model().attributeHasFieldErrors("storeForm", "openingDate"))
                 .andExpect(content().string(containsString("Vui lòng chọn ngày khai trương")));

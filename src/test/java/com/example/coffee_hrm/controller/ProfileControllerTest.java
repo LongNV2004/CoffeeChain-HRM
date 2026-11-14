@@ -89,6 +89,9 @@ class ProfileControllerTest {
                 .andExpect(content().string(containsString("Hồ sơ cá nhân")))
                 .andExpect(content().string(containsString("Chỉnh sửa thông tin")))
                 .andExpect(content().string(containsString("Lưu")))
+                // Manager xem được đầy đủ số CCCD của chính mình nhưng không sửa được
+                .andExpect(content().string(containsString("001099000777")))
+                .andExpect(content().string(not(containsString("001******777"))))
                 .andExpect(content().string(not(containsString("name=\"citizenId\""))));
 
         verify(profileService).getProfile(manager);
@@ -102,6 +105,7 @@ class ProfileControllerTest {
         mockMvc.perform(get("/profile").with(user(staff)))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Chưa có Chứng chỉ nhân viên.")))
+                .andExpect(content().string(containsString("001099000777")))
                 .andExpect(content().string(containsString("Đổi mật khẩu")))
                 .andExpect(content().string(containsString("/profile/password")));
     }
@@ -331,6 +335,8 @@ class ProfileControllerTest {
                 .username("an.nguyen")
                 .email("an@shop.vn")
                 .phone("0901234567")
+                .citizenId("001099000777")
+                .citizenIdMasked("001******777")
                 .roleName(roleName)
                 .roleLabel(roleName == RoleName.MANAGER ? "Quản lý cửa hàng" : "Nhân viên")
                 .sidebarRole(roleName == RoleName.MANAGER ? "manager" : "staff")

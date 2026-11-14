@@ -27,6 +27,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -152,6 +153,23 @@ class ScheduleControllerTest {
                 .andExpect(content().string(containsString("+" + ReliabilityService.COMPLETED_SWAP_BONUS + " điểm (tối đa "
                         + ReliabilityService.MAX_COMPLETED_SWAP_BONUS_PER_MONTH + " lần/tháng, +"
                         + (ReliabilityService.MAX_COMPLETED_SWAP_BONUS_PER_MONTH * ReliabilityService.COMPLETED_SWAP_BONUS) + "đ)")));
+    }
+
+    @Test
+    void staffScheduleShowsTheSharedStoreScheduleOnlyOnce() throws Exception {
+        when(scheduleService.getWeeklyScheduleForStaff(any(), any())).thenReturn(sampleWeek(null));
+        when(shiftCoverInvitationService.getPendingForStaff(any())).thenReturn(List.of());
+        String heading = "<h2>Lịch làm việc chung tại cửa hàng</h2>";
+
+        String schedulePage = mockMvc.perform(get("/schedule/staff").with(user(staff())))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertEquals(1, schedulePage.split(java.util.regex.Pattern.quote(heading), -1).length - 1);
+
+        String shiftChangePage = mockMvc.perform(get("/schedule/staff/shift-change").with(user(staff())))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertEquals(1, shiftChangePage.split(java.util.regex.Pattern.quote(heading), -1).length - 1);
     }
 
     @Test

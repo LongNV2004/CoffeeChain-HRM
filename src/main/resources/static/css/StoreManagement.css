@@ -905,3 +905,7 @@ body:has(.coffee-sidebar) .store-create-form input.is-invalid:focus {
         min-height: 48px;
     }
 }
+
+/* Dòng trạng thái của nút "Lấy IP mạng hiện tại"; ô IP dùng chung kiểu input của form. */
+[data-ip-status].is-error { color: #b3261e; }
+[data-ip-status].is-ok { color: #2f6b3b; }

@@ -205,6 +205,84 @@
         </div>
     </section>
 
+    <!-- My Schedule Section: chỉ dùng để gửi yêu cầu ở trang Đổi ca -->
+    <section class="panel" th:if="${shiftChangePage}">
+        <div class="panel-header">
+            <h2>Ca làm việc của tôi trong tuần này</h2>
+        </div>
+
+        <div class="my-shifts-grid" data-paginate data-paginate-item=".shift-card" data-paginate-label="ca">
+            <th:block th:each="row : ${schedule.shiftRows}">
+                <th:block th:each="cell : ${row.dayCells}">
+                    <th:block th:each="assign : ${cell.assignments}">
+                        <div class="shift-card highlight"
+                             th:if="${assign.isCurrentStaff}">
+                            <div class="card-top">
+                                <div>
+                                    <div class="shift-name" th:text="${row.shiftName}">Ca Sáng</div>
+                                    <div class="date-badge" th:text="${#temporals.format(cell.date, 'dd/MM/yyyy')}">21/09/2026</div>
+                                    <div class="time-range" th:text="${row.formattedTime}">07:00 – 12:00</div>
+                                </div>
+                            </div>
+                            <div class="card-bottom">
+                                <button type="button" class="btn btn-swap"
+                                        th:if="${assign.canRequestChange and !staffEmploymentEnded}"
+                                        th:data-assignment-id="${assign.assignmentId}"
+                                        th:data-shift-title="${row.shiftName + ' (' + #temporals.format(cell.date, 'dd/MM/yyyy') + ')'}"
+                                        onclick="openChangeModal(this.getAttribute('data-assignment-id'), this.getAttribute('data-shift-title'))">
+                                    ⇄ Đổi ca này
+                                </button>
+                                <span style="font-size:12px;color:var(--ink-soft);"
+                                      th:if="${!assign.canRequestChange and !assign.appliedFromRegistration}">
+                                    Ca làm việc đã qua
+                                </span>
+                            </div>
+                        </div>
+                    </th:block>
+                </th:block>
+            </th:block>
+        </div>
+    </section>
+
+    <!-- Overall Store Schedule -->
+    <section class="panel" th:unless="${shiftChangePage}">
+        <div class="panel-header">
+            <h2>Lịch làm việc chung tại cửa hàng</h2>
+            <small style="color:var(--ink-soft);">Ca làm đã được phân trong tuần</small>
+        </div>
+
+        <div class="grid-container">
+            <table class="schedule-grid">
+                <thead>
+                <tr>
+                    <th style="width:130px;">Ca làm</th>
+                    <th th:each="day : ${schedule.days}" th:classappend="${day.isToday} ? 'today' : ''">
+                        <div style="font-weight:600;" th:text="${day.dayOfWeekName}">Thứ 2</div>
+                        <div style="font-size:12px;color:var(--ink-soft);" th:text="${day.formattedDate}">21/09</div>
+                    </th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="row : ${schedule.shiftRows}">
+                    <td class="shift-cell">
+                        <div class="title" th:text="${row.shiftName}">Ca Sáng</div>
+                        <div class="time" th:text="${row.formattedTime}">07:00 – 12:00</div>
+                    </td>
+                    <td th:each="cell : ${row.dayCells}">
+                        <div th:each="assign : ${cell.assignments}"
+                             class="emp-pill"
+                             th:classappend="${assign.isCurrentStaff} ? 'me' : ''"
+                             th:title="${assign.employeeName}">
+                            <span class="emp-name" th:text="${assign.employeeName}">Nguyễn Văn A</span>
+                            <span class="emp-tag" th:if="${assign.isCurrentStaff}">Tôi</span>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
     <!-- Incoming Shift Change Requests (from peers) -->
     <section class="panel incoming-requests-panel" th:if="${!#lists.isEmpty(schedule.incomingRequests)}">
         <div class="panel-header">
@@ -285,8 +363,9 @@
         </div>
     </section>
 
-    <!-- Overall Store Schedule (with direct "⇄ Đổi ca" button on current staff's shifts) -->
-    <section class="panel">
+    <!-- Overall Store Schedule (with direct "⇄ Đổi ca" button on current staff's shifts).
+         Chỉ hiện ở trang Đổi ca; trang Lịch làm việc đã có lưới chỉ xem ở trên — tránh hiển thị 2 lịch trùng nhau. -->
+    <section class="panel" th:if="${shiftChangePage}">
         <div class="panel-header" style="flex-wrap:wrap;gap:12px;">
             <div>
                 <h2>Lịch làm việc chung tại cửa hàng</h2>
@@ -357,7 +436,7 @@
             Bạn chưa gửi yêu cầu đổi ca nào.
         </p>
 
-        <table class="data-table" th:if="${!#lists.isEmpty(schedule.pendingShiftChanges)}">
+        <table data-paginate class="data-table" th:if="${!#lists.isEmpty(schedule.pendingShiftChanges)}">
             <thead>
             <tr>
                 <th>Ca làm việc</th>

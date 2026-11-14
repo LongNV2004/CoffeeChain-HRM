@@ -221,6 +221,20 @@
                 <svg class="coffee-icon"><use href="#coffee-i-user"/></svg>
                 <span class="coffee-side-label">Hồ sơ cá nhân</span>
             </a>
+            <!-- Chưa có hợp đồng (Manager mới tạo): menu chỉ còn Hồ sơ cá nhân.
+                 Đã có hợp đồng chờ hiệu lực: thêm Đào tạo và Chấm công đào tạo để tham gia lớp chứng chỉ quản lý. -->
+            <th:block th:if="${managerContractLimited and managerCanTrain}">
+            <a class="coffee-menu-item" th:href="@{/attendance/manager/training}"
+               th:classappend="${active == 'attendance'} ? ' is-active'" title="Chấm công đào tạo">
+                <svg class="coffee-icon"><use href="#coffee-i-schedule"/></svg>
+                <span class="coffee-side-label">Chấm công đào tạo</span>
+            </a>
+            <a class="coffee-menu-item" th:href="@{/training}"
+               th:classappend="${active == 'training'} ? ' is-active'" title="Đào tạo">
+                <svg class="coffee-icon"><use href="#coffee-i-training"/></svg>
+                <span class="coffee-side-label">Đào tạo</span>
+            </a>
+            </th:block>
             <th:block th:unless="${managerContractLimited}">
             <div class="coffee-menu-group"
                  th:classappend="${active == 'schedule' or active == 'availability' or active == 'slot-limits' or active == 'overtime'} ? ' is-open'">
@@ -466,6 +480,8 @@
 <div class="hrm-nav-backdrop" data-sidebar-backdrop></div>
 <script th:src="@{/js/CoffeeDialog.js}" defer></script>
 <script th:src="@{/js/CoffeeNavbar.js}" defer></script>
+<!-- Không defer: script của từng trang (chạy ngay khi phân tích HTML) gọi CoffeePager.renderPages. -->
+<script th:src="@{/js/CoffeePager.js}"></script>
 </div>
 
 </body>

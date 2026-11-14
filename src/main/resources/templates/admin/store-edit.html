@@ -69,25 +69,17 @@
                 </div>
                 <p class="store-form-note">Nếu cửa hàng chưa ngừng hoạt động, lưu ngày khai trương sẽ tính lại trạng thái. Ngày tương lai là Chuẩn bị khai trương; hôm nay hoặc ngày đã qua là Hoạt động.</p>
 
-                <p class="muted">Vị trí này dùng để kiểm tra nhân viên có đang ở cửa hàng khi check-in và check-out.</p>
-                <button type="button" class="logout-btn" data-fill-location>Lấy vị trí hiện tại</button>
-                <p class="muted" data-location-status></p>
-
-                <div class="two-col">
-                    <label>Vĩ độ
-                        <input type="text" th:field="*{latitude}" inputmode="decimal" maxlength="20" placeholder="Ví dụ: 21.028511">
-                        <span class="field-error" th:if="${#fields.hasErrors('latitude')}" th:errors="*{latitude}">Error</span>
-                    </label>
-                    <label>Kinh độ
-                        <input type="text" th:field="*{longitude}" inputmode="decimal" maxlength="20" placeholder="Ví dụ: 105.854167">
-                        <span class="field-error" th:if="${#fields.hasErrors('longitude')}" th:errors="*{longitude}">Error</span>
-                    </label>
-                </div>
-                <p class="muted" th:if="${store.locationUpdatedAt != null}">
-                    Vị trí cập nhật lúc
-                    <span th:text="${#temporals.format(store.locationUpdatedAt, 'dd/MM/yyyy HH:mm')}">01/01/2026 08:00</span>
-                </p>
-                <p class="muted" th:if="${store.locationUpdatedAt == null}">Cửa hàng chưa được thiết lập vị trí chấm công.</p>
+                <p class="muted">Chỉ cho phép nhân viên chấm công khi kết nối địa chỉ IP đã cấu hình.</p>
+                <label>Địa chỉ IP mạng được phép chấm công
+                    <input type="text" th:field="*{allowedIps}" maxlength="2000" spellcheck="false" autocomplete="off"
+                           inputmode="text" placeholder="Nhập các địa chỉ IP được phép chấm công">
+                    <span class="field-error" th:if="${#fields.hasErrors('allowedIps')}" th:errors="*{allowedIps}">Error</span>
+                </label>
+                <p class="muted">Nhiều IP phân cách bằng dấu phẩy. Xóa hết IP thì nhân viên không chấm công được tại cửa hàng.</p>
+                <button type="button" class="logout-btn" data-fill-ip
+                        th:attr="data-ip-url=@{/admin/stores/current-ip}">Lấy IP mạng hiện tại</button>
+                <p class="muted" data-ip-status role="status"></p>
+                <p class="muted" th:if="${#lists.isEmpty(store.allowedIps)}">Cửa hàng chưa được cấu hình IP chấm công.</p>
 
                 <div class="form-actions">
                     <button type="submit" class="primary-btn" data-submit-label="Đang lưu…">Lưu thay đổi</button>
@@ -121,7 +113,7 @@
     </section>
 </main>
 <script th:src="@{/js/AdminDashboard.js}"></script>
-<script th:src="@{/js/store-location.js}" defer></script>
+<script th:src="@{/js/store-ip.js}" defer></script>
 <script th:src="@{/js/store-form.js}" defer></script>
 </body>
 </html>

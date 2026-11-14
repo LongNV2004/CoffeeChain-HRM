@@ -69,7 +69,7 @@
 
         <h2>Nhân sự trong đề xuất</h2>
         <div class="table-scroll">
-            <table>
+            <table data-paginate>
                 <thead>
                 <tr>
                     <th>Nhân viên</th>
@@ -237,7 +237,7 @@
             <h3>Các kỳ lương liên quan</h3>
             <p class="muted" th:if="${#lists.isEmpty(st.periods)}">Không có kỳ lương hoặc ca làm nào cần đối soát.</p>
             <div class="table-scroll" th:if="${!#lists.isEmpty(st.periods)}">
-                <table>
+                <table data-paginate>
                     <thead>
                     <tr>
                         <th>Kỳ lương</th>
@@ -317,7 +317,7 @@
             <h3>Lịch sử thanh toán</h3>
             <p class="muted" th:if="${#lists.isEmpty(st.payments)}">Chưa có giao dịch thanh toán lương nào.</p>
             <div class="table-scroll" th:if="${!#lists.isEmpty(st.payments)}">
-                <table>
+                <table data-paginate>
                     <thead>
                     <tr>
                         <th>Ngày trả</th>

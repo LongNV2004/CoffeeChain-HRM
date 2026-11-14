@@ -164,7 +164,7 @@
     <section class="panel">
         <h2>Đăng ký của tôi</h2>
         <p class="empty" th:if="${#lists.isEmpty(registrations)}">Chưa có đăng ký còn hiệu lực hoặc đang chờ duyệt.</p>
-        <table th:if="${!#lists.isEmpty(registrations)}">
+        <table data-paginate th:if="${!#lists.isEmpty(registrations)}">
             <thead>
             <tr>
                 <th>Thời hạn</th>

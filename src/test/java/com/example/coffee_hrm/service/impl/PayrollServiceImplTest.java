@@ -1,5 +1,6 @@
 package com.example.coffee_hrm.service.impl;
 
+import com.example.coffee_hrm.common.enums.ApprovalStatus;
 import com.example.coffee_hrm.common.enums.AssignmentStatus;
 import com.example.coffee_hrm.common.enums.AttendanceReportStatus;
 import com.example.coffee_hrm.common.enums.AttendanceStatus;
@@ -13,6 +14,7 @@ import com.example.coffee_hrm.entity.Employee;
 import com.example.coffee_hrm.entity.EmploymentContract;
 import com.example.coffee_hrm.entity.MonthlyAttendanceReport;
 import com.example.coffee_hrm.entity.MonthlyPayroll;
+import com.example.coffee_hrm.entity.OvertimeRequest;
 import com.example.coffee_hrm.entity.Role;
 import com.example.coffee_hrm.entity.Shift;
 import com.example.coffee_hrm.entity.ShiftAssignment;
@@ -23,6 +25,7 @@ import com.example.coffee_hrm.repository.EmployeeRepository;
 import com.example.coffee_hrm.repository.EmploymentContractRepository;
 import com.example.coffee_hrm.repository.MonthlyAttendanceReportRepository;
 import com.example.coffee_hrm.repository.MonthlyPayrollRepository;
+import com.example.coffee_hrm.repository.OvertimeRequestRepository;
 import com.example.coffee_hrm.repository.ShiftAssignmentRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
 import com.example.coffee_hrm.repository.UserRepository;
@@ -71,6 +74,8 @@ class PayrollServiceImplTest {
 
     @Mock
     private MonthlyAttendanceReportRepository reportRepository;
+    @Mock
+    private OvertimeRequestRepository overtimeRequestRepository;
 
     @InjectMocks
     private PayrollServiceImpl service;
@@ -114,6 +119,31 @@ class PayrollServiceImplTest {
         assertEquals(1, saved.getEmployeeLines().size());
         assertEquals(8, saved.getEmployeeLines().getFirst().getPayableHours());
         assertEquals(0, new BigDecimal("240000").compareTo(saved.getEmployeeLines().getFirst().getExpectedSalary()));
+    }
+
+    @Test
+    void recalculatingFlushesOldLinesBeforeInsertingNewOnes() {
+        rememberSavedPayroll();
+        java.util.List<Integer> linesAtFlush = new java.util.ArrayList<>();
+        when(payrollRepository.saveAndFlush(any(MonthlyPayroll.class))).thenAnswer(invocation -> {
+            MonthlyPayroll payroll = invocation.getArgument(0);
+            linesAtFlush.add(payroll.getEmployeeLines().size());
+            return payroll;
+        });
+        stubOctoberShift(Attendance.builder()
+                .id(30).employee(staffEmployee).shift(morning()).store(store).workDate(LocalDate.of(2026, 10, 6))
+                .checkInTime(LocalDate.of(2026, 10, 6).atTime(8, 0))
+                .checkOutTime(LocalDate.of(2026, 10, 6).atTime(16, 0))
+                .lateMinutes(0).earlyLeaveMinutes(0).status(AttendanceStatus.ON_TIME).build(), new BigDecimal("30000"));
+
+        service.calculate(manager, 2026, 10);
+        saved.setId(3); // bảng lương đã lưu trong DB
+
+        service.calculate(manager, 2026, 10);
+
+        // Dòng cũ bị xóa (flush với danh sách rỗng) trước khi ghi dòng mới cho cùng nhân viên.
+        assertEquals(java.util.List.of(0), linesAtFlush);
+        assertEquals(1, saved.getEmployeeLines().size());
     }
 
     @Test
@@ -304,6 +334,56 @@ class PayrollServiceImplTest {
         var line = saved.getEmployeeLines().getFirst();
         assertEquals(1, line.getShiftLines().size());
         assertEquals(8, line.getPayableHours());
+    }
+
+    @Test
+    void overtimeShiftIsPaidLikeARegularShiftAndOnlyOnce() {
+        rememberSavedPayroll();
+        LocalDate regularDay = LocalDate.of(2026, 10, 6);
+        LocalDate overtimeDay = LocalDate.of(2026, 10, 7);
+        ShiftAssignment overtimeAssignment = ShiftAssignment.builder()
+                .id(12).employee(staffEmployee).shift(morning()).workDate(overtimeDay)
+                .status(AssignmentStatus.ASSIGNED).isPublished(true).build();
+        Attendance overtimeWorked = Attendance.builder()
+                .id(41).employee(staffEmployee).shift(morning()).store(store).workDate(overtimeDay)
+                .checkInTime(overtimeDay.atTime(8, 0)).checkOutTime(overtimeDay.atTime(16, 0))
+                .lateMinutes(0).earlyLeaveMinutes(0).status(AttendanceStatus.ON_TIME).build();
+        when(employeeRepository.getReferenceById(3)).thenReturn(staffEmployee);
+        when(shiftAssignmentRepository.findPublishedAssignedForStoreBetween(
+                eq(1), eq(LocalDate.of(2026, 10, 1)), eq(LocalDate.of(2026, 10, 31)), eq(AssignmentStatus.ASSIGNED)))
+                .thenReturn(java.util.List.of(assignment(regularDay), overtimeAssignment));
+        when(attendanceRepository.findForMonthlyReport(1, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31)))
+                .thenReturn(java.util.List.of(worked(regularDay), overtimeWorked));
+        when(employmentContractRepository.findByStoreId(1)).thenReturn(java.util.List.of(
+                contract(LocalDate.of(2026, 10, 1), LocalDate.of(2026, 12, 31), new BigDecimal("30000"))));
+        when(overtimeRequestRepository.findByStoreAndDateRangeAndStatuses(
+                eq(1), eq(LocalDate.of(2026, 10, 1)), eq(LocalDate.of(2026, 10, 31)), any()))
+                .thenReturn(java.util.List.of(OvertimeRequest.builder()
+                        .id(70).employee(staffEmployee).store(store).shift(morning()).workDate(overtimeDay)
+                        .reason("Tăng ca").status(ApprovalStatus.APPROVED).createdAssignmentId(12).build()));
+
+        // Chưa tính lương (số liệu trực tiếp): tổng = ca thường + tăng ca, mỗi ca tính một lần.
+        PayrollBoardView live = service.board(manager, 2026, 10, null, null, null, null);
+        PayrollBoardView.Row row = live.getRows().getFirst();
+        assertEquals(1, row.getOvertimeShifts());
+        assertEquals("240.000 đ", row.getRegularSalaryLabel());
+        assertEquals("240.000 đ", row.getOvertimeSalaryLabel());
+        assertEquals("480.000 đ", row.getExpectedSalaryLabel());
+        assertEquals("480.000 đ", live.getPayrollFundLabel());
+        assertEquals("240.000 đ", live.getOvertimeFundLabel());
+        assertEquals(1, live.getOvertimeShifts());
+
+        // Sau khi tính lương: dòng lương lưu đúng 2 ca, 16 giờ, 480.000 đ (không cộng thêm lần nữa).
+        service.calculate(manager, 2026, 10);
+        var line = saved.getEmployeeLines().getFirst();
+        assertEquals(2, line.getShiftLines().size());
+        assertEquals(16, line.getPayableHours());
+        assertEquals(0, new BigDecimal("480000").compareTo(line.getExpectedSalary()));
+
+        // Bảng lương đã lưu vẫn tách được phần tăng ca.
+        PayrollBoardView calculated = service.board(manager, 2026, 10, null, null, null, null);
+        assertEquals("240.000 đ", calculated.getRows().getFirst().getOvertimeSalaryLabel());
+        assertEquals("480.000 đ", calculated.getPayrollFundLabel());
     }
 
     private ShiftAssignment leaveSlot(int id, LocalDate day, com.example.coffee_hrm.common.enums.LeaveType type) {

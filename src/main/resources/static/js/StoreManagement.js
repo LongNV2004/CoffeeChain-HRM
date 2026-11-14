@@ -99,11 +99,10 @@
         let visible = 0;
 
         rows.forEach(row => {
-            const storeId = normal(
-                row.querySelector('.store-name-cell small span')?.textContent
-            );
+            // Chỉ tìm theo tên cửa hàng (không tìm theo mã/id).
+            const storeName = normal(row.querySelector('.store-name-cell h3')?.textContent);
             const matches = (filter === 'all' || row.dataset.state === filter)
-                && storeId.includes(query);
+                && storeName.includes(query);
 
             row.hidden = !matches;
             if (matches) visible++;

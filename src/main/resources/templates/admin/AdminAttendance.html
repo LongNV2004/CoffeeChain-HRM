@@ -106,7 +106,7 @@
         <h2>Chi tiết</h2>
         <p class="empty" th:if="${#lists.isEmpty(history.rows)}">Không có dữ liệu chấm công trong khoảng thời gian này.</p>
         <div class="table-wrap" th:if="${!#lists.isEmpty(history.rows)}">
-            <table>
+            <table data-paginate>
                 <thead>
                 <tr>
                     <th>Ngày</th>

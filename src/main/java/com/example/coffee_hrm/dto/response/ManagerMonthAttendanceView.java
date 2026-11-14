@@ -19,6 +19,10 @@ public class ManagerMonthAttendanceView {
     private final int completedSlots;
     private final int lateSlots;
     private final int earlySlots;
+    /** Số ca đi muộn hoặc về sớm; một ca vi phạm cả hai chỉ tính 1. */
+    private final int lateOrEarlySlots;
+    /** Số ca tăng ca (đơn tăng ca đã duyệt) trong kỳ. */
+    private final int overtimeSlots;
     private final int missingSlots;
     /** Tổng ca nghỉ phép đã duyệt trong kỳ. */
     private final int leaveSlots;
@@ -42,6 +46,9 @@ public class ManagerMonthAttendanceView {
         private final int completedSlots;
         private final int lateSlots;
         private final int earlySlots;
+        /** Số ca đi muộn hoặc về sớm; một ca vi phạm cả hai chỉ tính 1. */
+        private final int lateOrEarlySlots;
+        private final int overtimeSlots;
         private final int absentSlots;
         private final int missingSlots;
         private final String paidHoursLabel;
@@ -49,6 +56,7 @@ public class ManagerMonthAttendanceView {
         private final String earlyDurationLabel;
         private final boolean late;
         private final boolean early;
+        private final boolean overtime;
         /** Ca nghỉ phép đã duyệt trong kỳ. */
         private final int leaveSlots;
         private final int leaveDays;
@@ -78,5 +86,7 @@ public class ManagerMonthAttendanceView {
         private final boolean earlyLeave;
         private final boolean absent;
         private final boolean leave;
+        /** Ca sinh từ đơn tăng ca đã duyệt. */
+        private final boolean overtime;
     }
 }

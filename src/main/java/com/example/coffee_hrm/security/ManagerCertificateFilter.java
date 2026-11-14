@@ -3,6 +3,7 @@ package com.example.coffee_hrm.security;
 import com.example.coffee_hrm.common.enums.RoleName;
 import com.example.coffee_hrm.entity.Employee;
 import com.example.coffee_hrm.entity.User;
+import com.example.coffee_hrm.repository.EmploymentContractRepository;
 import com.example.coffee_hrm.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -28,9 +29,16 @@ import java.util.Objects;
 public class ManagerCertificateFilter extends OncePerRequestFilter {
 
     private final ObjectProvider<UserRepository> userRepositories;
+    private final ObjectProvider<EmploymentContractRepository> contractRepositories;
 
     public ManagerCertificateFilter(ObjectProvider<UserRepository> userRepositories) {
+        this(userRepositories, null);
+    }
+
+    public ManagerCertificateFilter(ObjectProvider<UserRepository> userRepositories,
+                                    ObjectProvider<EmploymentContractRepository> contractRepositories) {
         this.userRepositories = userRepositories;
+        this.contractRepositories = contractRepositories;
     }
 
     @Override
@@ -58,7 +66,11 @@ public class ManagerCertificateFilter extends OncePerRequestFilter {
         refreshSession(request, authentication, principal, user);
         if (user.getRole().getRoleName() == RoleName.MANAGER && !hasManagementCertificate(user)) {
             String path = pathOf(request);
-            if (!ManagerOperationGuard.allowsWithoutCertificate(path, request.getMethod())) {
+            if (!ManagerOperationGuard.allowsWithoutCertificate(path, request.getMethod(),
+                    "true".equalsIgnoreCase(request.getParameter("self")))
+                    && !ManagerContractAccess.ownsContractFile(path, request.getMethod(),
+                    user.getEmployee() == null ? null : user.getEmployee().getId(),
+                    contractRepositories == null ? null : contractRepositories.getIfAvailable())) {
                 deny(request, response);
                 return;
             }

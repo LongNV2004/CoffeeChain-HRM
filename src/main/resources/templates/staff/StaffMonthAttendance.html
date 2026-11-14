@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Theo dõi chấm công — CoffeeHRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/AttendanceHistory.css}">
+</head>
+<body>
+<header th:replace="~{fragments/navbar :: staff('attendance-track')}"></header>
+
+<!-- Cùng bố cục "Chấm công và lương theo tháng" của Manager; chỉ có dòng của chính nhân viên,
+     không có quỹ lương cửa hàng, không tính/chốt lương. -->
+<main class="wrap dash-main attn-screen track-board track-desk compact-board month-pay"
+      th:with="card=${#lists.isEmpty(board.employees) ? null : board.employees[0]},
+               pay=${card != null ? payByEmployee[card.employeeId] : null}">
+    <section class="day-board">
+        <div class="mp-head">
+            <div>
+                <h1>Theo dõi chấm công</h1>
+                <p class="mp-sub">
+                    <span th:text="${board.storeName != null ? board.storeName + ' · ' + board.monthLabel : board.monthLabel}">Tháng 10/2026</span>
+                    <span class="pay-badge" th:if="${payroll != null}"
+                          th:classappend="${payroll.statusKey}"
+                          th:text="${'Bảng lương: ' + payroll.statusLabel}">Bảng lương: Chưa tính</span>
+                </p>
+            </div>
+            <div class="mp-tools">
+                <form method="get" th:action="@{/attendance/staff/history/month}">
+                    <label>Tháng
+                        <input type="month" name="month" th:value="${board.monthValue}"
+                               onchange="this.form.submit()" aria-label="Chọn tháng">
+                    </label>
+                </form>
+            </div>
+        </div>
+
+        <nav class="track-tabs" aria-label="Theo dõi chấm công">
+            <a th:href="@{/attendance/staff/history}">Theo dõi theo ngày</a>
+            <a class="is-on" th:href="@{/attendance/staff/history/month(month=${board.monthValue})}">Chấm công và lương theo tháng</a>
+        </nav>
+
+        <p class="flash" th:if="${pageError}" th:text="${pageError}">Lỗi</p>
+        <p class="flash" th:if="${payrollError != null and payrollError != pageError}" th:text="${payrollError}">Lỗi bảng lương</p>
+
+        <div class="mp-overview">
+            <section class="mp-panel" aria-label="Chấm công của tôi trong tháng">
+                <h2>Chấm công trong tháng</h2>
+                <div class="mp-stats">
+                    <div class="mp-stat"><span>Ca phân công</span><strong th:text="${board.scheduledSlots}">0</strong></div>
+                    <div class="mp-stat is-good"><span>Ca hoàn thành</span><strong th:text="${board.completedSlots}">0</strong></div>
+                    <div class="mp-stat is-warn"><span>Ca đi muộn/về sớm</span><strong th:text="${board.lateOrEarlySlots}">0</strong></div>
+                    <div class="mp-stat is-bad"><span>Thiếu chấm công</span><strong th:text="${board.missingSlots}">0</strong></div>
+                    <div class="mp-stat is-leave"><span>Ca nghỉ phép</span><strong th:text="${board.leaveSlots}">0</strong></div>
+                    <div class="mp-stat is-ot"><span>Ca tăng ca</span><strong th:text="${board.overtimeSlots}">0</strong></div>
+                </div>
+            </section>
+
+            <section class="mp-panel" th:if="${payroll != null}" aria-label="Lương của tôi trong tháng">
+                <h2>Lương tháng</h2>
+                <div class="mp-total">
+                    <span>Lương dự kiến</span>
+                    <strong th:text="${pay != null ? pay.expectedSalaryLabel : '0 đ'}">0 đ</strong>
+                </div>
+                <div class="mp-split" aria-label="Tổng lương = lương ca thường + lương tăng ca">
+                    <div class="mp-part"><span>Lương ca thường</span><strong th:text="${pay != null ? pay.regularSalaryLabel : '0 đ'}">0 đ</strong></div>
+                    <span class="mp-plus" aria-hidden="true">+</span>
+                    <div class="mp-part is-ot"><span th:text="|Lương tăng ca (${pay != null ? pay.overtimeShifts : 0} ca)|">Lương tăng ca (0 ca)</span><strong th:text="${pay != null ? pay.overtimeSalaryLabel : '0 đ'}">0 đ</strong></div>
+                </div>
+                <ul class="mp-facts">
+                    <li>Giờ tính lương: <b th:text="${pay != null ? pay.payableHours + ' giờ' : '0 giờ'}">0 giờ</b></li>
+                    <li>Mức lương/giờ: <b th:text="${pay != null ? pay.hourlyRateLabel : '—'}">—</b></li>
+                </ul>
+            </section>
+        </div>
+
+        <div class="mp-notes">
+            <th:block th:if="${payroll != null}">
+                <p class="pay-note" th:if="${payroll.reviewShifts > 0}"
+                   th:text="|Bạn còn ${payroll.reviewShifts} ca thiếu dữ liệu chấm công. Những ca này có lương 0 cho đến khi được bổ sung.|">Còn ca thiếu dữ liệu.</p>
+                <p class="pay-note" th:if="${payroll.locked}">Bảng lương kỳ này đã chốt. Số giờ và mức lương/giờ được giữ nguyên.</p>
+            </th:block>
+            <details>
+                <summary>Cách tính chấm công và lương</summary>
+                <p>Ca đi muộn/về sớm = số ca có đi muộn hoặc về sớm; một ca vi phạm cả hai chỉ tính 1 ca.</p>
+                <p>Ca tăng ca được tính lương theo cùng quy tắc với ca thường (mức lương/giờ theo hợp đồng, trừ giờ đi muộn/về sớm). Tổng lương tháng = Lương các ca thông thường + Lương các ca tăng ca; mỗi ca chỉ được tính một lần.</p>
+                <p>Nghỉ phép chỉ tính ca thuộc đơn đã duyệt trong kỳ. Ca nghỉ phép năm được trả lương theo giờ của ca; nghỉ không hưởng lương, nghỉ ốm, nghỉ việc riêng được ghi nhận nhưng không phát sinh lương.</p>
+            </details>
+        </div>
+
+        <section class="mp-table-card">
+            <div class="mp-table-bar">
+                <h2>Chấm công và lương của tôi</h2>
+            </div>
+            <p class="day-empty" th:if="${card == null}">Chưa có dữ liệu chấm công trong tháng này.</p>
+
+            <div class="table-wrap" th:if="${card != null}">
+                <table class="track-table">
+                    <thead>
+                    <tr class="mp-groups">
+                        <th colspan="3">Nhân viên</th>
+                        <th colspan="6">Chấm công</th>
+                        <th colspan="4">Lương</th>
+                        <th></th>
+                    </tr>
+                    <tr>
+                        <th>STT</th>
+                        <th>Mã nhân viên</th>
+                        <th>Họ và tên</th>
+                        <th class="mp-num mp-start">Ca được phân công</th>
+                        <th class="mp-num">Ca hoàn thành</th>
+                        <th class="mp-num">Ca đi muộn/về sớm</th>
+                        <th class="mp-num">Ca thiếu chấm công</th>
+                        <th class="mp-num">Nghỉ phép</th>
+                        <th class="mp-num">Tăng ca</th>
+                        <th class="mp-num mp-start">Giờ được tính lương</th>
+                        <th class="mp-money">Mức lương/giờ</th>
+                        <th class="mp-money">Lương dự kiến</th>
+                        <th>Trạng thái lương</th>
+                        <th class="mp-start">Thao tác</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr class="track-row">
+                        <td class="track-stt">1</td>
+                        <td th:text="${card.employeeCode}">NV001</td>
+                        <td class="track-name" th:text="${card.employeeName}">Lê Thị Thu</td>
+                        <td class="mp-num mp-start" th:classappend="${card.scheduledSlots == 0} ? 'is-zero'" th:text="${card.scheduledSlots}">0</td>
+                        <td class="mp-num" th:classappend="${card.completedSlots == 0} ? 'is-zero'" th:text="${card.completedSlots}">0</td>
+                        <td class="mp-num" th:classappend="${card.lateOrEarlySlots > 0} ? 'is-warn' : 'is-zero'" th:text="${card.lateOrEarlySlots}">0</td>
+                        <td class="mp-num" th:classappend="${card.missingSlots > 0} ? 'is-warn' : 'is-zero'" th:text="${card.missingSlots}">0</td>
+                        <td class="mp-num track-leave" th:classappend="${card.leaveSlots == 0} ? 'is-zero'">
+                            <span th:text="${card.leaveLabel}">0</span>
+                            <small class="pay-none" th:if="${card.leaveSlots > 0}"
+                                   th:text="${card.paidLeaveSlots + ' ca hưởng lương'}">1 ca hưởng lương</small>
+                        </td>
+                        <td class="mp-num" th:classappend="${card.overtimeSlots > 0} ? 'is-ot' : 'is-zero'" th:text="${card.overtimeSlots}">0</td>
+                        <td class="mp-num mp-start" th:text="${pay != null ? pay.payableHours + ' giờ' : '—'}">0 giờ</td>
+                        <td class="mp-money" th:text="${pay != null ? pay.hourlyRateLabel : '—'}">—</td>
+                        <td class="mp-money">
+                            <span th:text="${pay != null ? pay.expectedSalaryLabel : '—'}">0 đ</span>
+                            <small th:if="${pay != null and pay.overtimeShifts > 0}"
+                                   th:text="|gồm ${pay.overtimeSalaryLabel} tăng ca|">gồm 0 đ tăng ca</small>
+                        </td>
+                        <td>
+                            <span class="pay-badge" th:if="${pay != null}" th:classappend="${pay.statusKey}" th:text="${pay.statusLabel}">Chưa tính</span>
+                            <span class="pay-none" th:if="${pay == null}">Không có ca</span>
+                        </td>
+                        <td class="mp-start mp-ops">
+                            <button type="button" class="ops-link mp-more" data-detail-toggle
+                                    aria-haspopup="menu" aria-expanded="false">Xem chi tiết</button>
+                            <div class="mp-menu" role="menu" hidden>
+                                <button type="button" role="menuitem" data-dialog="month-emp-self">Chi tiết chấm công</button>
+                                <a role="menuitem" th:if="${pay != null}"
+                                   th:href="@{/staff/salary/detail(year=${payroll.year},month=${payroll.month},employeeId=${card.employeeId})}">Chi tiết lương</a>
+                                <span class="mp-menu-off" th:if="${pay == null}">Chi tiết lương<small>Không có ca trong kỳ</small></span>
+                            </div>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <dialog class="detail-dialog month-dialog" id="month-emp-self" th:if="${card != null}">
+            <form method="dialog" class="detail-card">
+                <div class="slot-top">
+                    <div>
+                        <h3 th:text="${card.employeeName}">Lê Thị Thu</h3>
+                        <p class="slot-schedule" th:text="${card.employeeCode + ' · ' + board.storeName + ' · ' + board.monthLabel}">NV001 · Tháng 10/2026</p>
+                    </div>
+                </div>
+                <div class="slot-times">
+                    <div><span>Ca được phân công</span><strong th:text="${card.scheduledSlots}">0</strong></div>
+                    <div><span>Ca hoàn thành</span><strong th:text="${card.completedSlots}">0</strong></div>
+                </div>
+                <div class="slot-times">
+                    <div><span>Ca đi muộn/về sớm</span><strong th:text="${card.lateOrEarlySlots}">0</strong></div>
+                    <div><span>Ca thiếu chấm công</span><strong th:text="${card.missingSlots}">0</strong></div>
+                </div>
+                <div class="slot-times">
+                    <div><span>Nghỉ phép</span><strong th:text="${card.leaveLabel}">0</strong></div>
+                    <div><span>Ca tăng ca</span><strong th:text="${card.overtimeSlots}">0</strong></div>
+                </div>
+                <p class="day-empty" th:if="${#lists.isEmpty(card.days)}">Chưa có bản ghi chấm công hoặc nghỉ phép trong tháng này.</p>
+                <div class="month-lines" th:if="${!#lists.isEmpty(card.days)}">
+                    <article class="month-line" th:each="line : ${card.days}">
+                        <div class="slot-top">
+                            <h4><span th:text="${line.dateLabel + ' · ' + line.shiftName}">21/10/2026 · Ca sáng</span><span class="ot-tag" th:if="${line.overtime}">Tăng ca</span></h4>
+                            <span class="day-badge" th:classappend="${line.statusKey}" th:text="${line.statusLabel}">Đi muộn</span>
+                        </div>
+                        <p class="slot-schedule">Giờ theo lịch: <span th:text="${line.scheduleLabel}">07:00 – 12:00</span></p>
+                        <div class="slot-times">
+                            <div><span>Check-in</span><strong th:text="${line.checkInLabel}">07:10</strong></div>
+                            <div><span>Check-out</span><strong th:text="${line.checkOutLabel}">12:00</strong></div>
+                        </div>
+                        <div class="mine-hours" th:if="${line.leave}"><span>Nghỉ phép</span><strong th:text="${line.workedLabel}">Nghỉ có hưởng lương</strong></div>
+                    </article>
+                </div>
+                <button class="primary-btn" value="close">Đóng</button>
+            </form>
+        </dialog>
+    </section>
+</main>
+<script th:src="@{/js/MonthDetailMenu.js}"></script>
+</body>
+</html>

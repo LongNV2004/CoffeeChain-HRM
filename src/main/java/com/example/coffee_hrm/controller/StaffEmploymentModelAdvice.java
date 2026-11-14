@@ -63,6 +63,13 @@ public class StaffEmploymentModelAdvice {
         return managerLimit() != ManagerContractAccess.Limit.NONE;
     }
 
+    /** Manager có hợp đồng đang hiệu lực hoặc chờ hiệu lực: được tham gia đào tạo chứng chỉ quản lý. */
+    @ModelAttribute("managerCanTrain")
+    public boolean managerCanTrain() {
+        ManagerContractAccess.Limit limit = managerLimit();
+        return limit == ManagerContractAccess.Limit.NONE || limit == ManagerContractAccess.Limit.WAITING_START;
+    }
+
     @ModelAttribute("managerContractLimitedMessage")
     public String managerContractLimitedMessage() {
         return ManagerContractAccess.message(managerLimit());

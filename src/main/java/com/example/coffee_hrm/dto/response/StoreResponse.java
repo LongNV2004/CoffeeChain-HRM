@@ -6,9 +6,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
+
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @NoArgsConstructor
@@ -35,7 +35,7 @@ public class StoreResponse {
     private String managerStatusLabel;
     private String managerAssignmentLabel;
     private boolean managerCredentialsPending;
-    private BigDecimal latitude;
-    private BigDecimal longitude;
-    private LocalDateTime locationUpdatedAt;
+    /** Địa chỉ IP mạng được phép chấm công (đã chuẩn hóa, sắp xếp). */
+    @Builder.Default
+    private List<String> allowedIps = List.of();
 }
