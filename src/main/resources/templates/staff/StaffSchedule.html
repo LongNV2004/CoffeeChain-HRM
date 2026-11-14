@@ -248,7 +248,7 @@
     <section class="panel" th:unless="${shiftChangePage}">
         <div class="panel-header">
             <h2>Lịch làm việc chung tại cửa hàng</h2>
-            <small style="color:var(--ink-soft);">Ca làm đã được phân trong tuần</small>
+            <small style="color:var(--ink-soft);">Ca làm đã được phân trong tuần • Nhấn <strong>⇄ Đổi ca</strong> trên ca của bạn để gửi yêu cầu đổi ca</small>
         </div>
 
         <div class="grid-container">
@@ -275,6 +275,14 @@
                              th:title="${assign.employeeName}">
                             <span class="emp-name" th:text="${assign.employeeName}">Nguyễn Văn A</span>
                             <span class="emp-tag" th:if="${assign.isCurrentStaff}">Tôi</span>
+                            <button type="button"
+                                    class="pill-swap-btn"
+                                    th:if="${assign.isCurrentStaff and assign.canRequestChange and !staffEmploymentEnded}"
+                                    th:data-assignment-id="${assign.assignmentId}"
+                                    onclick="openChangeModal(this.getAttribute('data-assignment-id'), null)"
+                                    title="Đổi ca này">
+                                ⇄ Đổi ca
+                            </button>
                         </div>
                     </td>
                 </tr>
@@ -516,7 +524,7 @@
                 </select>
                 <div style="background:#FFF8E1;border:1px solid #FDE68A;border-radius:6px;padding:8px 12px;font-size:12px;color:#92400E;margin-top:6px;display:flex;align-items:flex-start;gap:6px;">
                     <i data-lucide="alert-triangle" style="width:15px;height:15px;flex-shrink:0;color:#D97706;margin-top:1px;"></i>
-                    <span><strong>Quy tắc Điểm chuyên cần:</strong> Xin hủy/đổi ca sát giờ (trong vòng 24h trước giờ làm) sẽ bị <strong th:text="'trừ ' + ${lateCancelPenaltyAbs} + ' điểm chuyên cần'">trừ 10 điểm chuyên cần</strong>. Hoàn thành tốt ca đổi được <strong th:text="'+' + ${completedSwapBonusPoints} + ' điểm (tối đa ' + ${maxCompletedSwapsPerMonth} + ' lần/tháng, +' + (${maxCompletedSwapsPerMonth} * ${completedSwapBonusPoints}) + 'đ)'">+2 điểm (tối đa 3 lần/tháng, +6đ)</strong>.</span>
+                    <span><strong>Quy tắc Điểm chuyên cần:</strong> Đơn đổi ca gửi sát giờ (trong vòng 24h trước giờ làm) khi được Quản lý duyệt sẽ bị <strong th:text="'trừ ' + ${lateCancelPenaltyAbs} + ' điểm chuyên cần'">trừ 10 điểm chuyên cần</strong>. Hoàn thành tốt ca đổi được <strong th:text="'+' + ${completedSwapBonusPoints} + ' điểm (tối đa ' + ${maxCompletedSwapsPerMonth} + ' lần/tháng, +' + (${maxCompletedSwapsPerMonth} * ${completedSwapBonusPoints}) + 'đ)'">+2 điểm (tối đa 3 lần/tháng, +6đ)</strong>.</span>
                 </div>
             </div>
 
@@ -538,14 +546,6 @@
                             <span class="desc">Chỉ định một đồng nghiệp nhận làm thay ca này cho bạn</span>
                         </div>
                     </label>
-
-                    <label class="type-option-card" id="optCardManager">
-                        <input type="radio" name="changeType" value="MANAGER_ASSIGN" onchange="toggleChangeType('MANAGER_ASSIGN')">
-                        <div class="type-option-info">
-                            <span class="title" style="display:inline-flex;align-items:center;gap:6px;"><i data-lucide="clipboard-list" style="width:16px;height:16px;color:#E65100;"></i> Nhờ Quản lý tự sắp xếp</span>
-                            <span class="desc">Quản lý cửa hàng sẽ tìm và chỉ định nhân viên thay thế khi duyệt</span>
-                        </div>
-                    </label>
                 </div>
             </div>
 
@@ -562,7 +562,7 @@
                 </select>
                 <small id="swapEmptyNotice" style="color:var(--clay);display:none;align-items:center;gap:4px;margin-top:6px;">
                     <i data-lucide="alert-triangle" style="width:14px;height:14px;flex-shrink:0;"></i>
-                    <span>Không có ca đồng nghiệp nào trong tuần thỏa mãn không trùng lịch cả 2 đầu với ca này. Bạn có thể chọn "Nhờ đồng nghiệp nhận thay" hoặc "Nhờ Quản lý tự sắp xếp".</span>
+                    <span>Không có ca đồng nghiệp nào trong tuần thỏa mãn không trùng lịch cả 2 đầu với ca này. Bạn có thể chọn "Nhờ đồng nghiệp nhận thay" hoặc gửi Đơn xin nghỉ phép.</span>
                 </small>
             </div>
 
@@ -580,13 +580,8 @@
                 </select>
                 <small id="transferEmptyNotice" style="color:var(--clay);display:none;align-items:center;gap:4px;margin-top:6px;">
                     <i data-lucide="alert-triangle" style="width:14px;height:14px;flex-shrink:0;"></i>
-                    <span>Tất cả đồng nghiệp đủ điều kiện đều đã có ca làm việc trùng giờ với ca này. Bạn có thể chọn "Nhờ Quản lý tự sắp xếp".</span>
+                    <span>Tất cả đồng nghiệp đủ điều kiện đều đã có ca làm việc trùng giờ với ca này. Bạn có thể gửi Đơn xin nghỉ phép để Quản lý sắp xếp người thay.</span>
                 </small>
-            </div>
-
-            <!-- Helper Text for MANAGER_ASSIGN -->
-            <div class="form-group" id="managerHelpText" style="display:none;background:var(--paper-dim);padding:10px 14px;border-radius:6px;font-size:13px;color:var(--espresso);">
-                ℹ️ Quản lý cửa hàng sẽ trực tiếp chỉ định nhân viên thay thế bạn vào ca làm việc này khi duyệt yêu cầu.
             </div>
 
             <div class="form-group">
@@ -720,7 +715,6 @@
         document.querySelectorAll('.type-option-card').forEach(el => el.classList.remove('selected'));
         const swapGroup = document.getElementById('swapTargetGroup');
         const transferGroup = document.getElementById('transferTargetGroup');
-        const managerHelp = document.getElementById('managerHelpText');
         const swapSelect = document.getElementById('swapSelect');
         const transferSelect = document.getElementById('transferSelect');
 
@@ -731,7 +725,6 @@
             transferGroup.style.display = 'none';
             transferSelect.required = false;
             transferSelect.value = '';
-            managerHelp.style.display = 'none';
         } else if (type === 'TRANSFER') {
             document.getElementById('optCardTransfer').classList.add('selected');
             swapGroup.style.display = 'none';
@@ -739,16 +732,6 @@
             swapSelect.value = '';
             transferGroup.style.display = 'block';
             transferSelect.required = true;
-            managerHelp.style.display = 'none';
-        } else {
-            document.getElementById('optCardManager').classList.add('selected');
-            swapGroup.style.display = 'none';
-            swapSelect.required = false;
-            swapSelect.value = '';
-            transferGroup.style.display = 'none';
-            transferSelect.required = false;
-            transferSelect.value = '';
-            managerHelp.style.display = 'block';
         }
     }
     window.onclick = function(event) {

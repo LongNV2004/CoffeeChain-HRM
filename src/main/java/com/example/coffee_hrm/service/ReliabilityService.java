@@ -3,6 +3,7 @@ package com.example.coffee_hrm.service;
 import com.example.coffee_hrm.dto.response.ReliabilityLeaderboardView;
 import com.example.coffee_hrm.entity.Attendance;
 import com.example.coffee_hrm.entity.Employee;
+import com.example.coffee_hrm.entity.LeaveRequest;
 import com.example.coffee_hrm.entity.ShiftAssignment;
 import com.example.coffee_hrm.entity.ShiftChangeRequest;
 import com.example.coffee_hrm.entity.ShiftCoverInvitation;
@@ -31,7 +32,6 @@ public interface ReliabilityService {
     int ABANDONED_ACCEPTED_SHIFT_PENALTY = -15;
 
     /** Điều kiện xét danh hiệu Nhân viên xuất sắc tháng. */
-    int MIN_SHIFTS_FOR_AWARD = 8;
     int MIN_SCORE_FOR_AWARD = 105;
 
     /** Hạn mức điều chỉnh thủ công mỗi nhân viên mỗi tháng (tổng cộng tối đa +15, tổng trừ tối đa -15). */
@@ -50,9 +50,17 @@ public interface ReliabilityService {
     boolean isWithin24Hours(LocalDate workDate, LocalTime startTime, LocalDateTime referenceTime);
 
     /**
-     * Trừ điểm (-10đ) khi nhân viên xin hủy/đổi ca sát giờ (trong vòng 24h trước giờ làm).
+     * Trừ điểm (-10đ) khi đơn đổi ca được <b>Quản lý duyệt</b> mà đơn đó đã gửi sát giờ
+     * (trong vòng 24h trước giờ làm, tính tại thời điểm gửi đơn). Đơn bị từ chối/hủy không bị trừ.
      */
-    void recordLateShiftChangeIfUrgent(Employee requester, ShiftAssignment assignment, Integer requestId);
+    void recordLateShiftChangeIfUrgent(Employee requester, ShiftAssignment assignment, Integer requestId,
+                                       LocalDateTime requestedAt);
+
+    /**
+     * Trừ điểm (-10đ) khi đơn xin nghỉ phép được <b>Quản lý duyệt</b> mà có ca xin nghỉ nằm trong
+     * vòng 24h trước giờ làm (tính tại thời điểm gửi đơn). Mỗi đơn trừ tối đa một lần.
+     */
+    void recordLateLeaveIfUrgent(LeaveRequest leaveRequest, java.util.List<ShiftAssignment> slots);
 
     /**
      * Ghi nhận nhân viên từ chối hoặc để hết hạn <b>lời mời hỗ trợ ca gấp của Quản lý</b>.

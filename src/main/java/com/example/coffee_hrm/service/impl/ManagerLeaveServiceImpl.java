@@ -79,6 +79,7 @@ public class ManagerLeaveServiceImpl implements ManagerLeaveService {
     private final com.example.coffee_hrm.repository.ShiftSlotLimitRepository slotLimitRepository;
     private final com.example.coffee_hrm.repository.WorkAvailabilityRepository workAvailabilityRepository;
     private final NotificationService notificationService;
+    private final com.example.coffee_hrm.service.ReliabilityService reliabilityService;
 
     @Override
     public ManagerLeavePage list(int page, ApprovalStatus status, AuthenticatedUser manager) {
@@ -250,6 +251,8 @@ public class ManagerLeaveServiceImpl implements ManagerLeaveService {
         request.setApprovedBy(reviewer);
         request.setResolvedDate(resolvedAt);
         leaveRequestRepository.saveAndFlush(request);
+        // Cùng quy tắc chuyên cần với đổi ca: xin nghỉ sát giờ (<24h, tính lúc gửi đơn) bị -10đ, chỉ trừ khi đơn được duyệt.
+        reliabilityService.recordLateLeaveIfUrgent(request, assignments);
         int slotCount = Math.toIntExact(chargedSlots.values().stream().mapToLong(Long::longValue).sum());
         int chargedLeaveSlots = consumesAnnualLeave ? slotCount : 0;
         notifyEmployee(request, "Đơn xin nghỉ đã được duyệt",

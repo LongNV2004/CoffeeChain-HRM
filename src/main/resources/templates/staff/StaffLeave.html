@@ -79,6 +79,13 @@
                     </table>
                 </div>
                 <p class="leave-note">Chọn một hoặc nhiều ca cần nghỉ. Tuần này và tuần sau chỉ để xem các ca đã được phân.</p>
+                <div th:if="${lateCancelPenaltyAbs != null}"
+                     style="background:#FFF8E1;border:1px solid #FDE68A;border-radius:6px;padding:8px 12px;font-size:12px;color:#92400E;margin:6px 0 10px;">
+                    <strong>Quy tắc Điểm chuyên cần:</strong> Đơn xin nghỉ gửi sát giờ (trong vòng 24h trước giờ làm) khi được Quản lý duyệt sẽ bị
+                    <strong th:text="'trừ ' + ${lateCancelPenaltyAbs} + ' điểm chuyên cần'">trừ 10 điểm chuyên cần</strong>.
+                    Đồng nghiệp làm thay hoàn thành tốt ca được
+                    <strong th:text="'+' + ${completedSwapBonusPoints} + ' điểm (tối đa ' + ${maxCompletedSwapsPerMonth} + ' lần/tháng)'">+2 điểm (tối đa 3 lần/tháng)</strong>.
+                </div>
                 <label>
                     Lý do xin nghỉ
                     <span>*</span>
