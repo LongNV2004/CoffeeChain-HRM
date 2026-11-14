@@ -30,7 +30,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -153,7 +152,7 @@ class StoreReportPayrollPageTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(not(containsString("/approve\""))))
                 .andExpect(content().string(containsString("action=\"/attendance/admin/reports/4/pay-all\"")))
-                .andExpect(content().string(containsString("enctype=\"multipart/form-data\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("name=\"proof\""))))
                 .andExpect(content().string(containsString("name=\"requestKey\" value=\"rk-1\"")))
                 .andExpect(content().string(containsString("name=\"expectedCount\" value=\"2\"")))
                 .andExpect(content().string(containsString("Thanh toán toàn bộ (325.000 đ cho 2 nhân viên)")))
@@ -168,10 +167,9 @@ class StoreReportPayrollPageTest {
                 .andExpect(flash().attribute("success", containsString("Đã duyệt báo cáo")));
         verify(attendanceReportService).approve(any(), eq(4));
 
-        when(payrollPaymentService.payAll(any(), eq(4), any(), any()))
+        when(payrollPaymentService.payAll(any(), eq(4), any()))
                 .thenReturn(new PayrollPaymentService.PayAllResult(2, "325.000 đ"));
         mockMvc.perform(multipart("/attendance/admin/reports/4/pay-all")
-                        .file(new MockMultipartFile("proof", "ck.png", "image/png", new byte[]{1, 2}))
                         .param("method", "CHUYEN_KHOAN").param("paidDate", "2026-11-10")
                         .param("requestKey", "rk-1").param("expectedCount", "2")
                         .with(user(admin())).with(csrf()))
@@ -179,7 +177,7 @@ class StoreReportPayrollPageTest {
                 .andExpect(redirectedUrl("/attendance/admin/reports/4#bang-luong"))
                 .andExpect(flash().attribute("success", containsString("325.000 đ cho 2 nhân viên")));
 
-        when(payrollPaymentService.payEmployee(any(), eq(4), eq(11), any(), any()))
+        when(payrollPaymentService.payEmployee(any(), eq(4), eq(11), any()))
                 .thenThrow(new BusinessException("Số tiền thanh toán vượt quá số còn phải trả (225.000 đ)."));
         mockMvc.perform(multipart("/attendance/admin/reports/4/payroll/11/pay")
                         .param("amount", "999999").param("method", "TIEN_MAT").param("requestKey", "rk-2")
@@ -200,8 +198,8 @@ class StoreReportPayrollPageTest {
                         .with(user(manager())).with(csrf()))
                 .andExpect(status().is3xxRedirection());
         verify(attendanceReportService, never()).approve(any(), anyInt());
-        verify(payrollPaymentService, never()).payAll(any(), anyInt(), any(), any());
-        verify(payrollPaymentService, never()).payEmployee(any(), anyInt(), anyInt(), any(), any());
+        verify(payrollPaymentService, never()).payAll(any(), anyInt(), any());
+        verify(payrollPaymentService, never()).payEmployee(any(), anyInt(), anyInt(), any());
     }
 
     @Test

@@ -70,12 +70,6 @@ public class PayrollPayment {
     @Column(name = "TransactionCode", length = 100)
     private String transactionCode;
 
-    @Column(name = "ProofFileName", length = 200)
-    private String proofFileName;
-
-    @Column(name = "ProofStorageKey", length = 200)
-    private String proofStorageKey;
-
     @Column(name = "Note", length = 500)
     private String note;
 

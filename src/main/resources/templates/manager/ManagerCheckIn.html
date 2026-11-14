@@ -26,8 +26,12 @@
 
     <section class="panel" th:if="${clock != null}">
         <h2>Chấm công trong ngày</h2>
-        <p class="note">Manager được Check-in một lần mỗi ngày, không cần ca làm việc. Check-out cập nhật đúng bản ghi đang mở.</p>
+        <p class="note">Manager làm việc theo giờ cố định, không cần đăng ký ca. Check-in một lần mỗi ngày; Check-out cập nhật đúng bản ghi đang mở.</p>
+        <p class="note">Giờ làm việc
+            <strong th:text="${clock.workDateLabel != null ? clock.workDateLabel + ': ' : ''} + ${clock.scheduledStartLabel} + ' – ' + ${clock.scheduledEndLabel}">08:30 – 17:30</strong>
+            · Đi muộn hoặc về sớm được đối chiếu với khung giờ này.</p>
         <p class="note">Trạng thái: <strong th:text="${clock.statusLabel}">Chưa Check-in</strong></p>
+        <p class="note" th:if="${!clock.canCheckIn and clock.checkInNotice != null}" th:text="${clock.checkInNotice}">Chưa đến thời gian Check-in</p>
         <div class="clock-actions">
             <form class="clock-form" th:action="@{/attendance/manager/check-in}" method="post"
                   enctype="multipart/form-data" th:attr="data-preview-url=@{/attendance/manager/check-in/preview}" data-require-photo="true">
@@ -53,8 +57,6 @@
                 <span th:text="${item.timeLabel}">08:00 - 17:05</span>
             </li>
         </ul>
-        <a class="link-btn" th:href="@{/attendance/manager/day}">Danh sách chấm công và lương</a>
-        <a class="link-btn" th:href="@{/attendance/manager/history(self=true)}">Xem lịch sử</a>
     </section>
 </main>
 <script th:src="@{/js/attendance-check.js(v=1)}"></script>

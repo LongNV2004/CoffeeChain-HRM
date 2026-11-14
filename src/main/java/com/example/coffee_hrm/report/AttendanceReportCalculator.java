@@ -48,7 +48,10 @@ public final class AttendanceReportCalculator {
         int month = createdDate.getMonthValue();
         List<Employee> roster = employees.stream()
                 .filter(employee -> belongsToStore(employee, store.getId()))
-                .sorted(Comparator.comparing(Employee::getFullName, Comparator.nullsLast(String::compareToIgnoreCase))
+                // Manager luôn đứng đầu danh sách báo cáo, sau đó là Staff theo tên.
+                .sorted(Comparator.comparingInt((Employee employee) ->
+                                com.example.coffee_hrm.service.support.ManagerFirst.rank(employee, store))
+                        .thenComparing(Employee::getFullName, Comparator.nullsLast(String::compareToIgnoreCase))
                         .thenComparing(Employee::getId, Comparator.nullsLast(Integer::compareTo)))
                 .toList();
 

@@ -395,6 +395,57 @@ class PayrollServiceImplTest {
                 .status(AssignmentStatus.CANCELLED).isPublished(true).cancelledByLeaveRequest(leave).build();
     }
 
+    @Test
+    void managerIsPaidPerFixedWorkdayWithStaffRules() {
+        rememberSavedPayroll();
+        Employee managerEmployee = store.getManager();
+        when(employeeRepository.getReferenceById(10)).thenReturn(managerEmployee);
+        LocalDate onTime = LocalDate.of(2026, 10, 6);
+        LocalDate late = LocalDate.of(2026, 10, 7);
+        LocalDate absent = LocalDate.of(2026, 10, 8);
+        when(shiftAssignmentRepository.findPublishedAssignedForStoreBetween(
+                eq(1), eq(LocalDate.of(2026, 10, 1)), eq(LocalDate.of(2026, 10, 31)), eq(AssignmentStatus.ASSIGNED)))
+                .thenReturn(java.util.List.of());
+        when(attendanceRepository.findForMonthlyReport(1, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31)))
+                .thenReturn(java.util.List.of(
+                        managerDay(51, onTime, onTime.atTime(8, 30), onTime.atTime(17, 30), 0, 0, AttendanceStatus.ON_TIME),
+                        managerDay(52, late, late.atTime(9, 0), late.atTime(17, 30), 30, 0, AttendanceStatus.LATE),
+                        managerDay(53, absent, null, null, 0, 0, AttendanceStatus.ABSENT)));
+        // Hợp đồng Manager chỉ phủ 06 – 10/10: các ngày 09 – 10 chưa có bản ghi thì cần xem lại, ngày ngoài hợp đồng bỏ qua.
+        when(employmentContractRepository.findByStoreId(1)).thenReturn(java.util.List.of(EmploymentContract.builder()
+                .id(9).employee(managerEmployee).startDate(onTime).endDate(LocalDate.of(2026, 10, 10))
+                .salary(new BigDecimal("50000")).build()));
+
+        service.calculate(manager, 2026, 10);
+
+        assertEquals(1, saved.getEmployeeLines().size());
+        var line = saved.getEmployeeLines().getFirst();
+        assertEquals(10, line.getEmployee().getId());
+        assertEquals(5, line.getAssignedShiftCount());
+        assertEquals(2, line.getValidShiftCount());
+        // 9 giờ đúng giờ + (9 − 1) giờ do đi muộn quá 20 phút.
+        assertEquals(17, line.getPayableHours());
+        assertEquals(0, new BigDecimal("850000").compareTo(line.getExpectedSalary()));
+        assertEquals(3, line.getReviewShiftCount());
+        assertTrue(line.getShiftLines().stream().allMatch(shift -> shift.getAssignmentId() == null
+                && "Giờ hành chính".equals(shift.getShiftName())));
+
+        // Dòng ngày công của Manager không có mã ca nhưng vẫn khớp bản đã lưu (không báo "dữ liệu đã thay đổi");
+        // chỉ còn chặn chốt vì ngày vắng/thiếu chấm công, giống ca của Staff.
+        BusinessException blocked = assertThrows(BusinessException.class, () -> service.lock(manager, 2026, 10));
+        assertEquals("Còn 3 ca thiếu dữ liệu, chưa thể chốt lương.", blocked.getMessage());
+    }
+
+    private Attendance managerDay(int id, LocalDate day, java.time.LocalDateTime in, java.time.LocalDateTime out,
+                                  int late, int early, AttendanceStatus status) {
+        return Attendance.builder()
+                .id(id).employee(store.getManager()).store(store).workDate(day)
+                .scheduledShiftName("Giờ hành chính")
+                .scheduledStartTime(LocalTime.of(8, 30)).scheduledEndTime(LocalTime.of(17, 30))
+                .checkInTime(in).checkOutTime(out)
+                .lateMinutes(late).earlyLeaveMinutes(early).status(status).build();
+    }
+
     private void rememberSavedPayroll() {
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
         when(payrollRepository.findPeriod(anyInt(), anyInt(), anyInt())).thenAnswer(invocation -> Optional.ofNullable(saved));

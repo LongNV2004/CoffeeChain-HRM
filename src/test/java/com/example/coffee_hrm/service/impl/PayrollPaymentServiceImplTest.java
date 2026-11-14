@@ -72,8 +72,6 @@ class PayrollPaymentServiceImplTest {
     private UserRepository userRepository;
     @Mock
     private NotificationService notificationService;
-    @Mock
-    private PayrollProofStore proofStore;
 
     @InjectMocks
     private PayrollPaymentServiceImpl service;
@@ -135,7 +133,7 @@ class PayrollPaymentServiceImplTest {
         form.setTransactionCode("FT123");
         form.setNote("Trả đợt 1");
 
-        String amount = service.payEmployee(admin, 4, 11, form, null);
+        String amount = service.payEmployee(admin, 4, 11, form);
 
         assertEquals("100.000 đ", amount);
         verify(reportRepository).findByIdForUpdate(4);
@@ -158,7 +156,7 @@ class PayrollPaymentServiceImplTest {
 
         PayrollPaymentForm rest = form("125000");
         rest.setRequestKey("key-2");
-        service.payEmployee(admin, 4, 11, rest, null);
+        service.payEmployee(admin, 4, 11, rest);
         row = service.reportPayroll(admin, 4).getEmployees().getFirst();
         assertEquals("DA_THANH_TOAN", row.getPaymentStatusKey());
         assertEquals("0 đ", row.getRemainingLabel());
@@ -167,13 +165,13 @@ class PayrollPaymentServiceImplTest {
     @Test
     void cannotPayMoreThanWhatIsLeftOrPayAFullyPaidEmployee() {
         BusinessException over = assertThrows(BusinessException.class,
-                () -> service.payEmployee(admin, 4, 11, form("225001"), null));
+                () -> service.payEmployee(admin, 4, 11, form("225001")));
         assertTrue(over.getMessage().contains("vượt quá"));
 
         payments.add(PayrollPayment.builder().id(1).report(report).employee(an)
                 .amount(new BigDecimal("225000")).paidDate(LocalDate.of(2026, 11, 2)).build());
         BusinessException done = assertThrows(BusinessException.class,
-                () -> service.payEmployee(admin, 4, 11, form("1"), null));
+                () -> service.payEmployee(admin, 4, 11, form("1")));
         assertTrue(done.getMessage().contains("thanh toán đủ"));
         assertEquals(1, payments.size());
     }
@@ -183,20 +181,18 @@ class PayrollPaymentServiceImplTest {
         when(paymentRepository.existsByRequestKey("key-1")).thenReturn(true);
 
         BusinessException duplicate = assertThrows(BusinessException.class,
-                () -> service.payEmployee(admin, 4, 11, form("1000"), null));
+                () -> service.payEmployee(admin, 4, 11, form("1000")));
 
         assertTrue(duplicate.getMessage().contains("đã được ghi nhận"));
         verify(paymentRepository, never()).saveAndFlush(any());
     }
 
     @Test
-    void concurrentDuplicateIsRejectedByTheDatabaseAndTheProofIsRemoved() {
-        when(proofStore.save(any())).thenReturn(new PayrollProofStore.Stored("abc.png", "ck.png"));
+    void concurrentDuplicateIsRejectedByTheDatabase() {
         org.mockito.Mockito.doThrow(new DataIntegrityViolationException("UX")).when(paymentRepository).saveAndFlush(any());
 
-        assertThrows(BusinessException.class, () -> service.payEmployee(admin, 4, 11, form("1000"), null));
+        assertThrows(BusinessException.class, () -> service.payEmployee(admin, 4, 11, form("1000")));
 
-        verify(proofStore).delete("abc.png");
         verify(notificationService, never()).notifyUsers(any(), any(), any(), any(), any(), any());
     }
 
@@ -205,19 +201,18 @@ class PayrollPaymentServiceImplTest {
         report.setStatus(AttendanceReportStatus.SUBMITTED);
 
         BusinessException error = assertThrows(BusinessException.class,
-                () -> service.payEmployee(admin, 4, 11, form("1000"), null));
+                () -> service.payEmployee(admin, 4, 11, form("1000")));
         assertTrue(error.getMessage().contains("đã được Admin duyệt"));
-        assertThrows(BusinessException.class, () -> service.payAll(admin, 4, form(null), null));
+        assertThrows(BusinessException.class, () -> service.payAll(admin, 4, form(null)));
         assertTrue(payments.isEmpty());
         assertEquals(false, service.reportPayroll(admin, 4).isCanPay());
     }
 
     @Test
     void onlyAdminCanSeeOrConfirmPayments() {
-        assertThrows(BusinessException.class, () -> service.payEmployee(manager, 4, 11, form("1000"), null));
-        assertThrows(BusinessException.class, () -> service.payAll(manager, 4, form(null), null));
+        assertThrows(BusinessException.class, () -> service.payEmployee(manager, 4, 11, form("1000")));
+        assertThrows(BusinessException.class, () -> service.payAll(manager, 4, form(null)));
         assertThrows(BusinessException.class, () -> service.reportPayroll(manager, 4));
-        assertThrows(BusinessException.class, () -> service.proof(manager, 4, 1));
         assertTrue(payments.isEmpty());
     }
 
@@ -230,7 +225,7 @@ class PayrollPaymentServiceImplTest {
         form.setExpectedCount(2);
         form.setExpectedTotal("300000.00");
 
-        PayrollPaymentService.PayAllResult result = service.payAll(admin, 4, form, null);
+        PayrollPaymentService.PayAllResult result = service.payAll(admin, 4, form);
 
         assertEquals(2, result.employees());
         assertEquals("300.000 đ", result.totalLabel());
@@ -243,7 +238,7 @@ class PayrollPaymentServiceImplTest {
 
         PayrollPaymentForm again = form(null);
         again.setRequestKey("key-3");
-        BusinessException none = assertThrows(BusinessException.class, () -> service.payAll(admin, 4, again, null));
+        BusinessException none = assertThrows(BusinessException.class, () -> service.payAll(admin, 4, again));
         assertTrue(none.getMessage().contains("Không còn nhân viên"));
     }
 
@@ -252,7 +247,7 @@ class PayrollPaymentServiceImplTest {
         PayrollPaymentForm form = form(null);
         form.setExpectedTotal("999000");
 
-        BusinessException error = assertThrows(BusinessException.class, () -> service.payAll(admin, 4, form, null));
+        BusinessException error = assertThrows(BusinessException.class, () -> service.payAll(admin, 4, form));
 
         assertTrue(error.getMessage().contains("vừa thay đổi"));
         assertTrue(payments.isEmpty());
@@ -262,11 +257,11 @@ class PayrollPaymentServiceImplTest {
     void paymentDateCannotBeInTheFutureAndMethodIsRequired() {
         PayrollPaymentForm future = form("1000");
         future.setPaidDate(VietnamTime.today().plusDays(1).toString());
-        assertThrows(BusinessException.class, () -> service.payEmployee(admin, 4, 11, future, null));
+        assertThrows(BusinessException.class, () -> service.payEmployee(admin, 4, 11, future));
 
         PayrollPaymentForm noMethod = form("1000");
         noMethod.setMethod("BITCOIN");
-        assertThrows(BusinessException.class, () -> service.payEmployee(admin, 4, 11, noMethod, null));
+        assertThrows(BusinessException.class, () -> service.payEmployee(admin, 4, 11, noMethod));
         assertTrue(payments.isEmpty());
     }
 

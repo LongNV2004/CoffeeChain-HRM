@@ -21,6 +21,9 @@ import com.example.coffee_hrm.entity.TrainingClass;
 import com.example.coffee_hrm.entity.TrainingClassEnrollment;
 import com.example.coffee_hrm.repository.AttendanceRepository;
 import com.example.coffee_hrm.repository.EmployeeRepository;
+import com.example.coffee_hrm.repository.EmploymentContractRepository;
+import com.example.coffee_hrm.entity.EmploymentContract;
+import com.example.coffee_hrm.service.support.ManagerWorkSchedule;
 import com.example.coffee_hrm.repository.OvertimeRequestRepository;
 import com.example.coffee_hrm.repository.ShiftAssignmentRepository;
 import com.example.coffee_hrm.repository.StoreRepository;
@@ -67,6 +70,7 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
     private final TrainingClassEnrollmentRepository trainingClassEnrollmentRepository;
     private final EmployeeRepository employeeRepository;
     private final OvertimeRequestRepository overtimeRequestRepository;
+    private final EmploymentContractRepository employmentContractRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -335,6 +339,55 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
         return self;
     }
 
+    /**
+     * Manager không có ca phân công: mỗi ngày làm việc 08:30 – 17:30 (trong thời gian có hợp đồng hiệu lực, hoặc đã có
+     * bản ghi chấm công) được tính là một ca dự kiến, cùng cách đếm với bảng lương. Ngày đã tới giờ mà chưa có bản ghi
+     * được tính thiếu dữ liệu như ca của Staff.
+     */
+    private void addManagerWorkdays(Store store,
+                                    LocalDate start,
+                                    LocalDate end,
+                                    Employee only,
+                                    List<Attendance> records,
+                                    Map<Integer, Integer> scheduled,
+                                    Map<Integer, MonthStats> stats) {
+        Employee manager = store.getManager();
+        if (manager == null || manager.getId() == null || !belongsTo(manager, only)) {
+            return;
+        }
+        Set<LocalDate> recorded = new HashSet<>();
+        if (records != null) {
+            for (Attendance attendance : records) {
+                if (attendance.getShift() == null && attendance.getEmployee() != null
+                        && manager.getId().equals(attendance.getEmployee().getId())
+                        && attendance.getWorkDate() != null) {
+                    recorded.add(attendance.getWorkDate());
+                }
+            }
+        }
+        List<EmploymentContract> contracts = employmentContractRepository == null
+                ? List.of() : employmentContractRepository.findByEmployeeId(manager.getId());
+        int days = 0;
+        int missing = 0;
+        for (LocalDate day = start; !day.isAfter(end); day = day.plusDays(1)) {
+            boolean hasRecord = recorded.contains(day);
+            if (!hasRecord && (!ManagerWorkSchedule.isWorkDay(day)
+                    || ContractValidityRules.applicable(contracts, day) == null)) {
+                continue;
+            }
+            days++;
+            if (!hasRecord && slotDue(day, ManagerWorkSchedule.START)) {
+                missing++;
+            }
+        }
+        if (days > 0) {
+            scheduled.merge(manager.getId(), days, Integer::sum);
+        }
+        if (missing > 0) {
+            stats.computeIfAbsent(manager.getId(), ignored -> new MonthStats()).missingSlots += missing;
+        }
+    }
+
     private static boolean belongsTo(Employee employee, Employee only) {
         return only == null || (employee != null && Objects.equals(employee.getId(), only.getId()));
     }
@@ -353,6 +406,13 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
                 .filter(employee -> employee.getStatus() == EmployeeStatus.ACTIVE
                         || employee.getStatus() == EmployeeStatus.ON_LEAVE)
                 .sorted((left, right) -> {
+                    // Manager luôn đứng đầu danh sách.
+                    int byRole = Integer.compare(
+                            com.example.coffee_hrm.service.support.ManagerFirst.rank(left, store),
+                            com.example.coffee_hrm.service.support.ManagerFirst.rank(right, store));
+                    if (byRole != 0) {
+                        return byRole;
+                    }
                     String leftName = left.getFullName() == null ? "" : left.getFullName();
                     String rightName = right.getFullName() == null ? "" : right.getFullName();
                     int byName = leftName.compareToIgnoreCase(rightName);
@@ -457,6 +517,7 @@ public class ManagerDayAttendanceServiceImpl implements ManagerDayAttendanceServ
             }
             stats.computeIfAbsent(assignment.getEmployee().getId(), ignored -> new MonthStats()).missingSlots++;
         }
+        addManagerWorkdays(store, start, end, only, records, scheduled, stats);
         // Nghỉ phép đã duyệt: cùng nguồn PeriodLeave với báo cáo và bảng lương, không trùng ca làm/chấm công.
         List<ShiftAssignment> leaveSource = shiftAssignmentRepository.findApprovedLeaveSlotsForStoreBetween(store.getId(), start, end);
         List<PeriodLeave.Slot> leaveSlots = PeriodLeave.collect(

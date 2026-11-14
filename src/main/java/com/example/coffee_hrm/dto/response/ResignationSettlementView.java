@@ -104,7 +104,6 @@ public class ResignationSettlementView {
         private final LocalDate paidDate;
         private final String methodLabel;
         private final String transactionCode;
-        private final boolean hasProof;
         private final String paidByName;
         private final String note;
         private final LocalDateTime createdAt;

@@ -110,7 +110,7 @@ class ResignationControllerSecurityTest {
         mockMvc.perform(post("/admin/resignation/7/items/101/pay").param("reportId", "4")
                         .with(user(actor(RoleName.STAFF))).with(csrf()))
                 .andExpect(redirectedUrl("/dashboard/staff"));
-        verify(settlementService, never()).pay(any(), any(), any(), org.mockito.ArgumentMatchers.anyInt(), any(), any());
+        verify(settlementService, never()).pay(any(), any(), any(), org.mockito.ArgumentMatchers.anyInt(), any());
     }
 
     @Test
@@ -141,7 +141,7 @@ class ResignationControllerSecurityTest {
                 .payments(List.of(ResignationSettlementView.Payment.builder().paymentId(1).reportId(4)
                         .periodLabel("Tháng 10/2026").storeName("Store A").amountLabel("100.000 đ")
                         .paidDate(LocalDate.of(2026, 11, 2)).methodLabel("Chuyển khoản").transactionCode("FT1")
-                        .hasProof(false).paidByName("Admin").note("").build()))
+                        .paidByName("Admin").note("").build()))
                 .requestKey("key").today(LocalDate.of(2026, 11, 11))
                 .build());
 

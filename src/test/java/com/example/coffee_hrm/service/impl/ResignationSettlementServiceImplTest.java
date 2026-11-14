@@ -209,10 +209,10 @@ class ResignationSettlementServiceImplTest {
         assignments.add(assignment(501, LocalDate.of(2026, 10, 3)));
         when(itemRepository.lockById(101)).thenReturn(Optional.of(item(ResignationItemStatus.PENDING)));
         PayrollPaymentForm form = new PayrollPaymentForm();
-        when(payrollPaymentService.payEmployee(admin, 4, 11, form, null)).thenReturn("225.000 đ");
+        when(payrollPaymentService.payEmployee(admin, 4, 11, form)).thenReturn("225.000 đ");
 
-        assertEquals("225.000 đ", service.pay(admin, 7, 101, 4, form, null));
-        verify(payrollPaymentService).payEmployee(admin, 4, 11, form, null);
+        assertEquals("225.000 đ", service.pay(admin, 7, 101, 4, form));
+        verify(payrollPaymentService).payEmployee(admin, 4, 11, form);
     }
 
     @Test
@@ -222,10 +222,10 @@ class ResignationSettlementServiceImplTest {
         assignments.add(assignment(501, LocalDate.of(2026, 10, 3)));
         when(itemRepository.lockById(101)).thenReturn(Optional.of(item(ResignationItemStatus.PENDING)));
         PayrollPaymentForm form = new PayrollPaymentForm();
-        when(payrollPaymentService.payEmployee(admin, 4, 11, form, null))
+        when(payrollPaymentService.payEmployee(admin, 4, 11, form))
                 .thenThrow(new BusinessException("Số tiền thanh toán vượt quá số còn phải trả (225.000 đ)."));
 
-        BusinessException failed = assertThrows(BusinessException.class, () -> service.pay(admin, 7, 101, 4, form, null));
+        BusinessException failed = assertThrows(BusinessException.class, () -> service.pay(admin, 7, 101, 4, form));
 
         assertTrue(failed.getMessage().contains("vượt quá"));
         // Không có giao dịch mới nào: vẫn còn nợ đủ 225.000.
@@ -235,15 +235,15 @@ class ResignationSettlementServiceImplTest {
     @Test
     void cannotPayFromAProposalLineThatWasAlreadyRejectedOrForAnUnfinishedPeriod() {
         when(itemRepository.lockById(101)).thenReturn(Optional.of(item(ResignationItemStatus.REJECTED)));
-        assertThrows(BusinessException.class, () -> service.pay(admin, 7, 101, 4, new PayrollPaymentForm(), null));
+        assertThrows(BusinessException.class, () -> service.pay(admin, 7, 101, 4, new PayrollPaymentForm()));
 
         MonthlyPayroll draft = MonthlyPayroll.builder().id(31).store(store).payrollYear(2026).payrollMonth(10)
                 .status(PayrollStatus.DA_TINH).employeeLines(new ArrayList<>()).build();
         lines.add(line(draft, "90000", 501));
         when(itemRepository.lockById(102)).thenReturn(Optional.of(item(ResignationItemStatus.PENDING)));
-        assertThrows(BusinessException.class, () -> service.pay(admin, 7, 102, 4, new PayrollPaymentForm(), null));
+        assertThrows(BusinessException.class, () -> service.pay(admin, 7, 102, 4, new PayrollPaymentForm()));
 
-        verify(payrollPaymentService, never()).payEmployee(any(), anyInt(), anyInt(), any(), any());
+        verify(payrollPaymentService, never()).payEmployee(any(), anyInt(), anyInt(), any());
     }
 
     @Test

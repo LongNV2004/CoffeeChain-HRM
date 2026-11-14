@@ -4,7 +4,6 @@ import com.example.coffee_hrm.dto.request.PayrollPaymentForm;
 import com.example.coffee_hrm.dto.response.AdminAttendanceReportPage;
 import com.example.coffee_hrm.dto.response.PayrollPaymentViews;
 import com.example.coffee_hrm.security.AuthenticatedUser;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -30,20 +29,14 @@ public interface PayrollPaymentService {
     PayrollPaymentViews.ReportPayroll managerReport(AuthenticatedUser manager, int year, int month);
 
     /** Thanh toán một nhân viên. Trả về số tiền đã ghi nhận (định dạng hiển thị). */
-    String payEmployee(AuthenticatedUser admin, int reportId, int employeeId, PayrollPaymentForm form, MultipartFile proof);
+    String payEmployee(AuthenticatedUser admin, int reportId, int employeeId, PayrollPaymentForm form);
 
     /** Thanh toán toàn bộ nhân viên còn nợ trong báo cáo. */
-    PayAllResult payAll(AuthenticatedUser admin, int reportId, PayrollPaymentForm form, MultipartFile proof);
+    PayAllResult payAll(AuthenticatedUser admin, int reportId, PayrollPaymentForm form);
 
     /** Các kỳ lương đã được duyệt của chính nhân viên đang đăng nhập (Staff). */
     List<PayrollPaymentViews.StaffPeriod> myPeriods(AuthenticatedUser staff);
 
-    /** Minh chứng thanh toán (Admin). */
-    ProofFile proof(AuthenticatedUser admin, int reportId, int paymentId);
-
     record PayAllResult(int employees, String totalLabel) {
-    }
-
-    record ProofFile(String fileName, String contentType, byte[] body) {
     }
 }

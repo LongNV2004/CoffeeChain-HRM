@@ -25,7 +25,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.HashMap;
@@ -105,11 +104,10 @@ public class AdminResignationController {
                       @PathVariable Integer itemId,
                       @RequestParam("reportId") int reportId,
                       @ModelAttribute PayrollPaymentForm form,
-                      @RequestParam(value = "proof", required = false) MultipartFile proof,
                       @AuthenticationPrincipal AuthenticatedUser user,
                       RedirectAttributes redirectAttributes) {
         try {
-            String amount = settlementService.pay(user, id, itemId, reportId, form, proof);
+            String amount = settlementService.pay(user, id, itemId, reportId, form);
             redirectAttributes.addFlashAttribute("successMessage",
                     "Đã ghi nhận thanh toán lương " + amount + ". Nhân viên đã nhận được thông báo.");
         } catch (BusinessException ex) {

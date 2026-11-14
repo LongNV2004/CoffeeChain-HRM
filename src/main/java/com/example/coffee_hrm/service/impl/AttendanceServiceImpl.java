@@ -4,6 +4,7 @@ import com.example.coffee_hrm.common.enums.AssignmentStatus;
 import com.example.coffee_hrm.common.enums.AttendanceStatus;
 import com.example.coffee_hrm.common.enums.EmployeeStatus;
 import com.example.coffee_hrm.common.enums.RoleName;
+import com.example.coffee_hrm.common.enums.StoreStatus;
 import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.AttendanceNetwork;
@@ -21,6 +22,7 @@ import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.AttendancePolicyProperties;
 import com.example.coffee_hrm.service.AttendanceService;
 import com.example.coffee_hrm.service.support.AttendanceNetworkRule;
+import com.example.coffee_hrm.service.support.ManagerWorkSchedule;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
@@ -58,6 +60,10 @@ public class AttendanceServiceImpl implements AttendanceService {
     static final String SLOT_REQUIRED = "Hãy chọn ca cần chấm công.";
     static final String SLOT_FORBIDDEN = "Bạn không có quyền chấm công ca này.";
     static final String SLOT_CLOSED = "Đã hết giờ Check-in của ca này.";
+    static final String MANAGER_CLOSED =
+            "Đã hết giờ Check-in của ngày làm việc hôm nay (08:30 – 17:30).";
+    static final String MANAGER_NO_WORK_DAY = "Hôm nay không phải ngày làm việc của Manager.";
+    static final String MANAGER_MARKED_ABSENT = "Hôm nay đã được ghi nhận vắng mặt.";
 
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -287,6 +293,45 @@ public class AttendanceServiceImpl implements AttendanceService {
                 reliabilityService.revokeRescueOnAbsence(absent);
             }
         }
+        markManagerAbsences(workDate, now);
+    }
+
+    /**
+     * Manager đang quản lý cửa hàng hoạt động mà hết giờ làm (17:30) vẫn chưa có bản ghi chấm công trong ngày
+     * thì ghi nhận vắng mặt, giống ca của Staff không chấm công. Không cần ca hay phân công.
+     */
+    private void markManagerAbsences(LocalDate workDate, LocalDateTime now) {
+        if (!ManagerWorkSchedule.ended(workDate, now)) {
+            return;
+        }
+        List<Store> stores = storeRepository.findAllWithManager();
+        for (Store store : stores == null ? List.<Store>of() : stores) {
+            Employee manager = store.getManager();
+            if (manager == null || manager.getId() == null
+                    || store.getStatus() != StoreStatus.ACTIVE
+                    || manager.getStatus() != EmployeeStatus.ACTIVE) {
+                continue;
+            }
+            if (!attendanceRepository.findByEmployee_IdAndWorkDateOrderByIdDesc(manager.getId(), workDate).isEmpty()) {
+                continue;
+            }
+            Attendance absent = Attendance.builder()
+                    .employee(manager)
+                    .store(store)
+                    .workDate(workDate)
+                    .scheduledShiftName(ManagerWorkSchedule.SHIFT_NAME)
+                    .scheduledStartTime(ManagerWorkSchedule.START)
+                    .scheduledEndTime(ManagerWorkSchedule.END)
+                    .lateMinutes(0)
+                    .earlyLeaveMinutes(0)
+                    .status(AttendanceStatus.ABSENT)
+                    .build();
+            try {
+                attendanceRepository.saveAndFlush(absent);
+            } catch (DataIntegrityViolationException ignored) {
+                // Ngày này Manager đã có bản ghi chấm công.
+            }
+        }
     }
 
     private void checkInStaff(AuthenticatedUser user, Employee employee,
@@ -360,24 +405,65 @@ public class AttendanceServiceImpl implements AttendanceService {
     private void checkInManager(AuthenticatedUser user, Employee employee,
                                 AttendanceNetwork network, LocalDateTime now, byte[] photo) {
         Store store = planManagerCheckIn(user, employee, network, now);
+        LocalDate workDate = now.toLocalDate();
+        int late = lateMinutes(truncate(ManagerWorkSchedule.startOf(workDate)), now);
         Attendance attendance = Attendance.builder()
                 .employee(employee)
                 .store(store)
-                .workDate(now.toLocalDate())
+                .workDate(workDate)
+                .scheduledShiftName(ManagerWorkSchedule.SHIFT_NAME)
+                .scheduledStartTime(ManagerWorkSchedule.START)
+                .scheduledEndTime(ManagerWorkSchedule.END)
                 .checkInTime(now)
-                .lateMinutes(0)
+                .lateMinutes(late)
                 .earlyLeaveMinutes(0)
-                .status(AttendanceStatus.PRESENT)
+                .status(late > 0 ? AttendanceStatus.LATE : AttendanceStatus.ON_TIME)
                 .build();
         attachPhoto(saveNew(attendance, MANAGER_ALREADY_IN), true, photo);
     }
 
     private Store planManagerCheckIn(AuthenticatedUser user, Employee employee,
                                      AttendanceNetwork network, LocalDateTime now) {
-        assertManagerCanCheckIn(employee.getId(), now.toLocalDate());
+        String notice = managerCheckInNotice(employee.getId(), now);
+        if (notice != null) {
+            throw new BusinessException(notice);
+        }
         Store store = latestStore(resolveManagedStore(user).getId(), STORE_IP_MISSING);
         assertOnStoreNetwork(store, network);
         return store;
+    }
+
+    /** Cùng quy tắc mở/đóng Check-in với ca của Staff, áp cho khung giờ cố định 08:30 – 17:30. */
+    private String managerWindowNotice(LocalDateTime now) {
+        LocalDate today = now.toLocalDate();
+        if (!ManagerWorkSchedule.isWorkDay(today)) {
+            return MANAGER_NO_WORK_DAY;
+        }
+        if (now.isBefore(truncate(ManagerWorkSchedule.startOf(today)).minusMinutes(leadMinutes()))) {
+            return TOO_EARLY;
+        }
+        if (!now.isBefore(truncate(ManagerWorkSchedule.endOf(today)))) {
+            return MANAGER_CLOSED;
+        }
+        return null;
+    }
+
+    /** Lý do Manager chưa thể Check-in lúc này (null: được Check-in). Không kiểm tra IP. */
+    private String managerCheckInNotice(Integer employeeId, LocalDateTime now) {
+        LocalDate today = now.toLocalDate();
+        List<Attendance> openRecords = attendanceRepository.findOpenByEmployeeId(employeeId);
+        if (!openRecords.isEmpty()) {
+            return today.equals(openRecords.getFirst().getWorkDate()) ? MANAGER_ALREADY_IN : MANAGER_OPEN_RECORD;
+        }
+        List<Attendance> todayRecords = attendanceRepository.findByEmployee_IdAndWorkDateOrderByIdDesc(employeeId, today);
+        if (!todayRecords.isEmpty()) {
+            Attendance latest = todayRecords.getFirst();
+            if (latest.getStatus() == AttendanceStatus.ABSENT && latest.getCheckInTime() == null) {
+                return MANAGER_MARKED_ABSENT;
+            }
+            return MANAGER_ALREADY_IN;
+        }
+        return managerWindowNotice(now);
     }
 
     private void checkOutStaff(Employee employee, AttendanceNetwork network, LocalDateTime now, byte[] photo) {
@@ -459,20 +545,6 @@ public class AttendanceServiceImpl implements AttendanceService {
         throw new BusinessException(MANAGER_NOT_IN);
     }
 
-    private void assertManagerCanCheckIn(Integer employeeId, LocalDate today) {
-        List<Attendance> openRecords = attendanceRepository.findOpenByEmployeeId(employeeId);
-        if (!openRecords.isEmpty()) {
-            Attendance open = openRecords.getFirst();
-            if (today.equals(open.getWorkDate())) {
-                throw new BusinessException(MANAGER_ALREADY_IN);
-            }
-            throw new BusinessException(MANAGER_OPEN_RECORD);
-        }
-        if (!attendanceRepository.findByEmployee_IdAndWorkDateOrderByIdDesc(employeeId, today).isEmpty()) {
-            throw new BusinessException(MANAGER_ALREADY_IN);
-        }
-    }
-
     private void completeCheckout(Attendance attendance, LocalDateTime now, AttendanceNetwork network, byte[] photo) {
         assertCheckoutReady(attendance, now, network);
         int earlyMinutes = 0;
@@ -492,7 +564,12 @@ public class AttendanceServiceImpl implements AttendanceService {
         attendance.setCheckOutTime(now);
         attendance.setWorkingMinutes(workingMinutes);
         attendance.setEarlyLeaveMinutes(Math.max(earlyMinutes, 0));
-        attendance.setStatus(resolveStatus(lateMinutes, earlyMinutes, lateCheckoutMinutes));
+        AttendanceStatus status = resolveStatus(lateMinutes, earlyMinutes, lateCheckoutMinutes);
+        if (status == AttendanceStatus.PRESENT && isManagerWorkday(attendance)) {
+            // Giờ cố định của Manager: không đi muộn, không về sớm thì ghi "Đúng giờ".
+            status = AttendanceStatus.ON_TIME;
+        }
+        attendance.setStatus(status);
         if (photo != null && attendance.getId() != null) {
             attendance.setCheckOutPhotoName(photoStore.save(attendance.getId(), "out", photo));
         }
@@ -544,6 +621,12 @@ public class AttendanceServiceImpl implements AttendanceService {
         String checkOutNotice = null;
         if (manager) {
             statusLabel = managerStatus(employee.getId(), now.toLocalDate());
+            shiftName = ManagerWorkSchedule.SHIFT_NAME;
+            workDateLabel = formatDate(now.toLocalDate());
+            startLabel = formatTime(ManagerWorkSchedule.START);
+            endLabel = formatTime(ManagerWorkSchedule.END);
+            checkInNotice = managerCheckInNotice(employee.getId(), now);
+            canCheckIn = checkInNotice == null;
         } else {
             List<Attendance> openRecords = attendanceRepository.findOpenByEmployeeId(employee.getId());
             if (!openRecords.isEmpty()) {
@@ -930,6 +1013,11 @@ public class AttendanceServiceImpl implements AttendanceService {
         return AttendanceStatus.PRESENT;
     }
 
+    private boolean isManagerWorkday(Attendance attendance) {
+        return attendance.getShift() == null
+                && ManagerWorkSchedule.SHIFT_NAME.equals(attendance.getScheduledShiftName());
+    }
+
     private int lateCheckoutThreshold() {
         return Math.max(policy.getLateCheckoutThresholdMinutes(), 0);
     }
@@ -1009,7 +1097,8 @@ public class AttendanceServiceImpl implements AttendanceService {
             return "—";
         }
         return switch (status) {
-            case PRESENT, ON_TIME -> "Có mặt";
+            case PRESENT -> "Có mặt";
+            case ON_TIME -> "Đúng giờ";
             case LATE -> "Đi muộn";
             case EARLY_LEAVE -> "Về sớm";
             case LATE_AND_EARLY -> "Đi muộn và về sớm";

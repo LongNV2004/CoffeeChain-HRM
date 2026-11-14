@@ -197,6 +197,44 @@ class AttendanceHistoryServiceImplTest {
     }
 
     @Test
+    void managerOwnHistoryCountsWorkedLateEarlyAndAbsentDays() {
+        LocalDate to = VietnamTime.today().minusDays(1);
+        LocalDate from = to.minusDays(3);
+        List<Attendance> records = List.of(
+                managerDay(1, from, from.atTime(8, 30), from.atTime(17, 30), 0, 0, AttendanceStatus.ON_TIME),
+                managerDay(2, from.plusDays(1), from.plusDays(1).atTime(9, 0), from.plusDays(1).atTime(17, 30), 30, 0, AttendanceStatus.LATE),
+                managerDay(3, from.plusDays(2), from.plusDays(2).atTime(8, 30), from.plusDays(2).atTime(16, 0), 0, 90, AttendanceStatus.EARLY_LEAVE),
+                managerDay(4, to, null, null, 0, 0, AttendanceStatus.ABSENT));
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        when(employeeRepository.findByStore_IdAndStatus(eq(1), any())).thenReturn(List.of(staffEmployee));
+        when(attendanceRepository.findHistoryByStoreAndEmployee(1, 10, from, to)).thenReturn(records);
+        when(shiftAssignmentRepository.findWeeklyAssignmentsForStore(1, from, to, AssignmentStatus.ASSIGNED))
+                .thenReturn(List.of());
+
+        AttendanceHistoryView view = attendanceHistoryService.getManagerHistory(managerUser, AttendanceHistoryQuery.builder()
+                .employeeId(10).fromDate(from).toDate(to).build());
+
+        assertEquals(4, view.getRecordCount());
+        assertEquals(3, view.getWorkedDayCount());
+        assertEquals(1, view.getLateCount());
+        assertEquals(1, view.getEarlyCount());
+        assertEquals(1, view.getAbsentCount());
+        assertTrue(view.getRows().getFirst().getShiftLabel().startsWith("Giờ hành chính"));
+        assertEquals("08:30", view.getRows().getFirst().getScheduledStartLabel());
+        verify(employeeRepository, never()).findByIdWithStore(10);
+    }
+
+    private Attendance managerDay(int id, LocalDate day, java.time.LocalDateTime in, java.time.LocalDateTime out,
+                                  int late, int early, AttendanceStatus status) {
+        return Attendance.builder()
+                .id(id).employee(managerEmployee).store(store).workDate(day)
+                .scheduledShiftName("Giờ hành chính")
+                .scheduledStartTime(LocalTime.of(8, 30)).scheduledEndTime(LocalTime.of(17, 30))
+                .checkInTime(in).checkOutTime(out)
+                .lateMinutes(late).earlyLeaveMinutes(early).status(status).build();
+    }
+
+    @Test
     void managerCannotViewEmployeeFromAnotherStore() {
         Employee outsider = Employee.builder()
                 .id(99).fullName("Người khác").store(otherStore).status(EmployeeStatus.ACTIVE).build();

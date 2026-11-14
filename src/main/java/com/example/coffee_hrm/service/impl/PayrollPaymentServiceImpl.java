@@ -31,7 +31,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -76,7 +75,6 @@ public class PayrollPaymentServiceImpl implements PayrollPaymentService {
     private final StoreRepository storeRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
-    private final PayrollProofStore proofStore;
 
     // ------------------------------------------------------------------ Admin: danh sách báo cáo
 
@@ -260,8 +258,7 @@ public class PayrollPaymentServiceImpl implements PayrollPaymentService {
     public String payEmployee(AuthenticatedUser admin,
                               int reportId,
                               int employeeId,
-                              PayrollPaymentForm form,
-                              MultipartFile proof) {
+                              PayrollPaymentForm form) {
         assertAdmin(admin);
         Common common = common(form);
         MonthlyAttendanceReport report = lockApproved(reportId);
@@ -276,12 +273,10 @@ public class PayrollPaymentServiceImpl implements PayrollPaymentService {
         if (amount.compareTo(remaining) > 0) {
             throw new BusinessException("Số tiền thanh toán vượt quá số còn phải trả (" + money(remaining) + ").");
         }
-        PayrollProofStore.Stored file = proofStore.save(proof);
         PayrollPayment saved;
         try {
-            saved = paymentRepository.saveAndFlush(payment(report, payroll, line.getEmployee(), amount, common, file, admin));
+            saved = paymentRepository.saveAndFlush(payment(report, payroll, line.getEmployee(), amount, common, admin));
         } catch (DataIntegrityViolationException ex) {
-            proofStore.delete(file == null ? null : file.key());
             throw new BusinessException("Giao dịch này đã được ghi nhận. Hãy tải lại trang.");
         }
         notifyPaid(saved, report);
@@ -290,7 +285,7 @@ public class PayrollPaymentServiceImpl implements PayrollPaymentService {
 
     @Override
     @Transactional
-    public PayAllResult payAll(AuthenticatedUser admin, int reportId, PayrollPaymentForm form, MultipartFile proof) {
+    public PayAllResult payAll(AuthenticatedUser admin, int reportId, PayrollPaymentForm form) {
         assertAdmin(admin);
         Common common = common(form);
         MonthlyAttendanceReport report = lockApproved(reportId);
@@ -320,37 +315,20 @@ public class PayrollPaymentServiceImpl implements PayrollPaymentService {
                 throw new BusinessException("Tổng số tiền cần thanh toán vừa thay đổi. Hãy tải lại trang và xác nhận lại.");
             }
         }
-        PayrollProofStore.Stored file = proofStore.save(proof);
         List<PayrollPayment> saved = new ArrayList<>();
         try {
             for (int i = 0; i < owedLines.size(); i++) {
                 saved.add(paymentRepository.save(payment(
-                        report, payroll, owedLines.get(i).getEmployee(), amounts.get(i), common, file, admin)));
+                        report, payroll, owedLines.get(i).getEmployee(), amounts.get(i), common, admin)));
             }
             paymentRepository.flush();
         } catch (DataIntegrityViolationException ex) {
-            proofStore.delete(file == null ? null : file.key());
             throw new BusinessException("Giao dịch này đã được ghi nhận. Hãy tải lại trang.");
         }
         for (PayrollPayment payment : saved) {
             notifyPaid(payment, report);
         }
         return new PayAllResult(saved.size(), money(total));
-    }
-
-    @Override
-    public ProofFile proof(AuthenticatedUser admin, int reportId, int paymentId) {
-        assertAdmin(admin);
-        PayrollPayment payment = paymentRepository.findById(paymentId)
-                .filter(item -> item.getReport() != null && Objects.equals(item.getReport().getId(), reportId))
-                .orElseThrow(() -> new BusinessException("Không tìm thấy giao dịch thanh toán."));
-        byte[] body = proofStore.read(payment.getProofStorageKey());
-        if (body == null) {
-            throw new BusinessException("Giao dịch này không có minh chứng thanh toán.");
-        }
-        String name = payment.getProofFileName() == null || payment.getProofFileName().isBlank()
-                ? payment.getProofStorageKey() : payment.getProofFileName();
-        return new ProofFile(name, PayrollProofStore.contentType(payment.getProofStorageKey()), body);
     }
 
     // ------------------------------------------------------------------ Staff
@@ -514,8 +492,6 @@ public class PayrollPaymentServiceImpl implements PayrollPaymentService {
                 .paidDate(payment.getPaidDate())
                 .methodLabel(payment.getMethod() == null ? "—" : payment.getMethod().label())
                 .transactionCode(blank(payment.getTransactionCode()))
-                .hasProof(payment.getProofStorageKey() != null && !payment.getProofStorageKey().isBlank())
-                .proofFileName(blank(payment.getProofFileName()))
                 .paidByName(blank(payment.getPaidByName()))
                 .note(blank(payment.getNote()))
                 .createdAt(payment.getCreatedAt())
@@ -527,7 +503,6 @@ public class PayrollPaymentServiceImpl implements PayrollPaymentService {
                                    Employee employee,
                                    BigDecimal amount,
                                    Common common,
-                                   PayrollProofStore.Stored file,
                                    AuthenticatedUser admin) {
         return PayrollPayment.builder()
                 .report(report)
@@ -539,8 +514,6 @@ public class PayrollPaymentServiceImpl implements PayrollPaymentService {
                 .paidDate(common.paidDate())
                 .method(common.method())
                 .transactionCode(common.transactionCode())
-                .proofFileName(file == null ? null : file.fileName())
-                .proofStorageKey(file == null ? null : file.key())
                 .note(common.note())
                 .paidBy(admin.getUserId() == null ? null : userRepository.getReferenceById(admin.getUserId()))
                 .paidByName(admin.getDisplayName())
@@ -622,7 +595,10 @@ public class PayrollPaymentServiceImpl implements PayrollPaymentService {
                 }
             }
         }
-        lines.sort(Comparator.comparing((PayrollEmployeeLine line) ->
+        Store store = payroll.getStore();
+        lines.sort(Comparator.comparingInt((PayrollEmployeeLine line) ->
+                        com.example.coffee_hrm.service.support.ManagerFirst.rank(line.getEmployee(), store))
+                .thenComparing(line ->
                         line.getEmployee().getFullName() == null ? "" : line.getEmployee().getFullName(),
                         String.CASE_INSENSITIVE_ORDER)
                 .thenComparing(line -> line.getEmployee().getId()));

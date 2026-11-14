@@ -689,7 +689,10 @@ public class ScheduleServiceImpl implements ScheduleService {
                 : Map.of();
         java.util.function.ToIntFunction<Employee> monthScoreOf =
                 emp -> monthScores.getOrDefault(emp.getId(), ReliabilityService.INITIAL_SCORE);
+        // Manager làm giờ cố định, không có ca: không hiện trong lịch làm việc chung của cửa hàng.
+        Integer storeManagerId = store.getManager() != null ? store.getManager().getId() : null;
         List<WeeklyScheduleView.EmployeeOption> employeeOptions = activeEmployees.stream()
+                .filter(emp -> storeManagerId == null || !storeManagerId.equals(emp.getId()))
                 .sorted(Comparator.comparingInt(monthScoreOf).reversed()
                         .thenComparing(Employee::getFullName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
                 .map(emp -> {

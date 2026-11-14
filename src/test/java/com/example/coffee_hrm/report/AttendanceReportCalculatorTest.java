@@ -29,6 +29,20 @@ class AttendanceReportCalculatorTest {
     private final Employee minh = employee(6, "Minh", RoleName.STAFF, store);
 
     @Test
+    void managerIsAlwaysFirstInTheReportList() {
+        Employee manager = employee(9, "Vũ Quản Lý", RoleName.MANAGER, store);
+        store.setManager(manager);
+
+        AttendanceReportWorkbook workbook = AttendanceReportCalculator.buildForPeriod(
+                store, 2026, 10, List.of(minh, lan, manager), List.of(), List.of(),
+                "Vũ Quản Lý", LocalDate.of(2026, 10, 10));
+
+        assertEquals(List.of(9, 5, 6), workbook.getEmployees().stream()
+                .map(AttendanceReportWorkbook.SummaryRow::getEmployeeId).toList());
+        assertEquals(1, workbook.getEmployees().getFirst().getOrder());
+    }
+
+    @Test
     void countsEachShiftAsASlotAndDoesNotTreatMissingDaysAsAbsent() {
         LocalDate day1 = LocalDate.of(2026, 10, 1);
         LocalDate day2 = LocalDate.of(2026, 10, 2);

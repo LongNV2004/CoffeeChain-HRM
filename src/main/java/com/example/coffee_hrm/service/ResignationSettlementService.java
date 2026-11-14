@@ -3,7 +3,6 @@ package com.example.coffee_hrm.service;
 import com.example.coffee_hrm.dto.request.PayrollPaymentForm;
 import com.example.coffee_hrm.dto.response.ResignationSettlementView;
 import com.example.coffee_hrm.security.AuthenticatedUser;
-import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Đối soát và thanh toán lương còn thiếu trước khi duyệt chấm dứt hợp đồng.
@@ -28,6 +27,5 @@ public interface ResignationSettlementService {
                Integer proposalId,
                Integer itemId,
                int reportId,
-               PayrollPaymentForm form,
-               MultipartFile proof);
+               PayrollPaymentForm form);
 }

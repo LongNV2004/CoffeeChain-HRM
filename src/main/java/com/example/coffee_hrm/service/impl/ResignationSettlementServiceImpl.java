@@ -30,7 +30,6 @@ import com.example.coffee_hrm.service.ResignationSettlementService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -95,8 +94,7 @@ public class ResignationSettlementServiceImpl implements ResignationSettlementSe
                       Integer proposalId,
                       Integer itemId,
                       int reportId,
-                      PayrollPaymentForm form,
-                      MultipartFile proof) {
+                      PayrollPaymentForm form) {
         assertAdmin(admin);
         // Khoá dòng nhân sự (cùng thứ tự khoá với thao tác duyệt: dòng đề xuất rồi tới báo cáo tháng).
         ResignationProposalItem item = itemRepository.lockById(itemId)
@@ -116,7 +114,7 @@ public class ResignationSettlementServiceImpl implements ResignationSettlementSe
             throw new BusinessException("Kỳ lương này không còn khoản cần thanh toán hoặc chưa được duyệt. Hãy tải lại trang.");
         }
         // Dùng lại nghiệp vụ thanh toán hiện có: khoá báo cáo, kiểm tra số còn phải trả, chống gửi trùng, ghi lịch sử.
-        return payrollPaymentService.payEmployee(admin, reportId, employeeId, form, proof);
+        return payrollPaymentService.payEmployee(admin, reportId, employeeId, form);
     }
 
     // ------------------------------------------------------------------ đối soát
@@ -398,7 +396,6 @@ public class ResignationSettlementServiceImpl implements ResignationSettlementSe
                     .paidDate(payment.getPaidDate())
                     .methodLabel(payment.getMethod() == null ? "—" : payment.getMethod().label())
                     .transactionCode(payment.getTransactionCode() == null ? "" : payment.getTransactionCode())
-                    .hasProof(payment.getProofStorageKey() != null && !payment.getProofStorageKey().isBlank())
                     .paidByName(payment.getPaidByName() == null ? "" : payment.getPaidByName())
                     .note(payment.getNote() == null ? "" : payment.getNote())
                     .createdAt(payment.getCreatedAt())

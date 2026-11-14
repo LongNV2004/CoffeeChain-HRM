@@ -32,6 +32,8 @@ import com.example.coffee_hrm.repository.UserRepository;
 import com.example.coffee_hrm.security.AuthenticatedUser;
 import com.example.coffee_hrm.service.PayrollService;
 import com.example.coffee_hrm.service.impl.ContractValidityRules;
+import com.example.coffee_hrm.service.support.ManagerFirst;
+import com.example.coffee_hrm.service.support.ManagerWorkSchedule;
 import com.example.coffee_hrm.service.support.PayrollCalculator;
 import com.example.coffee_hrm.service.support.OvertimeShifts;
 import com.example.coffee_hrm.service.support.PayrollEmployeeDraft;
@@ -147,7 +149,7 @@ public class PayrollServiceImpl implements PayrollService {
         if (user.getUserId() != null) {
             payroll.setCalculatedBy(userRepository.getReferenceById(user.getUserId()));
         }
-        List<PayrollEmployeeLine> freshLines = toLines(buildLive(store.getId(), selected));
+        List<PayrollEmployeeLine> freshLines = toLines(buildLive(store, selected));
         if (payroll.getId() != null && payroll.getEmployeeLines() != null && !payroll.getEmployeeLines().isEmpty()) {
             // Tính lại: xóa hẳn các dòng cũ xuống DB trước. Hibernate chạy INSERT trước DELETE khi flush,
             // nên nếu thay danh sách trong một lần sẽ vi phạm UX_PayrollEmployeeLines_PeriodEmployee.
@@ -229,7 +231,7 @@ public class PayrollServiceImpl implements PayrollService {
         if (payroll.getStatus() != PayrollStatus.DA_TINH) {
             throw new BusinessException("Hãy tính lương trước khi " + (forReport ? "gửi báo cáo." : "chốt."));
         }
-        List<PayrollEmployeeDraft> live = buildLive(store.getId(), selected);
+        List<PayrollEmployeeDraft> live = buildLive(store, selected);
         if (!matches(payroll, live)) {
             throw new BusinessException("Dữ liệu chấm công hoặc hợp đồng đã thay đổi. Hãy tính lương lại trước khi "
                     + (forReport ? "gửi báo cáo." : "chốt."));
@@ -314,7 +316,13 @@ public class PayrollServiceImpl implements PayrollService {
                         draft.reviewShifts()));
             }
         }
+        Map<Integer, Store> storeById = new HashMap<>();
+        for (Store store : queried) {
+            storeById.put(store.getId(), store);
+        }
+        // Trong mỗi cửa hàng, Manager luôn đứng đầu danh sách, sau đó là Staff theo tên.
         listed.sort(Comparator.comparing((Listed item) -> item.row().getStoreName(), Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
+                .thenComparingInt(item -> ManagerFirst.rank(item.row().getEmployeeId(), storeById.get(item.row().getStoreId())))
                 .thenComparing(item -> item.row().getEmployeeName(), String.CASE_INSENSITIVE_ORDER)
                 .thenComparing(item -> item.row().getEmployeeId()));
         String statusFilter = normalizeStatus(status);
@@ -412,7 +420,7 @@ public class PayrollServiceImpl implements PayrollService {
                 store.getId(), selected.getYear(), selected.getMonthValue());
         Set<Integer> overtimeIds = overtimeAssignmentIds(store.getId(), selected);
         if (found == null || found.isEmpty()) {
-            return new PeriodSnapshot(store, null, buildLive(store.getId(), selected), overtimeIds);
+            return new PeriodSnapshot(store, null, buildLive(store, selected), overtimeIds);
         }
         MonthlyPayroll payroll = found.get();
         return new PeriodSnapshot(store, payroll.getStatus(), fromSaved(payroll), overtimeIds);
@@ -440,7 +448,8 @@ public class PayrollServiceImpl implements PayrollService {
         return OvertimeShifts.assignmentIds(approved, assignments);
     }
 
-    private List<PayrollEmployeeDraft> buildLive(Integer storeId, YearMonth selected) {
+    private List<PayrollEmployeeDraft> buildLive(Store store, YearMonth selected) {
+        Integer storeId = store.getId();
         LocalDate start = selected.atDay(1);
         LocalDate end = selected.atEndOfMonth();
         List<ShiftAssignment> assignments = shiftAssignmentRepository.findPublishedAssignedForStoreBetween(
@@ -534,6 +543,7 @@ public class PayrollServiceImpl implements PayrollService {
                     outcome.needsReview(),
                     outcome.unpaidReason()));
         }
+        addManagerWorkdays(store, start, end, records, contracts, shifts, names);
         List<PayrollEmployeeDraft> drafts = new ArrayList<>();
         for (Map.Entry<Integer, List<PayrollEmployeeDraft.Shift>> entry : shifts.entrySet()) {
             List<PayrollEmployeeDraft.Shift> sorted = new ArrayList<>(entry.getValue());
@@ -544,6 +554,117 @@ public class PayrollServiceImpl implements PayrollService {
         drafts.sort(Comparator.comparing(PayrollEmployeeDraft::employeeName, String.CASE_INSENSITIVE_ORDER)
                 .thenComparing(PayrollEmployeeDraft::employeeId));
         return drafts;
+    }
+
+    /**
+     * Ngày công của Manager: giờ cố định 08:30 – 17:30 thay cho ca phân công, cùng quy tắc tính lương với ca của Staff
+     * ({@link PayrollCalculator#evaluate}). Mỗi ngày là một dòng: bản ghi chấm công không gắn ca của cửa hàng,
+     * cộng với các ngày trong kỳ Manager hiện tại có hợp đồng hiệu lực mà chưa có bản ghi.
+     */
+    private void addManagerWorkdays(Store store,
+                                    LocalDate start,
+                                    LocalDate end,
+                                    List<Attendance> records,
+                                    List<EmploymentContract> contracts,
+                                    Map<Integer, List<PayrollEmployeeDraft.Shift>> shifts,
+                                    Map<Integer, String> names) {
+        Map<String, List<Attendance>> byDay = new java.util.TreeMap<>();
+        Map<String, Integer> employeeOf = new HashMap<>();
+        Map<String, LocalDate> dayOf = new HashMap<>();
+        if (records != null) {
+            for (Attendance attendance : records) {
+                if (!isManagerWorkdayRecord(attendance)) {
+                    continue;
+                }
+                Integer employeeId = attendance.getEmployee().getId();
+                String key = managerDayKey(employeeId, attendance.getWorkDate());
+                byDay.computeIfAbsent(key, ignored -> new ArrayList<>()).add(attendance);
+                employeeOf.put(key, employeeId);
+                dayOf.put(key, attendance.getWorkDate());
+                names.putIfAbsent(employeeId, attendance.getEmployee().getFullName() == null
+                        ? "—" : attendance.getEmployee().getFullName());
+            }
+        }
+        Employee manager = store.getManager();
+        if (manager != null && manager.getId() != null) {
+            List<EmploymentContract> owned = new ArrayList<>();
+            for (EmploymentContract contract : contracts == null ? List.<EmploymentContract>of() : contracts) {
+                if (contract.getEmployee() != null && manager.getId().equals(contract.getEmployee().getId())) {
+                    owned.add(contract);
+                }
+            }
+            // Cả tháng như ca phân công của Staff: ngày chưa tới hiện "Không check-in" cho đến khi có chấm công.
+            for (LocalDate day = start; !day.isAfter(end); day = day.plusDays(1)) {
+                String key = managerDayKey(manager.getId(), day);
+                if (byDay.containsKey(key)
+                        || !ManagerWorkSchedule.isWorkDay(day)
+                        || ContractValidityRules.applicable(owned, day) == null) {
+                    continue;
+                }
+                byDay.put(key, List.of());
+                employeeOf.put(key, manager.getId());
+                dayOf.put(key, day);
+                names.putIfAbsent(manager.getId(), manager.getFullName() == null ? "—" : manager.getFullName());
+            }
+        }
+        for (Map.Entry<String, List<Attendance>> entry : byDay.entrySet()) {
+            Integer employeeId = employeeOf.get(entry.getKey());
+            LocalDate day = dayOf.get(entry.getKey());
+            List<Attendance> matches = entry.getValue();
+            boolean duplicate = matches.size() > 1;
+            Attendance attendance = matches.size() == 1 ? matches.getFirst() : null;
+            LocalTime startTime = attendance != null && attendance.getScheduledStartTime() != null
+                    ? attendance.getScheduledStartTime() : ManagerWorkSchedule.START;
+            LocalTime endTime = attendance != null && attendance.getScheduledEndTime() != null
+                    ? attendance.getScheduledEndTime() : ManagerWorkSchedule.END;
+            PayrollCalculator.Outcome outcome = PayrollCalculator.evaluate(
+                    day,
+                    startTime,
+                    endTime,
+                    duplicate,
+                    attendance != null && attendance.getCheckInTime() != null,
+                    attendance != null && attendance.getCheckOutTime() != null,
+                    minutes(attendance == null ? null : attendance.getLateMinutes()),
+                    minutes(attendance == null ? null : attendance.getEarlyLeaveMinutes()),
+                    rateFor(contracts, employeeId, day));
+            shifts.computeIfAbsent(employeeId, ignored -> new ArrayList<>()).add(new PayrollEmployeeDraft.Shift(
+                    null,
+                    attendance == null ? null : attendance.getId(),
+                    day,
+                    ManagerWorkSchedule.SHIFT_NAME,
+                    startTime,
+                    endTime,
+                    attendance == null ? null : attendance.getCheckInTime(),
+                    attendance == null ? null : attendance.getCheckOutTime(),
+                    attendanceLabel(attendance, duplicate),
+                    outcome.scheduledHours(),
+                    outcome.lateDeducted(),
+                    outcome.earlyDeducted(),
+                    outcome.payableHours(),
+                    outcome.hourlyRate(),
+                    outcome.shiftSalary(),
+                    outcome.payable(),
+                    outcome.needsReview(),
+                    outcome.unpaidReason()));
+        }
+    }
+
+    /** Bản ghi giờ làm cố định của Manager: không gắn ca phân công. */
+    private boolean isManagerWorkdayRecord(Attendance attendance) {
+        return attendance != null
+                && attendance.getShift() == null
+                && attendance.getEmployee() != null
+                && attendance.getEmployee().getId() != null
+                && attendance.getWorkDate() != null;
+    }
+
+    private String managerDayKey(Integer employeeId, LocalDate day) {
+        return day + ":" + employeeId;
+    }
+
+    /** Khóa so khớp một dòng lương: ca phân công của Staff theo mã ca, ngày công của Manager theo ngày. */
+    private String lineKey(Integer assignmentId, LocalDate workDate) {
+        return assignmentId != null ? "A" + assignmentId : "D" + workDate;
     }
 
     private List<PayrollEmployeeDraft> fromSaved(MonthlyPayroll payroll) {
@@ -667,14 +788,14 @@ public class PayrollServiceImpl implements PayrollService {
         if (stored.size() != draft.shifts().size()) {
             return false;
         }
-        Map<Integer, PayrollShiftLine> byAssignment = new HashMap<>();
+        Map<String, PayrollShiftLine> byAssignment = new HashMap<>();
         for (PayrollShiftLine shift : stored) {
-            if (shift.getAssignmentId() != null) {
-                byAssignment.put(shift.getAssignmentId(), shift);
+            if (shift.getAssignmentId() != null || shift.getWorkDate() != null) {
+                byAssignment.put(lineKey(shift.getAssignmentId(), shift.getWorkDate()), shift);
             }
         }
         for (PayrollEmployeeDraft.Shift shift : draft.shifts()) {
-            PayrollShiftLine saved = byAssignment.get(shift.assignmentId());
+            PayrollShiftLine saved = byAssignment.get(lineKey(shift.assignmentId(), shift.workDate()));
             if (saved == null
                     || !Objects.equals(saved.getPayableHours(), shift.payableHours())
                     || !moneyEquals(saved.getShiftSalary(), shift.shiftSalary())

@@ -55,7 +55,30 @@
         </article>
     </section>
 
-    <section class="summary" th:unless="${history.filterKind == 'training'}">
+    <section class="summary" th:if="${selfHistory and history.filterKind != 'training'}">
+        <article>
+            <div class="label">Tổng ngày công</div>
+            <div class="value" th:text="${history.workedDayCount}">0</div>
+        </article>
+        <article>
+            <div class="label">Tổng giờ công</div>
+            <div class="value" th:text="${history.totalHoursLabel}">0 giờ</div>
+        </article>
+        <article>
+            <div class="label">Đi muộn</div>
+            <div class="value" th:text="${history.lateCount}">0</div>
+        </article>
+        <article>
+            <div class="label">Về sớm</div>
+            <div class="value" th:text="${history.earlyCount}">0</div>
+        </article>
+        <article>
+            <div class="label">Vắng mặt</div>
+            <div class="value" th:text="${history.absentCount}">0</div>
+        </article>
+    </section>
+
+    <section class="summary" th:unless="${selfHistory or history.filterKind == 'training'}">
         <article>
             <div class="label">Số bản ghi</div>
             <div class="value" th:text="${history.recordCount}">0</div>

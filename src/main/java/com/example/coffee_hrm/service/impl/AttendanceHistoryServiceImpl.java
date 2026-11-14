@@ -230,8 +230,25 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
         BigDecimal totalHours = BigDecimal.ZERO;
         int minuteTotal = 0;
         boolean hasWorkedTime = false;
+        java.util.Set<String> workedDays = new java.util.HashSet<>();
+        int lateCount = 0;
+        int earlyCount = 0;
+        int absentCount = 0;
         for (Attendance attendance : records) {
             Employee employee = attendance.getEmployee();
+            if (attendance.getStatus() == AttendanceStatus.ABSENT && attendance.getCheckInTime() == null) {
+                absentCount++;
+            } else {
+                if (attendance.getCheckInTime() != null) {
+                    workedDays.add(employee.getId() + "|" + attendance.getWorkDate());
+                }
+                if (isLate(attendance)) {
+                    lateCount++;
+                }
+                if (isEarly(attendance)) {
+                    earlyCount++;
+                }
+            }
             boolean completed = attendance.getCheckOutTime() != null;
             int worked = workedMinutes(
                     attendance.getCheckInTime(),
@@ -326,6 +343,10 @@ public class AttendanceHistoryServiceImpl implements AttendanceHistoryService {
                 .trainingAbsentCount(trainingAbsent)
                 .trainingLearnerCount(trainingLearners)
                 .recordCount(rows.size())
+                .workedDayCount(workedDays.size())
+                .lateCount(lateCount)
+                .earlyCount(earlyCount)
+                .absentCount(absentCount)
                 .totalHours(totalHours)
                 .totalHoursLabel(totalLabel)
                 .build();

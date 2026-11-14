@@ -34,6 +34,11 @@ public class AttendanceHistoryView {
     private final int trainingAbsentCount;
     private final int trainingLearnerCount;
     private final int recordCount;
+    /** Thống kê bản ghi ca/giờ làm (không gồm đào tạo): số ngày có Check-in, đi muộn, về sớm, vắng mặt. */
+    private final int workedDayCount;
+    private final int lateCount;
+    private final int earlyCount;
+    private final int absentCount;
     private final BigDecimal totalHours;
     private final String totalHoursLabel;
 

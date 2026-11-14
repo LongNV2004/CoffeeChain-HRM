@@ -509,7 +509,48 @@ class AttendanceServiceImplTest {
     }
 
     @Test
-    void managerChecksInWithoutAShiftAndWithoutLateMinutes() {
+    void managerChecksInWithoutAShiftAgainstFixedHoursOnTime() {
+        Attendance saved = managerCheckInAt(WORK_DATE.atTime(8, 45));
+
+        assertNull(saved.getShift());
+        assertEquals(LocalTime.of(8, 30), saved.getScheduledStartTime());
+        assertEquals(LocalTime.of(17, 30), saved.getScheduledEndTime());
+        assertEquals("Giờ hành chính", saved.getScheduledShiftName());
+        assertEquals(0, saved.getLateMinutes());
+        assertEquals(0, saved.getEarlyLeaveMinutes());
+        assertEquals(AttendanceStatus.ON_TIME, saved.getStatus());
+        assertEquals(WORK_DATE, saved.getWorkDate());
+        verify(shiftAssignmentRepository, never()).findAssignmentsForAttendance(any(), any(), any(), any());
+    }
+
+    @Test
+    void managerCheckInAfterGraceIsLate() {
+        Attendance saved = managerCheckInAt(WORK_DATE.atTime(9, 10));
+
+        assertEquals(40, saved.getLateMinutes());
+        assertEquals(AttendanceStatus.LATE, saved.getStatus());
+    }
+
+    @Test
+    void managerCheckInOutsideFixedHoursIsRejected() {
+        Employee managerEmployee = newManagerEmployee();
+        AuthenticatedUser manager = managerUser(managerEmployee);
+        when(employeeRepository.findByIdWithStore(10)).thenReturn(Optional.of(managerEmployee));
+        when(attendanceRepository.findOpenByEmployeeId(10)).thenReturn(List.of());
+        when(attendanceRepository.findByEmployee_IdAndWorkDateOrderByIdDesc(10, WORK_DATE)).thenReturn(List.of());
+
+        BusinessException early = assertThrows(BusinessException.class,
+                () -> attendanceService.checkIn(manager, storeNetwork(), WORK_DATE.atTime(7, 29)));
+        BusinessException closed = assertThrows(BusinessException.class,
+                () -> attendanceService.checkIn(manager, storeNetwork(), WORK_DATE.atTime(17, 30)));
+
+        assertEquals(AttendanceServiceImpl.TOO_EARLY, early.getMessage());
+        assertEquals(AttendanceServiceImpl.MANAGER_CLOSED, closed.getMessage());
+        verify(attendanceRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void managerCheckInFromAnotherNetworkIsRejected() {
         Employee managerEmployee = newManagerEmployee();
         AuthenticatedUser manager = managerUser(managerEmployee);
         when(employeeRepository.findByIdWithStore(10)).thenReturn(Optional.of(managerEmployee));
@@ -517,21 +558,106 @@ class AttendanceServiceImplTest {
         when(attendanceRepository.findByEmployee_IdAndWorkDateOrderByIdDesc(10, WORK_DATE)).thenReturn(List.of());
         when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
         when(storeRepository.findById(1)).thenReturn(Optional.of(store));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> attendanceService.checkIn(manager, otherNetwork(), WORK_DATE.atTime(8, 30)));
+
+        assertTrue(ex.getMessage().startsWith(AttendanceServiceImpl.IP_NOT_ALLOWED));
+        verify(attendanceRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void managerCheckoutBeforeEndIsEarlyLeaveAndOnScheduleIsOnTime() {
+        Employee managerEmployee = newManagerEmployee();
+        AuthenticatedUser manager = managerUser(managerEmployee);
+        Attendance early = managerWorkday(WORK_DATE.atTime(8, 30), 0);
+        when(employeeRepository.findByIdWithStore(10)).thenReturn(Optional.of(managerEmployee));
+        when(attendanceRepository.findOpenByEmployeeId(10)).thenReturn(List.of(early));
+        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
+
+        attendanceService.checkOut(manager, storeNetwork(), WORK_DATE.atTime(16, 0));
+
+        assertEquals(90, early.getEarlyLeaveMinutes());
+        assertEquals(AttendanceStatus.EARLY_LEAVE, early.getStatus());
+
+        Attendance onTime = managerWorkday(WORK_DATE.atTime(8, 30), 0);
+        when(attendanceRepository.findOpenByEmployeeId(10)).thenReturn(List.of(onTime));
+        attendanceService.checkOut(manager, storeNetwork(), WORK_DATE.atTime(17, 35));
+
+        assertEquals(0, onTime.getEarlyLeaveMinutes());
+        assertEquals(AttendanceStatus.ON_TIME, onTime.getStatus());
+
+        Attendance lateAndEarly = managerWorkday(WORK_DATE.atTime(9, 0), 30);
+        when(attendanceRepository.findOpenByEmployeeId(10)).thenReturn(List.of(lateAndEarly));
+        attendanceService.checkOut(manager, storeNetwork(), WORK_DATE.atTime(17, 0));
+
+        assertEquals(AttendanceStatus.LATE_AND_EARLY, lateAndEarly.getStatus());
+    }
+
+    @Test
+    void managerWithoutAttendanceIsMarkedAbsentAfterWorkingHours() {
+        Employee managerEmployee = newManagerEmployee();
+        managerEmployee.setStatus(EmployeeStatus.ACTIVE);
+        store.setStatus(com.example.coffee_hrm.common.enums.StoreStatus.ACTIVE);
+        when(storeRepository.findAllWithManager()).thenReturn(List.of(store));
+        when(attendanceRepository.findByEmployee_IdAndWorkDateOrderByIdDesc(10, WORK_DATE)).thenReturn(List.of());
         when(attendanceRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        attendanceService.checkIn(manager, storeNetwork(), WORK_DATE.atTime(3, 15));
+        attendanceService.markAbsences(WORK_DATE, WORK_DATE.atTime(17, 0));
+        verify(attendanceRepository, never()).saveAndFlush(any());
+
+        attendanceService.markAbsences(WORK_DATE, WORK_DATE.atTime(18, 5));
 
         ArgumentCaptor<Attendance> captor = ArgumentCaptor.forClass(Attendance.class);
         verify(attendanceRepository).saveAndFlush(captor.capture());
-        Attendance saved = captor.getValue();
-        assertNull(saved.getShift());
-        assertNull(saved.getScheduledStartTime());
-        assertNull(saved.getScheduledEndTime());
-        assertEquals(0, saved.getLateMinutes());
-        assertEquals(0, saved.getEarlyLeaveMinutes());
-        assertEquals(AttendanceStatus.PRESENT, saved.getStatus());
-        assertEquals(WORK_DATE, saved.getWorkDate());
-        verify(shiftAssignmentRepository, never()).findAssignmentsForAttendance(any(), any(), any(), any());
+        Attendance absent = captor.getValue();
+        assertEquals(AttendanceStatus.ABSENT, absent.getStatus());
+        assertNull(absent.getShift());
+        assertNull(absent.getCheckInTime());
+        assertEquals(10, absent.getEmployee().getId());
+        assertEquals(LocalTime.of(8, 30), absent.getScheduledStartTime());
+        assertEquals(LocalTime.of(17, 30), absent.getScheduledEndTime());
+    }
+
+    @Test
+    void managerWithAttendanceIsNotMarkedAbsent() {
+        Employee managerEmployee = newManagerEmployee();
+        managerEmployee.setStatus(EmployeeStatus.ACTIVE);
+        store.setStatus(com.example.coffee_hrm.common.enums.StoreStatus.ACTIVE);
+        when(storeRepository.findAllWithManager()).thenReturn(List.of(store));
+        when(attendanceRepository.findByEmployee_IdAndWorkDateOrderByIdDesc(10, WORK_DATE))
+                .thenReturn(List.of(managerWorkday(WORK_DATE.atTime(8, 30), 0)));
+
+        attendanceService.markAbsences(WORK_DATE, WORK_DATE.atTime(18, 5));
+
+        verify(attendanceRepository, never()).saveAndFlush(any());
+    }
+
+    private Attendance managerCheckInAt(LocalDateTime at) {
+        Employee managerEmployee = newManagerEmployee();
+        AuthenticatedUser manager = managerUser(managerEmployee);
+        when(employeeRepository.findByIdWithStore(10)).thenReturn(Optional.of(managerEmployee));
+        when(attendanceRepository.findOpenByEmployeeId(10)).thenReturn(List.of());
+        when(attendanceRepository.findByEmployee_IdAndWorkDateOrderByIdDesc(10, at.toLocalDate())).thenReturn(List.of());
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        when(storeRepository.findById(1)).thenReturn(Optional.of(store));
+        when(attendanceRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        attendanceService.checkIn(manager, storeNetwork(), at);
+
+        ArgumentCaptor<Attendance> captor = ArgumentCaptor.forClass(Attendance.class);
+        verify(attendanceRepository).saveAndFlush(captor.capture());
+        return captor.getValue();
+    }
+
+    private Attendance managerWorkday(LocalDateTime checkIn, int lateMinutes) {
+        Attendance attendance = managerAttendance(checkIn.toLocalDate(), checkIn, null);
+        attendance.setScheduledShiftName("Giờ hành chính");
+        attendance.setScheduledStartTime(LocalTime.of(8, 30));
+        attendance.setScheduledEndTime(LocalTime.of(17, 30));
+        attendance.setLateMinutes(lateMinutes);
+        attendance.setStatus(lateMinutes > 0 ? AttendanceStatus.LATE : AttendanceStatus.ON_TIME);
+        return attendance;
     }
 
     @Test

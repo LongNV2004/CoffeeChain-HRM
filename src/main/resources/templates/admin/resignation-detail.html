@@ -275,7 +275,7 @@
             <th:block th:if="${item.status.name() == 'PENDING' and st.hasPayable}">
                 <h3>Thanh toán lương còn thiếu</h3>
                 <form class="settle-pay" th:each="period : ${st.periods}" th:if="${period.payable}"
-                      method="post" enctype="multipart/form-data"
+                      method="post"
                       th:action="@{/admin/resignation/{id}/items/{itemId}/pay(id=${request.id}, itemId=${item.id})}"
                       data-coffee-title="Xác nhận thanh toán lương"
                       data-coffee-ok="Xác nhận"
@@ -303,9 +303,6 @@
                     <label>Mã giao dịch (không bắt buộc)
                         <input type="text" name="transactionCode" maxlength="100">
                     </label>
-                    <label>Minh chứng (JPG, PNG, PDF ≤ 2MB)
-                        <input type="file" name="proof" accept=".jpg,.jpeg,.png,.pdf">
-                    </label>
                     <label class="settle-wide">Ghi chú
                         <input type="text" name="note" maxlength="500" value="Thanh toán lương trước khi chấm dứt hợp đồng">
                     </label>
@@ -327,7 +324,6 @@
                         <th>Mã giao dịch</th>
                         <th>Người thực hiện</th>
                         <th>Ghi nhận lúc</th>
-                        <th>Minh chứng</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -342,11 +338,6 @@
                         <td th:text="${payment.transactionCode != '' ? payment.transactionCode : '—'}">—</td>
                         <td th:text="${payment.paidByName != '' ? payment.paidByName : '—'}">Admin</td>
                         <td class="nowrap" th:text="${payment.createdAt != null} ? ${#temporals.format(payment.createdAt, 'dd/MM/yyyy HH:mm')} : '—'">—</td>
-                        <td>
-                            <a th:if="${payment.hasProof}" target="_blank" rel="noopener"
-                               th:href="@{/attendance/admin/reports/{r}/payments/{p}/proof(r=${payment.reportId}, p=${payment.paymentId})}">Xem</a>
-                            <span th:if="${!payment.hasProof}" class="muted">—</span>
-                        </td>
                     </tr>
                     </tbody>
                 </table>

@@ -59,7 +59,7 @@
 
         <section class="panel" th:if="${report.canPay and row.owed}">
             <h2>Thanh toán cho nhân viên</h2>
-            <form class="pay-form" method="post" enctype="multipart/form-data"
+            <form class="pay-form" method="post"
                   th:action="@{/attendance/admin/reports/{id}/payroll/{e}/pay(id=${report.reportId},e=${row.employeeId})}"
                   data-coffee-title="Xác nhận thanh toán"
                   data-coffee-ok="Xác nhận"
@@ -80,9 +80,6 @@
                 </label>
                 <label>Mã giao dịch (không bắt buộc)
                     <input type="text" name="transactionCode" maxlength="100">
-                </label>
-                <label>Minh chứng thanh toán (JPG, PNG, PDF ≤ 2MB)
-                    <input type="file" name="proof" accept=".jpg,.jpeg,.png,.pdf">
                 </label>
                 <label class="pay-wide">Ghi chú
                     <input type="text" name="note" maxlength="500">
@@ -149,9 +146,6 @@
                         <th>Ngày thanh toán</th>
                         <th class="num">Số tiền</th>
                         <th>Phương thức</th>
-                        <th>Mã giao dịch</th>
-                        <th>Minh chứng</th>
-                        <th>Admin xác nhận</th>
                         <th>Ghi chú</th>
                     </tr>
                     </thead>
@@ -160,13 +154,6 @@
                         <td th:text="${#temporals.format(pay.paidDate, 'dd/MM/yyyy')}">10/11/2026</td>
                         <td class="num" th:text="${pay.amountLabel}">0 đ</td>
                         <td th:text="${pay.methodLabel}">Chuyển khoản</td>
-                        <td th:text="${#strings.isEmpty(pay.transactionCode) ? '—' : pay.transactionCode}">—</td>
-                        <td>
-                            <a class="ops-link" th:if="${pay.hasProof}" target="_blank" rel="noopener"
-                               th:href="@{/attendance/admin/reports/{id}/payments/{p}/proof(id=${report.reportId},p=${pay.paymentId})}">Xem</a>
-                            <span th:unless="${pay.hasProof}">—</span>
-                        </td>
-                        <td th:text="${#strings.isEmpty(pay.paidByName) ? '—' : pay.paidByName}">Admin</td>
                         <td class="pay-name" th:text="${#strings.isEmpty(pay.note) ? '—' : pay.note}">—</td>
                     </tr>
                     </tbody>
