@@ -149,6 +149,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         String phone = normalizePhone(request.getContactPhone());
         Employee employee = requireEmployee(user, true);
         List<ShiftAssignment> selected = loadOwnedSlots(employee, request.getAssignmentIds(), true);
+        enforceSubmissionDeadline(request.getLeaveType(), selected);
         LeavePreviewResponse preview = describe(employee, selected, request.getLeaveType());
         LocalDate start = selected.stream().map(ShiftAssignment::getWorkDate).min(LocalDate::compareTo).orElseThrow();
         LocalDate end = selected.stream().map(ShiftAssignment::getWorkDate).max(LocalDate::compareTo).orElseThrow();
@@ -722,5 +723,25 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             return item.getApprovedBy().getEmployee().getFullName();
         }
         return item.getApprovedBy().getUsername();
+    }
+    private void enforceSubmissionDeadline(LeaveType leaveType, List<ShiftAssignment> selected) {
+        if (selected == null || selected.isEmpty() || leaveType == null) return;
+        ShiftAssignment earliest = selected.stream()
+                .filter(sa -> sa.getShift() != null)
+                .min(Comparator.comparing(ShiftAssignment::getWorkDate)
+                        .thenComparing(sa -> sa.getShift().getStartTime()))
+                .orElse(null);
+        if (earliest == null || earliest.getShift() == null) return;
+
+        java.time.LocalDateTime shiftStart = java.time.LocalDateTime.of(
+                earliest.getWorkDate(), earliest.getShift().getStartTime());
+        long minutesUntilStart = java.time.temporal.ChronoUnit.MINUTES.between(VietnamTime.now(), shiftStart);
+
+        if (leaveType == LeaveType.ANNUAL && minutesUntilStart < 24 * 60) {
+            throw new BusinessException("Đơn nghỉ phép năm (có lương) phải gửi trước ca làm ít nhất 24 tiếng.");
+        }
+        if (leaveType == LeaveType.UNPAID && minutesUntilStart < 15) {
+            throw new BusinessException("Đơn nghỉ không hưởng lương phải gửi trước ca làm ít nhất 15 phút.");
+        }
     }
 }

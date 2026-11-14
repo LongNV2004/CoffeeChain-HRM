@@ -210,7 +210,7 @@ class LeaveRequestServiceImplTest {
     @Test
     void historyAndDetailStayInsideTheSignedInEmployee() {
         LeaveRequest own = LeaveRequest.builder().id(8).employee(employee).startDate(day).endDate(day)
-                .leaveType(LeaveType.SICK).reason("Ốm").status(ApprovalStatus.REJECTED)
+                .leaveType(LeaveType.UNPAID).reason("Ốm").status(ApprovalStatus.REJECTED)
                 .rejectReason("Thiếu người").requestedWorkDays(1).build();
         when(employees.findByIdWithStoreAndManager(7)).thenReturn(Optional.of(employee));
         when(requests.searchByEmployee(eq(7), isNull(), isNull(), isNull(), any(Pageable.class)))

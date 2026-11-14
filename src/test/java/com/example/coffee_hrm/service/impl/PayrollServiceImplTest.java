@@ -305,7 +305,7 @@ class PayrollServiceImplTest {
                 1, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31)))
                 .thenReturn(java.util.List.of(
                         leaveSlot(21, LocalDate.of(2026, 10, 8), com.example.coffee_hrm.common.enums.LeaveType.ANNUAL),
-                        leaveSlot(22, LocalDate.of(2026, 10, 9), com.example.coffee_hrm.common.enums.LeaveType.SICK)));
+                        leaveSlot(22, LocalDate.of(2026, 10, 9), com.example.coffee_hrm.common.enums.LeaveType.UNPAID)));
 
         service.calculate(manager, 2026, 10);
 

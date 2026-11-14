@@ -13,9 +13,7 @@ import lombok.RequiredArgsConstructor;
 public enum LeaveType {
 
     ANNUAL("Annual", "Nghỉ phép năm", true),
-    UNPAID("Unpaid", "Nghỉ không hưởng lương", false),
-    SICK("Sick", "Nghỉ ốm", false),
-    PERSONAL("Personal", "Nghỉ việc riêng", false);
+    UNPAID("Unpaid", "Nghỉ không hưởng lương", false);
 
     private final String dbValue;
     private final String label;
