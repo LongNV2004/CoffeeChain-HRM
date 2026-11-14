@@ -4,7 +4,9 @@
         return;
     }
     var staffCap = Number(form.dataset.staff || 0);
+    var weeklyMinimum = Number(form.dataset.weeklyMinimum || 0);
     var error = document.getElementById("slotConfigError");
+    var weeklyError = document.getElementById("weeklyMinimumError");
     if (staffCap < 1) {
         form.querySelectorAll(".js-step, .js-total").forEach(function (field) {
             field.disabled = true;
@@ -72,6 +74,13 @@
             event.preventDefault();
             error.hidden = false;
             error.textContent = "Hãy sửa các ô đang báo lỗi trước khi lưu.";
+            return;
+        }
+        var minimumMessage = weeklyMinimumMessage(updateSummary());
+        if (minimumMessage) {
+            event.preventDefault();
+            error.hidden = false;
+            error.textContent = minimumMessage;
             return;
         }
         error.hidden = true;
@@ -167,5 +176,24 @@
                 ? "Không có ca thiếu người"
                 : shortSlots + " ca còn thiếu người";
         }
+        var minimumMessage = weeklyMinimumMessage(demand);
+        if (demandNode) {
+            demandNode.classList.toggle("is-below", minimumMessage !== "");
+        }
+        if (weeklyError) {
+            weeklyError.hidden = minimumMessage === "";
+            weeklyError.textContent = minimumMessage;
+        }
+        return demand;
+    }
+
+    // Cùng nội dung với thông báo của máy chủ (StaffAvailabilityServiceImpl.weeklyMinimumMessage).
+    function weeklyMinimumMessage(demand) {
+        if (weeklyMinimum < 1 || demand >= weeklyMinimum) {
+            return "";
+        }
+        return "Tổng nhu cầu nhân sự tối thiểu là " + weeklyMinimum
+            + " ca/tuần theo hợp đồng hiện tại của nhân viên. Cấu hình sau khi lưu chỉ có "
+            + demand + " ca/tuần, còn thiếu " + (weeklyMinimum - demand) + " ca.";
     }
 })();

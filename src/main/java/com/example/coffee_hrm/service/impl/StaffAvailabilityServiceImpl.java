@@ -490,7 +490,9 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
         if (maxEmployees > staffCount) {
             throw new BusinessException(SLOT_LIMIT_HEADCOUNT_MESSAGE);
         }
-        return persistSlotLimit(shift, dayOfWeek, maxEmployees, null);
+        SlotLimitUpdateResult result = persistSlotLimit(shift, dayOfWeek, maxEmployees, null);
+        enforceContractWeeklyMinimum(store, manager.getEmployeeId());
+        return result;
     }
 
     @Override
@@ -500,6 +502,16 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
                                                      String maxEmployeesRaw,
                                                      Map<Integer, String> requiredCounts,
                                                      AuthenticatedUser manager) {
+        SlotLimitUpdateResult result = applySlotStaffing(shiftId, dayOfWeek, maxEmployeesRaw, manager);
+        enforceContractWeeklyMinimum(resolveManagerStore(manager), manager.getEmployeeId());
+        return result;
+    }
+
+    /** Lưu một ô ca, chưa kiểm tra tổng tuần (lô nhiều ô kiểm tra một lần sau khi lưu đủ). */
+    private SlotLimitUpdateResult applySlotStaffing(Integer shiftId,
+                                                    Integer dayOfWeek,
+                                                    String maxEmployeesRaw,
+                                                    AuthenticatedUser manager) {
         int maxEmployees = parsePositiveLimit(maxEmployeesRaw);
         if (dayOfWeek == null || dayOfWeek < 1 || dayOfWeek > 7) {
             throw new BusinessException("Thứ trong tuần không hợp lệ.");
@@ -536,10 +548,76 @@ public class StaffAvailabilityServiceImpl implements StaffAvailabilityService {
             throw new BusinessException("Không có thay đổi cấu hình để lưu.");
         }
         for (UpdateSlotStaffingForm slot : ordered) {
-            updateSlotStaffing(slot.getShiftId(), slot.getDayOfWeek(), slot.getMaxEmployees(),
-                    slot.getRequiredCounts(), manager);
+            applySlotStaffing(slot.getShiftId(), slot.getDayOfWeek(), slot.getMaxEmployees(), manager);
         }
+        enforceContractWeeklyMinimum(resolveManagerStore(manager), manager.getEmployeeId());
         return new SlotLimitUpdateResult("Đã lưu cấu hình cho " + ordered.size() + " ngày ca.", false);
+    }
+
+    @Override
+    public int countContractWeeklyShiftMinimum(AuthenticatedUser manager) {
+        Store store = resolveManagerStore(manager);
+        return contractWeeklyShiftMinimum(store, manager.getEmployeeId());
+    }
+
+    static String weeklyMinimumMessage(int minimum, int configured) {
+        return "Tổng nhu cầu nhân sự tối thiểu là " + minimum
+                + " ca/tuần theo hợp đồng hiện tại của nhân viên. Cấu hình sau khi lưu chỉ có "
+                + configured + " ca/tuần, còn thiếu " + (minimum - configured) + " ca.";
+    }
+
+    /**
+     * Cộng số ca/tuần trong hợp đồng còn hiệu lực hôm nay của mọi Staff còn thuộc cửa hàng.
+     * Staff chưa có hợp đồng hiệu lực hoặc hợp đồng chưa ghi số ca không được cộng.
+     */
+    private int contractWeeklyShiftMinimum(Store store, Integer managerEmployeeId) {
+        List<Integer> staffIds = employeeRepository.findStoreStaffIdsInStatuses(
+                store.getId(), STORE_STAFF_STATUSES, RoleName.STAFF, managerEmployeeId);
+        if (staffIds == null || staffIds.isEmpty()) {
+            return 0;
+        }
+        Map<Integer, List<EmploymentContract>> contractsByEmployee = new HashMap<>();
+        for (EmploymentContract contract : employmentContractRepository.findByEmployeeIds(staffIds)) {
+            if (contract == null || contract.getEmployee() == null || contract.getEmployee().getId() == null) {
+                continue;
+            }
+            contractsByEmployee.computeIfAbsent(contract.getEmployee().getId(), ignored -> new ArrayList<>())
+                    .add(contract);
+        }
+        LocalDate today = VietnamTime.today();
+        int total = 0;
+        for (List<EmploymentContract> contracts : contractsByEmployee.values()) {
+            EmploymentContract current = ContractValidityRules.applicable(contracts, today);
+            if (current == null || current.getWeeklyShiftCount() == null || current.getWeeklyShiftCount() < 1) {
+                continue;
+            }
+            boolean renewed = ContractValidityRules.hasDirectRenewal(contracts, current.getId());
+            if (!ContractValidityRules.resolve(current, today, renewed).allowsWork()) {
+                continue;
+            }
+            total += current.getWeeklyShiftCount();
+        }
+        return total;
+    }
+
+    /**
+     * Chặn cấu hình có tổng nhu cầu trong tuần thấp hơn tổng số ca theo hợp đồng.
+     * Gọi sau khi đã lưu trong cùng giao dịch: ném lỗi thì toàn bộ thay đổi được hoàn tác.
+     */
+    private void enforceContractWeeklyMinimum(Store store, Integer managerEmployeeId) {
+        int minimum = contractWeeklyShiftMinimum(store, managerEmployeeId);
+        if (minimum < 1) {
+            return;
+        }
+        int configured = 0;
+        for (ShiftSlotLimit limit : shiftSlotLimitRepository.findByStoreId(store.getId())) {
+            if (limit != null && limit.getMaxEmployees() != null) {
+                configured += limit.getMaxEmployees();
+            }
+        }
+        if (configured < minimum) {
+            throw new BusinessException(weeklyMinimumMessage(minimum, configured));
+        }
     }
 
     @Override

@@ -74,6 +74,12 @@ public interface StaffAvailabilityService {
     int countStaffForSlotLimit(AuthenticatedUser manager);
 
     /**
+     * Tổng số ca tối thiểu/tuần của cửa hàng: cộng số ca/tuần trong hợp đồng còn hiệu lực hôm nay
+     * của mọi Staff còn thuộc cửa hàng. Tính lại mỗi lần gọi nên luôn theo số nhân viên và hợp đồng hiện tại.
+     */
+    int countContractWeeklyShiftMinimum(AuthenticatedUser manager);
+
+    /**
      * Cập nhật số nhân viên tối đa của một ca trong một thứ.
      * Giá trị phải từ 1 đến số Staff đang làm việc tại cửa hàng.
      * Giới hạn giữ nguyên cho các tuần và tháng sau cho đến khi Manager đổi.

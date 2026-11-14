@@ -58,6 +58,8 @@
                 <div>
                     <strong th:text="${configTotals.weeklyDemand}">0</strong>
                     <span>Tổng nhu cầu nhân sự trong tuần</span>
+                    <span th:if="${contractWeeklyMinimum > 0}"
+                          th:text="${'Tối thiểu ' + contractWeeklyMinimum + ' ca/tuần theo hợp đồng'}">Tối thiểu 36 ca/tuần theo hợp đồng</span>
                 </div>
             </article>
             <article class="sc-stat">
@@ -102,7 +104,7 @@
 
         <form id="slotConfigForm" method="post" th:action="@{/availability/manager/limits/batch}"
               th:if="${availabilityGrid != null and !#lists.isEmpty(availabilityGrid.shiftRows)}"
-              th:attr="data-staff=${staffSlotCapacity}">
+              th:attr="data-staff=${staffSlotCapacity},data-weekly-minimum=${contractWeeklyMinimum}">
             <input type="hidden" name="weekStart" th:value="${weekStart}">
             <p class="sc-form-error" id="slotConfigError" hidden></p>
 
@@ -155,6 +157,8 @@
             <div class="sc-summary" th:if="${configTotals != null}">
                 <div class="sc-summary-stats">
                     <p>Tổng nhu cầu trong tuần <strong id="liveDemand" th:text="${configTotals.weeklyDemand}">0</strong></p>
+                    <p th:if="${contractWeeklyMinimum > 0}">Tối thiểu theo hợp đồng <strong th:text="${contractWeeklyMinimum + ' ca/tuần'}">36 ca/tuần</strong></p>
+                    <p class="sc-card-error" id="weeklyMinimumError" hidden></p>
                     <p>Ca còn thiếu người <strong id="liveShort" th:text="${configTotals.shortfallText}">Không có ca thiếu người</strong></p>
                 </div>
                 <div class="sc-summary-actions">

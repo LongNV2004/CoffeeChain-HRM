@@ -9,6 +9,7 @@ import com.example.coffee_hrm.common.exception.BusinessException;
 import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.request.AssignShiftRequest;
 import com.example.coffee_hrm.dto.request.SubmitWorkAvailabilityRequest;
+import com.example.coffee_hrm.dto.request.UpdateSlotStaffingForm;
 import com.example.coffee_hrm.dto.response.SlotLimitUpdateResult;
 import com.example.coffee_hrm.dto.response.WeeklyAvailabilityView;
 import com.example.coffee_hrm.entity.Employee;
@@ -1451,6 +1452,53 @@ class StaffAvailabilityServiceImplTest {
                 .registrationKey("over")
                 .status(ApprovalStatus.PENDING)
                 .build();
+    }
+
+    @Test
+    void weeklyMinimumSumsActiveContractShiftsOfStoreStaff() {
+        Employee other = Employee.builder().id(21).store(store).status(EmployeeStatus.ACTIVE).build();
+        Employee expired = Employee.builder().id(22).store(store).status(EmployeeStatus.ACTIVE).build();
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        when(employeeRepository.findStoreStaffIdsInStatuses(
+                1, StaffAvailabilityServiceImpl.STORE_STAFF_STATUSES, RoleName.STAFF, 10))
+                .thenReturn(List.of(20, 21, 22));
+        when(employmentContractRepository.findByEmployeeIds(List.of(20, 21, 22))).thenReturn(List.of(
+                coveringContract(5),
+                EmploymentContract.builder().employee(other).startDate(LocalDate.of(2020, 1, 6))
+                        .endDate(LocalDate.of(2035, 12, 31)).weeklyShiftCount(4).build(),
+                EmploymentContract.builder().employee(expired).startDate(LocalDate.of(2020, 1, 6))
+                        .endDate(LocalDate.of(2021, 1, 6)).weeklyShiftCount(6).build()));
+
+        assertEquals(9, service.countContractWeeklyShiftMinimum(managerUser));
+    }
+
+    @Test
+    void batchBelowContractMinimumIsRejectedAndAboveIsAllowed() {
+        ShiftSlotLimit existing = slotLimit(1, 2);
+        when(storeRepository.findByManager_Id(10)).thenReturn(Optional.of(store));
+        when(shiftRepository.findByIdAndStore_Id(1, 1)).thenReturn(Optional.of(shift));
+        when(shiftSlotLimitRepository.lockByShiftAndDay(1, 1)).thenReturn(Optional.of(existing));
+        when(shiftSlotLimitRepository.findByStoreId(1)).thenReturn(List.of(existing));
+        stubSchedulableStaff(10);
+        when(employeeRepository.findStoreStaffIdsInStatuses(
+                1, StaffAvailabilityServiceImpl.STORE_STAFF_STATUSES, RoleName.STAFF, 10))
+                .thenReturn(List.of(20));
+        when(employmentContractRepository.findByEmployeeIds(List.of(20))).thenReturn(List.of(coveringContract(5)));
+
+        UpdateSlotStaffingForm slot = new UpdateSlotStaffingForm();
+        slot.setShiftId(1);
+        slot.setDayOfWeek(1);
+        slot.setMaxEmployees("4");
+        BusinessException below = assertThrows(BusinessException.class,
+                () -> service.updateSlotStaffingBatch(List.of(slot), managerUser));
+        assertEquals(StaffAvailabilityServiceImpl.weeklyMinimumMessage(5, 4), below.getMessage());
+        assertTrue(below.getMessage().startsWith(
+                "Tổng nhu cầu nhân sự tối thiểu là 5 ca/tuần theo hợp đồng hiện tại của nhân viên."));
+
+        slot.setMaxEmployees("7");
+        SlotLimitUpdateResult above = service.updateSlotStaffingBatch(List.of(slot), managerUser);
+        assertFalse(above.isWarning());
+        assertEquals(7, existing.getMaxEmployees());
     }
 
     private SubmitWorkAvailabilityRequest slots(String... keys) {

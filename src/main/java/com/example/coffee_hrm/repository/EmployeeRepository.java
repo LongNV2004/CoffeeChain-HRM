@@ -242,6 +242,22 @@ public interface EmployeeRepository extends JpaRepository<Employee, Integer> {
                                     @Param("staffRole") RoleName staffRole,
                                     @Param("managerEmployeeId") Integer managerEmployeeId);
 
+    /** Cùng tập Staff với {@link #countStoreStaffInStatuses}, trả về mã nhân viên. */
+    @Query("""
+            SELECT e.id
+            FROM Employee e
+            JOIN e.user u
+            JOIN u.role r
+            WHERE e.store.id = :storeId
+              AND e.status IN :statuses
+              AND r.roleName = :staffRole
+              AND e.id <> :managerEmployeeId
+            """)
+    List<Integer> findStoreStaffIdsInStatuses(@Param("storeId") Integer storeId,
+                                              @Param("statuses") Collection<EmployeeStatus> statuses,
+                                              @Param("staffRole") RoleName staffRole,
+                                              @Param("managerEmployeeId") Integer managerEmployeeId);
+
     @Query("""
             SELECT e.id
             FROM Employee e

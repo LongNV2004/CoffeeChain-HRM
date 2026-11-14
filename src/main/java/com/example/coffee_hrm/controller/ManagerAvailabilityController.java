@@ -74,6 +74,7 @@ public class ManagerAvailabilityController {
             model.addAttribute("availabilityGrid", grid);
             model.addAttribute("staffSlotCapacity", staffAvailabilityService.countStaffForSlotLimit(user));
             model.addAttribute("eligibleStaff", staffAvailabilityService.countEligibleStaff(user));
+            model.addAttribute("contractWeeklyMinimum", staffAvailabilityService.countContractWeeklyShiftMinimum(user));
             model.addAttribute("configTotals", summarize(grid));
             model.addAttribute("weekStart", weekStart);
             model.addAttribute("previousWeek", weekStart.minusWeeks(1));
@@ -278,6 +279,7 @@ public class ManagerAvailabilityController {
         model.addAttribute("staffSlotCapacity", null);
         model.addAttribute("activePositions", List.of());
         model.addAttribute("eligibleStaff", 0);
+        model.addAttribute("contractWeeklyMinimum", 0);
         model.addAttribute("eligibleBySkill", Map.of());
         model.addAttribute("configTotals", new SlotConfigTotals(0, 0, 0, 0, ""));
         model.addAttribute("weekStart", current.plusWeeks(1));
