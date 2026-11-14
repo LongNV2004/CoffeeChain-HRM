@@ -63,6 +63,7 @@ class ManagerLeaveServiceImplTest {
     @Mock private ApprovedLeaveCoverage coverage;
     @Mock private ShiftChangeRequestRepository changes;
     @Mock private NotificationService notifications;
+    @Mock private com.example.coffee_hrm.service.ReliabilityService reliabilityService;
     @Mock private AuthenticatedUser manager;
     @InjectMocks private ManagerLeaveServiceImpl service;
 

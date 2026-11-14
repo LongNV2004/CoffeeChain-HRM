@@ -16,7 +16,7 @@ public class CreateShiftChangeRequestDto {
     private Integer assignmentId;
 
     @Builder.Default
-    private String changeType = "SWAP"; // "SWAP", "TRANSFER", "MANAGER_ASSIGN"
+    private String changeType = "SWAP"; // "SWAP", "TRANSFER"
 
     private Integer targetAssignmentId;
 

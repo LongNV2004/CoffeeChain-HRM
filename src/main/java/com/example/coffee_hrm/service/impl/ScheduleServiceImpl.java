@@ -324,20 +324,15 @@ public class ScheduleServiceImpl implements ScheduleService {
             validateTransferScheduleCompatibility(currentEmployee, targetEmployee, assignment);
             reasonPrefix = "[Chuyển ca cho: " + targetEmployee.getFullName() + " nhận thay] ";
         } else {
-            reasonPrefix = "[Nhờ Quản lý sắp xếp người thay thế] ";
+            throw new BusinessException("Hình thức đổi ca không hợp lệ. Nếu không thể đi làm, vui lòng gửi Đơn xin nghỉ phép.");
         }
         String rawReason = request.getReason() != null ? request.getReason().trim() : "";
         String fullReason = reasonPrefix + rawReason;
         if (fullReason.length() > 255) {
             fullReason = fullReason.substring(0, 255);
         }
-        Boolean isTargetAgreed = "MANAGER_ASSIGN".equalsIgnoreCase(changeType) ? Boolean.TRUE : null;
-        LocalDateTime targetAgreedAt = "MANAGER_ASSIGN".equalsIgnoreCase(changeType) ? VietnamTime.now() : null;
-        ShiftChangeRequest changeRequest = ShiftChangeRequest.builder() .assignment(assignment) .employee(currentEmployee) .targetAssignment(targetAssignment) .targetEmployee(targetEmployee) .isTargetAgreed(isTargetAgreed) .targetAgreedAt(targetAgreedAt) .reason(fullReason) .status(ApprovalStatus.PENDING) .build();
+        ShiftChangeRequest changeRequest = ShiftChangeRequest.builder() .assignment(assignment) .employee(currentEmployee) .targetAssignment(targetAssignment) .targetEmployee(targetEmployee) .reason(fullReason) .status(ApprovalStatus.PENDING) .build();
         shiftChangeRequestRepository.save(changeRequest);
-        if (reliabilityService != null) {
-            reliabilityService.recordLateShiftChangeIfUrgent(currentEmployee, assignment, changeRequest.getId());
-        }
         notifyStoreManager(currentEmployee, changeRequest);
     }
 
@@ -627,8 +622,13 @@ public class ScheduleServiceImpl implements ScheduleService {
         Employee finalTarget = changeRequest.getTargetEmployee();
         boolean voluntaryCover = !isSwap && finalTarget != null && agreedTarget != null
                 && Objects.equals(agreedTarget.getId(), finalTarget.getId());
-        if (reliabilityService != null && voluntaryCover) {
-            reliabilityService.recordRescueShiftOnApproval(changeRequest, finalTarget);
+        if (reliabilityService != null) {
+            // Trừ -10đ đổi ca sát giờ chỉ khi đơn được duyệt (tính "sát giờ" theo thời điểm gửi đơn).
+            reliabilityService.recordLateShiftChangeIfUrgent(
+                    requester, assignment, changeRequest.getId(), changeRequest.getRequestDate());
+            if (voluntaryCover) {
+                reliabilityService.recordRescueShiftOnApproval(changeRequest, finalTarget);
+            }
         }
         notifyShiftChangeResult(changeRequest, true);
     }

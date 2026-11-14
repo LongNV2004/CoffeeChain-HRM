@@ -85,7 +85,7 @@
             </div>
             <div class="lb-rule-text">
                 <strong>Đặc quyền "Nhân viên xuất sắc"</strong>
-                <span th:text="'Xét khi làm tối thiểu ' + ${leaderboard.minShiftsForAward} + ' ca, không vắng, không bỏ ca đã nhận và đạt từ ' + ${leaderboard.minScoreForAward} + 'đ. Quản lý chốt Top 3 sau khi hết tháng.'">Điều kiện xét</span>
+                <span th:text="'Xét khi không vắng, không bỏ ca đã nhận và đạt từ ' + ${leaderboard.minScoreForAward} + 'đ. Quản lý chốt Top 3 sau khi hết tháng.'">Điều kiện xét</span>
             </div>
         </div>
     </section>
@@ -257,7 +257,7 @@
                 <div>
                     <h2 style="margin:0;" th:text="'Danh hiệu ' + ${leaderboard.periodLabel}">Danh hiệu tháng</h2>
                     <small style="color:var(--ink-soft);"
-                           th:text="'Điều kiện: tối thiểu ' + ${leaderboard.minShiftsForAward} + ' ca đã làm, không vắng, không bỏ ca đã nhận, từ ' + ${leaderboard.minScoreForAward} + 'đ. Danh hiệu không cộng thêm điểm.'">Điều kiện</small>
+                           th:text="'Điều kiện: không vắng, không bỏ ca đã nhận, từ ' + ${leaderboard.minScoreForAward} + 'đ. Danh hiệu không cộng thêm điểm.'">Điều kiện</small>
                 </div>
             </div>
             <span class="lb-award-state" th:classappend="${leaderboard.monthClosed} ? ' is-closed' : ''"

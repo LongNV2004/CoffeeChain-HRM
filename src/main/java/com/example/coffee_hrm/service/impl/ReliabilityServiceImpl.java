@@ -13,6 +13,7 @@ import com.example.coffee_hrm.common.time.VietnamTime;
 import com.example.coffee_hrm.dto.response.ReliabilityLeaderboardView;
 import com.example.coffee_hrm.entity.Attendance;
 import com.example.coffee_hrm.entity.Employee;
+import com.example.coffee_hrm.entity.LeaveRequest;
 import com.example.coffee_hrm.entity.MonthlyEmployeeAward;
 import com.example.coffee_hrm.entity.ReliabilityScoreLog;
 import com.example.coffee_hrm.entity.Shift;
@@ -58,6 +59,7 @@ public class ReliabilityServiceImpl implements ReliabilityService {
     private static final String REF_MANAGER_ADJUST = "MANAGER_ADJUST";
     private static final String REF_ATTENDANCE = "ATTENDANCE";
     private static final String REF_COVER_INVITATION = "COVER_INVITATION";
+    private static final String REF_LEAVE_REQUEST = "LEAVE_REQUEST";
     /** Số tháng hiển thị trong mục "Lịch sử các tháng". */
     private static final int HISTORY_MONTHS = 6;
 
@@ -84,12 +86,14 @@ public class ReliabilityServiceImpl implements ReliabilityService {
 
     @Override
     @Transactional
-    public void recordLateShiftChangeIfUrgent(Employee requester, ShiftAssignment assignment, Integer requestId) {
+    public void recordLateShiftChangeIfUrgent(Employee requester, ShiftAssignment assignment, Integer requestId,
+                                              LocalDateTime requestedAt) {
         if (requester == null || assignment == null || assignment.getShift() == null) {
             return;
         }
         LocalDateTime now = VietnamTime.now();
-        if (!isWithin24Hours(assignment.getWorkDate(), assignment.getShift().getStartTime(), now)) {
+        LocalDateTime submittedAt = requestedAt != null ? requestedAt : now;
+        if (!isWithin24Hours(assignment.getWorkDate(), assignment.getShift().getStartTime(), submittedAt)) {
             return;
         }
         if (requestId != null && reliabilityScoreLogRepository.existsByEmployee_IdAndActionTypeAndReferenceTypeAndReferenceId(
@@ -106,6 +110,42 @@ public class ReliabilityServiceImpl implements ReliabilityService {
                 reason,
                 REF_SHIFT_CHANGE,
                 requestId,
+                now);
+    }
+
+    @Override
+    @Transactional
+    public void recordLateLeaveIfUrgent(LeaveRequest leaveRequest, List<ShiftAssignment> slots) {
+        if (leaveRequest == null || leaveRequest.getId() == null || leaveRequest.getEmployee() == null
+                || slots == null || slots.isEmpty()) {
+            return;
+        }
+        LocalDateTime now = VietnamTime.now();
+        LocalDateTime submittedAt = leaveRequest.getCreatedAt() != null ? leaveRequest.getCreatedAt() : now;
+        ShiftAssignment urgentSlot = slots.stream()
+                .filter(sa -> sa != null && sa.getShift() != null
+                        && isWithin24Hours(sa.getWorkDate(), sa.getShift().getStartTime(), submittedAt))
+                .min(java.util.Comparator.comparing(ShiftAssignment::getWorkDate)
+                        .thenComparing(sa -> sa.getShift().getStartTime()))
+                .orElse(null);
+        if (urgentSlot == null) {
+            return;
+        }
+        Employee employee = leaveRequest.getEmployee();
+        if (reliabilityScoreLogRepository.existsByEmployee_IdAndActionTypeAndReferenceTypeAndReferenceId(
+                employee.getId(), ReliabilityActionType.LATE_SHIFT_CANCEL.getDbValue(), REF_LEAVE_REQUEST, leaveRequest.getId())) {
+            return;
+        }
+        String reason = "Xin nghỉ phép sát giờ (<24h): "
+                + urgentSlot.getShift().getShiftName()
+                + " ngày " + urgentSlot.getWorkDate().format(DATE_FORMATTER);
+        applyScoreDelta(
+                employee,
+                ReliabilityActionType.LATE_SHIFT_CANCEL,
+                LATE_CANCEL_PENALTY,
+                reason,
+                REF_LEAVE_REQUEST,
+                leaveRequest.getId(),
                 now);
     }
 
@@ -899,7 +939,6 @@ public class ReliabilityServiceImpl implements ReliabilityService {
                 .canCloseMonth(isManagerView && !monthClosed && targetMonth.isBefore(currentMonth))
                 .awardProposals(awardProposals)
                 .awards(awards)
-                .minShiftsForAward(MIN_SHIFTS_FOR_AWARD)
                 .minScoreForAward(MIN_SCORE_FOR_AWARD)
                 .manualAdjustCap(MANUAL_ADJUST_MONTHLY_CAP)
                 .maxCompletedSwapsPerMonth(MAX_COMPLETED_SWAP_BONUS_PER_MONTH)
@@ -910,9 +949,6 @@ public class ReliabilityServiceImpl implements ReliabilityService {
     /** Lý do chưa đủ điều kiện xét danh hiệu tháng, null nếu đủ điều kiện. */
     static String ineligibleReason(ReliabilityLeaderboardView.RankEntry e) {
         List<String> reasons = new ArrayList<>();
-        if (e.getShiftsWorked() < MIN_SHIFTS_FOR_AWARD) {
-            reasons.add("mới làm " + e.getShiftsWorked() + "/" + MIN_SHIFTS_FOR_AWARD + " ca");
-        }
         if (e.getAbsencesCount() > 0) {
             reasons.add("vắng " + e.getAbsencesCount() + " ca");
         }

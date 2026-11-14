@@ -173,6 +173,18 @@ class ScheduleControllerTest {
     }
 
     @Test
+    void staffScheduleGridShowsSwapButtonOnOwnShiftAndNoManagerAssignOption() throws Exception {
+        when(scheduleService.getWeeklyScheduleForStaff(any(), any())).thenReturn(sampleWeek(null));
+        when(shiftCoverInvitationService.getPendingForStaff(any())).thenReturn(List.of());
+
+        String page = mockMvc.perform(get("/schedule/staff").with(user(staff())))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        org.junit.jupiter.api.Assertions.assertTrue(page.contains("class=\"pill-swap-btn\""));
+        org.junit.jupiter.api.Assertions.assertFalse(page.contains("value=\"MANAGER_ASSIGN\""));
+    }
+
+    @Test
     void staffVolunteerRescueShiftRedirectsToLeaderboard() throws Exception {
         mockMvc.perform(post("/schedule/staff/requests/77/rescue")
                         .with(user(staff()))
@@ -306,7 +318,6 @@ class ScheduleControllerTest {
         ReliabilityLeaderboardView view = sampleLeaderboard();
         view.setCurrentMonth(false);
         view.setCanCloseMonth(true);
-        view.setMinShiftsForAward(8);
         view.setMinScoreForAward(105);
         view.setManualAdjustCap(15);
         view.getLeaderboardEntries().forEach(e -> { e.setAwardEligible(true); e.setShiftsWorked(9); });

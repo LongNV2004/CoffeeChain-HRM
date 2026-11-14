@@ -299,11 +299,7 @@ public class ScheduleController {
 
         try {
             scheduleService.requestShiftChange(changeForm, user);
-            if ("MANAGER_ASSIGN".equalsIgnoreCase(changeForm.getChangeType())) {
-                redirectAttributes.addFlashAttribute("successMessage", "Đã gửi yêu cầu đổi ca đến Quản lý cửa hàng xem xét.");
-            } else {
-                redirectAttributes.addFlashAttribute("successMessage", "Đã gửi lời mời đổi ca đến đồng nghiệp. Đơn sẽ được chuyển lên Quản lý khi đồng nghiệp đồng ý.");
-            }
+            redirectAttributes.addFlashAttribute("successMessage", "Đã gửi lời mời đổi ca đến đồng nghiệp. Đơn sẽ được chuyển lên Quản lý khi đồng nghiệp đồng ý.");
         } catch (BusinessException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
         }

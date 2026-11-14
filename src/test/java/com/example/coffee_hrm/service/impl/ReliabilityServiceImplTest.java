@@ -165,7 +165,7 @@ class ReliabilityServiceImplTest {
                 .status(AssignmentStatus.ASSIGNED)
                 .build();
 
-        reliabilityService.recordLateShiftChangeIfUrgent(empRequester, assignment, 88);
+        reliabilityService.recordLateShiftChangeIfUrgent(empRequester, assignment, 88, VietnamTime.now());
 
         assertEquals(90, empRequester.getReliabilityScore());
         ArgumentCaptor<ReliabilityScoreLog> logCaptor = ArgumentCaptor.forClass(ReliabilityScoreLog.class);
@@ -173,6 +173,56 @@ class ReliabilityServiceImplTest {
         assertEquals(ReliabilityActionType.LATE_SHIFT_CANCEL.getDbValue(), logCaptor.getValue().getActionType());
         assertEquals(-10, logCaptor.getValue().getPointsDelta());
         assertEquals(90, logCaptor.getValue().getScoreAfter());
+    }
+
+    @Test
+    void shiftChangeSubmittedMoreThan24hAheadIsNotPenalizedEvenIfApprovedLate() {
+        LocalDateTime urgentStart = VietnamTime.now().plusHours(6);
+        Shift shift = Shift.builder().id(2).shiftName("Ca Tối").store(store)
+                .startTime(urgentStart.toLocalTime()).endTime(urgentStart.toLocalTime().plusHours(4)).build();
+        ShiftAssignment assignment = ShiftAssignment.builder().id(502).employee(empRequester).shift(shift)
+                .workDate(urgentStart.toLocalDate()).status(AssignmentStatus.ASSIGNED).build();
+
+        reliabilityService.recordLateShiftChangeIfUrgent(empRequester, assignment, 89, urgentStart.minusHours(30));
+
+        assertEquals(100, empRequester.getReliabilityScore());
+        verify(reliabilityScoreLogRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void lateLeaveWithin24hDeducts10PointsOnce() {
+        LocalDateTime urgentStart = VietnamTime.now().plusHours(6);
+        Shift shift = Shift.builder().id(3).shiftName("Ca Tối").store(store)
+                .startTime(urgentStart.toLocalTime()).endTime(urgentStart.toLocalTime().plusHours(4)).build();
+        ShiftAssignment assignment = ShiftAssignment.builder().id(503).employee(empRequester).shift(shift)
+                .workDate(urgentStart.toLocalDate()).status(AssignmentStatus.ASSIGNED).build();
+        com.example.coffee_hrm.entity.LeaveRequest leave = com.example.coffee_hrm.entity.LeaveRequest.builder()
+                .id(900).employee(empRequester).createdAt(VietnamTime.now()).build();
+
+        reliabilityService.recordLateLeaveIfUrgent(leave, java.util.List.of(assignment));
+
+        assertEquals(90, empRequester.getReliabilityScore());
+        ArgumentCaptor<ReliabilityScoreLog> logCaptor = ArgumentCaptor.forClass(ReliabilityScoreLog.class);
+        verify(reliabilityScoreLogRepository).save(logCaptor.capture());
+        assertEquals(ReliabilityActionType.LATE_SHIFT_CANCEL.getDbValue(), logCaptor.getValue().getActionType());
+        assertEquals("LEAVE_REQUEST", logCaptor.getValue().getReferenceType());
+        assertEquals(900, logCaptor.getValue().getReferenceId());
+    }
+
+    @Test
+    void leaveSubmittedMoreThan24hAheadIsNotPenalized() {
+        LocalDateTime start = VietnamTime.now().plusHours(6);
+        Shift shift = Shift.builder().id(4).shiftName("Ca Tối").store(store)
+                .startTime(start.toLocalTime()).endTime(start.toLocalTime().plusHours(4)).build();
+        ShiftAssignment assignment = ShiftAssignment.builder().id(504).employee(empRequester).shift(shift)
+                .workDate(start.toLocalDate()).status(AssignmentStatus.ASSIGNED).build();
+        com.example.coffee_hrm.entity.LeaveRequest leave = com.example.coffee_hrm.entity.LeaveRequest.builder()
+                .id(901).employee(empRequester).createdAt(start.minusDays(3)).build();
+
+        reliabilityService.recordLateLeaveIfUrgent(leave, java.util.List.of(assignment));
+
+        assertEquals(100, empRequester.getReliabilityScore());
+        verify(reliabilityScoreLogRepository, org.mockito.Mockito.never()).save(any());
     }
 
     @Test
@@ -813,7 +863,7 @@ class ReliabilityServiceImplTest {
         ShiftAssignment assignment = ShiftAssignment.builder().id(507).employee(empRequester).shift(shift)
                 .workDate(urgentStart.toLocalDate()).status(AssignmentStatus.ASSIGNED).build();
 
-        reliabilityService.recordLateShiftChangeIfUrgent(empRequester, assignment, 77);
+        reliabilityService.recordLateShiftChangeIfUrgent(empRequester, assignment, 77, VietnamTime.now());
 
         assertEquals(90, empRequester.getReliabilityScore());
     }
@@ -850,7 +900,7 @@ class ReliabilityServiceImplTest {
     void ineligibleReasonListsAllUnmetConditions() {
         ReliabilityLeaderboardView.RankEntry entry = ReliabilityLeaderboardView.RankEntry.builder()
                 .reliabilityScore(120).shiftsWorked(5).absencesCount(1).abandonedCount(0).build();
-        assertEquals("mới làm 5/8 ca, vắng 1 ca", ReliabilityServiceImpl.ineligibleReason(entry));
+        assertEquals("vắng 1 ca", ReliabilityServiceImpl.ineligibleReason(entry));
 
         entry.setShiftsWorked(8);
         entry.setAbsencesCount(0);

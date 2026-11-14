@@ -43,6 +43,9 @@ public class StaffLeaveRequestController {
     @GetMapping
     public String page(@AuthenticationPrincipal AuthenticatedUser user, Model model) {
         model.addAttribute("leaveTypes", LeaveType.values());
+        model.addAttribute("lateCancelPenaltyAbs", Math.abs(com.example.coffee_hrm.service.ReliabilityService.LATE_CANCEL_PENALTY));
+        model.addAttribute("completedSwapBonusPoints", com.example.coffee_hrm.service.ReliabilityService.COMPLETED_SWAP_BONUS);
+        model.addAttribute("maxCompletedSwapsPerMonth", com.example.coffee_hrm.service.ReliabilityService.MAX_COMPLETED_SWAP_BONUS_PER_MONTH);
         try {
             model.addAttribute("context", leaveRequestService.formContext(user));
         } catch (BusinessException ex) {

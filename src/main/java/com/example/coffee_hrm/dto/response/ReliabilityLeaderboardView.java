@@ -30,7 +30,6 @@ public class ReliabilityLeaderboardView {
     private boolean canCloseMonth;
     private List<RankEntry> awardProposals;
     private List<AwardItem> awards;
-    private int minShiftsForAward;
     private int minScoreForAward;
     private int manualAdjustCap;
     private int maxCompletedSwapsPerMonth;

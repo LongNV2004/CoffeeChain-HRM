@@ -303,3 +303,7 @@ a{color:inherit;text-decoration:none;}
 .cover-decline-label { font-size: 12px; font-weight: 700; color: var(--espresso, #26170F); }
 .cover-reason { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
 .cover-note { padding: 7px 9px; border: 1px solid var(--line, #E5D8C8); border-radius: 8px; font: inherit; font-size: 13px; }
+
+/* Nút "⇄ Đổi ca" ngay trên ca của tôi ở lưới lịch: cho xuống dòng khi cột hẹp. */
+html body:has(.coffee-sidebar) .emp-pill:has(.pill-swap-btn){flex-wrap:wrap;}
+html body:has(.coffee-sidebar) .emp-pill .pill-swap-btn{flex:none;}
