@@ -333,7 +333,9 @@ public class ScheduleServiceImpl implements ScheduleService {
         }
         ShiftChangeRequest changeRequest = ShiftChangeRequest.builder() .assignment(assignment) .employee(currentEmployee) .targetAssignment(targetAssignment) .targetEmployee(targetEmployee) .reason(fullReason) .status(ApprovalStatus.PENDING) .build();
         shiftChangeRequestRepository.save(changeRequest);
-        notifyStoreManager(currentEmployee, changeRequest);
+        // Đơn đổi/chuyển ca cần đồng nghiệp đồng ý trước: chỉ báo cho đồng nghiệp.
+        // Quản lý chỉ được báo khi đồng nghiệp đã đồng ý (lúc đó đơn mới hiện trong danh sách duyệt).
+        notifyColleagueOfIncomingRequest(changeRequest);
     }
 
     @Override
@@ -369,6 +371,10 @@ public class ScheduleServiceImpl implements ScheduleService {
             changeRequest.setReason(changeRequest.getReason() + " [Đồng nghiệp từ chối hoán đổi]");
         }
         shiftChangeRequestRepository.save(changeRequest);
+        notifyRequesterOfColleagueResponse(changeRequest, currentEmployee, agreed);
+        if (agreed) {
+            notifyStoreManager(changeRequest.getEmployee(), changeRequest);
+        }
         // Lời nhờ đổi/chuyển ca giữa hai nhân viên là thỏa thuận tự nguyện:
         // từ chối KHÔNG bị trừ điểm chuyên cần (chỉ lời mời hỗ trợ gấp của Quản lý mới tính hạn mức từ chối).
     }
@@ -428,6 +434,13 @@ public class ScheduleServiceImpl implements ScheduleService {
         changeRequest.setReason(updatedReason);
         shiftChangeRequestRepository.save(changeRequest);
         settleInvitationsAfterCoverTaken(changeRequest, currentEmployee);
+        notifyUser(changeRequest.getEmployee().getId(),
+                "Đồng nghiệp nhận hỗ trợ ca của bạn",
+                currentEmployee.getFullName() + " đã xung phong nhận " + shiftLabel(changeRequest)
+                        + ". Đơn đang chờ Quản lý duyệt.",
+                NotificationType.SHIFT_COVER_RESPONDED,
+                changeRequest.getId());
+        notifyStoreManager(changeRequest.getEmployee(), changeRequest);
     }
 
     /**
@@ -792,10 +805,50 @@ public class ScheduleServiceImpl implements ScheduleService {
         if (manager == null || manager.getId() == null || Objects.equals(manager.getId(), staff.getId())) {
             return;
         }
+        Employee colleague = request.getTargetEmployee();
+        String message = colleague != null
+                ? staff.getFullName() + " và " + colleague.getFullName() + " đã thống nhất "
+                        + (request.getTargetAssignment() != null ? "đổi chéo " : "chuyển ")
+                        + shiftLabel(request) + ". Đơn đang chờ bạn duyệt."
+                : staff.getFullName() + " gửi yêu cầu đổi " + shiftLabel(request) + ". Đơn đang chờ duyệt.";
         notifyUser(manager.getId(),
-                "Nhân viên đăng ký đổi ca",
-                staff.getFullName() + " gửi yêu cầu đổi " + shiftLabel(request) + ". Đơn đang chờ duyệt.",
+                "Đơn đổi ca chờ duyệt",
+                message,
                 NotificationType.SHIFT_CHANGE_SUBMITTED,
+                request.getId());
+    }
+
+    /** Báo cho đồng nghiệp được nhờ đổi chéo / nhận thay ca. */
+    private void notifyColleagueOfIncomingRequest(ShiftChangeRequest request) {
+        Employee requester = request.getEmployee();
+        Employee colleague = request.getTargetEmployee();
+        if (requester == null || colleague == null || Objects.equals(colleague.getId(), requester.getId())) {
+            return;
+        }
+        String message = request.getTargetAssignment() != null
+                ? requester.getFullName() + " muốn đổi " + shiftLabel(request) + " lấy "
+                        + assignmentLabel(request.getTargetAssignment()) + " của bạn. Vào Lịch làm việc để đồng ý hoặc từ chối."
+                : requester.getFullName() + " nhờ bạn nhận thay " + shiftLabel(request)
+                        + ". Vào Lịch làm việc để đồng ý hoặc từ chối.";
+        notifyUser(colleague.getId(),
+                request.getTargetAssignment() != null ? "Đồng nghiệp nhờ đổi chéo ca" : "Đồng nghiệp nhờ nhận thay ca",
+                message,
+                NotificationType.SHIFT_CHANGE_SUBMITTED,
+                request.getId());
+    }
+
+    /** Báo lại cho người gửi khi đồng nghiệp đồng ý / từ chối lời nhờ. */
+    private void notifyRequesterOfColleagueResponse(ShiftChangeRequest request, Employee colleague, boolean agreed) {
+        Employee requester = request.getEmployee();
+        if (requester == null || colleague == null) {
+            return;
+        }
+        notifyUser(requester.getId(),
+                agreed ? "Đồng nghiệp đã đồng ý đổi ca" : "Đồng nghiệp từ chối đổi ca",
+                agreed
+                        ? colleague.getFullName() + " đã đồng ý yêu cầu đổi " + shiftLabel(request) + ". Đơn đã chuyển lên Quản lý duyệt."
+                        : colleague.getFullName() + " đã từ chối yêu cầu đổi " + shiftLabel(request) + ". Bạn có thể nhờ đồng nghiệp khác hoặc gửi Đơn xin nghỉ phép.",
+                agreed ? NotificationType.SHIFT_CHANGE_SUBMITTED : NotificationType.SHIFT_CHANGE_REJECTED,
                 request.getId());
     }
 
@@ -813,13 +866,35 @@ public class ScheduleServiceImpl implements ScheduleService {
                 approved ? NotificationType.SHIFT_CHANGE_APPROVED : NotificationType.SHIFT_CHANGE_REJECTED,
                 request.getId());
         Employee other = request.getTargetEmployee();
-        if (approved && other != null && other.getId() != null && !Objects.equals(other.getId(), staff.getId())) {
-            notifyUser(other.getId(),
-                    "Bạn được xếp vào ca đổi",
-                    "Quản lý đã duyệt đổi ca liên quan tới bạn: " + label + ".",
-                    NotificationType.SHIFT_CHANGE_APPROVED,
-                    request.getId());
+        if (other == null || other.getId() == null || Objects.equals(other.getId(), staff.getId())) {
+            return;
         }
+        // Người nhận ca chỉ cần biết khi đã đồng ý (hoặc được Quản lý chỉ định lúc duyệt).
+        if (!approved && !Boolean.TRUE.equals(request.getIsTargetAgreed())) {
+            return;
+        }
+        String otherMessage;
+        if (!approved) {
+            otherMessage = "Quản lý đã từ chối đơn đổi " + label + " của " + staff.getFullName() + ". Lịch của bạn giữ nguyên.";
+        } else if (request.getTargetAssignment() != null) {
+            otherMessage = "Quản lý đã duyệt đổi chéo: bạn làm " + label + " thay " + staff.getFullName()
+                    + ", " + staff.getFullName() + " làm " + assignmentLabel(request.getTargetAssignment()) + " của bạn.";
+        } else {
+            otherMessage = "Quản lý đã duyệt: bạn nhận làm " + label + " thay " + staff.getFullName() + ".";
+        }
+        notifyUser(other.getId(),
+                approved ? "Bạn được xếp vào ca đổi" : "Đơn đổi ca bị từ chối",
+                otherMessage,
+                approved ? NotificationType.SHIFT_CHANGE_APPROVED : NotificationType.SHIFT_CHANGE_REJECTED,
+                request.getId());
+    }
+
+    private String assignmentLabel(ShiftAssignment assignment) {
+        if (assignment == null || assignment.getShift() == null) {
+            return "ca làm";
+        }
+        String date = assignment.getWorkDate() == null ? "" : " ngày " + assignment.getWorkDate().format(DATE_FORMATTER);
+        return assignment.getShift().getShiftName() + date;
     }
 
     private String shiftLabel(ShiftChangeRequest request) {
