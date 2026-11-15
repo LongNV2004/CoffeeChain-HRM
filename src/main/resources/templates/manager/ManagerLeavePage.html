@@ -8,8 +8,11 @@
 </head>
 <body class="leave-workspace-body">
 <header th:replace="~{fragments/navbar :: manager('leave')}"></header>
-<main class="wrap ml-page" id="leaveWorkspace" th:attr="data-api=@{/manager/leaves/api},data-review-api=@{/manager/leave},data-csrf=${_csrf.token},data-csrf-header=${_csrf.headerName}">
-    <div class="ml-breadcrumb"><a th:href="@{/dashboard/manager}">Tổng quan cửa hàng</a><span>›</span><strong>Đơn nghỉ phép</strong></div>
+<main class="wrap ml-page" id="leaveWorkspace" th:attr="data-api=@{/manager/leaves/api},data-review-api=@{/manager/leave},data-replacement-api=@{/manager/leaves/api/replacements},data-csrf=${_csrf.token},data-csrf-header=${_csrf.headerName}">
+    <div class="ml-breadcrumb">
+        <a th:href="@{/dashboard/manager}">Tổng quan cửa hàng</a>
+        <span>›</span>
+        <strong>Đơn nghỉ phép</strong></div>
     <div class="ml-titlebar">
         <div><p class="ml-eyebrow">QUẢN LÝ NHÂN SỰ</p><h1>Đơn nghỉ phép</h1><p>Theo dõi đơn nghỉ, phê duyệt và gợi ý nhân viên thay ca trong cửa hàng.</p></div>
         <button type="button" id="mlOpenGaps" class="ml-btn ml-btn-primary">Ca cần bố trí <span id="mlGapButtonCount">0</span></button>
@@ -21,11 +24,19 @@
         <button type="button" class="ml-stat" id="mlStatGaps"><span>Ca cần bố trí</span><strong id="mlGapCount">—</strong><small>Xem đề xuất thay ca</small></button>
     </section>
     <section class="ml-panel">
-        <div class="ml-panel-head"><div><h2>Danh sách đơn xin nghỉ</h2><p>Chỉ hiển thị nhân viên thuộc cửa hàng bạn quản lý.</p></div></div>
+        <div class="ml-panel-head">
+            <div><h2>Danh sách đơn xin nghỉ</h2>
+            </div>
+        </div>
         <div class="ml-filters">
             <label class="ml-search" for="mlSearch"><svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><input id="mlSearch" type="search" placeholder="Tên hoặc mã nhân viên..." maxlength="100" autocomplete="off"></label>
-            <label class="ml-filter-label" for="mlStatus">Trạng thái <select id="mlStatus"><option value="PENDING">Chờ duyệt</option><option value="">Tất cả</option><option value="APPROVED">Đã duyệt</option><option value="REJECTED">Đã từ chối</option><option value="CANCELLED">Đã hủy</option></select></label>
-            <label class="ml-filter-label" for="mlFrom">Từ ngày <input id="mlFrom" type="date"></label>
+            <label class="ml-filter-label" for="mlStatus">Trạng thái
+                <select id="mlStatus">
+                    <option value="" selected>Tất cả</option>
+                    <option value="PENDING">Chưa duyệt</option>
+                    <option value="APPROVED">Đã duyệt</option>
+                </select>
+            </label>            <label class="ml-filter-label" for="mlFrom">Từ ngày <input id="mlFrom" type="date"></label>
             <label class="ml-filter-label" for="mlTo">Đến ngày <input id="mlTo" type="date"></label>
         </div>
         <div class="ml-table-wrap"><table class="ml-table"><thead><tr><th>Nhân viên</th><th>Loại nghỉ</th><th>Khoảng ngày của các ca</th><th>Số ca</th><th>Lý do</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody id="mlTableBody"><tr><td colspan="7" class="ml-empty">Đang tải danh sách...</td></tr></tbody></table></div>
@@ -42,12 +53,32 @@
     </section>
 </div>
 <div class="ml-overlay ml-side-overlay" id="mlSuggestionsOverlay" aria-hidden="true">
-    <section class="ml-drawer" role="dialog" aria-modal="true" aria-labelledby="mlSuggestionsTitle">
-        <header class="ml-modal-head"><div><p>GỢI Ý THAY CA</p><h2 id="mlSuggestionsTitle">Ca cần bố trí</h2></div><button class="ml-x" id="mlCloseSuggestions" type="button" aria-label="Đóng">×</button></header>
-        <div class="ml-drawer-content">
-            <div id="mlGapsList" class="ml-gap-list"></div>
-            <div id="mlCandidatePanel" class="ml-candidate-panel"><p class="ml-muted">Chọn một ca để xem nhân viên phù hợp.</p></div>
+    <section class="ml-drawer ml-drawer-single" role="dialog" aria-modal="true" aria-labelledby="mlSuggestionsTitle">
+        <header class="ml-modal-head">
+            <div>
+                <p>KÊU GỌI TĂNG CA</p>
+                <h2 id="mlSuggestionsTitle">Bố trí nhân sự thay thế</h2>
+            </div>
+            <button class="ml-x" id="mlCloseSuggestions" type="button" aria-label="Đóng">×</button>
+        </header>
+
+        <!-- Danh sách các block ca nổi bo góc -->
+        <div class="ml-broadcast-body">
+            <div id="mlBroadcastBlocks" class="ml-broadcast-list">
+                <p class="ml-muted">Đang tải danh sách ca...</p>
+            </div>
         </div>
+
+        <!-- Footer: Chọn tất cả & Phát lệnh hàng loạt -->
+        <footer class="ml-broadcast-footer">
+            <label class="ml-select-all-label">
+                <input type="checkbox" id="mlSelectAllBroadcast">
+                <span>Chọn tất cả ca chưa kêu gọi</span>
+            </label>
+            <button type="button" id="mlBtnBulkBroadcast" class="rv-btn-broadcast" disabled>
+                📢 Kêu gọi (<span id="mlSelectedCount">0</span>)
+            </button>
+        </footer>
     </section>
 </div>
 <script defer th:src="@{/js/ManagerLeavePage.js}"></script>

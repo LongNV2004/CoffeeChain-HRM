@@ -40,6 +40,7 @@ body.leave-workspace-body button,body.manager-dashboard button{font-family:inher
 .ml-x{font-size:25px;line-height:1;background:#ffffff24;color:#fff;border:0;border-radius:7px;height:34px;width:34px;cursor:pointer}
 .ml-modal-body{padding:21px 25px}.ml-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.ml-field{border-bottom:1px solid var(--ml-line);padding-bottom:10px}.ml-field.full{grid-column:1/-1}.ml-field small{display:block;font-size:11px;color:var(--ml-muted);margin-bottom:5px}.ml-field strong,.ml-field p{font-size:13px;color:var(--ml-text);margin:0;overflow-wrap:anywhere;white-space:pre-wrap}
 .ml-section-label{margin:20px 0 8px;font-size:13px;font-weight:700}.ml-detail-box{border:1px solid var(--ml-line);border-radius:9px;padding:12px;background:#fbf8f4;font-size:12px;color:var(--ml-text)}.ml-detail-box ul{margin:8px 0 0;padding-left:21px;display:grid;gap:6px}
+.ml-modal-actions[hidden],.ml-reject[hidden]{display:none!important}
 .ml-modal-actions{display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap;padding:15px 25px 22px;border-top:1px solid var(--ml-line)}.ml-reject{padding:15px 25px 22px;border-top:1px solid var(--ml-line)}.ml-reject label{display:block;font-size:12px;font-weight:700;margin-bottom:9px}.ml-reject label span{color:var(--ml-red)}.ml-reject textarea{font:inherit;font-size:12px;width:100%;border:1px solid var(--ml-line);border-radius:8px;padding:12px;resize:vertical}.ml-reject>div{display:flex;justify-content:flex-end;gap:10px;margin-top:10px}
 .ml-banner{padding:10px 12px;border-radius:8px;font-size:12px;margin-top:14px;background:#fce8e4;color:#a53d32}
 .ml-side-overlay{justify-content:flex-end;padding:0}.ml-drawer{display:flex;flex-direction:column;width:min(100%,590px);height:100%;background:#fff;box-shadow:-12px 0 45px rgba(0,0,0,.19)}
@@ -77,3 +78,126 @@ body.manager-dashboard .stat-card .value{font-size:27px;line-height:1.35;font-we
 body.manager-dashboard .welcome h1{font-size:30px;line-height:1.35}
 body.manager-dashboard .action-card h2,body.manager-dashboard .store-banner h2{font-size:19px;line-height:1.4}
 .ml-detail-box .ml-muted{margin:8px 0 0;line-height:1.6}
+/* ==================== MOCKUP BLOCK BỐ TRÍ THAY CA (BROADCAST) ==================== */
+.ml-drawer-single {
+    max-width: 650px;
+    width: 100%;
+}
+.ml-broadcast-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+}
+.ml-broadcast-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.ot-mgr-block {
+    background: #ffffff;
+    border: 1px solid #ebd8c8;
+    border-radius: 10px;
+    padding: 16px 20px;
+    box-shadow: 0 4px 12px rgba(145, 96, 56, 0.08);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.ot-mgr-block:hover {
+    box-shadow: 0 6px 16px rgba(145, 96, 56, 0.14);
+}
+.ot-block-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1rem;
+    color: #2b1f17;
+    margin-bottom: 12px;
+}
+.ot-block-num {
+    font-weight: 700;
+    color: var(--caramel, #916038);
+}
+.ot-block-body {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 8px;
+    border-top: 1px dashed #ebd8c8;
+}
+.ot-block-status {
+    font-size: 0.92rem;
+}
+.ot-badge-filled {
+    color: #2e7d32;
+    font-weight: 600;
+}
+.ot-badge-broadcasting {
+    color: #b78103;
+    font-weight: 600;
+}
+.ot-badge-pending {
+    color: #c62828;
+    font-weight: 600;
+}
+.ot-block-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.btn-broadcast-single {
+    background: var(--caramel, #916038);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.btn-broadcast-single:hover:not(:disabled) {
+    background: #7a4f2c;
+}
+.btn-cancel-single {
+    background: #fff;
+    color: #c62828;
+    border: 1px solid #ef9a9a;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.btn-cancel-single:hover:not(:disabled) {
+    background: #ffebee;
+}
+.ml-broadcast-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    background: #faf7f4;
+    border-top: 1px solid #ebd8c8;
+}
+.ml-select-all-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: #4a382c;
+}
+.rv-btn-broadcast {
+    background: var(--caramel, #916038);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 9px 18px;
+    font-size: 0.92rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.rv-btn-broadcast:disabled {
+    background: #d4c4b5;
+    cursor: not-allowed;
+}

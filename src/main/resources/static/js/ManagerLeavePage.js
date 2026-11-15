@@ -13,8 +13,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const reject = ids('mlReject');
     const rejectForm = ids('mlRejectForm');
     const reason = ids('mlRejectReason');
-    const gapList = ids('mlGapsList');
-    const candidatePanel = ids('mlCandidatePanel');
+    const broadcastBlocks = ids('mlBroadcastBlocks');
+    const selectAllCb = ids('mlSelectAllBroadcast');
+    const bulkBtn = ids('mlBtnBulkBroadcast');
+    const selectedCountSpan = ids('mlSelectedCount');
     let page = 0;
     let pages = 1;
     let detail = null;
@@ -244,6 +246,8 @@ document.addEventListener('DOMContentLoaded', () => {
         approve.disabled = busy || !data.canApprove;
         reject.hidden = !pending;
         reject.disabled = busy;
+        const actionsContainer = ids('mlDetailActions');
+        if (actionsContainer) actionsContainer.hidden = !pending;
         rejectForm.hidden = true;
         reason.value = '';
     }
@@ -343,157 +347,170 @@ document.addEventListener('DOMContentLoaded', () => {
             ...(json === null ? {} : { body: JSON.stringify(json) })
         });
     }
-    async function confirmReplacement(gap, candidate, button) {
-        if (busy) return;
-        const accepted = await window.CoffeeDialog.confirm({
-            title: 'Phân công người thay',
-            message: `Phân công ${candidate.employeeName} thay ${gap.absentEmployeeName} vào ${date(gap.workDate)} · ${gap.shiftName}?`,
-            confirmText: 'Phân công'
-        });
-        if (!accepted) return;
-        busy = true;
-        button.disabled = true;
-        try {
-            await postReplacement(`${api}/replacements/${encodeURIComponent(gap.assignmentId)}/confirm`, {
-                leaveRequestId: gap.leaveRequestId,
-                employeeId: candidate.employeeId
-            });
-            toast(`Đã phân công ${candidate.employeeName} vào ca ${gap.shiftName} ngày ${date(gap.workDate)}.`);
-            await Promise.all([summary(), loadList()]);
-            await openSuggestions(gap.leaveRequestId);
-        } catch (error) {
-            toast(error.message, true);
-            button.disabled = false;
-        } finally { busy = false; }
-    }
-    async function deferReplacement(gap, button) {
-        if (busy) return;
-        busy = true;
-        button.disabled = true;
-        try {
-            const params = new URLSearchParams({ leaveRequestId: String(gap.leaveRequestId) });
-            await postReplacement(`${api}/replacements/${encodeURIComponent(gap.assignmentId)}/defer?${params}`);
-            toast('Đã lưu để Manager xử lý sau.');
-            await summary();
-            await openSuggestions(gap.leaveRequestId);
-        } catch (error) {
-            toast(error.message, true);
-            button.disabled = false;
-        } finally { busy = false; }
-    }
+    // ── LOGIC KÊU GỌI TĂNG CA (BROADCAST FIRST-COME, FIRST-SERVED) ──
+
     async function openSuggestions(requestId = null) {
         const version = ++gapVersion;
-        gapList.replaceChildren(el('p', 'Đang tải các ca cần bố trí...', 'ml-muted'));
-        candidatePanel.replaceChildren(el('p', 'Chọn một ca để xem danh sách ưu tiên.', 'ml-muted'));
+        broadcastBlocks.replaceChildren(el('p', 'Đang tải danh sách ca...', 'ml-muted'));
+        if (selectAllCb) selectAllCb.checked = false;
+        updateBulkButtonState();
         open(suggestionsOverlay);
+
         try {
             const params = requestId == null ? '' : `?${new URLSearchParams({ leaveRequestId: String(requestId) })}`;
             const [records, oldGaps] = await Promise.all([
                 get(`${api}/replacements${params}`), get(`${api}/gaps${params}`)
             ]);
             if (version !== gapVersion) return;
+
             const tracked = new Set(records.map(r => r.assignmentId));
-            // Preserve Phase 3 read-only suggestions for already-approved requests predating the new table.
-            const legacy = oldGaps.filter(g => !tracked.has(g.assignmentId))
-                .map(g => ({ ...g, status: 'LEGACY' }));
+            const legacy = oldGaps.filter(g => !tracked.has(g.assignmentId)).map(g => ({ ...g, status: 'LEGACY' }));
             const gaps = requestId == null
                 ? [...records.filter(g => g.status === 'OPEN' || g.status === 'DEFERRED'), ...legacy]
                 : [...records, ...legacy];
-            gapList.replaceChildren();
+
+            broadcastBlocks.replaceChildren();
             if (!gaps.length) {
-                gapList.append(el('p', requestId == null
-                    ? 'Không có ca đang thiếu người. Đơn duyệt trước khi bổ sung theo dõi cần đối soát riêng.'
-                    : 'Chưa có ca được ghi nhận cho đơn này. Nếu đây là đơn cũ, cần đối soát ca đã hủy trước khi xác nhận.', 'ml-muted'));
-            }
-            for (const gap of gaps) {
-                const button = el('button', '', 'ml-gap-button');
-                button.type = 'button';
-                const left = el('span');
-                left.append(el('strong', `${date(gap.workDate)} · ${gap.shiftName}`));
-                left.append(el('div', `${gap.absentEmployeeName} · ${time(gap.startTime)}–${time(gap.endTime)}`));
-                const text = gap.status === 'LEGACY' ? 'Ca cũ · Xem gợi ý'
-                    : gap.status === 'FILLED'
-                    ? `Đã bố trí: ${gap.replacementEmployeeName || '—'}`
-                    : gap.status === 'SUPERSEDED' ? 'Người thay đã nghỉ tiếp'
-                        : gap.upcoming ? (gap.status === 'DEFERRED' ? 'Xử lý sau →' : 'Chọn người →') : 'Ca đã qua';
-                button.append(left, el('span', text));
-                button.addEventListener('click', () => {
-                    gapList.querySelectorAll('.ml-gap-button').forEach(b => b.classList.remove('is-active'));
-                    button.classList.add('is-active');
-                    loadCandidates(gap);
-                });
-                gapList.append(button);
-            }
-            const active = gaps.findIndex(g => g.upcoming && (g.status === 'OPEN' || g.status === 'DEFERRED' || g.status === 'LEGACY'));
-            const first = gapList.querySelectorAll('.ml-gap-button')[active >= 0 ? active : 0];
-            first?.click();
-        } catch (error) {
-            if (version === gapVersion) gapList.replaceChildren(el('p', error.message, 'ml-banner'));
-        }
-    }
-    async function loadCandidates(gap) {
-        const version = ++gapVersion;
-        candidatePanel.replaceChildren(el('p', 'Đang tìm nhân viên phù hợp...', 'ml-muted'));
-        if (gap.status === 'FILLED') {
-            candidatePanel.replaceChildren(el('p', `Ca này đã giao cho ${gap.replacementEmployeeName || 'nhân viên thay thế'}.`, 'ml-muted'));
-            return;
-        }
-        if (gap.status === 'SUPERSEDED') {
-            candidatePanel.replaceChildren(el('p', 'Người thay cũng đã được duyệt nghỉ. Hệ thống theo dõi ca thiếu ở đơn nghỉ tiếp theo, không tính hai ca hổng.', 'ml-muted'));
-            return;
-        }
-        if (!gap.upcoming) {
-            candidatePanel.replaceChildren(el('p', 'Ca đã bắt đầu/đã qua. Không thể phân công thay.', 'ml-banner'));
-            return;
-        }
-        try {
-            const params = new URLSearchParams({ leaveRequestId: String(gap.leaveRequestId) });
-            const data = await get(`${api}/gaps/${encodeURIComponent(gap.assignmentId)}/suggestions?${params}`);
-            if (version !== gapVersion) return;
-            candidatePanel.replaceChildren();
-            candidatePanel.append(el('h3', `Gợi ý cho ${gap.shiftName} · ${date(gap.workDate)}`));
-            if (gap.status === 'LEGACY') {
-                candidatePanel.append(el('p', 'Ca của đơn cũ: có thể xem gợi ý nhưng cần đối soát nguồn ca hủy trước khi xác nhận.', 'ml-banner'));
-            } else {
-                const deferButton = el('button', 'Để trống, xử lý sau', 'ml-phase4-defer');
-                deferButton.type = 'button';
-                deferButton.addEventListener('click', () => deferReplacement(gap, deferButton));
-                candidatePanel.append(deferButton);
-            }
-            const candidates = data.candidates || [];
-            if (candidates.length === 0) {
-                candidatePanel.append(el('p', 'Chưa tìm thấy nhân viên phù hợp. Manager cần chủ động sắp xếp.', 'ml-muted'));
+                broadcastBlocks.append(el('p', 'Không có ca nào cần bố trí nhân sự thay thế.', 'ml-muted'));
                 return;
             }
-            for (const tier of [1, 2]) {
-                const group = candidates.filter(c => c.priorityLevel === tier);
-                candidatePanel.append(el('p', tier === 1
-                    ? 'Ưu tiên 1 — Đã đăng ký rảnh đúng ca'
-                    : 'Ưu tiên 2 — Chưa có đăng ký rảnh được duyệt cho ca này', 'ml-priority-title'));
-                if (group.length === 0) candidatePanel.append(el('p', 'Không có ứng viên ở nhóm này.', 'ml-muted'));
-                group.forEach(candidate => {
-                    const card = el('article', '', 'ml-candidate');
-                    const header = el('div', '', 'ml-candidate-head');
-                    header.append(el('strong', candidate.employeeName));
-                    header.append(el('span', tier === 1 ? 'Đã đăng ký rảnh' : 'Có thể nhận ca', 'ml-pill'));
-                    card.append(header);
-                    const details = [`${candidate.assignedShiftsThisWeek} ca đã phân công trong tuần`];
-                    if (candidate.sameRole) details.push('Cùng vai trò');
-                    card.append(el('p', details.join(' · ')));
-                    if (gap.status !== 'LEGACY') {
-                        const confirmButton = el('button', 'Xác nhận phân ca', 'ml-phase4-confirm');
-                        confirmButton.type = 'button';
-                        confirmButton.addEventListener('click', () => confirmReplacement(gap, candidate, confirmButton));
-                        card.append(confirmButton);
-                    }
-                    candidatePanel.append(card);
-                });
-            }
+
+            gaps.forEach((gap, index) => {
+                const card = el('div', '', 'ot-mgr-block');
+                const isBroadcast = Boolean(gap.isOvertimeBroadcast);
+                const isFilled = gap.status === 'FILLED';
+
+                // Trạng thái: 🟢 Đã có người nhận | 🟡 Đang kêu gọi | 🔴 Chưa kêu gọi
+                let statusHtml = '';
+                let actionHtml = '';
+
+                if (isFilled) {
+                    card.classList.add('status-filled');
+                    statusHtml = `<span class="ot-badge-filled">🟢 Đã có người nhận: <strong>${gap.replacementEmployeeName || 'Đồng nghiệp'}</strong></span>`;
+                } else if (isBroadcast) {
+                    card.classList.add('status-broadcasting');
+                    statusHtml = `<span class="ot-badge-broadcasting">🟡 Đang kêu gọi tăng ca</span>`;
+                    actionHtml = `<button type="button" class="btn-cancel-single" data-id="${gap.assignmentId}">✕ Hủy ca này</button>`;
+                } else {
+                    card.classList.add('status-pending');
+                    statusHtml = `<span class="ot-badge-pending">🔴 Chưa kêu gọi</span>`;
+                    actionHtml = `
+                        <label class="cb-single-wrap">
+                            <input type="checkbox" class="cb-select-shift" data-id="${gap.assignmentId}">
+                        </label>
+                        <button type="button" class="btn-broadcast-single" data-id="${gap.assignmentId}">📢 Kêu gọi</button>
+                    `;
+                }
+
+                card.innerHTML = `
+                    <div class="ot-block-head">
+                        <span class="ot-block-num">${index + 1}.</span>
+                        <strong class="ot-block-title">${gap.shiftName} (${time(gap.startTime)} – ${time(gap.endTime)}) · ${date(gap.workDate)}</strong>
+                    </div>
+                    <div class="ot-block-body">
+                        <div class="ot-block-status">Trạng thái: ${statusHtml}</div>
+                        <div class="ot-block-actions">${actionHtml}</div>
+                    </div>
+                `;
+
+                // Event nút Hủy
+                const cancelBtn = card.querySelector('.btn-cancel-single');
+                if (cancelBtn) {
+                    cancelBtn.addEventListener('click', async () => {
+                        if (busy) return;
+                        busy = true;
+                        cancelBtn.disabled = true;
+                        try {
+                            await postReplacement(`${root.dataset.replacementApi || `${api}/replacements`}/${gap.assignmentId}/cancel-broadcast`);
+                            toast('Đã hủy kêu gọi ca này.');
+                            await summary();
+                            await openSuggestions(requestId);
+                        } catch (err) { toast(err.message, true); cancelBtn.disabled = false; }
+                        finally { busy = false; }
+                    });
+                }
+
+                // Event nút Kêu gọi lẻ
+                const broadcastBtn = card.querySelector('.btn-broadcast-single');
+                if (broadcastBtn) {
+                    broadcastBtn.addEventListener('click', async () => {
+                        if (busy) return;
+                        const ok = await window.CoffeeDialog.confirm({
+                            title: 'Kêu gọi tăng ca',
+                            message: `Phát thông báo kêu gọi toàn bộ nhân viên đủ điều kiện nhận ca ${gap.shiftName} ngày ${date(gap.workDate)}?`,
+                            confirmText: '📢 Phát lệnh'
+                        });
+                        if (!ok) return;
+                        busy = true;
+                        broadcastBtn.disabled = true;
+                        try {
+                            await postReplacement(`${root.dataset.replacementApi || `${api}/replacements`}/${gap.assignmentId}/broadcast`);
+                            toast('Đã phát thông báo kêu gọi tăng ca!');
+                            await summary();
+                            await openSuggestions(requestId);
+                        } catch (err) { toast(err.message, true); broadcastBtn.disabled = false; }
+                        finally { busy = false; }
+                    });
+                }
+
+                broadcastBlocks.append(card);
+            });
+
+            // Gán event cho các checkbox chọn ca
+            broadcastBlocks.querySelectorAll('.cb-select-shift').forEach(cb => {
+                cb.addEventListener('change', updateBulkButtonState);
+            });
+
         } catch (error) {
-            if (version === gapVersion) candidatePanel.replaceChildren(el('p', error.message, 'ml-banner'));
+            if (version === gapVersion) broadcastBlocks.replaceChildren(el('p', error.message, 'ml-banner'));
         }
     }
 
+    function updateBulkButtonState() {
+        const checked = broadcastBlocks ? broadcastBlocks.querySelectorAll('.cb-select-shift:checked') : [];
+        const count = checked.length;
+        if (selectedCountSpan) selectedCountSpan.textContent = count;
+        if (bulkBtn) bulkBtn.disabled = count === 0 || busy;
+    }
+
+    // Event: Checkbox Chọn tất cả
+    if (selectAllCb) {
+        selectAllCb.addEventListener('change', () => {
+            const boxes = broadcastBlocks.querySelectorAll('.cb-select-shift');
+            boxes.forEach(cb => cb.checked = selectAllCb.checked);
+            updateBulkButtonState();
+        });
+    }
+
+    // Event: Nút Kêu gọi hàng loạt ở Footer
+    if (bulkBtn) {
+        bulkBtn.addEventListener('click', async () => {
+            const checkedBoxes = Array.from(broadcastBlocks.querySelectorAll('.cb-select-shift:checked'));
+            if (!checkedBoxes.length || busy) return;
+
+            const ids = checkedBoxes.map(cb => cb.dataset.id);
+            const ok = await window.CoffeeDialog.confirm({
+                title: 'Kêu gọi tăng ca hàng loạt',
+                message: `Phát thông báo kêu gọi nhân sự cho ${ids.length} ca đã chọn?`,
+                confirmText: '📢 Kêu gọi ngay'
+            });
+            if (!ok) return;
+
+            busy = true;
+            bulkBtn.disabled = true;
+            let successCount = 0;
+            for (const id of ids) {
+                try {
+                    await postReplacement(`${root.dataset.replacementApi || `${api}/replacements`}/${id}/broadcast`);
+                    successCount++;
+                } catch (e) { console.error('Lỗi ca ' + id, e); }
+            }
+            busy = false;
+            toast(`Đã phát lệnh kêu gọi cho ${successCount}/${ids.length} ca.`);
+            await summary();
+            await openSuggestions();
+        });
+    }
     const queryStatus = new URLSearchParams(window.location.search).get('status');
     if (queryStatus && ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'].includes(queryStatus)) status.value = queryStatus;
     document.querySelectorAll('.ml-stat[data-filter]').forEach(button => button.addEventListener('click', () => {

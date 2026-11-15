@@ -52,4 +52,27 @@ public class LeaveReplacementConfirmationController {
             return ResponseEntity.badRequest().body(ApiResponse.error(ex.getMessage()));
         }
     }
+    @PostMapping("/{assignmentId}/broadcast")
+    public ResponseEntity<ApiResponse<Void>> broadcast(
+            @PathVariable Integer assignmentId,
+            @AuthenticationPrincipal AuthenticatedUser manager) {
+        try {
+            managerLeaveService.broadcastOvertime(assignmentId, manager);
+            return ResponseEntity.ok(ApiResponse.ok("Đã phát lệnh kêu gọi tăng ca.", null));
+        } catch (BusinessException ex) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(ex.getMessage()));
+        }
+    }
+
+    @PostMapping("/{assignmentId}/cancel-broadcast")
+    public ResponseEntity<ApiResponse<Void>> cancelBroadcast(
+            @PathVariable Integer assignmentId,
+            @AuthenticationPrincipal AuthenticatedUser manager) {
+        try {
+            managerLeaveService.cancelOvertimeBroadcast(assignmentId, manager);
+            return ResponseEntity.ok(ApiResponse.ok("Đã hủy kêu gọi tăng ca.", null));
+        } catch (BusinessException ex) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(ex.getMessage()));
+        }
+    }
 }

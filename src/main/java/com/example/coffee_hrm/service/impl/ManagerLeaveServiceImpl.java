@@ -405,7 +405,7 @@ public class ManagerLeaveServiceImpl implements ManagerLeaveService {
                                   LocalDate workDate, String shiftName, java.time.LocalTime startTime,
                                   java.time.LocalTime endTime, String absentEmployeeName, String status,
                                   Integer replacementEmployeeId, String replacementEmployeeName,
-                                  boolean upcoming) { }
+                                  boolean upcoming, boolean isOvertimeBroadcast, LocalDateTime overtimeBroadcastAt) { }
 
     public List<ReplacementView> listReplacements(Integer leaveRequestId, AuthenticatedUser manager) {
         Store store = requireManagedStore(manager);
@@ -521,7 +521,8 @@ public class ManagerLeaveServiceImpl implements ManagerLeaveService {
                 original.getEmployee().getFullName(), status,
                 replacement == null ? null : replacement.getEmployee().getId(),
                 replacement == null ? null : replacement.getEmployee().getFullName(),
-                !VietnamTime.isBeforeNow(original.getWorkDate(), s.getStartTime()));
+                !VietnamTime.isBeforeNow(original.getWorkDate(), s.getStartTime()) ,
+                Boolean.TRUE.equals(original.getIsOvertimeBroadcast()), original.getOvertimeBroadcastAt());
     }
 
     private void ensureWithinLimit(Integer storeId, Shift shift, LocalDate date, Integer candidateId, Integer maximum) {
@@ -553,7 +554,90 @@ public class ManagerLeaveServiceImpl implements ManagerLeaveService {
         return emp != null && emp.getStatus() == EmployeeStatus.ACTIVE
                 && !approvedLeaveCoverage.blocksShift(emp.getId(), shiftId, date);
     }
+    // ── Broadcast Overtime (Kêu gọi tăng ca) ──
 
+    @Transactional
+    public void broadcastOvertime(Integer assignmentId, AuthenticatedUser manager) {
+        Store store = requireManagedStore(manager);
+        // Lock ca CANCELLED gốc
+        ShiftAssignment original = shiftAssignmentRepository.lockForReplacement(assignmentId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy ca cần kêu gọi."));
+        // Kiểm tra: phải là ca CANCELLED do nghỉ phép, cùng cửa hàng
+        if (original.getStatus() != AssignmentStatus.CANCELLED
+                || original.getCancelledByLeaveRequest() == null
+                || original.getShift() == null
+                || !Objects.equals(original.getShift().getStore().getId(), store.getId())) {
+            throw new BusinessException("Ca không phải ca trống do nghỉ phép của cửa hàng này.");
+        }
+        // Đã có người nhận rồi?
+        if (shiftAssignmentRepository.existsByReplacesAssignment_Id(assignmentId)) {
+            throw new BusinessException("Ca này đã có người nhận, không cần kêu gọi.");
+        }
+        // Đã phát rồi?
+        if (Boolean.TRUE.equals(original.getIsOvertimeBroadcast())) {
+            throw new BusinessException("Ca này đã được phát lệnh kêu gọi trước đó.");
+        }
+
+        // Đánh dấu broadcast
+        User mgrUser = userRepository.findById(manager.getUserId())
+                .orElseThrow(() -> new BusinessException("Không tìm thấy tài khoản quản lý."));
+        original.setIsOvertimeBroadcast(true);
+        original.setOvertimeBroadcastAt(VietnamTime.now());
+        original.setOvertimeBroadcastBy(mgrUser);
+        shiftAssignmentRepository.saveAndFlush(original);
+
+        // Gửi thông báo cho nhân viên ACTIVE + CERTIFIED cùng cửa hàng (loại trừ người đang xin nghỉ ca này)
+        List<Integer> staffIds = employeeRepository.findSchedulableStaffIds(
+                store.getId(), EmployeeStatus.ACTIVE, com.example.coffee_hrm.common.enums.RoleName.STAFF,
+                CertificationStatus.CERTIFIED, manager.getEmployeeId());
+        Shift shift = original.getShift();
+        LocalDate workDate = original.getWorkDate();
+        Set<Integer> excludedEmployeeIds = new HashSet<>();
+        if (original.getEmployee() != null) {
+            excludedEmployeeIds.add(original.getEmployee().getId());
+        }
+        if (shift != null && workDate != null) {
+            excludedEmployeeIds.addAll(leaveRequestSlotRepository.findEmployeeIdsOnApprovedLeaveForShift(
+                    shift.getId(), workDate, ApprovalStatus.APPROVED));
+        }
+        List<Integer> filteredStaffIds = staffIds.stream()
+                .filter(id -> !excludedEmployeeIds.contains(id))
+                .toList();
+        if (!filteredStaffIds.isEmpty()) {
+            List<User> recipients = userRepository.findByEmployeeIds(filteredStaffIds);
+            String shiftLabel = shift.getShiftName() + " (" + shift.getStartTime().toString().substring(0, 5)
+                    + " – " + shift.getEndTime().toString().substring(0, 5) + ")";
+            String dateLabel = original.getWorkDate()
+                    .format(java.time.format.DateTimeFormatter.ofPattern("dd/MM"));
+            notificationService.notifyUsers(recipients,
+                    "Cần người tăng ca gấp",
+                    "Ca " + shiftLabel + " ngày " + dateLabel
+                            + " đang cần người làm thêm. Bấm để nhận ca ngay!",
+                    NotificationType.OVERTIME_BROADCAST,
+                    "OVERTIME_BROADCAST", original.getId());
+        }
+        log.info("Broadcast overtime: assignmentId={}, storeId={}, managerUserId={}",
+                assignmentId, store.getId(), manager.getUserId());
+    }
+
+    @Transactional
+    public void cancelOvertimeBroadcast(Integer assignmentId, AuthenticatedUser manager) {
+        Store store = requireManagedStore(manager);
+        ShiftAssignment original = shiftAssignmentRepository.lockForReplacement(assignmentId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy ca cần hủy kêu gọi."));
+        if (!Boolean.TRUE.equals(original.getIsOvertimeBroadcast())) {
+            throw new BusinessException("Ca này chưa được phát lệnh kêu gọi.");
+        }
+        if (original.getShift() == null
+                || !Objects.equals(original.getShift().getStore().getId(), store.getId())) {
+            throw new BusinessException("Ca không thuộc cửa hàng của bạn.");
+        }
+        original.setIsOvertimeBroadcast(false);
+        original.setOvertimeBroadcastAt(null);
+        original.setOvertimeBroadcastBy(null);
+        shiftAssignmentRepository.saveAndFlush(original);
+        log.info("Cancelled broadcast overtime: assignmentId={}, storeId={}", assignmentId, store.getId());
+    }
     private boolean overlap(Shift a, Shift b) {
         return a.getStartTime().isBefore(b.getEndTime()) && a.getEndTime().isAfter(b.getStartTime());
     }
