@@ -202,6 +202,7 @@ public class NotificationServiceImpl implements NotificationService {
                 case MANAGER -> "/attendance/manager/reports";
                 case ADMIN -> null;
             };
+            case "OVERTIME_BROADCAST" -> "/schedule/staff/overtime";
             default -> null;
         };
     }
