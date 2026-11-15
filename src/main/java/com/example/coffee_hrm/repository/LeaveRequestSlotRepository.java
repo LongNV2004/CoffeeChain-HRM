@@ -45,6 +45,19 @@ public interface LeaveRequestSlotRepository extends JpaRepository<LeaveRequestSl
     }
 
     @Query("""
+            SELECT s.assignment.id AS assignmentId, COUNT(s) AS totalCount
+            FROM LeaveRequestSlot s
+            WHERE s.assignment.id IN :assignmentIds
+            GROUP BY s.assignment.id
+            """)
+    List<AssignmentSubmissionCount> countSubmissionsByAssignmentIds(@Param("assignmentIds") Collection<Integer> assignmentIds);
+
+    interface AssignmentSubmissionCount {
+        Integer getAssignmentId();
+        long getTotalCount();
+    }
+
+    @Query("""
             SELECT COUNT(s) FROM LeaveRequestSlot s
             WHERE s.leaveRequest.employee.id = :employeeId
               AND s.leaveRequest.status = :status
@@ -94,4 +107,14 @@ public interface LeaveRequestSlotRepository extends JpaRepository<LeaveRequestSl
             WHERE s.leaveRequest.id IN :requestIds
             """)
     List<LeaveRequestSlot> findByLeaveRequest_IdIn(@Param("requestIds") Collection<Integer> requestIds);
+
+    @Query("""
+            SELECT DISTINCT s.assignment.employee.id FROM LeaveRequestSlot s
+            WHERE s.assignment.shift.id = :shiftId
+              AND s.assignment.workDate = :workDate
+              AND s.leaveRequest.status = :status
+            """)
+    List<Integer> findEmployeeIdsOnApprovedLeaveForShift(@Param("shiftId") Integer shiftId,
+                                                         @Param("workDate") LocalDate workDate,
+                                                         @Param("status") ApprovalStatus status);
 }

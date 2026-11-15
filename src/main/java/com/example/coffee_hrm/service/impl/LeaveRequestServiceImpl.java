@@ -44,6 +44,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -71,6 +72,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
     private static final int HISTORY_PAGE_SIZE = 20;
     private static final int MAX_RANGE_DAYS = 42;
     private static final int MAX_LISTED_SLOTS = 200;
+    private static final int MAX_LEAVE_ATTEMPTS_PER_SLOT = 3;
     private static final String NOT_YOURS = "Một hoặc nhiều ca không thuộc lịch làm việc của bạn.";
     private static final Set<ApprovalStatus> BLOCKING_STATUSES =
             EnumSet.of(ApprovalStatus.PENDING, ApprovalStatus.APPROVED);
@@ -120,9 +122,10 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             upcoming = upcoming.subList(0, MAX_LISTED_SLOTS);
         }
         Map<Integer, ApprovalStatus> blocking = blockingByAssignment(upcoming);
+        Map<Integer, Long> submissionCounts = submissionCountsByAssignment(upcoming.stream().map(ShiftAssignment::getId).toList());
         Set<String> attended = attendedKeys(employee.getId(), range[0], range[1]);
         List<LeaveSlotOption> slots = upcoming.stream()
-                .map(row -> toOption(row, blocking.get(row.getId()), attended))
+                .map(row -> toOption(row, blocking.get(row.getId()), attended, submissionCounts.getOrDefault(row.getId(), 0L)))
                 .toList();
         return new LeaveSlotPage(slots, range[0], range[1], truncated);
     }
@@ -362,6 +365,15 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         if (blocked != null && !blocked.isEmpty()) {
             throw new BusinessException("Ca này đã có đơn nghỉ đang chờ hoặc đã duyệt.");
         }
+        Map<Integer, Long> submissionCounts = submissionCountsByAssignment(unique);
+        for (ShiftAssignment sa : ordered) {
+            long count = submissionCounts.getOrDefault(sa.getId(), 0L);
+            if (count >= MAX_LEAVE_ATTEMPTS_PER_SLOT) {
+                throw new BusinessException("Ca " + sa.getShift().getShiftName() + " ngày "
+                        + sa.getWorkDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                        + " đã đạt tối đa " + MAX_LEAVE_ATTEMPTS_PER_SLOT + " lần gửi đơn (đã bị từ chối hoặc hủy). Không thể gửi thêm.");
+            }
+        }
         ordered.sort(Comparator.comparing(ShiftAssignment::getWorkDate)
                 .thenComparing(row -> row.getShift().getStartTime()));
         return ordered;
@@ -467,6 +479,21 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         return result;
     }
 
+    private Map<Integer, Long> submissionCountsByAssignment(Collection<Integer> assignmentIds) {
+        if (assignmentIds == null || assignmentIds.isEmpty()) {
+            return Map.of();
+        }
+        List<LeaveRequestSlotRepository.AssignmentSubmissionCount> counts =
+                leaveRequestSlotRepository.countSubmissionsByAssignmentIds(assignmentIds);
+        Map<Integer, Long> result = new HashMap<>();
+        if (counts != null) {
+            for (LeaveRequestSlotRepository.AssignmentSubmissionCount c : counts) {
+                result.put(c.getAssignmentId(), c.getTotalCount());
+            }
+        }
+        return result;
+    }
+
     private Set<String> attendedKeys(Integer employeeId, LocalDate fromDate, LocalDate toDate) {
         List<AttendanceRepository.ShiftWorkDate> rows = attendanceRepository.findShiftDates(employeeId, fromDate, toDate);
         Set<String> keys = new java.util.HashSet<>();
@@ -483,23 +510,29 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         return shift != null && !VietnamTime.isBeforeNow(row.getWorkDate(), shift.getStartTime());
     }
 
-    private LeaveSlotOption toOption(ShiftAssignment row, ApprovalStatus leaveStatus, Set<String> attended) {
+    private LeaveSlotOption toOption(ShiftAssignment row, ApprovalStatus leaveStatus, Set<String> attended, long submissionCount) {
         Shift shift = row.getShift();
         String storeName = shift.getStore() == null ? "" : shift.getStore().getStoreName();
         String scheduleStatus = row.getStatus() == AssignmentStatus.ASSIGNED ? "Đã phân công" : "Đã hủy";
         String leaveLabel = leaveStatus == null ? "" : leaveStatus.getLabel();
         String blocked = null;
+        boolean maxAttemptsReached = submissionCount >= MAX_LEAVE_ATTEMPTS_PER_SLOT;
         boolean selectable = row.getStatus() == AssignmentStatus.ASSIGNED && leaveStatus == null
                 && !VietnamTime.isBeforeNow(row.getWorkDate(), shift.getStartTime())
-                && !attended.contains(shift.getId() + "_" + row.getWorkDate());
+                && !attended.contains(shift.getId() + "_" + row.getWorkDate())
+                && !maxAttemptsReached;
         if (row.getStatus() != AssignmentStatus.ASSIGNED) {
             blocked = "Ca không còn hiệu lực.";
         } else if (leaveStatus != null) {
             blocked = "Ca đã có đơn nghỉ " + leaveLabel.toLowerCase() + ".";
+        } else if (maxAttemptsReached) {
+            blocked = "Đã gửi tối đa " + MAX_LEAVE_ATTEMPTS_PER_SLOT + " lần cho ca này.";
         } else if (VietnamTime.isBeforeNow(row.getWorkDate(), shift.getStartTime())) {
             blocked = "Ca đã bắt đầu hoặc đã qua.";
         } else if (attended.contains(shift.getId() + "_" + row.getWorkDate())) {
             blocked = "Ca đã có dữ liệu chấm công.";
+        } else if (submissionCount > 0) {
+            leaveLabel = "Đã gửi " + submissionCount + "/" + MAX_LEAVE_ATTEMPTS_PER_SLOT + " lần";
         }
         return new LeaveSlotOption(row.getId(), row.getWorkDate(), weekday(row.getWorkDate()),
                 shift.getShiftName(), shift.getStartTime(), shift.getEndTime(), storeName,

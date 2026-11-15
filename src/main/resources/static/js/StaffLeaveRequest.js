@@ -71,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function slotLine(slot) {
-        return `${formatDate(slot.workDate)} ${slot.weekday || ''} · ${slot.shiftName} ${formatTime(slot.startTime)}–${formatTime(slot.endTime)}`;
+        return `${formatDate(slot.workDate)} (${slot.weekday || ''})\n${slot.shiftName} (${formatTime(slot.startTime)}–${formatTime(slot.endTime)})`;
     }
 
     function renderSlotRows() {
@@ -162,18 +162,17 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok || !result.success) throw new Error(result.message || 'Không kiểm tra được đơn.');
             const data = result.data;
             const lines = [
-                `Số ca đang chọn: ${data.requestedWorkDays}.`,
-                ...chosen.map(slot => slotLine(slot)),
-                `Loại nghỉ: ${data.leaveTypeLabel}.`,
-                'Trạng thái sau khi gửi: Chờ duyệt.',
-                data.deductsAnnualLeave
-                    ? `Số ca phép năm dự kiến bị trừ khi duyệt: ${data.requestedWorkDays}. Chưa trừ lúc gửi.`
-                    : 'Đơn này không trừ ca phép năm.'
+                `Số ca đang chọn: ${data.requestedWorkDays} ca.`,
+                ...chosen.map(slot => slotLine(slot))
             ];
-            (data.years || []).forEach(year => {
-                lines.push(`Năm ${year.year}: xin ${year.requestedDays} ca · định mức ${year.totalDays} · đã dùng ${year.usedDays} · đang chờ ${year.pendingDays} · khả dụng ${year.availableDays} ca.`);
-            });
-            if (data.processNote) lines.push(data.processNote);
+            if (data.deductsAnnualLeave) {
+                lines.push(`Loại: ${data.leaveTypeLabel} (có tính lương · trừ ${data.requestedWorkDays} ca phép khi duyệt).`);
+                (data.years || []).forEach(year => {
+                    lines.push(`Quỹ năm ${year.year}: khả dụng ${year.availableDays} ca (đã dùng ${year.usedDays}, đang chờ ${year.pendingDays}).`);
+                });
+            } else {
+                lines.push(`Loại: ${data.leaveTypeLabel} (không tính lương · không trừ phép năm).`);
+            }
             message(lines.join('\n'));
             preview.style.whiteSpace = 'pre-line';
             previewReady = true;
@@ -338,12 +337,14 @@ document.addEventListener('DOMContentLoaded', () => {
             detailBody.replaceChildren();
             const grid = document.createElement('div');
             grid.className = 'leave-detail-grid';
+            const slotText = (item.slots || []).map(slot =>
+                `${formatDate(slot.workDate)} ${slot.weekday || ''}\n${slot.shiftName} ${formatTime(slot.startTime)}–${formatTime(slot.endTime)}`
+            ).join('\n\n') || '—';
             grid.append(
                 field('Mã đơn', item.id),
                 field('Loại nghỉ', item.leaveTypeLabel),
                 field('Số ca', item.requestedWorkDays),
-                field('Ca xin nghỉ', (item.slots || []).map(slot =>
-                    `${formatDate(slot.workDate)} ${slot.weekday || ''} ${slot.shiftName} ${formatTime(slot.startTime)}–${formatTime(slot.endTime)}`).join('; ') || '—'),
+                field('Ca xin nghỉ', slotText),
                 field('Trạng thái', item.statusLabel),
                 field('Người xử lý', item.approvedByName),
                 field('Thời điểm xử lý', formatDateTime(item.resolvedDate)),

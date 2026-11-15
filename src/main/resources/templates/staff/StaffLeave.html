@@ -79,16 +79,6 @@
                     </table>
                 </div>
                 <p class="leave-note">Chọn một hoặc nhiều ca cần nghỉ. Tuần này và tuần sau chỉ để xem các ca đã được phân.</p>
-                <div th:if="${lateCancelPenaltyAbs != null}"
-                     style="background:#FFF8E1;border:1px solid #FDE68A;border-radius:6px;padding:8px 12px;font-size:12px;color:#92400E;margin:6px 0 10px;">
-                    <div style="background:#FFF8E1;border:1px solid #FDE68A;border-radius:6px;padding:8px 12px;font-size:12px;color:#92400E;margin:6px 0 10px;">
-                        <strong>Quy định gửi đơn:</strong> Nghỉ phép năm gửi trước ít nhất <strong>24 tiếng</strong>; Nghỉ không hưởng lương gửi trước ít nhất <strong>15 phút</strong>.
-                    </div>
-                    <strong>Quy tắc Điểm chuyên cần:</strong> Nghỉ báo sát giờ (dưới 24h) khi duyệt sẽ bị
-                    <strong th:text="'trừ ' + ${lateCancelPenaltyAbs} + ' điểm chuyên cần'">trừ 10 điểm chuyên cần</strong>.
-                    Đồng nghiệp làm thay hoàn thành tốt ca được
-                    <strong th:text="'+' + ${completedSwapBonusPoints} + ' điểm (tối đa ' + ${maxCompletedSwapsPerMonth} + ' lần/tháng)'">+2 điểm (tối đa 3 lần/tháng)</strong>.
-                </div>
                 <label>
                     Lý do xin nghỉ
                     <span>*</span>
@@ -106,13 +96,10 @@
             <aside class="leave-summary" aria-live="polite">
                 <h2>Tóm tắt</h2>
                 <div class="leave-preview" id="leavePreview">Chọn loại nghỉ và ít nhất một ca.</div>
-                <ul class="leave-policy">
-                    <li>Trạng thái ban đầu sau khi gửi: <strong>Chờ duyệt</strong>.</li>
-                    <li th:if="${context.quotaConfigured}">Ca phép năm còn lại: <strong th:text="${context.annualAvailableDays + ' ca'}">0 ca</strong> (đã dùng <span th:text="${context.annualUsedDays}">0</span>, đang chờ <span th:text="${context.annualPendingDays}">0</span>).</li>
-                    <li th:unless="${context.quotaConfigured}">Admin chưa thiết lập số ca phép năm. Nghỉ phép năm chưa gửi được.</li>
-                    <li>Đơn chờ duyệt hoặc bị từ chối không trừ phép. Phép năm chỉ trừ khi được duyệt.</li>
-                    <li>Quản lý cửa hàng là người duyệt. Admin không duyệt từng đơn.</li>
-                </ul>
+                <div class="leave-policy-box" style="margin-top:16px;padding:12px 14px;background:#FFF8E1;border:1px solid #FDE68A;border-radius:10px;font-size:12px;color:#92400E;line-height:1.6;">
+                    <p style="margin:0 0 8px;"><strong>Quy định gửi đơn:</strong><br>• Nghỉ phép năm: gửi trước ít nhất <strong>24 tiếng</strong>.<br>• Nghỉ không hưởng lương: gửi trước ít nhất <strong>15 phút</strong>.</p>
+                    <p style="margin:0;"><strong>Quy tắc Điểm chuyên cần:</strong><br>Nghỉ báo sát giờ (dưới 24h) khi duyệt sẽ bị <strong th:text="'trừ ' + ${lateCancelPenaltyAbs} + ' điểm chuyên cần'">trừ 10 điểm chuyên cần</strong>.</p>
+                </div>
             </aside>
         </div>
     </section>
