@@ -19,5 +19,7 @@ public interface OvertimeRequestService {
     void reviewOvertimeRequest(Integer requestId, boolean approved, String reviewNote, AuthenticatedUser manager);
 
     int reviewAllPending(boolean approved, LocalDate weekStart, AuthenticatedUser manager);
+
+    void claimOvertimeShift(Integer assignmentId, AuthenticatedUser staff);
 }
 

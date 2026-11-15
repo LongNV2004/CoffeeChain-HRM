@@ -37,6 +37,7 @@ import com.example.coffee_hrm.service.support.ApprovedLeaveCoverage;
 import com.example.coffee_hrm.service.support.AvailabilityCoverage;
 import com.example.coffee_hrm.service.support.ContractShiftQuota;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,7 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -82,6 +83,7 @@ public class OvertimeRequestServiceImpl implements OvertimeRequestService {
     private final ApprovedLeaveCoverage approvedLeaveCoverage;
     private final NotificationService notificationService;
     private final ScheduleService scheduleService;
+    private final com.example.coffee_hrm.repository.LeaveRequestSlotRepository leaveRequestSlotRepository;
 
     @Override
     public OvertimePageView getStaffOvertimePage(AuthenticatedUser staff, LocalDate weekStart) {
@@ -124,7 +126,43 @@ public class OvertimeRequestServiceImpl implements OvertimeRequestService {
         List<OvertimePageView.RequestItem> requestItems = allMyRequests.stream()
                 .map(req -> toRequestItem(req, contracts, snapshotCache, limitBySlot, occupiedBySlot))
                 .toList();
-
+        // Lấy các ca đang mở kêu gọi tăng ca trong cửa hàng
+        List<ShiftAssignment> openBroadcasts = shiftAssignmentRepository.findOpenBroadcastShiftsForStore(store.getId());
+        List<OvertimePageView.BroadcastShiftItem> broadcastItems = openBroadcasts.stream()
+                .filter(b -> !VietnamTime.isBeforeNow(b.getWorkDate(), b.getShift().getStartTime()))
+                .filter(b -> {
+                    // Không hiển thị ca tăng ca cho người ban đầu đã xin nghỉ ca này
+                    if (b.getEmployee() != null && Objects.equals(b.getEmployee().getId(), employee.getId())) {
+                        return false;
+                    }
+                    List<Integer> onLeaveIds = leaveRequestSlotRepository.findEmployeeIdsOnApprovedLeaveForShift(
+                            b.getShift().getId(), b.getWorkDate(), ApprovalStatus.APPROVED);
+                    return !onLeaveIds.contains(employee.getId());
+                })
+                .map(b -> {
+                    String conflictReason = null;
+                    boolean eligible = true;
+                    // Kiểm tra nhân viên có trùng ca không
+                    boolean hasOverlap = shiftAssignmentRepository.findByEmployee_IdAndWorkDateAndStatus(
+                                    employee.getId(), b.getWorkDate(), AssignmentStatus.ASSIGNED).stream()
+                            .anyMatch(sa -> sa.getShift().getStartTime().isBefore(b.getShift().getEndTime())
+                                    && sa.getShift().getEndTime().isAfter(b.getShift().getStartTime()));
+                    if (hasOverlap) {
+                        eligible = false;
+                        conflictReason = "Bạn đã có ca làm trùng giờ";
+                    }
+                    return OvertimePageView.BroadcastShiftItem.builder()
+                            .assignmentId(b.getId())
+                            .shiftId(b.getShift().getId())
+                            .shiftName(b.getShift().getShiftName())
+                            .formattedTime(b.getShift().getStartTime().toString().substring(0, 5) + " – " + b.getShift().getEndTime().toString().substring(0, 5))
+                            .workDate(b.getWorkDate())
+                            .dayOfWeekName(b.getWorkDate().getDayOfWeek().getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.forLanguageTag("vi")))
+                            .formattedWorkDate(b.getWorkDate().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")))
+                            .eligibleToClaim(eligible)
+                            .ineligibilityReason(conflictReason)
+                            .build();
+                }).toList();
         return OvertimePageView.builder()
                 .storeName(store.getStoreName())
                 .employeeName(employee.getFullName())
@@ -146,6 +184,7 @@ public class OvertimeRequestServiceImpl implements OvertimeRequestService {
                 .shiftRows(shiftRows)
                 .requests(requestItems)
                 .totals(summarizeRequests(allMyRequests))
+                .broadcastShifts(broadcastItems)
                 .build();
     }
 
@@ -1009,5 +1048,101 @@ public class OvertimeRequestServiceImpl implements OvertimeRequestService {
                                      Set<String> approvedOvertimeSlotKeys,
                                      Set<String> pendingOvertimeSlotKeys,
                                      Map<LocalDate, List<Shift>> shiftsByDate) {
+    }
+    @Override
+    @Transactional
+    public void claimOvertimeShift(Integer assignmentId, AuthenticatedUser staffUser) {
+        if (staffUser == null || staffUser.getEmployeeId() == null) {
+            throw new BusinessException("Vui lòng đăng nhập với tài khoản nhân viên.");
+        }
+        Employee employee = employeeRepository.lockByIdForLeaveRequest(staffUser.getEmployeeId())
+                .orElseThrow(() -> new BusinessException("Không tìm thấy thông tin nhân viên."));
+
+        if (employee.getStatus() != com.example.coffee_hrm.common.enums.EmployeeStatus.ACTIVE) {
+            throw new BusinessException("Tài khoản nhân viên không ở trạng thái hoạt động.");
+        }
+        if (employee.getCertificationStatus() != com.example.coffee_hrm.common.enums.CertificationStatus.CERTIFIED) {
+            throw new BusinessException("Bạn chưa hoàn thành chứng chỉ nghiệp vụ, không thể nhận ca làm việc.");
+        }
+
+        // 1. Lock ca CANCELLED gốc chống race-condition
+        ShiftAssignment original = shiftAssignmentRepository.lockForReplacement(assignmentId)
+                .orElseThrow(() -> new BusinessException("Ca làm việc này đã được người khác nhận trước hoặc không còn tồn tại."));
+
+        if (!Boolean.TRUE.equals(original.getIsOvertimeBroadcast())) {
+            throw new BusinessException("Ca làm việc này đã đóng kêu gọi tăng ca.");
+        }
+        if (shiftAssignmentRepository.existsByReplacesAssignment_Id(assignmentId)) {
+            throw new BusinessException("Ca làm việc này đã được người khác nhận trước ít giây!");
+        }
+
+        Shift shift = original.getShift();
+        LocalDate workDate = original.getWorkDate();
+
+        // 2. Kiểm tra giờ: ca chưa được diễn ra
+        if (VietnamTime.isBeforeNow(workDate, shift.getStartTime())) {
+            throw new BusinessException("Ca làm việc đã bắt đầu hoặc đã qua, không thể nhận.");
+        }
+
+        // Không cho phép người đã xin nghỉ ca này nhận lại làm tăng ca
+        if (original.getEmployee() != null && Objects.equals(original.getEmployee().getId(), employee.getId())) {
+            throw new BusinessException("Bạn là người xin nghỉ ca này, không thể nhận lại làm tăng ca.");
+        }
+        if (leaveRequestSlotRepository.existsForShift(employee.getId(), shift.getId(), workDate, ApprovalStatus.APPROVED)) {
+            throw new BusinessException("Bạn đã được duyệt nghỉ ca này, không thể nhận làm tăng ca.");
+        }
+
+        // 3. Kiểm tra không trùng ca trong ngày
+        List<ShiftAssignment> myAssignmentsOnDate = shiftAssignmentRepository.findByEmployee_IdAndWorkDateAndStatus(
+                employee.getId(), workDate, AssignmentStatus.ASSIGNED);
+        for (ShiftAssignment assigned : myAssignmentsOnDate) {
+            if (shift.getStartTime().isBefore(assigned.getShift().getEndTime())
+                    && shift.getEndTime().isAfter(assigned.getShift().getStartTime())) {
+                throw new BusinessException("Bạn đã có ca làm trùng giờ trong ngày này.");
+            }
+        }
+
+        // 4. Kiểm tra giới hạn: tối đa 2 ca/ngày
+        if (myAssignmentsOnDate.size() >= 2) {
+            throw new BusinessException("Bạn đã đạt giới hạn tối đa 2 ca làm việc trong ngày.");
+        }
+
+        // 5. Kiểm tra đơn nghỉ phép duyệt bao trùm ngày
+        if (approvedLeaveCoverage.blocksShift(employee.getId(), shift.getId(), workDate)) {
+            throw new BusinessException("Bạn đang trong thời gian nghỉ phép đã được duyệt, không thể nhận tăng ca.");
+        }
+
+        // 6. Tạo ShiftAssignment mới đưa nhân viên vào Lịch làm việc
+        ShiftAssignment replacement = ShiftAssignment.builder()
+                .shift(shift)
+                .employee(employee)
+                .workDate(workDate)
+                .status(AssignmentStatus.ASSIGNED)
+                .isPublished(true)
+                .publishedAt(VietnamTime.now())
+                .replacesAssignment(original)
+                .build();
+        replacement = shiftAssignmentRepository.saveAndFlush(replacement);
+
+        // 7. Cập nhật ca gốc: tắt broadcast
+        original.setIsOvertimeBroadcast(false);
+        shiftAssignmentRepository.save(original);
+
+        // 8. Tạo bản ghi OvertimeRequest để LƯU VẾT LỊCH SỬ & TÍNH LƯƠNG TĂNG CA
+        OvertimeRequest otLog = OvertimeRequest.builder()
+                .employee(employee)
+                .store(shift.getStore())
+                .shift(shift)
+                .workDate(workDate)
+                .reason("Nhận ca kêu gọi tăng ca khẩn cấp (Thay thế ca nghỉ phép)")
+                .status(ApprovalStatus.APPROVED)
+                .createdAssignmentId(replacement.getId())
+                .reviewedAt(VietnamTime.now())
+                .reviewNote("Tự động duyệt do nhận ca tăng ca được Quản lý phát lệnh")
+                .build();
+        overtimeRequestRepository.save(otLog);
+
+        log.info("Claimed overtime shift successfully: originalAssignmentId={}, newAssignmentId={}, employeeId={}",
+                assignmentId, replacement.getId(), employee.getId());
     }
 }

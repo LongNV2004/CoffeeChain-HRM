@@ -16,7 +16,7 @@ import java.util.List;
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @ToString(exclude = {"shift", "employee", "changeRequests", "cancelledByLeaveRequest",
-        "replacesAssignment", "replacementConfirmedBy"})
+        "replacesAssignment", "replacementConfirmedBy", "overtimeBroadcastBy"})
 public class ShiftAssignment {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -68,6 +68,18 @@ public class ShiftAssignment {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ReplacementConfirmedBy")
     private User replacementConfirmedBy;
+
+    // ── Overtime Broadcast (Kêu gọi tăng ca) ──
+    @Column(name = "IsOvertimeBroadcast", nullable = false)
+    @Builder.Default
+    private Boolean isOvertimeBroadcast = false;
+
+    @Column(name = "OvertimeBroadcastAt")
+    private LocalDateTime overtimeBroadcastAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "OvertimeBroadcastByUserId")
+    private User overtimeBroadcastBy;
 
     @PrePersist
     public void prePersist() {

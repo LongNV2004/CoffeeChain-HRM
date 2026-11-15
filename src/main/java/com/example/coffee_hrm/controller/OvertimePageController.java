@@ -155,6 +155,22 @@ public class OvertimePageController {
         keepParams(redirectAttributes, week, null);
         return "redirect:/schedule/staff/overtime";
     }
+    @PostMapping("/schedule/staff/overtime/{id}/claim")
+    @PreAuthorize("hasRole('STAFF')")
+    public String claimStaffOvertime(@PathVariable Integer id,
+                                     @RequestParam(required = false) String week,
+                                     @AuthenticationPrincipal AuthenticatedUser user,
+                                     RedirectAttributes redirectAttributes) {
+        try {
+            overtimeRequestService.claimOvertimeShift(id, user);
+            redirectAttributes.addFlashAttribute("successMessage",
+                    "Nhận ca thành công! Ca làm việc đã được cập nhật vào Lịch của bạn và ghi nhận lịch sử tăng ca.");
+        } catch (BusinessException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
+        }
+        keepParams(redirectAttributes, week, null);
+        return "redirect:/schedule/staff/overtime";
+    }
 
     private void populateStaffPage(AuthenticatedUser user, String week, Model model) {
         model.addAttribute("navRole", "staff");

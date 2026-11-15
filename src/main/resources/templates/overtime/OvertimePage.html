@@ -170,7 +170,42 @@
                 </div>
             </form>
         </section>
+        <!-- ==================== KHỐI CA KÊU GỌI TĂNG CA GẤP ==================== -->
+        <section class="panel ot-broadcast-panel" th:if="${overtimeView.broadcastShifts != null and !#lists.isEmpty(overtimeView.broadcastShifts)}">
+            <div class="ot-broadcast-header">
+                <h2>📢 CỬA HÀNG ĐANG CẦN TĂNG CA GẤP!</h2>
+                <span class="ot-broadcast-count" th:text="${#lists.size(overtimeView.broadcastShifts) + ' ca đang mở'}">1 ca đang mở</span>
+            </div>
+            <p class="muted">Các ca làm việc đang khuyết nhân sự do nghỉ phép. Nhân viên nhận ca sẽ được tính công theo chế độ Làm thêm (Overtime).</p>
+            <div style="background:#EBF5FF;border:1px solid #BFDBFE;border-radius:8px;padding:9px 13px;font-size:12px;color:#1E40AF;margin:0 0 14px;">
+                💡 <strong>Điểm chuyên cần:</strong> Đồng nghiệp nhận làm thay và hoàn thành tốt ca được <strong>+2 điểm chuyên cần</strong> (tối đa 3 lần/tháng).
+            </div>
 
+            <div class="ot-broadcast-cards">
+                <article class="ot-broadcast-card" th:each="b : ${overtimeView.broadcastShifts}">
+                    <div class="ot-broadcast-info">
+                        <div class="ot-broadcast-title">
+                            ☕ <strong th:text="${b.shiftName + ' (' + b.formattedTime + ')'}">Ca Sáng (07:00 – 12:00)</strong>
+                            <span class="ot-broadcast-date" th:text="${' · ' + b.dayOfWeekName + ', ' + b.formattedWorkDate}"> · Thứ Ba, 17/11/2026</span>
+                        </div>
+                        <div class="ot-broadcast-meta">
+                            <span>• Chế độ: <strong>Tính công ca làm thêm (Overtime)</strong></span>
+                        </div>
+                    </div>
+                    <div class="ot-broadcast-action">
+                        <form th:action="@{/schedule/staff/overtime/{id}/claim(id=${b.assignmentId})}" method="post">
+                            <input type="hidden" name="week" th:value="${overtimeView.weekStart}">
+                            <button type="submit"
+                                    class="btn-claim-ot"
+                                    th:disabled="${!b.eligibleToClaim}">
+                                ✅ NHẬN CA NÀY
+                            </button>
+                        </form>
+                        <small class="ot-conflict-hint" th:if="${!b.eligibleToClaim}" th:text="${b.ineligibilityReason}">Bạn đã có ca làm trùng giờ</small>
+                    </div>
+                </article>
+            </div>
+        </section>
         <section class="panel">
             <h2>Danh sách đơn xin tăng ca của tôi</h2>
             <p class="empty" th:if="${#lists.isEmpty(overtimeView.requests)}">

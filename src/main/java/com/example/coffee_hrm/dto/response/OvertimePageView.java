@@ -40,7 +40,8 @@ public class OvertimePageView {
 
     /** Danh sách đơn xin tăng ca. */
     private final List<RequestItem> requests;
-
+    /** Danh sách ca đang kêu gọi tăng ca gấp trong cửa hàng. */
+    private final List<BroadcastShiftItem> broadcastShifts;
     /** Thống kê tổng hợp đơn xin tăng ca. */
     private final SummaryTotals totals;
 
@@ -125,6 +126,20 @@ public class OvertimePageView {
         private final int pending;
         private final int approved;
         private final int rejected;
+    }
+    @Getter
+    @Builder
+    @AllArgsConstructor
+    public static class BroadcastShiftItem {
+        private final Integer assignmentId;
+        private final Integer shiftId;
+        private final String shiftName;
+        private final String formattedTime;
+        private final LocalDate workDate;
+        private final String dayOfWeekName;
+        private final String formattedWorkDate;
+        private final boolean eligibleToClaim;
+        private final String ineligibilityReason;
     }
 }
 

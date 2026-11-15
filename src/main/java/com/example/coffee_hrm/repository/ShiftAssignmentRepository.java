@@ -338,4 +338,23 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
             @Param("employeeId") Integer employeeId,
             @Param("untilDate") LocalDate untilDate,
             @Param("status") AssignmentStatus status);
+    /**
+     * Tìm các ca trống do nghỉ phép đang phát lệnh kêu gọi tăng ca trong cửa hàng.
+     */
+    @Query("""
+            SELECT sa FROM ShiftAssignment sa
+            JOIN FETCH sa.shift s
+            JOIN FETCH s.store st
+            JOIN FETCH sa.employee e
+            WHERE st.id = :storeId
+              AND sa.status = com.example.coffee_hrm.common.enums.AssignmentStatus.CANCELLED
+              AND sa.isOvertimeBroadcast = true
+              AND NOT EXISTS (
+                  SELECT rep.id FROM ShiftAssignment rep
+                  WHERE rep.replacesAssignment.id = sa.id
+                    AND rep.status = com.example.coffee_hrm.common.enums.AssignmentStatus.ASSIGNED
+              )
+            ORDER BY sa.workDate ASC, s.startTime ASC
+            """)
+    List<ShiftAssignment> findOpenBroadcastShiftsForStore(@Param("storeId") Integer storeId);
 }

@@ -362,4 +362,94 @@
   color: var(--ink-soft, #6e5a4f);
   margin-top: 2px;
 }
+/* ==================== SÀN KÊU GỌI TĂNG CA (BROADCAST OVERTIME) ==================== */
+.ot-broadcast-panel {
+  border: 2px solid var(--caramel, #916038);
+  background: #fffdf9;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  padding: 20px;
+}
+.ot-broadcast-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.ot-broadcast-header h2 {
+  color: #916038;
+  margin: 0;
+  font-size: 1.25rem;
+}
+.ot-broadcast-count {
+  background: #fdf3e7;
+  color: #916038;
+  border: 1px solid #eccbb0;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.ot-broadcast-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+.ot-broadcast-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #ebd8c8;
+  border-radius: 8px;
+  padding: 16px 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.ot-broadcast-card:hover {
+  box-shadow: 0 4px 10px rgba(145, 96, 56, 0.12);
+}
+.ot-broadcast-title {
+  font-size: 1.05rem;
+  color: #2b1f17;
+  margin-bottom: 6px;
+}
+.ot-broadcast-date {
+  color: #6b5c52;
+}
+.ot-broadcast-meta {
+  font-size: 0.88rem;
+  color: #7d6b5e;
+}
+.ot-broadcast-meta strong {
+  color: #2e7d32;
+}
+.btn-claim-ot {
+  background: #2e7d32;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 18px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.btn-claim-ot:hover:not(:disabled) {
+  background: #236327;
+}
+.btn-claim-ot:disabled {
+  background: #c8c8c8;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.ot-conflict-hint {
+  display: block;
+  color: #d32f2f;
+  font-size: 0.78rem;
+  margin-top: 4px;
+  text-align: right;
+}
+
 
