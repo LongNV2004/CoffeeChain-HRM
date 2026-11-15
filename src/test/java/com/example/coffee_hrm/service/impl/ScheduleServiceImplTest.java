@@ -66,6 +66,8 @@ class ScheduleServiceImplTest {
     private ReliabilityService reliabilityService;
     @Mock
     private ShiftCoverInvitationRepository shiftCoverInvitationRepository;
+    @Mock
+    private com.example.coffee_hrm.service.NotificationService notificationService;
 
     @InjectMocks
     private ScheduleServiceImpl scheduleService;
@@ -492,6 +494,54 @@ class ScheduleServiceImplTest {
         // Từ chối lời nhờ của đồng nghiệp không bị trừ điểm
         verifyNoInteractions(reliabilityService);
         verify(shiftChangeRequestRepository).save(pendingRequest);
+    }
+
+    @Test
+    void colleagueAgreeingNotifiesRequesterAndThenManager() {
+        store.setManager(empManager);
+        AuthenticatedUser thuUser = AuthenticatedUser.from(buildUser(4, "staff2", RoleName.STAFF, empThu));
+        when(employeeRepository.findByIdWithStore(30)).thenReturn(Optional.of(empThu));
+        User tuanAccount = buildUser(3, "tuanth", RoleName.STAFF, empTuan);
+        User managerAccount = buildUser(2, "manager1", RoleName.MANAGER, empManager);
+        when(userRepository.findByEmployee_Id(20)).thenReturn(Optional.of(tuanAccount));
+        when(userRepository.findByEmployee_Id(10)).thenReturn(Optional.of(managerAccount));
+
+        ShiftAssignment assignmentA = ShiftAssignment.builder().id(100).employee(empTuan).shift(shiftMorning)
+                .workDate(VietnamTime.today().plusDays(3)).build();
+        ShiftChangeRequest pendingRequest = ShiftChangeRequest.builder()
+                .id(9).assignment(assignmentA).employee(empTuan).targetEmployee(empThu)
+                .status(ApprovalStatus.PENDING).reason("[Chuyển ca] bận").build();
+        when(shiftChangeRequestRepository.findByIdWithDetails(9)).thenReturn(Optional.of(pendingRequest));
+        when(shiftAssignmentRepository.findByEmployee_IdAndWorkDateAndStatus(any(), any(), any())).thenReturn(List.of());
+
+        scheduleService.respondToIncomingShiftChange(9, true, thuUser);
+
+        verify(notificationService).notifyUsers(eq(List.of(tuanAccount)), eq("Đồng nghiệp đã đồng ý đổi ca"),
+                any(), eq(com.example.coffee_hrm.common.enums.NotificationType.SHIFT_CHANGE_SUBMITTED), eq("SHIFT_CHANGE"), eq(9));
+        verify(notificationService).notifyUsers(eq(List.of(managerAccount)), eq("Đơn đổi ca chờ duyệt"),
+                any(), eq(com.example.coffee_hrm.common.enums.NotificationType.SHIFT_CHANGE_SUBMITTED), eq("SHIFT_CHANGE"), eq(9));
+    }
+
+    @Test
+    void colleagueDecliningNotifiesRequesterOnlyNotManager() {
+        store.setManager(empManager);
+        AuthenticatedUser thuUser = AuthenticatedUser.from(buildUser(4, "staff2", RoleName.STAFF, empThu));
+        when(employeeRepository.findByIdWithStore(30)).thenReturn(Optional.of(empThu));
+        User tuanAccount = buildUser(3, "tuanth", RoleName.STAFF, empTuan);
+        when(userRepository.findByEmployee_Id(20)).thenReturn(Optional.of(tuanAccount));
+
+        ShiftAssignment assignmentA = ShiftAssignment.builder().id(100).employee(empTuan).shift(shiftMorning)
+                .workDate(VietnamTime.today().plusDays(3)).build();
+        ShiftChangeRequest pendingRequest = ShiftChangeRequest.builder()
+                .id(10).assignment(assignmentA).employee(empTuan).targetEmployee(empThu)
+                .status(ApprovalStatus.PENDING).reason("[Chuyển ca] bận").build();
+        when(shiftChangeRequestRepository.findByIdWithDetails(10)).thenReturn(Optional.of(pendingRequest));
+
+        scheduleService.respondToIncomingShiftChange(10, false, thuUser);
+
+        verify(notificationService).notifyUsers(eq(List.of(tuanAccount)), eq("Đồng nghiệp từ chối đổi ca"),
+                any(), eq(com.example.coffee_hrm.common.enums.NotificationType.SHIFT_CHANGE_REJECTED), eq("SHIFT_CHANGE"), eq(10));
+        verify(userRepository, never()).findByEmployee_Id(10);
     }
 
     @Test

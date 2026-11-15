@@ -240,8 +240,8 @@ public class ShiftCoverInvitationServiceImpl implements ShiftCoverInvitationServ
         ShiftCoverInvitation invitation = loadOwnPendingInvitation(invitationId, staff);
         // Tái sử dụng toàn bộ kiểm tra nghiệp vụ của "xung phong nhận ca" (trùng ca, nghỉ phép, chứng chỉ...).
         // Hàm này cũng chuyển lời mời của mình sang ACCEPTED và hủy lời mời của người khác.
+        // volunteerRescueShift đã báo cho Quản lý và người nhờ, không gửi trùng ở đây.
         scheduleService.volunteerRescueShift(invitation.getRequest().getId(), staff);
-        notifyManagerOfResponse(invitation, true);
     }
 
     @Override
